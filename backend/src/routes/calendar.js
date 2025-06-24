@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
 const jwt = require('jsonwebtoken');
 const calendarService = require('../services/calendar');
 const meetingService = require('../services/meeting');
@@ -9,8 +8,6 @@ const openai = require('../services/openai');
 const { google } = require('googleapis');
 const { getGoogleAuthClient, refreshAccessToken } = require('../services/calendar');
 const { processMeetingWithAI } = require('../services/meeting');
-
-const prisma = new PrismaClient();
 
 // Get Google Calendar auth URL
 router.get('/auth/google', async (req, res) => {

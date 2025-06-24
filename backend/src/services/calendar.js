@@ -1,8 +1,5 @@
 const { google } = require('googleapis');
-const { PrismaClient } = require('@prisma/client');
 const recallService = require('./recall');
-
-const prisma = new PrismaClient();
 
 class CalendarService {
   constructor() {

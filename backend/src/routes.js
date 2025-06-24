@@ -3,9 +3,7 @@ const router = express.Router();
 const { adjustMeetingSummary, improveTemplate } = require('./services/openai');
 const calendarRoutes = require('./routes/calendar');
 const jwt = require('jsonwebtoken');
-const { PrismaClient } = require('@prisma/client');
 const { authenticateUser } = require('./middleware/auth');
-const prisma = new PrismaClient();
 
 // Helper function for error responses
 const handleError = (res, error) => {

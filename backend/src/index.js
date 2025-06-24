@@ -1,36 +1,27 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const routes = require('./routes');
-const authRoutes = require('./routes/auth');
+import { Hono } from 'hono';
 
-// Debug logging for environment variables
-console.log('Environment variables loaded:', {
-  hasOpenAIKey: !!process.env.OPENAI_API_KEY,
-  hasGoogleClientId: !!process.env.GOOGLE_CLIENT_ID,
-  hasGoogleClientSecret: !!process.env.GOOGLE_CLIENT_SECRET,
-  hasGoogleRedirectUri: !!process.env.GOOGLE_REDIRECT_URI,
-  hasDatabaseUrl: !!process.env.DATABASE_URL
+// D1 helper: expects env.DB to be bound in wrangler.toml
+async function getUserByEmail(env, email) {
+  const stmt = env.DB.prepare('SELECT * FROM User WHERE email = ?');
+  const result = await stmt.bind(email).first();
+  return result;
+}
+
+const app = new Hono();
+
+app.get('/', (c) => c.text('AdvisorAgent Backend API is running'));
+
+app.post('/api/auth/login', async (c) => {
+  const { email, password } = await c.req.json();
+  if (!email || !password) {
+    return c.json({ error: 'Email and password are required' }, 400);
+  }
+  const user = await getUserByEmail(c.env, email);
+  if (!user || user.password !== password) {
+    return c.json({ error: 'Invalid credentials' }, 401);
+  }
+  // TODO: Issue JWT and return user info
+  return c.json({ message: 'Login successful', user: { id: user.id, email: user.email } });
 });
 
-console.log('GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID);
-console.log('GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET);
-console.log('GOOGLE_REDIRECT_URI:', process.env.GOOGLE_REDIRECT_URI);
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-app.get('/', (req, res) => {
-  res.send('AdvisorAgent Backend API is running');
-});
-
-app.use('/api', routes);
-app.use('/api/auth', authRoutes);
-
-const PORT = process.env.PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`Backend server running on port ${PORT}`);
-});
-
-module.exports = app;
+export default app;
