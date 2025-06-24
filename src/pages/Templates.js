@@ -11,11 +11,9 @@ import {
   Chip,
   Snackbar,
   Alert,
-  CircularProgress,
-  Paper
+  CircularProgress
 } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import { useTheme } from '@mui/material/styles';
 import { getMeetingTypeStyles, MeetingTypeIndicator } from '../theme/meetingTypes';
 import { improveTemplate } from '../services/api';
 
@@ -43,7 +41,6 @@ const defaultTemplates = [
 ];
 
 export default function Templates() {
-  const theme = useTheme();
   const [templates, setTemplates] = useState(defaultTemplates);
   const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
   const [editedContent, setEditedContent] = useState(selectedTemplate.content);

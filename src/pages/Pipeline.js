@@ -5,7 +5,6 @@ import {
   Card,
   CardContent,
   Grid,
-  Chip,
   Table,
   TableBody,
   TableCell,
@@ -79,11 +78,6 @@ const formatCurrency = (amount) => {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   }).format(amount);
-};
-
-const getStageColor = (stage) => {
-  const meetingStyles = getMeetingTypeStyles(stage);
-  return meetingStyles.backgroundColor;
 };
 
 export default function Pipeline() {

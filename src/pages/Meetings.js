@@ -14,24 +14,6 @@ import { useAuth } from '../context/AuthContext';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000/api';
 
-// Meeting type color mapping using theme
-const meetingTypeColor = (theme, type) => {
-  switch (type) {
-    case 'Intro Meeting':
-      return theme.palette.warning.main;
-    case 'Cashflow Meeting':
-      return theme.palette.error.main;
-    case 'Performance Meeting':
-      return theme.palette.secondary.main;
-    case 'Signup Meeting':
-      return theme.palette.success.main;
-    case 'Review Meeting':
-      return theme.palette.primary.main;
-    default:
-      return theme.palette.muted.main;
-  }
-};
-
 const formatDateTime = (dateTimeStr) => {
   const date = new Date(dateTimeStr);
   return date.toLocaleString(undefined, {
@@ -44,7 +26,6 @@ const formatDateTime = (dateTimeStr) => {
 };
 
 export default function Meetings() {
-  const theme = useTheme();
   const [meetings, setMeetings] = useState({ future: [], past: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
