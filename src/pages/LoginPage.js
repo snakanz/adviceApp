@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { api } from '../services/api';
 import { Box, Button, Container, Typography } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
 

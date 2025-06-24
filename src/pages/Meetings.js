@@ -6,7 +6,6 @@ import {
 import TeamsIcon from '@mui/icons-material/Groups';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import { useTheme } from '@mui/material/styles';
 import { getMeetingTypeStyles, MeetingTypeIndicator } from '../theme/meetingTypes';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
