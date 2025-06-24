@@ -1,0 +1,5 @@
+node_modules
+# Ignore nothing
+.env
+
+/generated/prisma

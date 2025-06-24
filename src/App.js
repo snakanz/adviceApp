@@ -1,0 +1,53 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { ThemeProvider } from '@mui/material/styles';
+import CssBaseline from '@mui/material/CssBaseline';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import theme from './theme';
+import Layout from './Layout';
+import Clients from './pages/Clients';
+import Meetings from './pages/Meetings';
+import Pipeline from './pages/Pipeline';
+import Templates from './pages/Templates';
+import Settings from './pages/Settings';
+import LoginPage from './pages/LoginPage';
+import AuthCallback from './pages/AuthCallback';
+
+function PrivateRoute() {
+  const { isAuthenticated, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
+  
+  return isAuthenticated ? <Outlet /> : <Navigate to="/login" />;
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+    <Router>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route element={<PrivateRoute />}>
+          <Route path="/" element={<Layout />}>
+                <Route index element={<Navigate to="/meetings" />} />
+            <Route path="clients" element={<Clients />} />
+            <Route path="meetings" element={<Meetings />} />
+            <Route path="pipeline" element={<Pipeline />} />
+            <Route path="templates" element={<Templates />} />
+            <Route path="settings" element={<Settings />} />
+          </Route>
+        </Route>
+            <Route path="*" element={<Navigate to="/meetings" />} />
+      </Routes>
+    </Router>
+      </ThemeProvider>
+    </AuthProvider>
+  );
+}
+
+export default App;

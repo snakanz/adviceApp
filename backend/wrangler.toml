@@ -1,0 +1,8 @@
+name = "marloo-dashboard-backend"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "marloo-dashboard-db"
+database_id = "d894b1bc-25c9-4e22-b395-1f893e5be9fe" 
