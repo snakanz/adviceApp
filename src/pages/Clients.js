@@ -111,9 +111,6 @@ export default function Clients() {
       {/* Client Grid */}
       <Grid container spacing={3}>
         {clients.map((client) => {
-          const profit = parseFloat(client.profit.replace(/[$,]/g, ''));
-          const isProfitable = profit > 0;
-          
           return (
             <Grid item xs={12} sm={6} md={4} lg={3} key={client.id}>
               <Card 
