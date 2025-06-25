@@ -11,19 +11,26 @@ export const AuthProvider = ({ children }) => {
 
   const verifyTokenAndGetUser = async (token) => {
     try {
+      console.log('Verifying token with backend...');
       const response = await fetch(`${API_URL}/auth/verify`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
       
+      console.log('Token verification response status:', response.status);
+      
       if (response.ok) {
         const userData = await response.json();
+        console.log('User data received:', userData);
         setUser(userData);
         setIsAuthenticated(true);
         return true;
       } else {
         // Token is invalid
+        console.error('Token verification failed:', response.status, response.statusText);
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
         localStorage.removeItem('jwt');
         setIsAuthenticated(false);
         setUser(null);
@@ -51,8 +58,11 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (token) => {
+    console.log('Login function called with token');
     localStorage.setItem('jwt', token);
-    await verifyTokenAndGetUser(token);
+    const success = await verifyTokenAndGetUser(token);
+    console.log('Login verification result:', success);
+    return success;
   };
 
   const logout = () => {

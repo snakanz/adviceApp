@@ -35,11 +35,18 @@ const AuthCallback = () => {
         api.setToken(token);
         console.log('Token set in ApiService.');
         
-        // Login the user with just the token
-        login(token);
-        console.log('User logged in, redirecting to /meetings');
-        // Redirect to meetings page
-        navigate('/meetings');
+        // Login the user with the token (now async)
+        const loginSuccess = await login(token);
+        console.log('Login result:', loginSuccess);
+        
+        if (loginSuccess) {
+          console.log('User logged in successfully, redirecting to /meetings');
+          navigate('/meetings');
+        } else {
+          console.error('Login failed');
+          alert('Login failed - unable to verify token');
+          navigate('/login');
+        }
       } catch (error) {
         console.error('Error processing authentication:', error);
         alert('Error processing authentication: ' + error);

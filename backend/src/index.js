@@ -240,9 +240,29 @@ app.get('/api/auth/verify', async (c) => {
   }
   const token = authHeader.split(' ')[1];
   try {
+    console.log('Verifying token:', token.substring(0, 50) + '...');
     // Decode JWT (no signature check for demo; add HMAC check for production)
     const [headerB64, payloadB64, signature] = token.split('.');
-    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
+    
+    if (!headerB64 || !payloadB64 || !signature) {
+      console.log('Invalid token format - missing parts');
+      return c.json({ error: 'Invalid token format' }, 401);
+    }
+    
+    // Proper base64url decoding
+    function base64urlDecode(str) {
+      // Add padding if needed
+      str += '='.repeat((4 - str.length % 4) % 4);
+      // Replace URL-safe characters
+      str = str.replace(/-/g, '+').replace(/_/g, '/');
+      return atob(str);
+    }
+    
+    const payloadStr = base64urlDecode(payloadB64);
+    console.log('Decoded payload string:', payloadStr);
+    const payload = JSON.parse(payloadStr);
+    console.log('Parsed payload:', payload);
+    
     // Optionally: check exp, iat, etc.
     return c.json({
       id: payload.id,
@@ -252,7 +272,8 @@ app.get('/api/auth/verify', async (c) => {
       providerId: payload.providerId
     });
   } catch (e) {
-    return c.json({ error: 'Invalid token' }, 401);
+    console.error('Token verification error:', e);
+    return c.json({ error: 'Invalid token: ' + e.message }, 401);
   }
 });
 
@@ -267,7 +288,17 @@ app.get('/api/calendar/meetings/all', async (c) => {
   try {
     // Decode JWT to get user ID
     const [headerB64, payloadB64, signature] = token.split('.');
-    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
+    
+    // Proper base64url decoding
+    function base64urlDecode(str) {
+      // Add padding if needed
+      str += '='.repeat((4 - str.length % 4) % 4);
+      // Replace URL-safe characters
+      str = str.replace(/-/g, '+').replace(/_/g, '/');
+      return atob(str);
+    }
+    
+    const payload = JSON.parse(base64urlDecode(payloadB64));
     
     // Fetch real calendar events
     const events = await fetchGoogleCalendarEvents(c.env, payload.id);
