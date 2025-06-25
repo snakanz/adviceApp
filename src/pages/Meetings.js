@@ -18,7 +18,7 @@ import { adjustMeetingSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://dashboard-backend.example.com/api';
+const API_URL = process.env.REACT_APP_API_URL || 'https://marloo-dashboard-backend.nelson-ec5.workers.dev/api';
 
 const formatDateTime = (dateTimeStr) => {
   const date = new Date(dateTimeStr);

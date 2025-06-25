@@ -15,7 +15,7 @@ const LoginPage = () => {
     }, [isAuthenticated, navigate]);
 
     const handleGoogleLogin = () => {
-        window.location.href = 'https://dashboard-backend.example.com/api/calendar/auth/google';
+        window.location.href = 'https://marloo-dashboard-backend.nelson-ec5.workers.dev/api/calendar/auth/google';
     };
 
     return (
