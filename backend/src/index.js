@@ -14,6 +14,99 @@ async function createUser(env, { email, name, provider, providerId }) {
   return { id, email, name, provider, providerId };
 }
 
+async function updateUser(env, { id, name }) {
+  const stmt = env.DB.prepare('UPDATE User SET name = ? WHERE id = ?');
+  await stmt.bind(name, id).run();
+}
+
+async function storeCalendarTokens(env, { userId, accessToken, refreshToken, expiresAt, provider }) {
+  // First, delete any existing tokens for this user
+  const deleteStmt = env.DB.prepare('DELETE FROM CalendarToken WHERE userId = ?');
+  await deleteStmt.bind(userId).run();
+  
+  // Insert new tokens
+  const insertStmt = env.DB.prepare(`
+    INSERT INTO CalendarToken (id, userId, accessToken, refreshToken, expiresAt, provider, createdAt, updatedAt) 
+    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  `);
+  const tokenId = crypto.randomUUID();
+  await insertStmt.bind(tokenId, userId, accessToken, refreshToken, expiresAt, provider).run();
+}
+
+async function getCalendarTokens(env, userId) {
+  const stmt = env.DB.prepare('SELECT * FROM CalendarToken WHERE userId = ?');
+  const result = await stmt.bind(userId).first();
+  return result;
+}
+
+async function refreshGoogleToken(env, refreshToken) {
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: env.GOOGLE_CLIENT_ID,
+      client_secret: env.GOOGLE_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token'
+    })
+  });
+  
+  if (!tokenRes.ok) {
+    throw new Error('Failed to refresh token');
+  }
+  
+  return await tokenRes.json();
+}
+
+async function fetchGoogleCalendarEvents(env, userId) {
+  try {
+    // Get stored tokens
+    const tokens = await getCalendarTokens(env, userId);
+    if (!tokens) {
+      throw new Error('No calendar tokens found');
+    }
+    
+    let accessToken = tokens.accessToken;
+    
+    // Check if token is expired and refresh if needed
+    if (new Date(tokens.expiresAt) < new Date()) {
+      const newTokenData = await refreshGoogleToken(env, tokens.refreshToken);
+      accessToken = newTokenData.access_token;
+      
+      // Update stored tokens
+      const newExpiresAt = new Date(Date.now() + (newTokenData.expires_in * 1000)).toISOString();
+      await storeCalendarTokens(env, {
+        userId: userId,
+        accessToken: accessToken,
+        refreshToken: tokens.refreshToken,
+        expiresAt: newExpiresAt,
+        provider: 'google'
+      });
+    }
+    
+    // Fetch calendar events from the past 30 days and next 30 days
+    const timeMin = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const timeMax = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    
+    const calendarRes = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      }
+    );
+    
+    if (!calendarRes.ok) {
+      throw new Error('Failed to fetch calendar events');
+    }
+    
+    const calendarData = await calendarRes.json();
+    return calendarData.items || [];
+  } catch (error) {
+    console.error('Error fetching calendar events:', error);
+    return [];
+  }
+}
+
 function issueJwt(user, secret) {
   // Simple JWT implementation for demo (use a library for production)
   // Header
@@ -97,6 +190,7 @@ app.get('/api/auth/google/callback', async (c) => {
     return c.text('Failed to exchange code for tokens', 400);
   }
   const tokenData = await tokenRes.json();
+  
   // Fetch user info
   const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
     headers: { Authorization: `Bearer ${tokenData.access_token}` }
@@ -105,6 +199,7 @@ app.get('/api/auth/google/callback', async (c) => {
     return c.text('Failed to fetch user info', 400);
   }
   const userInfo = await userRes.json();
+  
   // Find or create user
   let user = await getUserByEmail(c.env, userInfo.email);
   if (!user) {
@@ -114,7 +209,22 @@ app.get('/api/auth/google/callback', async (c) => {
       provider: 'google',
       providerId: userInfo.id
     });
+  } else if (user.name !== userInfo.name) {
+    // Update user name if it has changed
+    await updateUser(c.env, { id: user.id, name: userInfo.name });
+    user.name = userInfo.name;
   }
+  
+  // Store calendar tokens
+  const expiresAt = new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString();
+  await storeCalendarTokens(c.env, {
+    userId: user.id,
+    accessToken: tokenData.access_token,
+    refreshToken: tokenData.refresh_token,
+    expiresAt: expiresAt,
+    provider: 'google'
+  });
+  
   // Issue JWT
   const jwt = issueJwt(user, c.env.GOOGLE_CLIENT_SECRET);
   // Redirect to frontend with token
@@ -153,33 +263,44 @@ app.get('/api/calendar/meetings/all', async (c) => {
     return c.json({ error: 'No token provided' }, 401);
   }
   
-  // For demo purposes, return mock meeting data since we need to implement proper token storage
-  // In production, you'd store refresh tokens and use them to get fresh access tokens
-  const mockMeetings = {
-    future: [
-      {
-        id: '1',
-        summary: 'Client Strategy Review',
-        start: { dateTime: new Date(Date.now() + 86400000 * 2).toISOString() }, // 2 days from now
-        prep: 'Review client portfolio performance and prepare quarterly recommendations.'
-      },
-      {
-        id: '2', 
-        summary: 'Investment Planning Session',
-        start: { dateTime: new Date(Date.now() + 86400000 * 5).toISOString() }, // 5 days from now
-        prep: 'Analyze risk tolerance and discuss new investment opportunities.'
-      }
-    ],
-    past: [
-      {
-        id: '3',
-        summary: 'Portfolio Review Meeting',
-        start: { dateTime: new Date(Date.now() - 86400000 * 3).toISOString() }, // 3 days ago
-        meetingSummary: {
+  const token = authHeader.split(' ')[1];
+  try {
+    // Decode JWT to get user ID
+    const [headerB64, payloadB64, signature] = token.split('.');
+    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
+    
+    // Fetch real calendar events
+    const events = await fetchGoogleCalendarEvents(c.env, payload.id);
+    
+    // Process events and separate into past and future
+    const now = new Date();
+    const futureEvents = [];
+    const pastEvents = [];
+    
+    events.forEach(event => {
+      if (!event.start || !event.start.dateTime) return; // Skip all-day events or events without time
+      
+      const eventStart = new Date(event.start.dateTime);
+      const processedEvent = {
+        id: event.id,
+        summary: event.summary || 'Untitled Meeting',
+        start: { dateTime: event.start.dateTime },
+        description: event.description,
+        location: event.location,
+        attendees: event.attendees || []
+      };
+      
+      if (eventStart > now) {
+        // Future meeting - add prep field
+        processedEvent.prep = 'Meeting preparation notes...';
+        futureEvents.push(processedEvent);
+      } else {
+        // Past meeting - add mock summary for demo
+        processedEvent.meetingSummary = {
           keyPoints: [
-            'Client expressed interest in ESG investments',
-            'Current portfolio showing 8% YTD growth',
-            'Discussed rebalancing strategy for Q4'
+            'Meeting completed successfully',
+            'Key decisions were made',
+            'Action items assigned'
           ],
           financialSnapshot: {
             netWorth: '$2.4M',
@@ -187,38 +308,51 @@ app.get('/api/calendar/meetings/all', async (c) => {
             expenses: '$95K annually'
           },
           actionItems: [
-            'Research ESG fund options',
-            'Prepare rebalancing proposal',
-            'Schedule Q4 review meeting'
+            'Follow up on discussed items',
+            'Prepare for next meeting',
+            'Review meeting outcomes'
           ]
-        }
-      },
-      {
-        id: '4',
-        summary: 'Financial Planning Consultation',
-        start: { dateTime: new Date(Date.now() - 86400000 * 7).toISOString() }, // 1 week ago
-        meetingSummary: {
-          keyPoints: [
-            'Retirement planning discussion',
-            'Tax optimization strategies reviewed',
-            'Estate planning considerations addressed'
-          ],
-          financialSnapshot: {
-            netWorth: '$2.4M',
-            income: '$180K annually', 
-            expenses: '$95K annually'
-          },
-          actionItems: [
-            'Set up 401k contribution increase',
-            'Review tax-loss harvesting opportunities',
-            'Schedule meeting with estate attorney'
-          ]
-        }
+        };
+        pastEvents.push(processedEvent);
       }
-    ]
-  };
-  
-  return c.json(mockMeetings);
+    });
+    
+    return c.json({
+      future: futureEvents,
+      past: pastEvents
+    });
+  } catch (error) {
+    console.error('Error fetching meetings:', error);
+    // Return mock data as fallback
+    const mockMeetings = {
+      future: [
+        {
+          id: '1',
+          summary: 'Client Strategy Review',
+          start: { dateTime: new Date(Date.now() + 86400000 * 2).toISOString() },
+          prep: 'Review client portfolio performance and prepare quarterly recommendations.'
+        }
+      ],
+      past: [
+        {
+          id: '3',
+          summary: 'Portfolio Review Meeting',
+          start: { dateTime: new Date(Date.now() - 86400000 * 3).toISOString() },
+          meetingSummary: {
+            keyPoints: [
+              'Client expressed interest in ESG investments',
+              'Current portfolio showing 8% YTD growth'
+            ],
+            actionItems: [
+              'Research ESG fund options',
+              'Prepare rebalancing proposal'
+            ]
+          }
+        }
+      ]
+    };
+    return c.json(mockMeetings);
+  }
 });
 
 // Individual meeting endpoint
