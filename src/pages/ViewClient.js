@@ -1,13 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box, Typography, Card, Stack, Button, TextField, Chip, 
-  IconButton, Divider, List, ListItem, ListItemButton, ListItemText
+  IconButton, Divider
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import EventIcon from '@mui/icons-material/Event';
-import PersonIcon from '@mui/icons-material/Person';
 import ChatIcon from '@mui/icons-material/Chat';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
@@ -66,7 +65,6 @@ const mockMeetings = [
 ];
 
 const ViewClient = () => {
-  const { clientId } = useParams();
   const navigate = useNavigate();
   const [selectedMeetingId, setSelectedMeetingId] = useState(mockMeetings[0]?.id);
   const [editingField, setEditingField] = useState(null);

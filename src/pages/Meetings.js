@@ -63,7 +63,6 @@ const emailTemplates = [
 export default function Meetings() {
   const [meetings, setMeetings] = useState({ future: [], past: [] });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('summary');
@@ -83,7 +82,6 @@ export default function Meetings() {
   useEffect(() => {
     const fetchMeetings = async () => {
       setLoading(true);
-      setError(null);
       try {
         const token = localStorage.getItem('jwt');
         const res = await fetch(`${API_URL}/calendar/meetings/all`, {
@@ -103,7 +101,7 @@ export default function Meetings() {
           setMeetingPrep(data.future[0].prep || '');
         }
       } catch (err) {
-        setError(err.message);
+        console.error('Failed to fetch meetings:', err);
       } finally {
         setLoading(false);
       }
