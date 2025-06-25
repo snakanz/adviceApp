@@ -6,20 +6,21 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import theme from './theme';
 import Layout from './Layout';
 import Clients from './pages/Clients';
+import ViewClient from './pages/ViewClient';
 import Meetings from './pages/Meetings';
 import Pipeline from './pages/Pipeline';
 import Templates from './pages/Templates';
 import Settings from './pages/Settings';
 import LoginPage from './pages/LoginPage';
 import AuthCallback from './pages/AuthCallback';
+import DebugAuth from './pages/DebugAuth';
 
 function PrivateRoute() {
   const { isAuthenticated, isLoading } = useAuth();
-  
+  console.log('PrivateRoute: isAuthenticated:', isAuthenticated, 'isLoading:', isLoading);
   if (isLoading) {
     return <div>Loading...</div>;
   }
-  
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" />;
 }
 
@@ -32,17 +33,19 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/debug-auth" element={<DebugAuth />} />
         <Route element={<PrivateRoute />}>
           <Route path="/" element={<Layout />}>
-                <Route index element={<Navigate to="/meetings" />} />
+            <Route index element={<Navigate to="/meetings" />} />
             <Route path="clients" element={<Clients />} />
+            <Route path="clients/:clientId" element={<ViewClient />} />
             <Route path="meetings" element={<Meetings />} />
             <Route path="pipeline" element={<Pipeline />} />
             <Route path="templates" element={<Templates />} />
             <Route path="settings" element={<Settings />} />
           </Route>
         </Route>
-            <Route path="*" element={<Navigate to="/meetings" />} />
+        <Route path="*" element={<Navigate to="/meetings" />} />
       </Routes>
     </Router>
       </ThemeProvider>

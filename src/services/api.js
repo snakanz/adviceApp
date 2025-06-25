@@ -1,17 +1,17 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4000';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://dashboard-backend.example.com';
 
 class ApiService {
     constructor() {
         this.baseUrl = API_BASE_URL;
-        this.token = localStorage.getItem('token');
+        this.token = localStorage.getItem('jwt');
     }
 
     setToken(token) {
         this.token = token;
         if (token) {
-            localStorage.setItem('token', token);
+            localStorage.setItem('jwt', token);
         } else {
-            localStorage.removeItem('token');
+            localStorage.removeItem('jwt');
         }
     }
 
@@ -52,11 +52,11 @@ class ApiService {
 
     // Auth endpoints
     async getGoogleAuthUrl() {
-        return this.request('/auth/google/url');
+        return this.request('/api/calendar/auth/google');
     }
 
     async verifyToken() {
-        return this.request('/auth/verify');
+        return this.request('/api/auth/verify');
     }
 
     // Meetings endpoints

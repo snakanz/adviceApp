@@ -1,4 +1,4 @@
--- D1-compatible SQL migration for Marloo Dashboard
+-- D1-compatible SQL migration for Dashboard
 -- Run this in the Cloudflare D1 dashboard to initialize your schema
 
 -- User table

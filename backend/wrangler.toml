@@ -5,4 +5,9 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "marloo-dashboard-db"
-database_id = "d894b1bc-25c9-4e22-b395-1f893e5be9fe" 
+database_id = "d894b1bc-25c9-4e22-b395-1f893e5be9fe"
+
+[vars]
+GOOGLE_CLIENT_ID = "79096511971-4bltkc93o1o82nm13guve8gp1lt0cs0n.apps.googleusercontent.com"
+GOOGLE_CLIENT_SECRET = "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"
+GOOGLE_REDIRECT_URI = "https://marloo-dashboard-backend.nelson-ec5.workers.dev/api/auth/google/callback"
