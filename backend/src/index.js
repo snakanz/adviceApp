@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 
 // D1 helper: expects env.DB to be bound in wrangler.toml
 async function getUserByEmail(env, email) {
@@ -132,7 +133,44 @@ function issueJwt(user, secret) {
 
 const app = new Hono();
 
+// Configure CORS to allow requests from the frontend
+app.use('*', cors({
+  origin: ['https://adviceapp.pages.dev', 'https://7077afee.adviceapp.pages.dev', 'https://601fef83.adviceapp.pages.dev', 'https://1110afe4.adviceapp.pages.dev'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+}));
+
 app.get('/', (c) => c.text('AdvisorAgent Backend API is running'));
+
+// Debug endpoint to test database
+app.get('/api/debug/db', async (c) => {
+  try {
+    const stmt = c.env.DB.prepare('SELECT name FROM sqlite_master WHERE type="table"');
+    const result = await stmt.all();
+    return c.json({ tables: result, message: 'Database connected successfully' });
+  } catch (error) {
+    return c.json({ error: 'Database connection failed: ' + error.message }, 500);
+  }
+});
+
+// Debug endpoint to test user creation
+app.get('/api/debug/test-user', async (c) => {
+  try {
+    const testEmail = 'test@example.com';
+    let user = await getUserByEmail(c.env, testEmail);
+    if (!user) {
+      user = await createUser(c.env, {
+        email: testEmail,
+        name: 'Test User',
+        provider: 'test',
+        providerId: 'test123'
+      });
+    }
+    return c.json({ user, message: 'User operations working' });
+  } catch (error) {
+    return c.json({ error: 'User operations failed: ' + error.message }, 500);
+  }
+});
 
 app.post('/api/auth/login', async (c) => {
   const { email, password } = await c.req.json();
@@ -174,6 +212,9 @@ app.get('/api/auth/google/callback', async (c) => {
   if (!code) {
     return c.text('Missing code', 400);
   }
+  
+  console.log('OAuth callback - received code');
+  
   // Exchange code for tokens
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -187,49 +228,69 @@ app.get('/api/auth/google/callback', async (c) => {
     })
   });
   if (!tokenRes.ok) {
+    console.error('Token exchange failed:', tokenRes.status, tokenRes.statusText);
     return c.text('Failed to exchange code for tokens', 400);
   }
   const tokenData = await tokenRes.json();
+  console.log('Got Google tokens successfully');
   
   // Fetch user info
   const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
     headers: { Authorization: `Bearer ${tokenData.access_token}` }
   });
   if (!userRes.ok) {
+    console.error('User info fetch failed:', userRes.status, userRes.statusText);
     return c.text('Failed to fetch user info', 400);
   }
   const userInfo = await userRes.json();
+  console.log('Got user info:', { email: userInfo.email, name: userInfo.name });
   
   // Find or create user
-  let user = await getUserByEmail(c.env, userInfo.email);
-  if (!user) {
-    user = await createUser(c.env, {
-      email: userInfo.email,
-      name: userInfo.name,
-      provider: 'google',
-      providerId: userInfo.id
+  try {
+    let user = await getUserByEmail(c.env, userInfo.email);
+    console.log('Existing user found:', !!user);
+    
+    if (!user) {
+      console.log('Creating new user...');
+      user = await createUser(c.env, {
+        email: userInfo.email,
+        name: userInfo.name,
+        provider: 'google',
+        providerId: userInfo.id
+      });
+      console.log('New user created:', { id: user.id, email: user.email });
+    } else if (user.name !== userInfo.name) {
+      console.log('Updating user name...');
+      await updateUser(c.env, { id: user.id, name: userInfo.name });
+      user.name = userInfo.name;
+      console.log('User name updated');
+    }
+    
+    // Store calendar tokens
+    console.log('Storing calendar tokens...');
+    const expiresAt = new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString();
+    await storeCalendarTokens(c.env, {
+      userId: user.id,
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      expiresAt: expiresAt,
+      provider: 'google'
     });
-  } else if (user.name !== userInfo.name) {
-    // Update user name if it has changed
-    await updateUser(c.env, { id: user.id, name: userInfo.name });
-    user.name = userInfo.name;
+    console.log('Calendar tokens stored');
+    
+    // Issue JWT
+    console.log('Creating JWT for user:', { id: user.id, email: user.email, name: user.name });
+    const jwt = issueJwt(user, c.env.GOOGLE_CLIENT_SECRET);
+    console.log('JWT created, length:', jwt.length);
+    
+    // Redirect to frontend with token
+    const frontendUrl = 'https://adviceapp.pages.dev/auth/callback?token=' + encodeURIComponent(jwt);
+    console.log('Redirecting to frontend...');
+    return c.redirect(frontendUrl, 302);
+  } catch (error) {
+    console.error('OAuth callback error:', error);
+    return c.text('Internal server error: ' + error.message, 500);
   }
-  
-  // Store calendar tokens
-  const expiresAt = new Date(Date.now() + (tokenData.expires_in * 1000)).toISOString();
-  await storeCalendarTokens(c.env, {
-    userId: user.id,
-    accessToken: tokenData.access_token,
-    refreshToken: tokenData.refresh_token,
-    expiresAt: expiresAt,
-    provider: 'google'
-  });
-  
-  // Issue JWT
-  const jwt = issueJwt(user, c.env.GOOGLE_CLIENT_SECRET);
-  // Redirect to frontend with token
-  const frontendUrl = 'https://adviceapp.pages.dev/auth/callback?token=' + encodeURIComponent(jwt);
-  return c.redirect(frontendUrl, 302);
 });
 
 // Token verification route
