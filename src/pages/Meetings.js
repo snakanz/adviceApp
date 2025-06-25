@@ -94,10 +94,10 @@ export default function Meetings() {
         // Set initial selected meeting and content
         if (data.past.length > 0) {
           setSelectedMeetingId(data.past[0].id);
-          setSummaryContent(data.past[0].summary);
+          setSummaryContent(data.past[0].meetingSummary);
         } else if (data.future.length > 0) {
           setSelectedMeetingId(data.future[0].id);
-          setSummaryContent(data.future[0].summary);
+          setSummaryContent(data.future[0].meetingSummary);
           setMeetingPrep(data.future[0].prep || '');
         }
       } catch (err) {
@@ -115,7 +115,7 @@ export default function Meetings() {
 
   const handleMeetingSelect = (meeting) => {
     setSelectedMeetingId(meeting.id);
-    setSummaryContent(meeting.summary);
+    setSummaryContent(meeting.meetingSummary);
     if (!isPastMeeting) {
       setMeetingPrep(meeting.prep || '');
       setActiveTab('prep');
@@ -236,18 +236,22 @@ export default function Meetings() {
                           variant="body1" 
                           sx={{ 
                             fontWeight: 600, 
-                            color: selected ? '#007AFF' : '#1E1E1E', 
-                            fontSize: '14px' 
+                            color: selectedMeetingId === meeting.id ? '#007AFF' : '#1E1E1E',
+                            mb: 1,
+                            cursor: 'pointer'
                           }}
+                          onClick={() => handleMeetingSelect(meeting)}
                         >
                           {meeting.summary}
                         </Typography>
                         <Typography 
-                          variant="caption" 
-                          sx={{ color: '#3C3C3C', fontSize: '12px' }}
+                          variant="body2" 
+                          sx={{ 
+                            color: '#666666', 
+                            fontSize: '13px' 
+                          }}
                         >
-                          <EventIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
-                          {formatDateTime(meeting.start?.dateTime)}
+                          {meeting.start?.dateTime ? formatDateTime(meeting.start.dateTime) : 'No time'}
                         </Typography>
                         <Chip
                           label={meeting.summary || 'Meeting'}

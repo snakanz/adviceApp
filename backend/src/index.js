@@ -146,4 +146,116 @@ app.get('/api/auth/verify', async (c) => {
   }
 });
 
+// Calendar meetings endpoints
+app.get('/api/calendar/meetings/all', async (c) => {
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return c.json({ error: 'No token provided' }, 401);
+  }
+  
+  // For demo purposes, return mock meeting data since we need to implement proper token storage
+  // In production, you'd store refresh tokens and use them to get fresh access tokens
+  const mockMeetings = {
+    future: [
+      {
+        id: '1',
+        summary: 'Client Strategy Review',
+        start: { dateTime: new Date(Date.now() + 86400000 * 2).toISOString() }, // 2 days from now
+        prep: 'Review client portfolio performance and prepare quarterly recommendations.'
+      },
+      {
+        id: '2', 
+        summary: 'Investment Planning Session',
+        start: { dateTime: new Date(Date.now() + 86400000 * 5).toISOString() }, // 5 days from now
+        prep: 'Analyze risk tolerance and discuss new investment opportunities.'
+      }
+    ],
+    past: [
+      {
+        id: '3',
+        summary: 'Portfolio Review Meeting',
+        start: { dateTime: new Date(Date.now() - 86400000 * 3).toISOString() }, // 3 days ago
+        meetingSummary: {
+          keyPoints: [
+            'Client expressed interest in ESG investments',
+            'Current portfolio showing 8% YTD growth',
+            'Discussed rebalancing strategy for Q4'
+          ],
+          financialSnapshot: {
+            netWorth: '$2.4M',
+            income: '$180K annually',
+            expenses: '$95K annually'
+          },
+          actionItems: [
+            'Research ESG fund options',
+            'Prepare rebalancing proposal',
+            'Schedule Q4 review meeting'
+          ]
+        }
+      },
+      {
+        id: '4',
+        summary: 'Financial Planning Consultation',
+        start: { dateTime: new Date(Date.now() - 86400000 * 7).toISOString() }, // 1 week ago
+        meetingSummary: {
+          keyPoints: [
+            'Retirement planning discussion',
+            'Tax optimization strategies reviewed',
+            'Estate planning considerations addressed'
+          ],
+          financialSnapshot: {
+            netWorth: '$2.4M',
+            income: '$180K annually', 
+            expenses: '$95K annually'
+          },
+          actionItems: [
+            'Set up 401k contribution increase',
+            'Review tax-loss harvesting opportunities',
+            'Schedule meeting with estate attorney'
+          ]
+        }
+      }
+    ]
+  };
+  
+  return c.json(mockMeetings);
+});
+
+// Individual meeting endpoint
+app.get('/api/calendar/meetings/:id', async (c) => {
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return c.json({ error: 'No token provided' }, 401);
+  }
+  
+  const meetingId = c.req.param('id');
+  
+  // Mock individual meeting data
+  const mockMeeting = {
+    id: meetingId,
+    summary: 'Portfolio Review Meeting',
+    start: { dateTime: new Date(Date.now() - 86400000 * 3).toISOString() },
+    participants: ['snaka1003@gmail.com', 'advisor@example.com'],
+    meetingSummary: {
+      keyPoints: [
+        'Client expressed interest in ESG investments',
+        'Current portfolio showing 8% YTD growth',
+        'Discussed rebalancing strategy for Q4'
+      ],
+      financialSnapshot: {
+        netWorth: '$2.4M',
+        income: '$180K annually',
+        expenses: '$95K annually'
+      },
+      actionItems: [
+        'Research ESG fund options',
+        'Prepare rebalancing proposal',
+        'Schedule Q4 review meeting'
+      ]
+    }
+  };
+  
+  return c.json(mockMeeting);
+});
+
 export default app;

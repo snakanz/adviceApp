@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { styled } from '@mui/material/styles';
-import { Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText, AppBar, Toolbar, Typography, CssBaseline, Button, Dialog, DialogTitle, DialogContent, DialogActions, IconButton, TextField } from '@mui/material';
+import { Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText, AppBar, Toolbar, Typography, CssBaseline, Button, Dialog, DialogTitle, DialogContent, DialogActions, IconButton, TextField, Avatar, Menu, MenuItem } from '@mui/material';
 import PeopleIcon from '@mui/icons-material/People';
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -9,6 +9,8 @@ import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
 import BarChartIcon from '@mui/icons-material/BarChart';
 import LogoutIcon from '@mui/icons-material/Logout';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 
@@ -40,10 +42,24 @@ const pipelineNav = { label: 'Client Pipeline', icon: <BarChartIcon />, path: '/
 export default function Layout() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
-  const { logout } = useAuth();
+  const [anchorEl, setAnchorEl] = useState(null);
+  const { logout, user } = useAuth();
 
   const handleLogout = () => {
     logout();
+  };
+
+  const handleUserMenuOpen = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleUserMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const getUserInitials = (name) => {
+    if (!name) return 'U';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
   return (
@@ -66,23 +82,78 @@ export default function Layout() {
             Dashboard
           </Typography>
           <Box sx={{ flexGrow: 1 }} />
-          <Button 
-            onClick={handleLogout} 
-            startIcon={<LogoutIcon />}
-            sx={{ 
-              color: '#3C3C3C',
+          
+          {/* User Profile Menu */}
+          <Button
+            onClick={handleUserMenuOpen}
+            startIcon={
+              <Avatar
+                sx={{
+                  width: 32,
+                  height: 32,
+                  backgroundColor: '#007AFF',
+                  color: '#FFFFFF',
+                  fontSize: '14px',
+                  fontWeight: 600
+                }}
+              >
+                {getUserInitials(user?.name)}
+              </Avatar>
+            }
+            endIcon={<KeyboardArrowDownIcon />}
+            sx={{
+              color: '#1E1E1E',
               textTransform: 'none',
               fontWeight: 500,
               px: 2,
               py: 1,
-              borderRadius: '6px',
+              borderRadius: '8px',
               '&:hover': {
                 backgroundColor: '#F8F9FA'
               }
             }}
           >
-            Logout
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', ml: 1 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, color: '#1E1E1E', fontSize: '14px' }}>
+                {user?.name || 'User'}
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#3C3C3C', fontSize: '12px' }}>
+                {user?.email || 'user@example.com'}
+              </Typography>
+            </Box>
           </Button>
+          
+          <Menu
+            anchorEl={anchorEl}
+            open={Boolean(anchorEl)}
+            onClose={handleUserMenuClose}
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: 'right',
+            }}
+            transformOrigin={{
+              vertical: 'top',
+              horizontal: 'right',
+            }}
+            PaperProps={{
+              sx: {
+                mt: 1,
+                borderRadius: '8px',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+                border: '1px solid #E5E5E5',
+                minWidth: 200
+              }
+            }}
+          >
+            <MenuItem onClick={handleUserMenuClose} sx={{ py: 1.5, px: 2 }}>
+              <AccountCircleIcon sx={{ mr: 2, color: '#3C3C3C' }} />
+              <Typography variant="body2">Profile Settings</Typography>
+            </MenuItem>
+            <MenuItem onClick={() => { handleUserMenuClose(); handleLogout(); }} sx={{ py: 1.5, px: 2 }}>
+              <LogoutIcon sx={{ mr: 2, color: '#3C3C3C' }} />
+              <Typography variant="body2">Logout</Typography>
+            </MenuItem>
+          </Menu>
         </Toolbar>
       </AppBar>
       <Drawer
