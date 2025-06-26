@@ -84,16 +84,6 @@ router.post('/ai/improve-template', authenticateUser, async (req, res) => {
   }
 });
 
-// Recall.ai integration placeholder
-router.get('/recall/test', authenticateUser, (req, res) => {
-  res.json({ message: 'Recall.ai endpoint working' });
-});
-
-// Auth integration placeholder
-router.get('/auth/test', authenticateUser, (req, res) => {
-  res.json({ message: 'Auth endpoint working' });
-});
-
 // Register endpoint
 router.post('/auth/register', async (req, res) => {
   try {

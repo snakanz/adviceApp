@@ -81,6 +81,32 @@ class ApiService {
             body: JSON.stringify({ imageText })
         });
     }
+
+    async uploadMeetingTranscript(eventId, transcript) {
+        return this.request(`/calendar/meetings/${eventId}/transcript`, {
+            method: 'POST',
+            body: JSON.stringify({ transcript })
+        });
+    }
+
+    async uploadMeetingAudio(eventId, audioFile) {
+        const formData = new FormData();
+        formData.append('audio', audioFile);
+        const url = `${this.baseUrl}/calendar/meetings/${eventId}/transcript`;
+        const headers = {};
+        if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: formData
+        });
+        if (!response.ok) throw new Error('Failed to upload audio');
+        return response.json();
+    }
+
+    async getMeetingTranscript(eventId) {
+        return this.request(`/calendar/meetings/${eventId}/transcript`);
+    }
 }
 
 export const api = new ApiService();

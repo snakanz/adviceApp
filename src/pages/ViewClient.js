@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box, Typography, Card, Stack, Button, TextField, Chip, 
   IconButton, Divider
@@ -22,56 +22,44 @@ const formatDateTime = (dateTimeStr) => {
   });
 };
 
-// Mock data for demonstration
-const mockClient = {
-  id: 'demo-client',
-  name: 'Demo Client',
-  value: '$500,000',
-  profit: '$1,500',
-  likelihoodOfSignup: 75,
-  expectedCloseDate: '2024-03-15',
-  aiSummary: 'High-value client with strong interest in premium investment products. Shows consistent engagement and positive sentiment across all interactions. Key concerns include portfolio diversification and long-term growth strategies.'
-};
-
-const mockMeetings = [
-  {
-    id: '1',
-    date: '2024-01-03',
-    title: 'Initial Consultation',
-    summary: 'Discovery meeting to understand client needs and objectives',
-    type: 'consultation'
-  },
-  {
-    id: '2', 
-    date: '2024-01-08',
-    title: 'Portfolio Review',
-    summary: 'Detailed review of current portfolio and risk assessment',
-    type: 'review'
-  },
-  {
-    id: '3',
-    date: '2024-01-15',
-    title: 'Product Presentation',
-    summary: 'Presentation of recommended investment solutions',
-    type: 'presentation'
-  },
-  {
-    id: '4',
-    date: '2024-01-22',
-    title: 'Follow-up Discussion',
-    summary: 'Addressing questions and finalizing proposal details',
-    type: 'followup'
-  }
-];
-
 const ViewClient = () => {
   const navigate = useNavigate();
-  const [selectedMeetingId, setSelectedMeetingId] = useState(mockMeetings[0]?.id);
+  const { clientId } = useParams();
+  const [selectedMeetingId, setSelectedMeetingId] = useState(null);
   const [editingField, setEditingField] = useState(null);
-  const [clientData, setClientData] = useState(mockClient);
+  const [clientData, setClientData] = useState(null);
+  const [meetings, setMeetings] = useState([]);
   const [tempValue, setTempValue] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const selectedMeeting = mockMeetings.find(m => m.id === selectedMeetingId);
+  useEffect(() => {
+    async function fetchClientAndMeetings() {
+      setLoading(true);
+      try {
+        // Fetch client details
+        const clientRes = await fetch(`/api/clients/${clientId}`);
+        const client = await clientRes.json();
+        setClientData(client);
+        // Fetch meetings for this client
+        const meetingsRes = await fetch(`/api/clients/${clientId}/meetings`);
+        const meetingsData = await meetingsRes.json();
+        setMeetings(meetingsData);
+        if (meetingsData.length > 0) {
+          setSelectedMeetingId(meetingsData[0].id);
+        }
+      } catch (e) {
+        // handle error
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchClientAndMeetings();
+  }, [clientId]);
+
+  if (loading) return <Box>Loading...</Box>;
+  if (!clientData) return <Box>Client not found.</Box>;
+
+  const selectedMeeting = meetings.find(m => m.id === selectedMeetingId);
 
   const handleBack = () => {
     navigate('/clients');
@@ -140,7 +128,7 @@ const ViewClient = () => {
           </Typography>
 
           <Stack spacing={1}>
-            {mockMeetings.map((meeting) => {
+            {meetings.map((meeting) => {
               const selected = meeting.id === selectedMeetingId;
               
               return (
@@ -186,7 +174,7 @@ const ViewClient = () => {
                       {meeting.summary}
                     </Typography>
                     <Chip
-                      label={meeting.type}
+                      label={meeting.type || 'Meeting'}
                       size="small"
                       sx={{
                         fontSize: '11px',

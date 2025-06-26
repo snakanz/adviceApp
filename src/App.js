@@ -13,7 +13,6 @@ import Templates from './pages/Templates';
 import Settings from './pages/Settings';
 import LoginPage from './pages/LoginPage';
 import AuthCallback from './pages/AuthCallback';
-import DebugAuth from './pages/DebugAuth';
 
 function PrivateRoute() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -33,13 +32,12 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/debug-auth" element={<DebugAuth />} />
         <Route element={<PrivateRoute />}>
           <Route path="/" element={<Layout />}>
-            <Route index element={<Navigate to="/meetings" />} />
+            <Route index element={<Navigate to="/meetings" replace />} />
+            <Route path="meetings" element={<Meetings />} />
             <Route path="clients" element={<Clients />} />
             <Route path="clients/:clientId" element={<ViewClient />} />
-            <Route path="meetings" element={<Meetings />} />
             <Route path="pipeline" element={<Pipeline />} />
             <Route path="templates" element={<Templates />} />
             <Route path="settings" element={<Settings />} />

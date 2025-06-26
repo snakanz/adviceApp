@@ -142,36 +142,6 @@ app.use('*', cors({
 
 app.get('/', (c) => c.text('AdvisorAgent Backend API is running'));
 
-// Debug endpoint to test database
-app.get('/api/debug/db', async (c) => {
-  try {
-    const stmt = c.env.DB.prepare('SELECT name FROM sqlite_master WHERE type="table"');
-    const result = await stmt.all();
-    return c.json({ tables: result, message: 'Database connected successfully' });
-  } catch (error) {
-    return c.json({ error: 'Database connection failed: ' + error.message }, 500);
-  }
-});
-
-// Debug endpoint to test user creation
-app.get('/api/debug/test-user', async (c) => {
-  try {
-    const testEmail = 'test@example.com';
-    let user = await getUserByEmail(c.env, testEmail);
-    if (!user) {
-      user = await createUser(c.env, {
-        email: testEmail,
-        name: 'Test User',
-        provider: 'test',
-        providerId: 'test123'
-      });
-    }
-    return c.json({ user, message: 'User operations working' });
-  } catch (error) {
-    return c.json({ error: 'User operations failed: ' + error.message }, 500);
-  }
-});
-
 app.post('/api/auth/login', async (c) => {
   const { email, password } = await c.req.json();
   if (!email || !password) {
@@ -369,9 +339,8 @@ app.get('/api/calendar/meetings/all', async (c) => {
     const futureEvents = [];
     const pastEvents = [];
     
-    events.forEach(event => {
-      if (!event.start || !event.start.dateTime) return; // Skip all-day events or events without time
-      
+    for (const event of events) {
+      if (!event.start || !event.start.dateTime) continue; // Skip all-day events or events without time
       const eventStart = new Date(event.start.dateTime);
       const processedEvent = {
         id: event.id,
@@ -381,33 +350,29 @@ app.get('/api/calendar/meetings/all', async (c) => {
         location: event.location,
         attendees: event.attendees || []
       };
-      
       if (eventStart > now) {
-        // Future meeting - add prep field
         processedEvent.prep = 'Meeting preparation notes...';
         futureEvents.push(processedEvent);
       } else {
-        // Past meeting - add mock summary for demo
-        processedEvent.meetingSummary = {
-          keyPoints: [
-            'Meeting completed successfully',
-            'Key decisions were made',
-            'Action items assigned'
-          ],
-          financialSnapshot: {
-            netWorth: '$2.4M',
-            income: '$180K annually',
-            expenses: '$95K annually'
-          },
-          actionItems: [
-            'Follow up on discussed items',
-            'Prepare for next meeting',
-            'Review meeting outcomes'
-          ]
-        };
+        // Only add meetingSummary if a real summary exists
+        const transcript = await getMeetingTranscript(c.env, payload.id, event.id);
+        if (transcript) {
+          const summary = await getMeetingSummary(c.env, payload.id, event.id);
+          let hasRealSummary = false;
+          if (summary) {
+            const hasRealKeyPoints = Array.isArray(summary.keyPoints) && summary.keyPoints.some(kp => kp && !kp.toLowerCase().includes('not implemented') && kp.trim() !== '');
+            const hasRealActionItems = Array.isArray(summary.actionItems) && summary.actionItems.some(ai => ai && ai.trim() !== '');
+            const hasRealFinancial = summary.financialSnapshot && Object.values(summary.financialSnapshot).some(val => val && val.trim() !== '');
+            hasRealSummary = hasRealKeyPoints || hasRealActionItems || hasRealFinancial;
+          }
+          if (hasRealSummary) {
+            processedEvent.meetingSummary = summary;
+          }
+          processedEvent.transcript = transcript;
+        }
         pastEvents.push(processedEvent);
       }
-    });
+    }
     
     return c.json({
       future: futureEvents,
@@ -415,35 +380,8 @@ app.get('/api/calendar/meetings/all', async (c) => {
     });
   } catch (error) {
     console.error('Error fetching meetings:', error);
-    // Return mock data as fallback
-    const mockMeetings = {
-      future: [
-        {
-          id: '1',
-          summary: 'Client Strategy Review',
-          start: { dateTime: new Date(Date.now() + 86400000 * 2).toISOString() },
-          prep: 'Review client portfolio performance and prepare quarterly recommendations.'
-        }
-      ],
-      past: [
-        {
-          id: '3',
-          summary: 'Portfolio Review Meeting',
-          start: { dateTime: new Date(Date.now() - 86400000 * 3).toISOString() },
-          meetingSummary: {
-            keyPoints: [
-              'Client expressed interest in ESG investments',
-              'Current portfolio showing 8% YTD growth'
-            ],
-            actionItems: [
-              'Research ESG fund options',
-              'Prepare rebalancing proposal'
-            ]
-          }
-        }
-      ]
-    };
-    return c.json(mockMeetings);
+    // Return empty lists if there is an error or no meetings
+    return c.json({ future: [], past: [] });
   }
 });
 
@@ -453,35 +391,131 @@ app.get('/api/calendar/meetings/:id', async (c) => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return c.json({ error: 'No token provided' }, 401);
   }
-  
+  const token = authHeader.split(' ')[1];
+  const [headerB64, payloadB64, signature] = token.split('.');
+  function base64urlDecode(str) {
+    str += '='.repeat((4 - str.length % 4) % 4);
+    str = str.replace(/-/g, '+').replace(/_/g, '/');
+    return atob(str);
+  }
+  const payload = JSON.parse(base64urlDecode(payloadB64));
+  const userId = payload.id;
   const meetingId = c.req.param('id');
-  
-  // Mock individual meeting data
-  const mockMeeting = {
-    id: meetingId,
-    summary: 'Portfolio Review Meeting',
-    start: { dateTime: new Date(Date.now() - 86400000 * 3).toISOString() },
-    participants: ['snaka1003@gmail.com', 'advisor@example.com'],
-    meetingSummary: {
-      keyPoints: [
-        'Client expressed interest in ESG investments',
-        'Current portfolio showing 8% YTD growth',
-        'Discussed rebalancing strategy for Q4'
-      ],
-      financialSnapshot: {
-        netWorth: '$2.4M',
-        income: '$180K annually',
-        expenses: '$95K annually'
-      },
-      actionItems: [
-        'Research ESG fund options',
-        'Prepare rebalancing proposal',
-        'Schedule Q4 review meeting'
-      ]
+
+  // Fetch meeting from DB
+  const stmt = c.env.DB.prepare('SELECT * FROM Meeting WHERE userId = ? AND googleEventId = ?');
+  const meeting = await stmt.bind(userId, meetingId).first();
+  if (!meeting) {
+    return c.json({ error: 'Meeting not found' }, 404);
+  }
+  // Optionally parse summary and other fields
+  let summary = null;
+  if (meeting.summary) {
+    try {
+      summary = JSON.parse(meeting.summary);
+    } catch {
+      summary = null;
     }
-  };
-  
-  return c.json(mockMeeting);
+  }
+  return c.json({
+    id: meeting.googleEventId,
+    summary: meeting.summary,
+    start: { dateTime: meeting.startTime },
+    participants: meeting.participants ? JSON.parse(meeting.participants) : [],
+    meetingSummary: summary,
+    transcript: meeting.transcript || null
+  });
+});
+
+// Helper to update transcript for a meeting
+async function updateMeetingTranscript(env, userId, meetingId, transcriptText) {
+  // Find meeting by userId and Google event ID
+  const stmt = env.DB.prepare('UPDATE Meeting SET transcript = ?, updatedAt = CURRENT_TIMESTAMP WHERE userId = ? AND googleEventId = ?');
+  await stmt.bind(transcriptText, userId, meetingId).run();
+}
+
+// Helper to fetch transcript for a meeting
+async function getMeetingTranscript(env, userId, meetingId) {
+  const stmt = env.DB.prepare('SELECT transcript FROM Meeting WHERE userId = ? AND googleEventId = ?');
+  const result = await stmt.bind(userId, meetingId).first();
+  return result ? result.transcript : null;
+}
+
+// Helper to fetch summary for a meeting
+async function getMeetingSummary(env, userId, meetingId) {
+  const stmt = env.DB.prepare('SELECT summary FROM Meeting WHERE userId = ? AND googleEventId = ?');
+  const result = await stmt.bind(userId, meetingId).first();
+  if (!result || !result.summary) return null;
+  try {
+    const summary = JSON.parse(result.summary);
+    return summary;
+  } catch {
+    return null;
+  }
+}
+
+// Add transcript upload and retrieval endpoints
+app.post('/api/calendar/meetings/:id/transcript', async (c) => {
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return c.json({ error: 'No token provided' }, 401);
+  }
+  const token = authHeader.split(' ')[1];
+  const [headerB64, payloadB64, signature] = token.split('.');
+  function base64urlDecode(str) {
+    str += '='.repeat((4 - str.length % 4) % 4);
+    str = str.replace(/-/g, '+').replace(/_/g, '/');
+    return atob(str);
+  }
+  const payload = JSON.parse(base64urlDecode(payloadB64));
+  const userId = payload.id;
+  const meetingId = c.req.param('id');
+
+  // Check content type
+  const contentType = c.req.header('Content-Type') || '';
+  let transcriptText = '';
+
+  if (contentType.includes('application/json')) {
+    // Pasted transcript
+    const { transcript } = await c.req.json();
+    transcriptText = transcript;
+  } else if (contentType.includes('multipart/form-data')) {
+    // Audio upload
+    const formData = await c.req.formData();
+    const audioFile = formData.get('audio');
+    if (!audioFile) return c.json({ error: 'No audio file provided' }, 400);
+    // Audio upload not implemented
+    return c.json({ error: 'Audio upload not implemented yet' }, 400);
+  } else {
+    return c.json({ error: 'Unsupported content type' }, 400);
+  }
+
+  // Store transcript in DB
+  await updateMeetingTranscript(c.env, userId, meetingId, transcriptText);
+
+  return c.json({ success: true, transcript: transcriptText });
+});
+
+app.get('/api/calendar/meetings/:id/transcript', async (c) => {
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return c.json({ error: 'No token provided' }, 401);
+  }
+  const token = authHeader.split(' ')[1];
+  const [headerB64, payloadB64, signature] = token.split('.');
+  function base64urlDecode(str) {
+    str += '='.repeat((4 - str.length % 4) % 4);
+    str = str.replace(/-/g, '+').replace(/_/g, '/');
+    return atob(str);
+  }
+  const payload = JSON.parse(base64urlDecode(payloadB64));
+  const userId = payload.id;
+  const meetingId = c.req.param('id');
+
+  // Fetch transcript from DB
+  const transcript = await getMeetingTranscript(c.env, userId, meetingId);
+
+  return c.json({ transcript });
 });
 
 export default app;

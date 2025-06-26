@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Button, Chip, Snackbar, Alert, CircularProgress, Card, Stack, Divider,
-  Select, MenuItem, FormControl, Collapse, TextField, Paper, Tabs, Tab
+  Select, MenuItem, FormControl, Collapse, TextField, Paper, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import TeamsIcon from '@mui/icons-material/Groups';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
@@ -17,6 +17,8 @@ import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import MicIcon from '@mui/icons-material/Mic';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 
 const API_URL = process.env.REACT_APP_API_URL || 'https://marloo-dashboard-backend.nelson-ec5.workers.dev/api';
 
@@ -62,22 +64,34 @@ const emailTemplates = [
 
 export default function Meetings() {
   const [meetings, setMeetings] = useState({ future: [], past: [] });
+  const [selectedMeetingId, setSelectedMeetingId] = useState(null);
+  const [selectedMeeting, setSelectedMeeting] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showAIDialog, setShowAIDialog] = useState(false);
+  const [showAIChat, setShowAIChat] = useState(false);
+  const [emailTemplate, setEmailTemplate] = useState('standard');
+  const [chatMessages, setChatMessages] = useState([
+    { type: 'ai', message: 'I can help you with questions about this meeting. Ask me anything!' }
+  ]);
+  const [editingPrep, setEditingPrep] = useState(false);
+  const [meetingPrep, setMeetingPrep] = useState('');
+  const [openUploadDialog, setOpenUploadDialog] = useState(false);
+  const [openPasteDialog, setOpenPasteDialog] = useState(false);
+  const [transcriptText, setTranscriptText] = useState('');
+  const [uploadingTranscript, setUploadingTranscript] = useState(false);
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('summary');
-  const [selectedMeetingId, setSelectedMeetingId] = useState(null);
-  const [showAIDialog, setShowAIDialog] = useState(false);
-  const [summaryContent, setSummaryContent] = useState(null);
   const [showSnackbar, setShowSnackbar] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
-  const [emailTemplate, setEmailTemplate] = useState('standard');
-  const [showAIChat, setShowAIChat] = useState(false);
-  const [chatMessage, setChatMessage] = useState('');
-  const [chatHistory, setChatHistory] = useState([]);
-  const [editingPrep, setEditingPrep] = useState(false);
-  const [meetingPrep, setMeetingPrep] = useState('');
+  const [summaryContent, setSummaryContent] = useState(null);
+  const [pastedTranscript, setPastedTranscript] = useState('');
+  const [audioFile, setAudioFile] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [recordedChunks, setRecordedChunks] = useState([]);
 
   useEffect(() => {
     const fetchMeetings = async () => {
@@ -109,8 +123,6 @@ export default function Meetings() {
     if (isAuthenticated) fetchMeetings();
   }, [isAuthenticated]);
 
-  const selectedMeeting = meetings.past.find(m => m.id === selectedMeetingId) || 
-                          meetings.future.find(m => m.id === selectedMeetingId);
   const isPastMeeting = meetings.past.some(m => m.id === selectedMeetingId);
 
   const handleMeetingSelect = (meeting) => {
@@ -132,7 +144,9 @@ export default function Meetings() {
   };
 
   const handleViewClient = () => {
-    navigate(`/clients/demo-client`); // Using demo client for now
+    // Remove demo client reference - this should navigate to the actual client
+    // For now, show a message that client view is not implemented
+    alert('Client view not implemented yet');
   };
 
   const handleAIAdjustment = async (adjustmentPrompt) => {
@@ -157,13 +171,13 @@ export default function Meetings() {
   };
 
   const handleSendChatMessage = () => {
-    if (!chatMessage.trim()) return;
+    if (!chatMessages[chatMessages.length - 1].message.trim()) return;
     
-    setChatHistory(prev => [...prev, 
-      { type: 'user', message: chatMessage },
-      { type: 'ai', message: 'I can help you with questions about this meeting. This is a demo response.' }
+    setChatMessages(prev => [...prev, 
+      { type: 'user', message: chatMessages[chatMessages.length - 1].message },
+      { type: 'ai', message: 'I can help you with questions about this meeting. Ask me anything!' }
     ]);
-    setChatMessage('');
+    setChatMessages(prev => prev.slice(0, -2));
   };
 
   const handleSavePrep = () => {
@@ -171,6 +185,28 @@ export default function Meetings() {
     setShowSnackbar(true);
     setSnackbarMessage('Meeting preparation saved successfully');
     setSnackbarSeverity('success');
+  };
+
+  const handleStartRecording = () => {
+    // Implementation of handleStartRecording
+  };
+
+  const handleAudioFileChange = (e) => {
+    // Implementation of handleAudioFileChange
+  };
+
+  const handleUploadAudioSubmit = () => {
+    // Implementation of handleUploadAudioSubmit
+  };
+
+  const handlePasteTranscriptSubmit = () => {
+    // Implementation of handlePasteTranscriptSubmit
+  };
+
+  const handleAIChat = async (message) => {
+    // Remove demo response - this should call real AI service
+    // For now, show a message that AI chat is not implemented
+    alert('AI chat not implemented yet');
   };
 
   const renderGroupedMeetings = (meetings, title, isPast = false) => {
@@ -605,156 +641,190 @@ export default function Meetings() {
 
               {/* Summary Content (for past meetings) */}
               {activeTab === 'summary' && isPastMeeting && (
-                <Box>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-                    <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
-                      Meeting Summary
-                    </Typography>
-                    <Button
-                      variant="outlined"
-                      startIcon={<AutoAwesomeIcon />}
-                      onClick={() => setShowAIDialog(true)}
-                      sx={{
-                        borderColor: '#007AFF',
-                        color: '#007AFF',
-                        fontWeight: 500,
-                        textTransform: 'none',
-                        px: 3,
-                        py: 1,
-                        borderRadius: '6px',
-                        '&:hover': {
-                          borderColor: '#0056CC',
-                          backgroundColor: '#F0F8FF'
-                        }
-                      }}
-                    >
-                      Adjust with AI
-                    </Button>
-                  </Stack>
-
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 4 }}>
-                    <AutoAwesomeIcon sx={{ color: '#007AFF', fontSize: 18 }} />
-                    <Typography variant="body2" sx={{ color: '#007AFF', fontWeight: 500 }}>
-                      Generated with AI
-                    </Typography>
-                  </Stack>
-
-                  {/* Key Points */}
-                  <Box sx={{ mb: 4 }}>
-                    <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
-                      1. Key Points
-                    </Typography>
-                    <Box component="ul" sx={{ pl: 3, m: 0 }}>
-                      {summaryContent?.keyPoints ? summaryContent.keyPoints.map((point, index) => (
-                        <Typography 
-                          component="li" 
-                          key={index} 
-                          variant="body1"
-                          sx={{ 
-                            color: '#1E1E1E', 
-                            mb: 1.5,
-                            lineHeight: 1.6
-                          }}
-                        >
-                          {point}
-                        </Typography>
-                      )) : (
-                        <Typography variant="body2" sx={{ color: '#999999' }}>
-                          No key points available
-                        </Typography>
-                      )}
-                    </Box>
-                  </Box>
-
-                  {/* Financial Snapshot */}
-                  <Box sx={{ mb: 4 }}>
-                    <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
-                      2. Financial Snapshot
-                    </Typography>
-                    <Box component="ul" sx={{ pl: 3, m: 0 }}>
-                      {summaryContent?.financialSnapshot ? (
-                        <>
-                          <Typography 
-                            component="li" 
-                            variant="body1"
-                            sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
-                          >
-                            Net worth: {summaryContent.financialSnapshot.netWorth}
+                (() => {
+                  const ms = selectedMeeting?.meetingSummary;
+                  const transcript = selectedMeeting?.transcript;
+                  const isTranscriptValid = transcript && !transcript.toLowerCase().includes('not implemented');
+                  const hasRealKeyPoints = Array.isArray(ms?.keyPoints) && ms.keyPoints.some(kp => kp && !kp.toLowerCase().includes('not implemented') && kp.trim() !== '');
+                  const hasRealActionItems = Array.isArray(ms?.actionItems) && ms.actionItems.some(ai => ai && ai.trim() !== '');
+                  const hasRealFinancial = ms?.financialSnapshot && Object.values(ms.financialSnapshot).some(val => val && val.trim() !== '');
+                  if (isTranscriptValid && ms && (hasRealKeyPoints || hasRealActionItems || hasRealFinancial)) {
+                    return (
+                      <Box>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+                          <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
+                            Meeting Summary
                           </Typography>
-                          <Typography 
-                            component="li" 
-                            variant="body1"
-                            sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
+                          <Button
+                            variant="outlined"
+                            startIcon={<AutoAwesomeIcon />}
+                            onClick={() => setShowAIDialog(true)}
+                            sx={{
+                              borderColor: '#007AFF',
+                              color: '#007AFF',
+                              fontWeight: 500,
+                              textTransform: 'none',
+                              px: 3,
+                              py: 1,
+                              borderRadius: '6px',
+                              '&:hover': {
+                                borderColor: '#0056CC',
+                                backgroundColor: '#F0F8FF'
+                              }
+                            }}
                           >
-                            Income: {summaryContent.financialSnapshot.income}
-                          </Typography>
-                          <Typography 
-                            component="li" 
-                            variant="body1"
-                            sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
-                          >
-                            Expenses: {summaryContent.financialSnapshot.expenses}
-                          </Typography>
-                        </>
-                      ) : (
-                        <Typography variant="body2" sx={{ color: '#999999' }}>
-                          No financial information available
-                        </Typography>
-                      )}
-                    </Box>
-                  </Box>
+                            Adjust with AI
+                          </Button>
+                        </Stack>
 
-                  {/* Action Items */}
-                  <Box>
-                    <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
-                      3. Action Items
-                    </Typography>
-                    <Box component="ul" sx={{ pl: 3, m: 0 }}>
-                      {summaryContent?.actionItems ? summaryContent.actionItems.map((item, index) => (
-                        <Typography 
-                          component="li" 
-                          key={index} 
-                          variant="body1"
-                          sx={{ 
-                            color: '#1E1E1E', 
-                            mb: 1.5,
-                            lineHeight: 1.6
-                          }}
-                        >
-                          {item}
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 4 }}>
+                          <AutoAwesomeIcon sx={{ color: '#007AFF', fontSize: 18 }} />
+                          <Typography variant="body2" sx={{ color: '#007AFF', fontWeight: 500 }}>
+                            Generated with AI
+                          </Typography>
+                        </Stack>
+
+                        {/* Key Points */}
+                        {hasRealKeyPoints && (
+                          <Box sx={{ mb: 4 }}>
+                            <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
+                              1. Key Points
+                            </Typography>
+                            <Box component="ul" sx={{ pl: 3, m: 0 }}>
+                              {summaryContent.keyPoints.map((point, index) => (
+                                <Typography 
+                                  component="li" 
+                                  key={index} 
+                                  variant="body1"
+                                  sx={{ 
+                                    color: '#1E1E1E', 
+                                    mb: 1.5,
+                                    lineHeight: 1.6
+                                  }}
+                                >
+                                  {point}
+                                </Typography>
+                              ))}
+                            </Box>
+                          </Box>
+                        )}
+
+                        {/* Financial Snapshot */}
+                        {hasRealFinancial && (
+                          <Box sx={{ mb: 4 }}>
+                            <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
+                              2. Financial Snapshot
+                            </Typography>
+                            <Box component="ul" sx={{ pl: 3, m: 0 }}>
+                              {summaryContent.financialSnapshot.netWorth && (
+                                <Typography 
+                                  component="li" 
+                                  variant="body1"
+                                  sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
+                                >
+                                  Net worth: {summaryContent.financialSnapshot.netWorth}
+                                </Typography>
+                              )}
+                              {summaryContent.financialSnapshot.income && (
+                                <Typography 
+                                  component="li" 
+                                  variant="body1"
+                                  sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
+                                >
+                                  Income: {summaryContent.financialSnapshot.income}
+                                </Typography>
+                              )}
+                              {summaryContent.financialSnapshot.expenses && (
+                                <Typography 
+                                  component="li" 
+                                  variant="body1"
+                                  sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
+                                >
+                                  Expenses: {summaryContent.financialSnapshot.expenses}
+                                </Typography>
+                              )}
+                            </Box>
+                          </Box>
+                        )}
+
+                        {/* Action Items */}
+                        {hasRealActionItems && (
+                          <Box>
+                            <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
+                              3. Action Items
+                            </Typography>
+                            <Box component="ul" sx={{ pl: 3, m: 0 }}>
+                              {summaryContent.actionItems.map((item, index) => (
+                                <Typography 
+                                  component="li" 
+                                  key={index} 
+                                  variant="body1"
+                                  sx={{ 
+                                    color: '#1E1E1E', 
+                                    mb: 1.5,
+                                    lineHeight: 1.6
+                                  }}
+                                >
+                                  {item}
+                                </Typography>
+                              ))}
+                            </Box>
+                          </Box>
+                        )}
+                      </Box>
+                    );
+                  } else {
+                    return (
+                      <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
+                        <Typography variant="h5" sx={{ mb: 3 }}>
+                          No summary available for this meeting.
                         </Typography>
-                      )) : (
-                        <Typography variant="body2" sx={{ color: '#999999' }}>
-                          No action items available
-                        </Typography>
-                      )}
-                    </Box>
-                  </Box>
-                </Box>
+                        <Stack direction="row" spacing={2} justifyContent="center">
+                          <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start Recording</Button>
+                          <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload Audio</Button>
+                          <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste Transcript</Button>
+                        </Stack>
+                      </Box>
+                    );
+                  }
+                })()
               )}
 
               {/* Transcript Content */}
               {activeTab === 'transcript' && isPastMeeting && (
-                <Box>
-                  <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 3 }}>
-                    Meeting Transcript
-                  </Typography>
-                  
-                  <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
-                    <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6 }}>
-                      [00:00] <strong>Advisor:</strong> Good morning! Thank you for joining today's meeting. I'd like to start by reviewing your current portfolio performance.
+                selectedMeeting?.transcript ? (
+                  <Box>
+                    <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 3 }}>
+                      Meeting Transcript
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, mt: 2 }}>
-                      [00:15] <strong>Client:</strong> Thank you. I'm particularly interested in how my investments have been performing over the last quarter.
+                    
+                    <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
+                      <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6 }}>
+                        [00:00] <strong>Advisor:</strong> Good morning! Thank you for joining today's meeting. I'd like to start by reviewing your current portfolio performance.
+                      </Typography>
+                      <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, mt: 2 }}>
+                        [00:15] <strong>Client:</strong> Thank you. I'm particularly interested in how my investments have been performing over the last quarter.
+                      </Typography>
+                      <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, mt: 2 }}>
+                        [00:30] <strong>Advisor:</strong> Your portfolio has shown strong performance with a 12% growth year-over-year. Let me walk you through the key drivers...
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#999999', mt: 3, fontStyle: 'italic' }}>
+                        Full transcript available - showing first 3 entries
+                      </Typography>
+                    </Card>
+                  </Box>
+                ) : (
+                  <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
+                    <Typography variant="h5" sx={{ mb: 3 }}>
+                      No transcript available. Upload transcript.
                     </Typography>
-                    <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, mt: 2 }}>
-                      [00:30] <strong>Advisor:</strong> Your portfolio has shown strong performance with a 12% growth year-over-year. Let me walk you through the key drivers...
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#999999', mt: 3, fontStyle: 'italic' }}>
-                      Full transcript available - showing first 3 entries
-                    </Typography>
-                  </Card>
-                </Box>
+                    <Stack direction="row" spacing={2} justifyContent="center">
+                      <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start Recording</Button>
+                      <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload Audio</Button>
+                      <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste Transcript</Button>
+                    </Stack>
+                  </Box>
+                )
               )}
 
               {/* Notes Content */}
@@ -794,13 +864,13 @@ export default function Meetings() {
                 </Box>
                 
                 <Box sx={{ p: 3, maxHeight: '200px', overflow: 'auto' }}>
-                  {chatHistory.length === 0 ? (
+                  {chatMessages.length === 0 ? (
                     <Typography variant="body2" sx={{ color: '#999999', textAlign: 'center', py: 2 }}>
                       Start a conversation by asking a question about the meeting
                     </Typography>
                   ) : (
                     <Stack spacing={2}>
-                      {chatHistory.map((chat, index) => (
+                      {chatMessages.map((chat, index) => (
                         <Box 
                           key={index}
                           sx={{ 
@@ -830,8 +900,8 @@ export default function Meetings() {
                       fullWidth
                       size="small"
                       placeholder="Ask a question about this meeting..."
-                      value={chatMessage}
-                      onChange={(e) => setChatMessage(e.target.value)}
+                      value={chatMessages[chatMessages.length - 1].message}
+                      onChange={(e) => setChatMessages(prev => [...prev.slice(0, -1), { ...prev[prev.length - 1], message: e.target.value }])}
                       onKeyPress={(e) => e.key === 'Enter' && handleSendChatMessage()}
                       sx={{
                         '& .MuiOutlinedInput-root': {
@@ -846,7 +916,7 @@ export default function Meetings() {
                       variant="contained"
                       endIcon={<SendIcon />}
                       onClick={handleSendChatMessage}
-                      disabled={!chatMessage.trim()}
+                      disabled={!chatMessages[chatMessages.length - 1].message.trim()}
                       sx={{
                         backgroundColor: '#007AFF',
                         color: '#FFFFFF',
@@ -913,6 +983,37 @@ export default function Meetings() {
           {snackbarMessage}
         </Alert>
       </Snackbar>
+
+      {/* Paste Transcript Dialog */}
+      <Dialog open={openPasteDialog} onClose={() => setOpenPasteDialog(false)}>
+        <DialogTitle>Paste Transcript</DialogTitle>
+        <DialogContent>
+          <TextField
+            multiline
+            minRows={6}
+            value={pastedTranscript}
+            onChange={e => setPastedTranscript(e.target.value)}
+            fullWidth
+            placeholder="Paste or type transcript here..."
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenPasteDialog(false)}>Cancel</Button>
+          <Button onClick={handlePasteTranscriptSubmit} variant="contained">Save</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Upload Audio Dialog */}
+      <Dialog open={openUploadDialog} onClose={() => setOpenUploadDialog(false)}>
+        <DialogTitle>Upload Audio File</DialogTitle>
+        <DialogContent>
+          <input type="file" accept="audio/*" onChange={handleAudioFileChange} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenUploadDialog(false)}>Cancel</Button>
+          <Button onClick={handleUploadAudioSubmit} variant="contained" disabled={!audioFile}>Upload</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 } 
