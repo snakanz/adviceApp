@@ -82,6 +82,14 @@ export default function Meetings() {
   const [pastedTranscript, setPastedTranscript] = useState('');
   const [activeTab, setActiveTab] = useState('summary');
   const { isAuthenticated } = useAuth();
+  const [audioFile, setAudioFile] = useState(null);
+  const selectedMeeting = React.useMemo(() => {
+    return (
+      meetings.past.find(m => m.id === selectedMeetingId) ||
+      meetings.future.find(m => m.id === selectedMeetingId) ||
+      null
+    );
+  }, [meetings, selectedMeetingId]);
 
   useEffect(() => {
     const fetchMeetings = async () => {
