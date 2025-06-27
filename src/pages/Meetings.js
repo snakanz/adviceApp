@@ -648,132 +648,8 @@ export default function Meetings() {
                   const hasRealKeyPoints = Array.isArray(ms?.keyPoints) && ms.keyPoints.some(kp => kp && !kp.toLowerCase().includes('not implemented') && kp.trim() !== '');
                   const hasRealActionItems = Array.isArray(ms?.actionItems) && ms.actionItems.some(ai => ai && ai.trim() !== '');
                   const hasRealFinancial = ms?.financialSnapshot && Object.values(ms.financialSnapshot).some(val => val && val.trim() !== '');
-                  if (isTranscriptValid && ms && (hasRealKeyPoints || hasRealActionItems || hasRealFinancial)) {
-                    return (
-                      <Box>
-                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-                          <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
-                            Meeting Summary
-                          </Typography>
-                          <Button
-                            variant="outlined"
-                            startIcon={<AutoAwesomeIcon />}
-                            onClick={() => setShowAIDialog(true)}
-                            sx={{
-                              borderColor: '#007AFF',
-                              color: '#007AFF',
-                              fontWeight: 500,
-                              textTransform: 'none',
-                              px: 3,
-                              py: 1,
-                              borderRadius: '6px',
-                              '&:hover': {
-                                borderColor: '#0056CC',
-                                backgroundColor: '#F0F8FF'
-                              }
-                            }}
-                          >
-                            Adjust with AI
-                          </Button>
-                        </Stack>
-
-                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 4 }}>
-                          <AutoAwesomeIcon sx={{ color: '#007AFF', fontSize: 18 }} />
-                          <Typography variant="body2" sx={{ color: '#007AFF', fontWeight: 500 }}>
-                            Generated with AI
-                          </Typography>
-                        </Stack>
-
-                        {/* Key Points */}
-                        {hasRealKeyPoints && (
-                          <Box sx={{ mb: 4 }}>
-                            <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
-                              1. Key Points
-                            </Typography>
-                            <Box component="ul" sx={{ pl: 3, m: 0 }}>
-                              {summaryContent.keyPoints.map((point, index) => (
-                                <Typography 
-                                  component="li" 
-                                  key={index} 
-                                  variant="body1"
-                                  sx={{ 
-                                    color: '#1E1E1E', 
-                                    mb: 1.5,
-                                    lineHeight: 1.6
-                                  }}
-                                >
-                                  {point}
-                                </Typography>
-                              ))}
-                            </Box>
-                          </Box>
-                        )}
-
-                        {/* Financial Snapshot */}
-                        {hasRealFinancial && (
-                          <Box sx={{ mb: 4 }}>
-                            <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
-                              2. Financial Snapshot
-                            </Typography>
-                            <Box component="ul" sx={{ pl: 3, m: 0 }}>
-                              {summaryContent.financialSnapshot.netWorth && (
-                                <Typography 
-                                  component="li" 
-                                  variant="body1"
-                                  sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
-                                >
-                                  Net worth: {summaryContent.financialSnapshot.netWorth}
-                                </Typography>
-                              )}
-                              {summaryContent.financialSnapshot.income && (
-                                <Typography 
-                                  component="li" 
-                                  variant="body1"
-                                  sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
-                                >
-                                  Income: {summaryContent.financialSnapshot.income}
-                                </Typography>
-                              )}
-                              {summaryContent.financialSnapshot.expenses && (
-                                <Typography 
-                                  component="li" 
-                                  variant="body1"
-                                  sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
-                                >
-                                  Expenses: {summaryContent.financialSnapshot.expenses}
-                                </Typography>
-                              )}
-                            </Box>
-                          </Box>
-                        )}
-
-                        {/* Action Items */}
-                        {hasRealActionItems && (
-                          <Box>
-                            <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
-                              3. Action Items
-                            </Typography>
-                            <Box component="ul" sx={{ pl: 3, m: 0 }}>
-                              {summaryContent.actionItems.map((item, index) => (
-                                <Typography 
-                                  component="li" 
-                                  key={index} 
-                                  variant="body1"
-                                  sx={{ 
-                                    color: '#1E1E1E', 
-                                    mb: 1.5,
-                                    lineHeight: 1.6
-                                  }}
-                                >
-                                  {item}
-                                </Typography>
-                              ))}
-                            </Box>
-                          </Box>
-                        )}
-                      </Box>
-                    );
-                  } else {
+                  // If no transcript or no real summary, show upload UI
+                  if (!isTranscriptValid || !ms || (!hasRealKeyPoints && !hasRealActionItems && !hasRealFinancial)) {
                     return (
                       <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
                         <Typography variant="h5" sx={{ mb: 3 }}>
@@ -787,44 +663,170 @@ export default function Meetings() {
                       </Box>
                     );
                   }
+                  // Otherwise, show the summary sections as before
+                  return (
+                    <Box>
+                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+                        <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
+                          Meeting Summary
+                        </Typography>
+                        <Button
+                          variant="outlined"
+                          startIcon={<AutoAwesomeIcon />}
+                          onClick={() => setShowAIDialog(true)}
+                          sx={{
+                            borderColor: '#007AFF',
+                            color: '#007AFF',
+                            fontWeight: 500,
+                            textTransform: 'none',
+                            px: 3,
+                            py: 1,
+                            borderRadius: '6px',
+                            '&:hover': {
+                              borderColor: '#0056CC',
+                              backgroundColor: '#F0F8FF'
+                            }
+                          }}
+                        >
+                          Adjust with AI
+                        </Button>
+                      </Stack>
+
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 4 }}>
+                        <AutoAwesomeIcon sx={{ color: '#007AFF', fontSize: 18 }} />
+                        <Typography variant="body2" sx={{ color: '#007AFF', fontWeight: 500 }}>
+                          Generated with AI
+                        </Typography>
+                      </Stack>
+
+                      {/* Key Points */}
+                      {hasRealKeyPoints && (
+                        <Box sx={{ mb: 4 }}>
+                          <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
+                            1. Key Points
+                          </Typography>
+                          <Box component="ul" sx={{ pl: 3, m: 0 }}>
+                            {summaryContent.keyPoints.map((point, index) => (
+                              <Typography 
+                                component="li" 
+                                key={index} 
+                                variant="body1"
+                                sx={{ 
+                                  color: '#1E1E1E', 
+                                  mb: 1.5,
+                                  lineHeight: 1.6
+                                }}
+                              >
+                                {point}
+                              </Typography>
+                            ))}
+                          </Box>
+                        </Box>
+                      )}
+
+                      {/* Financial Snapshot */}
+                      {hasRealFinancial && (
+                        <Box sx={{ mb: 4 }}>
+                          <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
+                            2. Financial Snapshot
+                          </Typography>
+                          <Box component="ul" sx={{ pl: 3, m: 0 }}>
+                            {summaryContent.financialSnapshot.netWorth && (
+                              <Typography 
+                                component="li" 
+                                variant="body1"
+                                sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
+                              >
+                                Net worth: {summaryContent.financialSnapshot.netWorth}
+                              </Typography>
+                            )}
+                            {summaryContent.financialSnapshot.income && (
+                              <Typography 
+                                component="li" 
+                                variant="body1"
+                                sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
+                              >
+                                Income: {summaryContent.financialSnapshot.income}
+                              </Typography>
+                            )}
+                            {summaryContent.financialSnapshot.expenses && (
+                              <Typography 
+                                component="li" 
+                                variant="body1"
+                                sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
+                              >
+                                Expenses: {summaryContent.financialSnapshot.expenses}
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      )}
+
+                      {/* Action Items */}
+                      {hasRealActionItems && (
+                        <Box>
+                          <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
+                            3. Action Items
+                          </Typography>
+                          <Box component="ul" sx={{ pl: 3, m: 0 }}>
+                            {summaryContent.actionItems.map((item, index) => (
+                              <Typography 
+                                component="li" 
+                                key={index} 
+                                variant="body1"
+                                sx={{ 
+                                  color: '#1E1E1E', 
+                                  mb: 1.5,
+                                  lineHeight: 1.6
+                                }}
+                              >
+                                {item}
+                              </Typography>
+                            ))}
+                          </Box>
+                        </Box>
+                      )}
+                    </Box>
+                  );
                 })()
               )}
 
               {/* Transcript Content */}
               {activeTab === 'transcript' && isPastMeeting && (
-                selectedMeeting?.transcript ? (
-                  <Box>
-                    <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 3 }}>
-                      Meeting Transcript
-                    </Typography>
-                    
-                    <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
-                      <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6 }}>
-                        [00:00] <strong>Advisor:</strong> Good morning! Thank you for joining today's meeting. I'd like to start by reviewing your current portfolio performance.
+                (() => {
+                  const transcript = selectedMeeting?.transcript;
+                  const isTranscriptValid = transcript && !transcript.toLowerCase().includes('not implemented');
+                  if (!isTranscriptValid) {
+                    return (
+                      <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
+                        <Typography variant="h5" sx={{ mb: 3 }}>
+                          No transcript available. Upload transcript.
+                        </Typography>
+                        <Stack direction="row" spacing={2} justifyContent="center">
+                          <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start Recording</Button>
+                          <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload Audio</Button>
+                          <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste Transcript</Button>
+                        </Stack>
+                      </Box>
+                    );
+                  }
+                  // Otherwise, show the transcript as before
+                  return (
+                    <Box>
+                      <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 3 }}>
+                        Meeting Transcript
                       </Typography>
-                      <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, mt: 2 }}>
-                        [00:15] <strong>Client:</strong> Thank you. I'm particularly interested in how my investments have been performing over the last quarter.
-                      </Typography>
-                      <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, mt: 2 }}>
-                        [00:30] <strong>Advisor:</strong> Your portfolio has shown strong performance with a 12% growth year-over-year. Let me walk you through the key drivers...
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: '#999999', mt: 3, fontStyle: 'italic' }}>
-                        Full transcript available - showing first 3 entries
-                      </Typography>
-                    </Card>
-                  </Box>
-                ) : (
-                  <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
-                    <Typography variant="h5" sx={{ mb: 3 }}>
-                      No transcript available. Upload transcript.
-                    </Typography>
-                    <Stack direction="row" spacing={2} justifyContent="center">
-                      <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start Recording</Button>
-                      <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload Audio</Button>
-                      <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste Transcript</Button>
-                    </Stack>
-                  </Box>
-                )
+                      <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
+                        <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6 }}>
+                          {transcript}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#999999', mt: 3, fontStyle: 'italic' }}>
+                          Full transcript available
+                        </Typography>
+                      </Card>
+                    </Box>
+                  );
+                })()
               )}
 
               {/* Notes Content */}
