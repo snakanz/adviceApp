@@ -16,7 +16,6 @@ import SaveIcon from '@mui/icons-material/Save';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import MicIcon from '@mui/icons-material/Mic';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 
@@ -65,9 +64,7 @@ const emailTemplates = [
 export default function Meetings() {
   const [meetings, setMeetings] = useState({ future: [], past: [] });
   const [selectedMeetingId, setSelectedMeetingId] = useState(null);
-  const [selectedMeeting, setSelectedMeeting] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [showAIDialog, setShowAIDialog] = useState(false);
   const [showAIChat, setShowAIChat] = useState(false);
   const [emailTemplate, setEmailTemplate] = useState('standard');
@@ -78,20 +75,13 @@ export default function Meetings() {
   const [meetingPrep, setMeetingPrep] = useState('');
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
   const [openPasteDialog, setOpenPasteDialog] = useState(false);
-  const [transcriptText, setTranscriptText] = useState('');
-  const [uploadingTranscript, setUploadingTranscript] = useState(false);
-  const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('summary');
   const [showSnackbar, setShowSnackbar] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
   const [summaryContent, setSummaryContent] = useState(null);
   const [pastedTranscript, setPastedTranscript] = useState('');
-  const [audioFile, setAudioFile] = useState(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [mediaRecorder, setMediaRecorder] = useState(null);
-  const [recordedChunks, setRecordedChunks] = useState([]);
+  const [activeTab, setActiveTab] = useState('summary');
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     const fetchMeetings = async () => {
@@ -201,12 +191,6 @@ export default function Meetings() {
 
   const handlePasteTranscriptSubmit = () => {
     // Implementation of handlePasteTranscriptSubmit
-  };
-
-  const handleAIChat = async (message) => {
-    // Remove demo response - this should call real AI service
-    // For now, show a message that AI chat is not implemented
-    alert('AI chat not implemented yet');
   };
 
   const renderGroupedMeetings = (meetings, title, isPast = false) => {
