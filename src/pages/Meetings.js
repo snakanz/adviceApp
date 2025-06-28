@@ -646,6 +646,9 @@ export default function Meetings() {
                         <Typography variant="h5" sx={{ mb: 3 }}>
                           No summary available for this meeting.
                         </Typography>
+                        <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
+                          In order to produce info such as email summary and other features, please provide one of the following from the meeting uploads:
+                        </Typography>
                         <Stack direction="row" spacing={2} justifyContent="center">
                           <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start Recording</Button>
                           <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload Audio</Button>
@@ -792,6 +795,9 @@ export default function Meetings() {
                       <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
                         <Typography variant="h5" sx={{ mb: 3 }}>
                           No transcript available. Upload transcript.
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
+                          In order to produce info such as email summary and other features, please provide one of the following from the meeting uploads:
                         </Typography>
                         <Stack direction="row" spacing={2} justifyContent="center">
                           <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start Recording</Button>
