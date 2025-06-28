@@ -1004,7 +1004,7 @@ export default function Meetings() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenUploadDialog(false)}>Cancel</Button>
-          <Button onClick={handleUploadAudioSubmit} variant="contained" disabled={!audioFile}>Upload</Button>
+          <Button onClick={handleUploadAudioSubmit} variant="contained">Upload</Button>
         </DialogActions>
       </Dialog>
     </Box>
