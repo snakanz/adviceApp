@@ -474,11 +474,12 @@ app.post('/api/calendar/meetings/:id/transcript', async (c) => {
   // Check content type
   const contentType = c.req.header('Content-Type') || '';
   let transcriptText = '';
+  let clientId = null;
 
   if (contentType.includes('application/json')) {
-    // Pasted transcript
-    const { transcript } = await c.req.json();
+    const { transcript, clientId: cid } = await c.req.json();
     transcriptText = transcript;
+    clientId = cid;
   } else if (contentType.includes('multipart/form-data')) {
     // Audio upload
     const formData = await c.req.formData();
@@ -490,8 +491,15 @@ app.post('/api/calendar/meetings/:id/transcript', async (c) => {
     return c.json({ error: 'Unsupported content type' }, 400);
   }
 
-  // Store transcript in DB
-  await updateMeetingTranscript(c.env, userId, meetingId, transcriptText);
+  // Upsert meeting: create if not exists, then update transcript and clientId
+  const now = new Date().toISOString();
+  await c.env.DB.prepare(`INSERT OR IGNORE INTO Meeting (userId, googleEventId, title, startTime, endTime, status, clientId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`).bind(userId, meetingId, 'Untitled Meeting', now, now, 'scheduled', clientId).run();
+  // Now update transcript and clientId if needed
+  if (clientId) {
+    await c.env.DB.prepare('UPDATE Meeting SET transcript = ?, clientId = ?, updatedAt = CURRENT_TIMESTAMP WHERE userId = ? AND googleEventId = ?').bind(transcriptText, clientId, userId, meetingId).run();
+  } else {
+    await c.env.DB.prepare('UPDATE Meeting SET transcript = ?, updatedAt = CURRENT_TIMESTAMP WHERE userId = ? AND googleEventId = ?').bind(transcriptText, userId, meetingId).run();
+  }
 
   return c.json({ success: true, transcript: transcriptText });
 });

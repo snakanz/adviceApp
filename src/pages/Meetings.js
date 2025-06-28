@@ -207,7 +207,7 @@ export default function Meetings() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('jwt')}`
         },
-        body: JSON.stringify({ transcript: pastedTranscript })
+        body: JSON.stringify({ transcript: pastedTranscript, clientId: selectedMeeting?.clientId })
       });
       if (!res.ok) throw new Error('Failed to save transcript');
       setMeetings(prev => {
@@ -223,7 +223,7 @@ export default function Meetings() {
       setSnackbarSeverity('success');
     } catch (err) {
       setShowSnackbar(true);
-      setSnackbarMessage('Failed to upload transcript. Please try again.');
+      setSnackbarMessage('Failed to upload transcript');
       setSnackbarSeverity('error');
     }
   };
