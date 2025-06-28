@@ -491,6 +491,9 @@ app.post('/api/calendar/meetings/:id/transcript', async (c) => {
     return c.json({ error: 'Unsupported content type' }, 400);
   }
 
+  // Log values for debugging
+  console.log('Transcript upload:', { userId, meetingId, clientId, transcriptText });
+
   // Upsert meeting: create if not exists, then update transcript and clientId
   const now = new Date().toISOString();
   await c.env.DB.prepare(`INSERT OR IGNORE INTO Meeting (userId, googleEventId, title, startTime, endTime, status, clientId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`).bind(userId, meetingId, 'Untitled Meeting', now, now, 'scheduled', clientId).run();
