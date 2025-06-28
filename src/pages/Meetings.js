@@ -82,9 +82,7 @@ export default function Meetings() {
   const [pastedTranscript, setPastedTranscript] = useState('');
   const [activeTab, setActiveTab] = useState('summary');
   const { isAuthenticated } = useAuth();
-  const [aiSummary, setAISummary] = useState('');
   const [aiSummaryLoading, setAISummaryLoading] = useState(false);
-  const [aiSummaryError, setAISummaryError] = useState('');
   const selectedMeeting = React.useMemo(() => {
     return (
       meetings.past.find(m => m.id === selectedMeetingId) ||
@@ -850,8 +848,6 @@ export default function Meetings() {
                                 startIcon={<EmailIcon />}
                                 onClick={async () => {
                                   setAISummaryLoading(true);
-                                  setAISummaryError('');
-                                  setAISummary('');
                                   try {
                                     const res = await fetch(`${API_URL}/ai/summary`, {
                                       method: 'POST',
@@ -863,9 +859,9 @@ export default function Meetings() {
                                     });
                                     if (!res.ok) throw new Error('Failed to generate summary');
                                     const data = await res.json();
-                                    setAISummary(data.summary);
+                                    setSummaryContent(data.summary);
                                   } catch (err) {
-                                    setAISummaryError('Failed to generate summary. Please try again.');
+                                    console.error('Failed to generate summary:', err);
                                   } finally {
                                     setAISummaryLoading(false);
                                   }
