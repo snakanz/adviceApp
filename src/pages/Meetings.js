@@ -82,6 +82,9 @@ export default function Meetings() {
   const [pastedTranscript, setPastedTranscript] = useState('');
   const [activeTab, setActiveTab] = useState('summary');
   const { isAuthenticated } = useAuth();
+  const [aiSummary, setAISummary] = useState('');
+  const [aiSummaryLoading, setAISummaryLoading] = useState(false);
+  const [aiSummaryError, setAISummaryError] = useState('');
   const selectedMeeting = React.useMemo(() => {
     return (
       meetings.past.find(m => m.id === selectedMeetingId) ||
@@ -196,8 +199,35 @@ export default function Meetings() {
     // Implementation of handleUploadAudioSubmit
   };
 
-  const handlePasteTranscriptSubmit = () => {
-    // Implementation of handlePasteTranscriptSubmit
+  const handlePasteTranscriptSubmit = async () => {
+    console.log("Uploading transcript", pastedTranscript, selectedMeetingId);
+    if (!pastedTranscript.trim()) return;
+    try {
+      const res = await fetch(`${API_URL}/calendar/meetings/${selectedMeetingId}/transcript`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('jwt')}`
+        },
+        body: JSON.stringify({ transcript: pastedTranscript })
+      });
+      if (!res.ok) throw new Error('Failed to save transcript');
+      setMeetings(prev => {
+        const updateMeeting = m => m.id === selectedMeetingId ? { ...m, transcript: pastedTranscript } : m;
+        return {
+          future: prev.future.map(updateMeeting),
+          past: prev.past.map(updateMeeting)
+        };
+      });
+      setOpenPasteDialog(false);
+      setShowSnackbar(true);
+      setSnackbarMessage('Transcript uploaded successfully');
+      setSnackbarSeverity('success');
+    } catch (err) {
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to upload transcript. Please try again.');
+      setSnackbarSeverity('error');
+    }
   };
 
   const renderGroupedMeetings = (meetings, title, isPast = false) => {
@@ -306,622 +336,79 @@ export default function Meetings() {
   };
 
   return (
-    <Box sx={{ height: 'calc(100vh - 128px)', display: 'flex', gap: 3 }}>
-      {/* Left Sidebar */}
-      <Card 
-        sx={{ 
-          width: 380, 
-          p: 3,
-          borderRadius: '12px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          backgroundColor: '#FFFFFF',
-          border: '1px solid #E5E5E5',
-          overflow: 'auto'
-        }}
-      >
-        <Typography variant="h2" sx={{ fontWeight: 700, color: '#1E1E1E', mb: 4 }}>
-          Meetings
-        </Typography>
+    <>
+      <Button onClick={() => { alert('Test button works!'); }}>Test Button</Button>
+      <Box sx={{ height: 'calc(100vh - 128px)', display: 'flex', gap: 3 }}>
+        {/* Left Sidebar */}
+        <Card 
+          sx={{ 
+            width: 380, 
+            p: 3,
+            borderRadius: '12px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E5E5E5',
+            overflow: 'auto'
+          }}
+        >
+          <Typography variant="h2" sx={{ fontWeight: 700, color: '#1E1E1E', mb: 4 }}>
+            Meetings
+          </Typography>
 
-        {loading ? (
-          <Box display="flex" justifyContent="center" py={4}>
-            <CircularProgress size={24} />
-          </Box>
-        ) : (
-          <>
-            {/* Future Meetings */}
-            {renderGroupedMeetings(meetings.future, 'Upcoming Meetings')}
-            
-            {meetings.future.length > 0 && meetings.past.length > 0 && (
-              <Divider sx={{ my: 3, borderColor: '#E5E5E5' }} />
-            )}
-
-            {/* Past Meetings */}
-            {renderGroupedMeetings(meetings.past, 'Past Meetings', true)}
-          </>
-        )}
-      </Card>
-
-      {/* Main Content */}
-      <Card 
-        sx={{ 
-          flex: 1, 
-          p: 0,
-          borderRadius: '12px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          backgroundColor: '#FFFFFF',
-          border: '1px solid #E5E5E5',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column'
-        }}
-      >
-        {selectedMeetingId ? (
-          <>
-            {/* Top Controls */}
-            <Box sx={{ p: 4, pb: 0 }}>
-              <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 3 }}>
-                <Typography variant="h2" sx={{ fontWeight: 700, color: '#1E1E1E' }}>
-                  {selectedMeeting?.summary || 'Meeting Details'}
-                </Typography>
-                
-                <Stack direction="row" spacing={2} alignItems="center">
-                  <Button
-                    variant="contained"
-                    startIcon={<EmailIcon />}
-                    onClick={handleEmailSummary}
-                    sx={{
-                      backgroundColor: '#007AFF',
-                      color: '#FFFFFF',
-                      fontWeight: 500,
-                      textTransform: 'none',
-                      px: 3,
-                      py: 1,
-                      borderRadius: '6px',
-                      boxShadow: 'none',
-                      '&:hover': {
-                        backgroundColor: '#0056CC',
-                        boxShadow: 'none'
-                      }
-                    }}
-                  >
-                    Email Summary
-                  </Button>
-                  
-                  <FormControl size="small" sx={{ minWidth: 140 }}>
-                    <Select
-                      value={emailTemplate}
-                      onChange={(e) => setEmailTemplate(e.target.value)}
-                      sx={{
-                        borderRadius: '6px',
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: '#E5E5E5'
-                        }
-                      }}
-                    >
-                      {emailTemplates.map((template) => (
-                        <MenuItem key={template.value} value={template.value}>
-                          {template.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  
-                  <Button
-                    variant="outlined"
-                    startIcon={<PersonIcon />}
-                    onClick={handleViewClient}
-                    sx={{
-                      borderColor: '#007AFF',
-                      color: '#007AFF',
-                      fontWeight: 500,
-                      textTransform: 'none',
-                      px: 3,
-                      py: 1,
-                      borderRadius: '6px',
-                      '&:hover': {
-                        borderColor: '#0056CC',
-                        backgroundColor: '#F0F8FF'
-                      }
-                    }}
-                  >
-                    View Client
-                  </Button>
-                  
-                  <Button
-                    variant="outlined"
-                    startIcon={<ChatIcon />}
-                    onClick={() => setShowAIChat(!showAIChat)}
-                    sx={{
-                      borderColor: showAIChat ? '#007AFF' : '#E5E5E5',
-                      color: showAIChat ? '#007AFF' : '#3C3C3C',
-                      backgroundColor: showAIChat ? '#F0F8FF' : 'transparent',
-                      fontWeight: 500,
-                      textTransform: 'none',
-                      px: 3,
-                      py: 1,
-                      borderRadius: '6px',
-                      '&:hover': {
-                        borderColor: '#007AFF',
-                        backgroundColor: '#F0F8FF'
-                      }
-                    }}
-                  >
-                    Ask AI About Meeting
-                  </Button>
-                </Stack>
-              </Stack>
-
-              {/* Meeting Info Bar */}
-              <Card sx={{ p: 3, mb: 4, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
-                <Stack direction="row" spacing={3} alignItems="center">
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <TeamsIcon sx={{ color: '#3C3C3C', fontSize: 20 }} />
-                    <Typography variant="body2" sx={{ color: '#3C3C3C' }}>
-                      Teams Meeting • {formatDateTime(selectedMeeting?.start?.dateTime)}
-                    </Typography>
-                  </Box>
-                  <Box display="flex" alignItems="center" gap={1}>
-                    <Box display="flex">
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <Box
-                          key={i}
-                          sx={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: '50%',
-                            backgroundColor: i === 0 ? '#007AFF' : i === 1 ? '#34C759' : '#FF9500',
-                            border: '2px solid #FFFFFF',
-                            ml: i > 0 ? -0.5 : 0
-                          }}
-                        />
-                      ))}
-                    </Box>
-                    <Typography variant="caption" sx={{ color: '#999999', ml: 1 }}>
-                      3 participants
-                    </Typography>
-                  </Box>
-                  {isPastMeeting && (
-                    <Card 
-                      sx={{ 
-                        p: 2,
-                        backgroundColor: '#F0F8FF',
-                        border: '1px solid #007AFF',
-                        borderRadius: '6px'
-                      }}
-                    >
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <CheckCircleIcon sx={{ color: '#007AFF', fontSize: 16 }} />
-                        <Typography variant="caption" sx={{ color: '#007AFF', fontWeight: 500 }}>
-                          Notes completed
-                        </Typography>
-                      </Stack>
-                    </Card>
-                  )}
-                </Stack>
-              </Card>
-
-              {/* Navigation Tabs */}
-              <Tabs 
-                value={activeTab}
-                onChange={(_, newValue) => setActiveTab(newValue)}
-                sx={{
-                  borderBottom: '1px solid #E5E5E5',
-                  '& .MuiTab-root': {
-                    textTransform: 'none',
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    color: '#3C3C3C',
-                    py: 2,
-                    px: 3,
-                    '&.Mui-selected': {
-                      color: '#007AFF',
-                      fontWeight: 600
-                    }
-                  },
-                  '& .MuiTabs-indicator': {
-                    backgroundColor: '#007AFF',
-                    height: 2
-                  }
-                }}
-              >
-                {!isPastMeeting && <Tab label="Meeting Prep" value="prep" />}
-                {isPastMeeting && <Tab label="Summary" value="summary" />}
-                {isPastMeeting && <Tab label="Transcript" value="transcript" />}
-                <Tab label="Notes" value="notes" />
-              </Tabs>
+          {loading ? (
+            <Box display="flex" justifyContent="center" py={4}>
+              <CircularProgress size={24} />
             </Box>
-
-            {/* Content Area */}
-            <Box sx={{ flex: 1, overflow: 'auto', p: 4, pt: 3 }}>
-              {/* Meeting Prep Content (for future meetings) */}
-              {activeTab === 'prep' && !isPastMeeting && (
-                <Box>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-                    <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
-                      Meeting Preparation
-                    </Typography>
-                    {editingPrep ? (
-                      <Stack direction="row" spacing={1}>
-                        <Button
-                          variant="contained"
-                          startIcon={<SaveIcon />}
-                          onClick={handleSavePrep}
-                          sx={{
-                            backgroundColor: '#007AFF',
-                            color: '#FFFFFF',
-                            fontWeight: 500,
-                            textTransform: 'none',
-                            px: 2,
-                            py: 1,
-                            borderRadius: '6px',
-                            boxShadow: 'none',
-                            '&:hover': { backgroundColor: '#0056CC', boxShadow: 'none' }
-                          }}
-                        >
-                          Save
-                        </Button>
-                        <Button
-                          variant="outlined"
-                          onClick={() => setEditingPrep(false)}
-                          sx={{
-                            borderColor: '#E5E5E5',
-                            color: '#3C3C3C',
-                            fontWeight: 500,
-                            textTransform: 'none',
-                            px: 2,
-                            py: 1,
-                            borderRadius: '6px'
-                          }}
-                        >
-                          Cancel
-                        </Button>
-                      </Stack>
-                    ) : (
-                      <Button
-                        variant="outlined"
-                        startIcon={<EditIcon />}
-                        onClick={() => setEditingPrep(true)}
-                        sx={{
-                          borderColor: '#007AFF',
-                          color: '#007AFF',
-                          fontWeight: 500,
-                          textTransform: 'none',
-                          px: 2,
-                          py: 1,
-                          borderRadius: '6px'
-                        }}
-                      >
-                        Edit
-                      </Button>
-                    )}
-                  </Stack>
-
-                  {editingPrep ? (
-                    <TextField
-                      fullWidth
-                      multiline
-                      rows={12}
-                      value={meetingPrep}
-                      onChange={(e) => setMeetingPrep(e.target.value)}
-                      placeholder="Add your meeting preparation notes, agenda items, questions to ask, etc."
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: '8px',
-                          '& fieldset': { borderColor: '#E5E5E5' },
-                          '&:hover fieldset': { borderColor: '#007AFF' },
-                          '&.Mui-focused fieldset': { borderColor: '#007AFF' }
-                        }
-                      }}
-                    />
-                  ) : (
-                    <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
-                      {meetingPrep ? (
-                        <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                          {meetingPrep}
-                        </Typography>
-                      ) : (
-                        <Typography variant="body2" sx={{ color: '#999999', fontStyle: 'italic' }}>
-                          Click "Edit" to add meeting preparation notes, agenda items, and questions.
-                        </Typography>
-                      )}
-                    </Card>
-                  )}
-                </Box>
+          ) : (
+            <>
+              {/* Future Meetings */}
+              {renderGroupedMeetings(meetings.future, 'Upcoming Meetings')}
+              
+              {meetings.future.length > 0 && meetings.past.length > 0 && (
+                <Divider sx={{ my: 3, borderColor: '#E5E5E5' }} />
               )}
 
-              {/* Summary Content (for past meetings) */}
-              {activeTab === 'summary' && isPastMeeting && (
-                (() => {
-                  const ms = selectedMeeting?.meetingSummary;
-                  const transcript = selectedMeeting?.transcript;
-                  const isTranscriptValid = transcript && !transcript.toLowerCase().includes('not implemented');
-                  const hasRealKeyPoints = Array.isArray(ms?.keyPoints) && ms.keyPoints.some(kp => kp && !kp.toLowerCase().includes('not implemented') && kp.trim() !== '');
-                  const hasRealActionItems = Array.isArray(ms?.actionItems) && ms.actionItems.some(ai => ai && ai.trim() !== '');
-                  const hasRealFinancial = ms?.financialSnapshot && Object.values(ms.financialSnapshot).some(val => val && val.trim() !== '');
-                  // If no transcript or no real summary, show upload UI
-                  if (!isTranscriptValid || !ms || (!hasRealKeyPoints && !hasRealActionItems && !hasRealFinancial)) {
-                    return (
-                      <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
-                        <Typography variant="h5" sx={{ mb: 3 }}>
-                          No summary available for this meeting.
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
-                          In order to produce info such as email summary and other features, please provide one of the following from the meeting uploads:
-                        </Typography>
-                        <Stack direction="row" spacing={2} justifyContent="center">
-                          <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start Recording</Button>
-                          <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload Audio</Button>
-                          <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste Transcript</Button>
-                        </Stack>
-                      </Box>
-                    );
-                  }
-                  // Otherwise, show the summary sections as before
-                  return (
-                    <Box>
-                      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-                        <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
-                          Meeting Summary
-                        </Typography>
-                        <Button
-                          variant="outlined"
-                          startIcon={<AutoAwesomeIcon />}
-                          onClick={() => setShowAIDialog(true)}
-                          sx={{
-                            borderColor: '#007AFF',
-                            color: '#007AFF',
-                            fontWeight: 500,
-                            textTransform: 'none',
-                            px: 3,
-                            py: 1,
-                            borderRadius: '6px',
-                            '&:hover': {
-                              borderColor: '#0056CC',
-                              backgroundColor: '#F0F8FF'
-                            }
-                          }}
-                        >
-                          Adjust with AI
-                        </Button>
-                      </Stack>
+              {/* Past Meetings */}
+              {renderGroupedMeetings(meetings.past, 'Past Meetings', true)}
+            </>
+          )}
+        </Card>
 
-                      <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 4 }}>
-                        <AutoAwesomeIcon sx={{ color: '#007AFF', fontSize: 18 }} />
-                        <Typography variant="body2" sx={{ color: '#007AFF', fontWeight: 500 }}>
-                          Generated with AI
-                        </Typography>
-                      </Stack>
-
-                      {/* Key Points */}
-                      {hasRealKeyPoints && (
-                        <Box sx={{ mb: 4 }}>
-                          <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
-                            1. Key Points
-                          </Typography>
-                          <Box component="ul" sx={{ pl: 3, m: 0 }}>
-                            {summaryContent.keyPoints.map((point, index) => (
-                              <Typography 
-                                component="li" 
-                                key={index} 
-                                variant="body1"
-                                sx={{ 
-                                  color: '#1E1E1E', 
-                                  mb: 1.5,
-                                  lineHeight: 1.6
-                                }}
-                              >
-                                {point}
-                              </Typography>
-                            ))}
-                          </Box>
-                        </Box>
-                      )}
-
-                      {/* Financial Snapshot */}
-                      {hasRealFinancial && (
-                        <Box sx={{ mb: 4 }}>
-                          <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
-                            2. Financial Snapshot
-                          </Typography>
-                          <Box component="ul" sx={{ pl: 3, m: 0 }}>
-                            {summaryContent.financialSnapshot.netWorth && (
-                              <Typography 
-                                component="li" 
-                                variant="body1"
-                                sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
-                              >
-                                Net worth: {summaryContent.financialSnapshot.netWorth}
-                              </Typography>
-                            )}
-                            {summaryContent.financialSnapshot.income && (
-                              <Typography 
-                                component="li" 
-                                variant="body1"
-                                sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
-                              >
-                                Income: {summaryContent.financialSnapshot.income}
-                              </Typography>
-                            )}
-                            {summaryContent.financialSnapshot.expenses && (
-                              <Typography 
-                                component="li" 
-                                variant="body1"
-                                sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
-                              >
-                                Expenses: {summaryContent.financialSnapshot.expenses}
-                              </Typography>
-                            )}
-                          </Box>
-                        </Box>
-                      )}
-
-                      {/* Action Items */}
-                      {hasRealActionItems && (
-                        <Box>
-                          <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
-                            3. Action Items
-                          </Typography>
-                          <Box component="ul" sx={{ pl: 3, m: 0 }}>
-                            {summaryContent.actionItems.map((item, index) => (
-                              <Typography 
-                                component="li" 
-                                key={index} 
-                                variant="body1"
-                                sx={{ 
-                                  color: '#1E1E1E', 
-                                  mb: 1.5,
-                                  lineHeight: 1.6
-                                }}
-                              >
-                                {item}
-                              </Typography>
-                            ))}
-                          </Box>
-                        </Box>
-                      )}
-                    </Box>
-                  );
-                })()
-              )}
-
-              {/* Transcript Content */}
-              {activeTab === 'transcript' && isPastMeeting && (
-                (() => {
-                  const transcript = selectedMeeting?.transcript;
-                  const isTranscriptValid = transcript && !transcript.toLowerCase().includes('not implemented');
-                  if (!isTranscriptValid) {
-                    return (
-                      <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
-                        <Typography variant="h5" sx={{ mb: 3 }}>
-                          No transcript available. Upload transcript.
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
-                          In order to produce info such as email summary and other features, please provide one of the following from the meeting uploads:
-                        </Typography>
-                        <Stack direction="row" spacing={2} justifyContent="center">
-                          <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start Recording</Button>
-                          <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload Audio</Button>
-                          <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste Transcript</Button>
-                        </Stack>
-                      </Box>
-                    );
-                  }
-                  // Otherwise, show the transcript as before
-                  return (
-                    <Box>
-                      <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 3 }}>
-                        Meeting Transcript
-                      </Typography>
-                      <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
-                        <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6 }}>
-                          {transcript}
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#999999', mt: 3, fontStyle: 'italic' }}>
-                          Full transcript available
-                        </Typography>
-                      </Card>
-                    </Box>
-                  );
-                })()
-              )}
-
-              {/* Notes Content */}
-              {activeTab === 'notes' && (
-                <Box>
-                  <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 3 }}>
-                    Meeting Notes
+        {/* Main Content */}
+        <Card 
+          sx={{ 
+            flex: 1, 
+            p: 0,
+            borderRadius: '12px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid #E5E5E5',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
+          {selectedMeetingId ? (
+            <>
+              {/* Top Controls */}
+              <Box sx={{ p: 4, pb: 0 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 3 }}>
+                  <Typography variant="h2" sx={{ fontWeight: 700, color: '#1E1E1E' }}>
+                    {selectedMeeting?.summary || 'Meeting Details'}
                   </Typography>
                   
-                  <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
-                    <Typography variant="body2" sx={{ color: '#999999', fontStyle: 'italic' }}>
-                      Detailed meeting notes will appear here. This feature is coming soon.
-                    </Typography>
-                  </Card>
-                </Box>
-              )}
-            </Box>
-
-            {/* AI Chat Overlay */}
-            <Collapse in={showAIChat}>
-              <Paper 
-                sx={{ 
-                  m: 4, 
-                  mt: 0,
-                  borderRadius: '12px',
-                  border: '1px solid #E5E5E5',
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
-                }}
-              >
-                <Box sx={{ p: 3, borderBottom: '1px solid #E5E5E5' }}>
-                  <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
-                    AI Assistant
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: '#3C3C3C' }}>
-                    Ask me anything about this meeting
-                  </Typography>
-                </Box>
-                
-                <Box sx={{ p: 3, maxHeight: '200px', overflow: 'auto' }}>
-                  {chatMessages.length === 0 ? (
-                    <Typography variant="body2" sx={{ color: '#999999', textAlign: 'center', py: 2 }}>
-                      Start a conversation by asking a question about the meeting
-                    </Typography>
-                  ) : (
-                    <Stack spacing={2}>
-                      {chatMessages.map((chat, index) => (
-                        <Box 
-                          key={index}
-                          sx={{ 
-                            display: 'flex', 
-                            justifyContent: chat.type === 'user' ? 'flex-end' : 'flex-start' 
-                          }}
-                        >
-                          <Card 
-                            sx={{ 
-                              p: 2, 
-                              maxWidth: '70%',
-                              backgroundColor: chat.type === 'user' ? '#007AFF' : '#F8F9FA',
-                              color: chat.type === 'user' ? '#FFFFFF' : '#1E1E1E'
-                            }}
-                          >
-                            <Typography variant="body2">{chat.message}</Typography>
-                          </Card>
-                        </Box>
-                      ))}
-                    </Stack>
-                  )}
-                </Box>
-                
-                <Box sx={{ p: 3, borderTop: '1px solid #E5E5E5' }}>
-                  <Stack direction="row" spacing={2}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      placeholder="Ask a question about this meeting..."
-                      value={chatMessages[chatMessages.length - 1].message}
-                      onChange={(e) => setChatMessages(prev => [...prev.slice(0, -1), { ...prev[prev.length - 1], message: e.target.value }])}
-                      onKeyPress={(e) => e.key === 'Enter' && handleSendChatMessage()}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: '6px',
-                          '& fieldset': { borderColor: '#E5E5E5' },
-                          '&:hover fieldset': { borderColor: '#007AFF' },
-                          '&.Mui-focused fieldset': { borderColor: '#007AFF' }
-                        }
-                      }}
-                    />
+                  <Stack direction="row" spacing={2} alignItems="center">
                     <Button
                       variant="contained"
-                      endIcon={<SendIcon />}
-                      onClick={handleSendChatMessage}
-                      disabled={!chatMessages[chatMessages.length - 1].message.trim()}
+                      startIcon={<EmailIcon />}
+                      onClick={handleEmailSummary}
                       sx={{
                         backgroundColor: '#007AFF',
                         color: '#FFFFFF',
                         fontWeight: 500,
                         textTransform: 'none',
                         px: 3,
+                        py: 1,
                         borderRadius: '6px',
                         boxShadow: 'none',
                         '&:hover': {
@@ -930,89 +417,710 @@ export default function Meetings() {
                         }
                       }}
                     >
-                      Send
+                      Email Summary
+                    </Button>
+                    
+                    <FormControl size="small" sx={{ minWidth: 140 }}>
+                      <Select
+                        value={emailTemplate}
+                        onChange={(e) => setEmailTemplate(e.target.value)}
+                        sx={{
+                          borderRadius: '6px',
+                          '& .MuiOutlinedInput-notchedOutline': {
+                            borderColor: '#E5E5E5'
+                          }
+                        }}
+                      >
+                        {emailTemplates.map((template) => (
+                          <MenuItem key={template.value} value={template.value}>
+                            {template.label}
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    
+                    <Button
+                      variant="outlined"
+                      startIcon={<PersonIcon />}
+                      onClick={handleViewClient}
+                      sx={{
+                        borderColor: '#007AFF',
+                        color: '#007AFF',
+                        fontWeight: 500,
+                        textTransform: 'none',
+                        px: 3,
+                        py: 1,
+                        borderRadius: '6px',
+                        '&:hover': {
+                          borderColor: '#0056CC',
+                          backgroundColor: '#F0F8FF'
+                        }
+                      }}
+                    >
+                      View Client
+                    </Button>
+                    
+                    <Button
+                      variant="outlined"
+                      startIcon={<ChatIcon />}
+                      onClick={() => setShowAIChat(!showAIChat)}
+                      sx={{
+                        borderColor: showAIChat ? '#007AFF' : '#E5E5E5',
+                        color: showAIChat ? '#007AFF' : '#3C3C3C',
+                        backgroundColor: showAIChat ? '#F0F8FF' : 'transparent',
+                        fontWeight: 500,
+                        textTransform: 'none',
+                        px: 3,
+                        py: 1,
+                        borderRadius: '6px',
+                        '&:hover': {
+                          borderColor: '#007AFF',
+                          backgroundColor: '#F0F8FF'
+                        }
+                      }}
+                    >
+                      Ask AI About Meeting
                     </Button>
                   </Stack>
-                </Box>
-              </Paper>
-            </Collapse>
-          </>
-        ) : (
-          <Box 
-            sx={{ 
-              display: 'flex', 
-              flexDirection: 'column',
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              minHeight: '400px',
-              textAlign: 'center',
-              p: 4
-            }}
-          >
-            <EventIcon sx={{ fontSize: 64, color: '#E5E5E5', mb: 2 }} />
-            <Typography variant="h3" sx={{ fontWeight: 600, color: '#3C3C3C', mb: 1 }}>
-              Select a Meeting
-            </Typography>
-            <Typography variant="body1" sx={{ color: '#999999' }}>
-              Choose a meeting from the sidebar to view its details and summary
-            </Typography>
-          </Box>
-        )}
-      </Card>
+                </Stack>
 
-      {/* AI Adjustment Dialog */}
-      <AIAdjustmentDialog
-        open={showAIDialog}
-        onClose={() => setShowAIDialog(false)}
-        onSubmit={handleAIAdjustment}
-        isLoading={loading}
-      />
+                {/* Meeting Info Bar */}
+                <Card sx={{ p: 3, mb: 4, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
+                  <Stack direction="row" spacing={3} alignItems="center">
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <TeamsIcon sx={{ color: '#3C3C3C', fontSize: 20 }} />
+                      <Typography variant="body2" sx={{ color: '#3C3C3C' }}>
+                        Teams Meeting • {formatDateTime(selectedMeeting?.start?.dateTime)}
+                      </Typography>
+                    </Box>
+                    <Box display="flex" alignItems="center" gap={1}>
+                      <Box display="flex">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <Box
+                            key={i}
+                            sx={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: '50%',
+                              backgroundColor: i === 0 ? '#007AFF' : i === 1 ? '#34C759' : '#FF9500',
+                              border: '2px solid #FFFFFF',
+                              ml: i > 0 ? -0.5 : 0
+                            }}
+                          />
+                        ))}
+                      </Box>
+                      <Typography variant="caption" sx={{ color: '#999999', ml: 1 }}>
+                        3 participants
+                      </Typography>
+                    </Box>
+                    {isPastMeeting && (
+                      <Card 
+                        sx={{ 
+                          p: 2,
+                          backgroundColor: '#F0F8FF',
+                          border: '1px solid #007AFF',
+                          borderRadius: '6px'
+                        }}
+                      >
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <CheckCircleIcon sx={{ color: '#007AFF', fontSize: 16 }} />
+                          <Typography variant="caption" sx={{ color: '#007AFF', fontWeight: 500 }}>
+                            Notes completed
+                          </Typography>
+                        </Stack>
+                      </Card>
+                    )}
+                  </Stack>
+                </Card>
 
-      {/* Snackbar for notifications */}
-      <Snackbar
-        open={showSnackbar}
-        autoHideDuration={6000}
-        onClose={() => setShowSnackbar(false)}
-      >
-        <Alert 
-          onClose={() => setShowSnackbar(false)} 
-          severity={snackbarSeverity}
-          sx={{ width: '100%' }}
+                {/* Navigation Tabs */}
+                <Tabs 
+                  value={activeTab}
+                  onChange={(_, newValue) => setActiveTab(newValue)}
+                  sx={{
+                    borderBottom: '1px solid #E5E5E5',
+                    '& .MuiTab-root': {
+                      textTransform: 'none',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      color: '#3C3C3C',
+                      py: 2,
+                      px: 3,
+                      '&.Mui-selected': {
+                        color: '#007AFF',
+                        fontWeight: 600
+                      }
+                    },
+                    '& .MuiTabs-indicator': {
+                      backgroundColor: '#007AFF',
+                      height: 2
+                    }
+                  }}
+                >
+                  {!isPastMeeting && <Tab label="Meeting Prep" value="prep" />}
+                  {isPastMeeting && <Tab label="Summary" value="summary" />}
+                  {isPastMeeting && <Tab label="Transcript" value="transcript" />}
+                  <Tab label="Notes" value="notes" />
+                </Tabs>
+              </Box>
+
+              {/* Content Area */}
+              <Box sx={{ flex: 1, overflow: 'auto', p: 4, pt: 3 }}>
+                {/* Meeting Prep Content (for future meetings) */}
+                {activeTab === 'prep' && !isPastMeeting && (
+                  <Box>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+                      <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
+                        Meeting Preparation
+                      </Typography>
+                      {editingPrep ? (
+                        <Stack direction="row" spacing={1}>
+                          <Button
+                            variant="contained"
+                            startIcon={<SaveIcon />}
+                            onClick={handleSavePrep}
+                            sx={{
+                              backgroundColor: '#007AFF',
+                              color: '#FFFFFF',
+                              fontWeight: 500,
+                              textTransform: 'none',
+                              px: 2,
+                              py: 1,
+                              borderRadius: '6px',
+                              boxShadow: 'none',
+                              '&:hover': { backgroundColor: '#0056CC', boxShadow: 'none' }
+                            }}
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            onClick={() => setEditingPrep(false)}
+                            sx={{
+                              borderColor: '#E5E5E5',
+                              color: '#3C3C3C',
+                              fontWeight: 500,
+                              textTransform: 'none',
+                              px: 2,
+                              py: 1,
+                              borderRadius: '6px'
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                        </Stack>
+                      ) : (
+                        <Button
+                          variant="outlined"
+                          startIcon={<EditIcon />}
+                          onClick={() => setEditingPrep(true)}
+                          sx={{
+                            borderColor: '#007AFF',
+                            color: '#007AFF',
+                            fontWeight: 500,
+                            textTransform: 'none',
+                            px: 2,
+                            py: 1,
+                            borderRadius: '6px'
+                          }}
+                        >
+                          Edit
+                        </Button>
+                      )}
+                    </Stack>
+
+                    {editingPrep ? (
+                      <TextField
+                        fullWidth
+                        multiline
+                        rows={12}
+                        value={meetingPrep}
+                        onChange={(e) => setMeetingPrep(e.target.value)}
+                        placeholder="Add your meeting preparation notes, agenda items, questions to ask, etc."
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: '8px',
+                            '& fieldset': { borderColor: '#E5E5E5' },
+                            '&:hover fieldset': { borderColor: '#007AFF' },
+                            '&.Mui-focused fieldset': { borderColor: '#007AFF' }
+                          }
+                        }}
+                      />
+                    ) : (
+                      <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
+                        {meetingPrep ? (
+                          <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                            {meetingPrep}
+                          </Typography>
+                        ) : (
+                          <Typography variant="body2" sx={{ color: '#999999', fontStyle: 'italic' }}>
+                            Click "Edit" to add meeting preparation notes, agenda items, and questions.
+                          </Typography>
+                        )}
+                      </Card>
+                    )}
+                  </Box>
+                )}
+
+                {/* Summary Content (for past meetings) */}
+                {activeTab === 'summary' && isPastMeeting && (
+                  (() => {
+                    const ms = selectedMeeting?.meetingSummary;
+                    const transcript = selectedMeeting?.transcript;
+                    const isTranscriptValid = transcript && !transcript.toLowerCase().includes('not implemented');
+                    const hasRealKeyPoints = Array.isArray(ms?.keyPoints) && ms.keyPoints.some(kp => kp && !kp.toLowerCase().includes('not implemented') && kp.trim() !== '');
+                    const hasRealActionItems = Array.isArray(ms?.actionItems) && ms.actionItems.some(ai => ai && ai.trim() !== '');
+                    const hasRealFinancial = ms?.financialSnapshot && Object.values(ms.financialSnapshot).some(val => val && val.trim() !== '');
+                    // If no transcript or no real summary, show upload UI
+                    if (!isTranscriptValid || !ms || (!hasRealKeyPoints && !hasRealActionItems && !hasRealFinancial)) {
+                      return (
+                        <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
+                          <Typography variant="h5" sx={{ mb: 3 }}>
+                            No summary available for this meeting.
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
+                            In order to produce info such as email summary and other features, please provide one of the following from the meeting uploads:
+                          </Typography>
+                          <Stack direction="row" spacing={2} justifyContent="center">
+                            <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start Recording</Button>
+                            <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload Audio</Button>
+                            <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste Transcript</Button>
+                          </Stack>
+                        </Box>
+                      );
+                    }
+                    // Otherwise, show the summary sections as before
+                    return (
+                      <Box>
+                        <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
+                          <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
+                            Meeting Summary
+                          </Typography>
+                          <Button
+                            variant="outlined"
+                            startIcon={<AutoAwesomeIcon />}
+                            onClick={() => setShowAIDialog(true)}
+                            sx={{
+                              borderColor: '#007AFF',
+                              color: '#007AFF',
+                              fontWeight: 500,
+                              textTransform: 'none',
+                              px: 3,
+                              py: 1,
+                              borderRadius: '6px',
+                              '&:hover': {
+                                borderColor: '#0056CC',
+                                backgroundColor: '#F0F8FF'
+                              }
+                            }}
+                          >
+                            Adjust with AI
+                          </Button>
+                        </Stack>
+
+                        <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 4 }}>
+                          <AutoAwesomeIcon sx={{ color: '#007AFF', fontSize: 18 }} />
+                          <Typography variant="body2" sx={{ color: '#007AFF', fontWeight: 500 }}>
+                            Generated with AI
+                          </Typography>
+                        </Stack>
+
+                        {/* Key Points */}
+                        {hasRealKeyPoints && (
+                          <Box sx={{ mb: 4 }}>
+                            <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
+                              1. Key Points
+                            </Typography>
+                            <Box component="ul" sx={{ pl: 3, m: 0 }}>
+                              {summaryContent.keyPoints.map((point, index) => (
+                                <Typography 
+                                  component="li" 
+                                  key={index} 
+                                  variant="body1"
+                                  sx={{ 
+                                    color: '#1E1E1E', 
+                                    mb: 1.5,
+                                    lineHeight: 1.6
+                                  }}
+                                >
+                                  {point}
+                                </Typography>
+                              ))}
+                            </Box>
+                          </Box>
+                        )}
+
+                        {/* Financial Snapshot */}
+                        {hasRealFinancial && (
+                          <Box sx={{ mb: 4 }}>
+                            <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
+                              2. Financial Snapshot
+                            </Typography>
+                            <Box component="ul" sx={{ pl: 3, m: 0 }}>
+                              {summaryContent.financialSnapshot.netWorth && (
+                                <Typography 
+                                  component="li" 
+                                  variant="body1"
+                                  sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
+                                >
+                                  Net worth: {summaryContent.financialSnapshot.netWorth}
+                                </Typography>
+                              )}
+                              {summaryContent.financialSnapshot.income && (
+                                <Typography 
+                                  component="li" 
+                                  variant="body1"
+                                  sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
+                                >
+                                  Income: {summaryContent.financialSnapshot.income}
+                                </Typography>
+                              )}
+                              {summaryContent.financialSnapshot.expenses && (
+                                <Typography 
+                                  component="li" 
+                                  variant="body1"
+                                  sx={{ color: '#1E1E1E', mb: 1.5, lineHeight: 1.6 }}
+                                >
+                                  Expenses: {summaryContent.financialSnapshot.expenses}
+                                </Typography>
+                              )}
+                            </Box>
+                          </Box>
+                        )}
+
+                        {/* Action Items */}
+                        {hasRealActionItems && (
+                          <Box>
+                            <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
+                              3. Action Items
+                            </Typography>
+                            <Box component="ul" sx={{ pl: 3, m: 0 }}>
+                              {summaryContent.actionItems.map((item, index) => (
+                                <Typography 
+                                  component="li" 
+                                  key={index} 
+                                  variant="body1"
+                                  sx={{ 
+                                    color: '#1E1E1E', 
+                                    mb: 1.5,
+                                    lineHeight: 1.6
+                                  }}
+                                >
+                                  {item}
+                                </Typography>
+                              ))}
+                            </Box>
+                          </Box>
+                        )}
+
+                        {isTranscriptValid && (
+                          <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Chip
+                              icon={<CheckCircleIcon sx={{ color: '#2ecc40' }} />}
+                              label="Transcript uploaded"
+                              color="success"
+                              sx={{ fontWeight: 600, fontSize: 15, px: 2, py: 1, borderRadius: 2, background: '#e8f5e9', color: '#2e7d32', mr: 2 }}
+                            />
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <FormControl size="small" sx={{ minWidth: 180 }}>
+                                <Select
+                                  value={emailTemplate}
+                                  onChange={e => setEmailTemplate(e.target.value)}
+                                  startAdornment={<AutoAwesomeIcon sx={{ mr: 1, color: '#007AFF' }} />}
+                                  sx={{ borderRadius: '6px', background: '#fff', fontWeight: 600 }}
+                                  renderValue={selected => (
+                                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                      <AutoAwesomeIcon sx={{ mr: 1, color: '#007AFF' }} />
+                                      {emailTemplates.find(t => t.value === selected)?.label || 'Auto'}
+                                    </Box>
+                                  )}
+                                >
+                                  {emailTemplates.map(t => (
+                                    <MenuItem key={t.value} value={t.value}>
+                                      <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                        <AutoAwesomeIcon sx={{ mr: 1, color: '#007AFF' }} />
+                                        {t.label}
+                                      </Box>
+                                    </MenuItem>
+                                  ))}
+                                </Select>
+                              </FormControl>
+                              <Button
+                                variant="contained"
+                                startIcon={<EmailIcon />}
+                                onClick={async () => {
+                                  setAISummaryLoading(true);
+                                  setAISummaryError('');
+                                  setAISummary('');
+                                  try {
+                                    const res = await fetch(`${API_URL}/ai/summary`, {
+                                      method: 'POST',
+                                      headers: {
+                                        'Content-Type': 'application/json',
+                                        'Authorization': `Bearer ${localStorage.getItem('jwt')}`
+                                      },
+                                      body: JSON.stringify({ transcript, template: emailTemplate })
+                                    });
+                                    if (!res.ok) throw new Error('Failed to generate summary');
+                                    const data = await res.json();
+                                    setAISummary(data.summary);
+                                  } catch (err) {
+                                    setAISummaryError('Failed to generate summary. Please try again.');
+                                  } finally {
+                                    setAISummaryLoading(false);
+                                  }
+                                }}
+                                disabled={aiSummaryLoading}
+                                sx={{ minWidth: 180, ml: 2 }}
+                              >
+                                {aiSummaryLoading ? <CircularProgress size={20} color="inherit" /> : 'Generate Email Summary'}
+                              </Button>
+                            </Stack>
+                          </Box>
+                        )}
+                      </Box>
+                    );
+                  })()
+                )}
+
+                {/* Transcript Content */}
+                {activeTab === 'transcript' && isPastMeeting && (
+                  (() => {
+                    const transcript = selectedMeeting?.transcript;
+                    const isTranscriptValid = transcript && !transcript.toLowerCase().includes('not implemented');
+                    if (!isTranscriptValid) {
+                      return (
+                        <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
+                          <Typography variant="h5" sx={{ mb: 3 }}>
+                            No transcript available. Upload transcript.
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
+                            In order to produce info such as email summary and other features, please provide one of the following from the meeting uploads:
+                          </Typography>
+                          <Stack direction="row" spacing={2} justifyContent="center">
+                            <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start Recording</Button>
+                            <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload Audio</Button>
+                            <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste Transcript</Button>
+                          </Stack>
+                        </Box>
+                      );
+                    }
+                    // Otherwise, show the transcript as before
+                    return (
+                      <Box>
+                        <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 3 }}>
+                          Meeting Transcript
+                        </Typography>
+                        <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
+                          <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6 }}>
+                            {transcript}
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: '#999999', mt: 3, fontStyle: 'italic' }}>
+                            Full transcript available
+                          </Typography>
+                        </Card>
+                      </Box>
+                    );
+                  })()
+                )}
+
+                {/* Notes Content */}
+                {activeTab === 'notes' && (
+                  <Box>
+                    <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 3 }}>
+                      Meeting Notes
+                    </Typography>
+                    
+                    <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
+                      <Typography variant="body2" sx={{ color: '#999999', fontStyle: 'italic' }}>
+                        Detailed meeting notes will appear here. This feature is coming soon.
+                      </Typography>
+                    </Card>
+                  </Box>
+                )}
+              </Box>
+
+              {/* AI Chat Overlay */}
+              <Collapse in={showAIChat}>
+                <Paper 
+                  sx={{ 
+                    m: 4, 
+                    mt: 0,
+                    borderRadius: '12px',
+                    border: '1px solid #E5E5E5',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  <Box sx={{ p: 3, borderBottom: '1px solid #E5E5E5' }}>
+                    <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
+                      AI Assistant
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: '#3C3C3C' }}>
+                      Ask me anything about this meeting
+                    </Typography>
+                  </Box>
+                  
+                  <Box sx={{ p: 3, maxHeight: '200px', overflow: 'auto' }}>
+                    {chatMessages.length === 0 ? (
+                      <Typography variant="body2" sx={{ color: '#999999', textAlign: 'center', py: 2 }}>
+                        Start a conversation by asking a question about the meeting
+                      </Typography>
+                    ) : (
+                      <Stack spacing={2}>
+                        {chatMessages.map((chat, index) => (
+                          <Box 
+                            key={index}
+                            sx={{ 
+                              display: 'flex', 
+                              justifyContent: chat.type === 'user' ? 'flex-end' : 'flex-start' 
+                            }}
+                          >
+                            <Card 
+                              sx={{ 
+                                p: 2, 
+                                maxWidth: '70%',
+                                backgroundColor: chat.type === 'user' ? '#007AFF' : '#F8F9FA',
+                                color: chat.type === 'user' ? '#FFFFFF' : '#1E1E1E'
+                              }}
+                            >
+                              <Typography variant="body2">{chat.message}</Typography>
+                            </Card>
+                          </Box>
+                        ))}
+                      </Stack>
+                    )}
+                  </Box>
+                  
+                  <Box sx={{ p: 3, borderTop: '1px solid #E5E5E5' }}>
+                    <Stack direction="row" spacing={2}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        placeholder="Ask a question about this meeting..."
+                        value={chatMessages[chatMessages.length - 1].message}
+                        onChange={(e) => setChatMessages(prev => [...prev.slice(0, -1), { ...prev[prev.length - 1], message: e.target.value }])}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSendChatMessage()}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            borderRadius: '6px',
+                            '& fieldset': { borderColor: '#E5E5E5' },
+                            '&:hover fieldset': { borderColor: '#007AFF' },
+                            '&.Mui-focused fieldset': { borderColor: '#007AFF' }
+                          }
+                        }}
+                      />
+                      <Button
+                        variant="contained"
+                        endIcon={<SendIcon />}
+                        onClick={handleSendChatMessage}
+                        disabled={!chatMessages[chatMessages.length - 1].message.trim()}
+                        sx={{
+                          backgroundColor: '#007AFF',
+                          color: '#FFFFFF',
+                          fontWeight: 500,
+                          textTransform: 'none',
+                          px: 3,
+                          borderRadius: '6px',
+                          boxShadow: 'none',
+                          '&:hover': {
+                            backgroundColor: '#0056CC',
+                            boxShadow: 'none'
+                          }
+                        }}
+                      >
+                        Send
+                      </Button>
+                    </Stack>
+                  </Box>
+                </Paper>
+              </Collapse>
+            </>
+          ) : (
+            <Box 
+              sx={{ 
+                display: 'flex', 
+                flexDirection: 'column',
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                minHeight: '400px',
+                textAlign: 'center',
+                p: 4
+              }}
+            >
+              <EventIcon sx={{ fontSize: 64, color: '#E5E5E5', mb: 2 }} />
+              <Typography variant="h3" sx={{ fontWeight: 600, color: '#3C3C3C', mb: 1 }}>
+                Select a Meeting
+              </Typography>
+              <Typography variant="body1" sx={{ color: '#999999' }}>
+                Choose a meeting from the sidebar to view its details and summary
+              </Typography>
+            </Box>
+          )}
+        </Card>
+
+        {/* AI Adjustment Dialog */}
+        <AIAdjustmentDialog
+          open={showAIDialog}
+          onClose={() => setShowAIDialog(false)}
+          onSubmit={handleAIAdjustment}
+          isLoading={loading}
+        />
+
+        {/* Snackbar for notifications */}
+        <Snackbar
+          open={showSnackbar}
+          autoHideDuration={6000}
+          onClose={() => setShowSnackbar(false)}
         >
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
+          <Alert 
+            onClose={() => setShowSnackbar(false)} 
+            severity={snackbarSeverity}
+            sx={{ width: '100%' }}
+          >
+            {snackbarMessage}
+          </Alert>
+        </Snackbar>
 
-      {/* Paste Transcript Dialog */}
-      <Dialog open={openPasteDialog} onClose={() => setOpenPasteDialog(false)}>
-        <DialogTitle>Paste Transcript</DialogTitle>
-        <DialogContent>
-          <TextField
-            multiline
-            minRows={6}
-            value={pastedTranscript}
-            onChange={e => setPastedTranscript(e.target.value)}
-            fullWidth
-            placeholder="Paste or type transcript here..."
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenPasteDialog(false)}>Cancel</Button>
-          <Button onClick={handlePasteTranscriptSubmit} variant="contained">Save</Button>
-        </DialogActions>
-      </Dialog>
+        {/* Paste Transcript Dialog */}
+        <Dialog open={openPasteDialog} onClose={() => setOpenPasteDialog(false)}>
+          <DialogTitle sx={{ fontWeight: 700, fontSize: 22, color: '#007AFF', pb: 1 }}>Paste Transcript</DialogTitle>
+          <DialogContent sx={{ minWidth: 400, minHeight: 200, pt: 1 }}>
+            <TextField
+              multiline
+              minRows={10}
+              value={pastedTranscript}
+              onChange={e => setPastedTranscript(e.target.value)}
+              fullWidth
+              placeholder="Paste or type transcript here..."
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: '10px',
+                  background: '#f9fafb',
+                  fontSize: 15,
+                  fontFamily: 'monospace',
+                  p: 1
+                }
+              }}
+            />
+          </DialogContent>
+          <DialogActions sx={{ pr: 3, pb: 2 }}>
+            <Button onClick={() => setOpenPasteDialog(false)} sx={{ color: '#888', fontWeight: 600 }}>Cancel</Button>
+            <Button onClick={() => { console.log('Save button clicked'); handlePasteTranscriptSubmit(); }} variant="contained" sx={{ background: '#007AFF', fontWeight: 600, px: 4 }}>Save</Button>
+          </DialogActions>
+        </Dialog>
 
-      {/* Upload Audio Dialog */}
-      <Dialog open={openUploadDialog} onClose={() => setOpenUploadDialog(false)}>
-        <DialogTitle>Upload Audio File</DialogTitle>
-        <DialogContent>
-          <input type="file" accept="audio/*" onChange={handleAudioFileChange} />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenUploadDialog(false)}>Cancel</Button>
-          <Button onClick={handleUploadAudioSubmit} variant="contained">Upload</Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+        {/* Upload Audio Dialog */}
+        <Dialog open={openUploadDialog} onClose={() => setOpenUploadDialog(false)}>
+          <DialogTitle>Upload Audio File</DialogTitle>
+          <DialogContent>
+            <input type="file" accept="audio/*" onChange={handleAudioFileChange} />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setOpenUploadDialog(false)}>Cancel</Button>
+            <Button onClick={handleUploadAudioSubmit} variant="contained">Upload</Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    </>
   );
 } 
