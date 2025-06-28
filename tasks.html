@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project Tasks Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f8f9fa; margin: 0; padding: 2rem; }
+    h1 { text-align: center; }
+    table { width: 100%; border-collapse: collapse; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    th, td { padding: 0.75rem 1rem; border-bottom: 1px solid #eee; text-align: left; }
+    th { background: #f1f3f4; }
+    tr:last-child td { border-bottom: none; }
+    .status-done { color: #fff; background: #4caf50; border-radius: 4px; padding: 0.2em 0.7em; display: inline-block; }
+    .status-in_progress { color: #fff; background: #ffc107; border-radius: 4px; padding: 0.2em 0.7em; display: inline-block; }
+    .status-todo { color: #fff; background: #9e9e9e; border-radius: 4px; padding: 0.2em 0.7em; display: inline-block; }
+    @media (max-width: 700px) {
+      table, thead, tbody, th, td, tr { display: block; }
+      th { position: absolute; left: -9999px; top: -9999px; }
+      td { border: none; position: relative; padding-left: 50%; min-height: 2.5em; }
+      td:before { position: absolute; left: 1rem; top: 0.75rem; white-space: nowrap; font-weight: bold; }
+      td:nth-of-type(1):before { content: "ID"; }
+      td:nth-of-type(2):before { content: "Title"; }
+      td:nth-of-type(3):before { content: "Description"; }
+      td:nth-of-type(4):before { content: "Status"; }
+      td:nth-of-type(5):before { content: "Assignee"; }
+      td:nth-of-type(6):before { content: "Created"; }
+      td:nth-of-type(7):before { content: "Updated"; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Project Tasks Dashboard</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Title</th>
+        <th>Description</th>
+        <th>Status</th>
+        <th>Assignee</th>
+        <th>Created</th>
+        <th>Updated</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- TASKS_PLACEHOLDER -->
+    </tbody>
+  </table>
+<script>
+// Embed the current tasks.json statically
+const tasks = [
+  {"id":1,"title":"Implement transcript upload UI","description":"Add UI for recording, uploading, and pasting transcripts in Meetings tab. Show upload options when no transcript is present.","status":"in_progress","assignee":"Nelson","created":"2024-06-27","updated":"2024-06-27"},
+  {"id":2,"title":"Fix Cloudflare build errors","description":"Resolve ESLint and unused variable errors blocking deployment.","status":"done","assignee":"Nelson","created":"2024-06-27","updated":"2024-06-27"},
+  {"id":3,"title":"Hide empty summary sections in Meetings","description":"Only show summary sections if there is real data. Show upload options if no transcript or summary.","status":"done","assignee":"Nelson","created":"2024-06-27","updated":"2024-06-27"},
+  {"id":4,"title":"DocuSign integration research","description":"Investigate DocuSign API integration and pricing for e-signature workflows.","status":"todo","assignee":"Nelson","created":"2024-06-27","updated":"2024-06-27"},
+  {"id":5,"title":"User Auth (Google OAuth)","description":"Implement Google OAuth login and JWT-based authentication (frontend and backend).","status":"done","assignee":"Nelson","created":"2024-06-27","updated":"2024-06-27"},
+  {"id":6,"title":"Meetings List & Details","description":"Display meetings grouped by date, with selectable details and tabs for summary, transcript, and notes.","status":"done","assignee":"Nelson","created":"2024-06-27","updated":"2024-06-27"},
+  {"id":7,"title":"Transcript Upload/Recording Backend Endpoints","description":"Implement backend endpoints for uploading, recording, and pasting transcripts.","status":"in_progress","assignee":"Nelson","created":"2024-06-27","updated":"2024-06-27"},
+  {"id":8,"title":"AI Summary/Chat Integration","description":"Integrate OpenAI for meeting summary adjustment and AI chat about meetings.","status":"in_progress","assignee":"Nelson","created":"2024-06-27","updated":"2024-06-27"},
+  {"id":9,"title":"Client Management","description":"List, view, and manage clients in the dashboard.","status":"done","assignee":"Nelson","created":"2024-06-27","updated":"2024-06-27"},
+  {"id":10,"title":"Templates/Settings","description":"Implement templates for emails/meetings and basic user/config settings.","status":"done","assignee":"Nelson","created":"2024-06-27","updated":"2024-06-27"},
+  {"id":11,"title":"Cloudflare Deployment","description":"Deploy both frontend and backend to Cloudflare Pages and Workers.","status":"done","assignee":"Nelson","created":"2024-06-27","updated":"2024-06-27"}
+];
+const tbody = document.querySelector('tbody');
+tasks.forEach(task => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${task.id}</td>
+    <td>${task.title}</td>
+    <td>${task.description}</td>
+    <td><span class="status-${task.status}">${task.status.replace('_', ' ')}</span></td>
+    <td>${task.assignee}</td>
+    <td>${task.created}</td>
+    <td>${task.updated}</td>
+  `;
+  tbody.appendChild(tr);
+});
+</script>
+</body>
+</html> 

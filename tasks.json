@@ -1,0 +1,101 @@
+[
+  {
+    "id": 1,
+    "title": "Implement transcript upload UI",
+    "description": "Add UI for recording, uploading, and pasting transcripts in Meetings tab. Show upload options when no transcript is present.",
+    "status": "in_progress",
+    "assignee": "Nelson",
+    "created": "2024-06-27",
+    "updated": "2024-06-27"
+  },
+  {
+    "id": 2,
+    "title": "Fix Cloudflare build errors",
+    "description": "Resolve ESLint and unused variable errors blocking deployment.",
+    "status": "done",
+    "assignee": "Nelson",
+    "created": "2024-06-27",
+    "updated": "2024-06-27"
+  },
+  {
+    "id": 3,
+    "title": "Hide empty summary sections in Meetings",
+    "description": "Only show summary sections if there is real data. Show upload options if no transcript or summary.",
+    "status": "done",
+    "assignee": "Nelson",
+    "created": "2024-06-27",
+    "updated": "2024-06-27"
+  },
+  {
+    "id": 4,
+    "title": "DocuSign integration research",
+    "description": "Investigate DocuSign API integration and pricing for e-signature workflows.",
+    "status": "todo",
+    "assignee": "Nelson",
+    "created": "2024-06-27",
+    "updated": "2024-06-27"
+  },
+  {
+    "id": 5,
+    "title": "User Auth (Google OAuth)",
+    "description": "Implement Google OAuth login and JWT-based authentication (frontend and backend).",
+    "status": "done",
+    "assignee": "Nelson",
+    "created": "2024-06-27",
+    "updated": "2024-06-27"
+  },
+  {
+    "id": 6,
+    "title": "Meetings List & Details",
+    "description": "Display meetings grouped by date, with selectable details and tabs for summary, transcript, and notes.",
+    "status": "done",
+    "assignee": "Nelson",
+    "created": "2024-06-27",
+    "updated": "2024-06-27"
+  },
+  {
+    "id": 7,
+    "title": "Transcript Upload/Recording Backend Endpoints",
+    "description": "Implement backend endpoints for uploading, recording, and pasting transcripts.",
+    "status": "in_progress",
+    "assignee": "Nelson",
+    "created": "2024-06-27",
+    "updated": "2024-06-27"
+  },
+  {
+    "id": 8,
+    "title": "AI Summary/Chat Integration",
+    "description": "Integrate OpenAI for meeting summary adjustment and AI chat about meetings.",
+    "status": "in_progress",
+    "assignee": "Nelson",
+    "created": "2024-06-27",
+    "updated": "2024-06-27"
+  },
+  {
+    "id": 9,
+    "title": "Client Management",
+    "description": "List, view, and manage clients in the dashboard.",
+    "status": "done",
+    "assignee": "Nelson",
+    "created": "2024-06-27",
+    "updated": "2024-06-27"
+  },
+  {
+    "id": 10,
+    "title": "Templates/Settings",
+    "description": "Implement templates for emails/meetings and basic user/config settings.",
+    "status": "done",
+    "assignee": "Nelson",
+    "created": "2024-06-27",
+    "updated": "2024-06-27"
+  },
+  {
+    "id": 11,
+    "title": "Cloudflare Deployment",
+    "description": "Deploy both frontend and backend to Cloudflare Pages and Workers.",
+    "status": "done",
+    "assignee": "Nelson",
+    "created": "2024-06-27",
+    "updated": "2024-06-27"
+  }
+] 
