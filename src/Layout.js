@@ -172,7 +172,7 @@ export default function Layout() {
         anchor="left"
       >
         <Toolbar sx={{ px: 3, py: 3 }}>
-          <Typography variant="h3" noWrap component="div" sx={{ fontWeight: 700, color: '#1E1E1E' }}>
+          <Typography variant="h3" noWrap component="div" sx={{ fontWeight: 700, color: 'pink' }}>
             App
           </Typography>
         </Toolbar>
