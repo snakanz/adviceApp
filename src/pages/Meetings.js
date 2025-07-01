@@ -556,9 +556,25 @@ export default function Meetings() {
                   }}
                 >
                   {!isPastMeeting && <Tab label="Meeting Prep" value="prep" />}
-                  {isPastMeeting && <Tab label="Summary" value="summary" />}
-                  {isPastMeeting && <Tab label="Transcript" value="transcript" />}
-                  <Tab label="Notes" value="notes" />
+                  {isPastMeeting && (() => {
+                    const ms = selectedMeeting?.meetingSummary;
+                    const transcript = selectedMeeting?.transcript;
+                    const isTranscriptValid = transcript && !transcript.toLowerCase().includes('not implemented');
+                    const hasRealKeyPoints = Array.isArray(ms?.keyPoints) && ms.keyPoints.some(kp => kp && !kp.toLowerCase().includes('not implemented') && kp.trim() !== '');
+                    const hasRealActionItems = Array.isArray(ms?.actionItems) && ms.actionItems.some(ai => ai && ai.trim() !== '');
+                    const hasRealFinancial = ms?.financialSnapshot && Object.values(ms.financialSnapshot).some(val => val && val.trim() !== '');
+                    // If no transcript or no real summary, show only Transcript tab
+                    if (!isTranscriptValid && !hasRealKeyPoints && !hasRealActionItems && !hasRealFinancial) {
+                      return <Tab label="Transcript" value="transcript" />;
+                    }
+                    // Otherwise, show all tabs
+                    return <>
+                      <Tab label="Summary" value="summary" />
+                      <Tab label="Transcript" value="transcript" />
+                      <Tab label="Notes" value="notes" />
+                    </>;
+                  })()}
+                  {!isPastMeeting && <Tab label="Notes" value="notes" />}
                 </Tabs>
               </Box>
 
