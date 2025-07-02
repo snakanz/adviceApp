@@ -4,7 +4,6 @@ import {
   Select, MenuItem, FormControl, Collapse, TextField, Paper, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import TeamsIcon from '@mui/icons-material/Groups';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import EventIcon from '@mui/icons-material/Event';
 import EmailIcon from '@mui/icons-material/Email';
@@ -82,7 +81,6 @@ export default function Meetings() {
   const [pastedTranscript, setPastedTranscript] = useState('');
   const [activeTab, setActiveTab] = useState('summary');
   const { isAuthenticated } = useAuth();
-  const [aiSummaryLoading, setAISummaryLoading] = useState(false);
   const [meetingDetailTab, setMeetingDetailTab] = useState('emailSummary');
   const [todoList, setTodoList] = useState([]);
   const selectedMeeting = React.useMemo(() => {
