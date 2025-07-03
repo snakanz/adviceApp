@@ -5,6 +5,7 @@ import AddIcon from '@mui/icons-material/Add';
 import EmailIcon from '@mui/icons-material/Email';
 import PhoneIcon from '@mui/icons-material/Phone';
 import SearchIcon from '@mui/icons-material/Search';
+import { api } from '../services/api';
 
 export default function Clients() {
   const navigate = useNavigate();
@@ -16,11 +17,7 @@ export default function Clients() {
     async function fetchClients() {
       setLoading(true);
       try {
-        const response = await fetch('/api/clients');
-        if (!response.ok) {
-          throw new Error('Failed to fetch clients');
-        }
-        const data = await response.json();
+        const data = await api.request('/clients');
         setClients(data);
       } catch (err) {
         setError(err.message);

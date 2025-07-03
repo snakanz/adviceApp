@@ -6,6 +6,7 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
+import { api } from '../services/api';
 
 const formatDateTime = (dateTimeStr) => {
   const date = new Date(dateTimeStr);
@@ -33,12 +34,10 @@ const ViewClient = () => {
       setLoading(true);
       try {
         // Fetch client details
-        const clientRes = await fetch(`/api/clients/${clientId}`);
-        const client = await clientRes.json();
+        const client = await api.request(`/clients/${clientId}`);
         setClientData(client);
         // Fetch meetings for this client
-        const meetingsRes = await fetch(`/api/clients/${clientId}/meetings`);
-        const meetingsData = await meetingsRes.json();
+        const meetingsData = await api.request(`/clients/${clientId}/meetings`);
         setMeetings(meetingsData);
       } catch (e) {
         // handle error
