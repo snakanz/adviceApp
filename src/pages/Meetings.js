@@ -133,12 +133,6 @@ export default function Meetings() {
     setShowAIChat(false);
   };
 
-  const handleEmailSummary = () => {
-    setShowSnackbar(true);
-    setSnackbarMessage(`Email summary sent using ${emailTemplates.find(t => t.value === emailTemplate)?.label} template`);
-    setSnackbarSeverity('success');
-  };
-
   const handleViewClient = () => {
     // Remove demo client reference - this should navigate to the actual client
     // For now, show a message that client view is not implemented
