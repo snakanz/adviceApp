@@ -5,8 +5,6 @@ import {
 } from '@mui/material';
 import EventIcon from '@mui/icons-material/Event';
 import EmailIcon from '@mui/icons-material/Email';
-import PersonIcon from '@mui/icons-material/Person';
-import ChatIcon from '@mui/icons-material/Chat';
 import SendIcon from '@mui/icons-material/Send';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
@@ -133,11 +131,7 @@ export default function Meetings() {
     setShowAIChat(false);
   };
 
-  const handleViewClient = () => {
-    // Remove demo client reference - this should navigate to the actual client
-    // For now, show a message that client view is not implemented
-    alert('Client view not implemented yet');
-  };
+
 
   const handleAIAdjustment = async (adjustmentPrompt) => {
     setLoading(true);
