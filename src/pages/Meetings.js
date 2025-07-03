@@ -391,9 +391,6 @@ export default function Meetings() {
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
                 <Box>
                   <Typography variant="h2" sx={{ fontWeight: 700, color: '#1E1E1E' }}>{selectedMeeting?.summary || 'Meeting Details'}</Typography>
-                  <Typography variant="body2" sx={{ color: '#3C3C3C' }}>
-                    Teams meeting @ {formatDateTime(selectedMeeting?.start?.dateTime)}, {selectedMeeting?.participants?.join(', ') || 'participants'}
-                  </Typography>
                 </Box>
                 <Stack direction="row" spacing={2} alignItems="center">
                   <Button variant="outlined" startIcon={<ChatIcon />} sx={{ borderColor: '#007AFF', color: '#007AFF', fontWeight: 500, textTransform: 'none', px: 3, py: 1, borderRadius: '6px' }}>Ask AI</Button>
