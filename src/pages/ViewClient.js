@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box, Typography, Card, Stack, Button, TextField, Chip, 
-  IconButton, Divider
+  IconButton, Divider, Tabs, Tab
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
@@ -31,6 +31,7 @@ const ViewClient = () => {
   const [meetings, setMeetings] = useState([]);
   const [tempValue, setTempValue] = useState('');
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('aiSummary');
 
   useEffect(() => {
     async function fetchClientAndMeetings() {
@@ -83,6 +84,22 @@ const ViewClient = () => {
     setTempValue('');
   };
 
+  // Group meetings by other participant (excluding current client)
+  const groupMeetingsByOtherParticipant = (meetings, clientEmail) => {
+    const groups = {};
+    meetings.forEach(meeting => {
+      // Assume meeting.attendees is an array of emails or objects with .email
+      const others = (meeting.attendees || [])
+        .map(a => (typeof a === 'string' ? a : a.email))
+        .filter(email => email && email !== clientEmail);
+      others.forEach(otherEmail => {
+        if (!groups[otherEmail]) groups[otherEmail] = [];
+        groups[otherEmail].push(meeting);
+      });
+    });
+    return groups;
+  };
+
   return (
     <Box sx={{ height: 'calc(100vh - 128px)', display: 'flex', flexDirection: 'column', gap: 3 }}>
       {/* Header with Back Button */}
@@ -109,393 +126,92 @@ const ViewClient = () => {
         </Typography>
       </Box>
 
+      {/* Tabs */}
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+        <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
+          <Tab label="AI Summary" value="aiSummary" />
+          <Tab label="All Meetings" value="allMeetings" />
+        </Tabs>
+      </Box>
+
       {/* Main Content */}
       <Box sx={{ flex: 1, display: 'flex', gap: 3 }}>
-        {/* Left Panel - Meetings List */}
-        <Card 
-          sx={{ 
-            width: 380, 
-            p: 3,
-            borderRadius: '12px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            backgroundColor: '#FFFFFF',
-            border: '1px solid #E5E5E5',
-            overflow: 'auto'
-          }}
-        >
-          <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 3 }}>
-            Meeting History
-          </Typography>
-
-          <Stack spacing={1}>
-            {meetings.map((meeting) => {
-              const selected = meeting.id === selectedMeetingId;
-              
-              return (
-                <Card
-                  key={meeting.id}
-                  sx={{
-                    p: 2,
-                    borderRadius: '8px',
-                    border: selected ? '2px solid #007AFF' : '1px solid #E5E5E5',
-                    backgroundColor: selected ? '#F0F8FF' : '#FFFFFF',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      backgroundColor: selected ? '#E6F3FF' : '#F8F9FA',
-                      borderColor: '#007AFF',
-                      boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-                    }
-                  }}
-                  onClick={() => setSelectedMeetingId(meeting.id)}
-                >
-                  <Stack spacing={1}>
-                    <Typography 
-                      variant="body1" 
-                      sx={{ 
-                        fontWeight: 600, 
-                        color: selected ? '#007AFF' : '#1E1E1E', 
-                        fontSize: '14px' 
-                      }}
-                    >
-                      {meeting.title}
-                    </Typography>
-                    <Typography 
-                      variant="caption" 
-                      sx={{ color: '#3C3C3C', fontSize: '12px' }}
-                    >
-                      <EventIcon sx={{ fontSize: 14, mr: 0.5, verticalAlign: 'middle' }} />
-                      {formatDateTime(meeting.date)}
-                    </Typography>
-                    <Typography 
-                      variant="body2" 
-                      sx={{ color: '#999999', fontSize: '12px', lineHeight: 1.4 }}
-                    >
-                      {meeting.summary}
-                    </Typography>
-                    <Chip
-                      label={meeting.type || 'Meeting'}
-                      size="small"
-                      sx={{
-                        fontSize: '11px',
-                        fontWeight: 500,
-                        height: 24,
-                        backgroundColor: selected ? '#007AFF' : '#F0F8FF',
-                        color: selected ? '#FFFFFF' : '#007AFF',
-                        borderRadius: '6px',
-                        alignSelf: 'flex-start',
-                        textTransform: 'capitalize'
-                      }}
-                    />
-                  </Stack>
-                </Card>
-              );
-            })}
-          </Stack>
-        </Card>
-
-        {/* Right Panel - Client Details */}
-        <Card 
-          sx={{ 
-            flex: 1, 
-            p: 4,
-            borderRadius: '12px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            backgroundColor: '#FFFFFF',
-            border: '1px solid #E5E5E5',
-            overflow: 'auto'
-          }}
-        >
-          {selectedMeeting && (
-            <Stack spacing={4}>
-              {/* Meeting Detail Header */}
+        {activeTab === 'aiSummary' && (
+          <Card sx={{ flex: 1, p: 4, borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', backgroundColor: '#FFFFFF', border: '1px solid #E5E5E5', overflow: 'auto' }}>
+            {/* AI Summary (editable) */}
+            <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
+              AI Summary of Past Conversations
+            </Typography>
+            {editingField === 'aiSummary' ? (
+              <Stack spacing={2}>
+                <TextField
+                  multiline
+                  rows={4}
+                  value={tempValue}
+                  onChange={(e) => setTempValue(e.target.value)}
+                  fullWidth
+                  variant="outlined"
+                />
+                <Stack direction="row" spacing={2}>
+                  <Button
+                    startIcon={<SaveIcon />}
+                    onClick={() => handleSave('aiSummary')}
+                    sx={{
+                      backgroundColor: '#007AFF',
+                      color: '#FFFFFF',
+                      textTransform: 'none',
+                      fontWeight: 500,
+                      px: 3,
+                      py: 1,
+                      borderRadius: '6px',
+                      '&:hover': {
+                        backgroundColor: '#0056CC'
+                      }
+                    }}
+                  >
+                    Save
+                  </Button>
+                  <Button onClick={handleCancel}>Cancel</Button>
+                </Stack>
+              </Stack>
+            ) : (
               <Box>
-                <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 2 }}>
-                  {selectedMeeting.title}
+                <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap', mb: 2 }}>
+                  {clientData.aiSummary || 'No AI summary available.'}
                 </Typography>
-                <Typography variant="body2" sx={{ color: '#3C3C3C' }}>
-                  {formatDateTime(selectedMeeting.date)}
-                </Typography>
+                <Button startIcon={<EditIcon />} onClick={() => handleEdit('aiSummary')}>Edit</Button>
               </Box>
-
-              <Divider sx={{ borderColor: '#E5E5E5' }} />
-
-              {/* Client Value & Profit */}
-              <Box>
-                <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 3 }}>
-                  Client Overview
-                </Typography>
-                <Stack direction="row" spacing={4}>
-                  <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', flex: 1 }}>
-                    <Typography variant="caption" sx={{ color: '#999999', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Portfolio Value
-                    </Typography>
-                    <Typography variant="h3" sx={{ fontWeight: 700, color: '#1E1E1E', mt: 1 }}>
-                      {clientData.value}
-                    </Typography>
-                  </Card>
-                  <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', flex: 1 }}>
-                    <Typography variant="caption" sx={{ color: '#999999', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                      Expected Profit
-                    </Typography>
-                    <Typography variant="h3" sx={{ fontWeight: 700, color: '#34C759', mt: 1 }}>
-                      {clientData.profit}
-                    </Typography>
-                  </Card>
-                </Stack>
-              </Box>
-
-              {/* Likelihood of Signup */}
-              <Card sx={{ p: 3, border: '1px solid #E5E5E5' }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                  <Box>
-                    <Typography variant="body1" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
-                      Likelihood of Signup
-                    </Typography>
-                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
-                      <AutoAwesomeIcon sx={{ color: '#007AFF', fontSize: 16 }} />
-                      <Typography variant="caption" sx={{ color: '#007AFF', fontWeight: 500 }}>
-                        AI Generated
-                      </Typography>
-                    </Stack>
-                  </Box>
-                  {editingField !== 'likelihoodOfSignup' && (
-                    <IconButton 
-                      onClick={() => handleEdit('likelihoodOfSignup')}
-                      sx={{ color: '#3C3C3C' }}
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  )}
-                </Stack>
-                
-                {editingField === 'likelihoodOfSignup' ? (
-                  <Stack direction="row" spacing={2} alignItems="center">
-                    <TextField
-                      type="number"
-                      value={tempValue}
-                      onChange={(e) => setTempValue(e.target.value)}
-                      size="small"
-                      inputProps={{ min: 0, max: 100 }}
-                      sx={{ width: 100 }}
-                    />
-                    <Typography variant="body2" sx={{ color: '#3C3C3C' }}>%</Typography>
-                    <Button
-                      startIcon={<SaveIcon />}
-                      onClick={() => handleSave('likelihoodOfSignup')}
-                      sx={{
-                        backgroundColor: '#007AFF',
-                        color: '#FFFFFF',
-                        textTransform: 'none',
-                        fontWeight: 500,
-                        px: 2,
-                        py: 0.5,
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        '&:hover': {
-                          backgroundColor: '#0056CC'
-                        }
-                      }}
-                    >
-                      Save
-                    </Button>
-                    <Button
-                      onClick={handleCancel}
-                      sx={{
-                        color: '#3C3C3C',
-                        textTransform: 'none',
-                        fontWeight: 500,
-                        px: 2,
-                        py: 0.5,
-                        borderRadius: '6px',
-                        fontSize: '12px'
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </Stack>
-                ) : (
-                  <Box>
-                    <Typography variant="h2" sx={{ fontWeight: 700, color: '#1E1E1E' }}>
-                      {clientData.likelihoodOfSignup}%
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: '#999999' }}>
-                      Based on AI analysis of past interactions
-                    </Typography>
-                  </Box>
-                )}
-              </Card>
-
-              {/* Expected Close Date */}
-              <Card sx={{ p: 3, border: '1px solid #E5E5E5' }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                  <Typography variant="body1" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
-                    Expected Close Date
+            )}
+          </Card>
+        )}
+        {activeTab === 'allMeetings' && (
+          <Card sx={{ flex: 1, p: 4, borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)', backgroundColor: '#FFFFFF', border: '1px solid #E5E5E5', overflow: 'auto' }}>
+            <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 3 }}>
+              All Meetings Grouped by Other Participant
+            </Typography>
+            {(() => {
+              const groups = groupMeetingsByOtherParticipant(meetings, clientData.email);
+              const groupKeys = Object.keys(groups);
+              if (groupKeys.length === 0) return <Typography>No meetings found.</Typography>;
+              return groupKeys.map(otherEmail => (
+                <Box key={otherEmail} sx={{ mb: 4 }}>
+                  <Typography variant="h6" sx={{ color: '#007AFF', fontWeight: 600, mb: 1 }}>
+                    {otherEmail} ({groups[otherEmail].length} meeting{groups[otherEmail].length > 1 ? 's' : ''})
                   </Typography>
-                  {editingField !== 'expectedCloseDate' && (
-                    <IconButton 
-                      onClick={() => handleEdit('expectedCloseDate')}
-                      sx={{ color: '#3C3C3C' }}
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  )}
-                </Stack>
-                
-                {editingField === 'expectedCloseDate' ? (
-                  <Stack direction="row" spacing={2} alignItems="center">
-                    <TextField
-                      type="date"
-                      value={tempValue}
-                      onChange={(e) => setTempValue(e.target.value)}
-                      size="small"
-                      sx={{ width: 180 }}
-                    />
-                    <Button
-                      startIcon={<SaveIcon />}
-                      onClick={() => handleSave('expectedCloseDate')}
-                      sx={{
-                        backgroundColor: '#007AFF',
-                        color: '#FFFFFF',
-                        textTransform: 'none',
-                        fontWeight: 500,
-                        px: 2,
-                        py: 0.5,
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        '&:hover': {
-                          backgroundColor: '#0056CC'
-                        }
-                      }}
-                    >
-                      Save
-                    </Button>
-                    <Button
-                      onClick={handleCancel}
-                      sx={{
-                        color: '#3C3C3C',
-                        textTransform: 'none',
-                        fontWeight: 500,
-                        px: 2,
-                        py: 0.5,
-                        borderRadius: '6px',
-                        fontSize: '12px'
-                      }}
-                    >
-                      Cancel
-                    </Button>
-                  </Stack>
-                ) : (
-                  <Typography variant="body1" sx={{ color: '#1E1E1E' }}>
-                    {new Date(clientData.expectedCloseDate).toLocaleDateString('en-GB', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </Typography>
-                )}
-              </Card>
-
-              {/* AI Summary */}
-              <Card sx={{ p: 3, border: '1px solid #E5E5E5' }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                  <Box>
-                    <Typography variant="body1" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
-                      AI Summary of Past Conversations
-                    </Typography>
-                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
-                      <AutoAwesomeIcon sx={{ color: '#007AFF', fontSize: 16 }} />
-                      <Typography variant="caption" sx={{ color: '#007AFF', fontWeight: 500 }}>
-                        AI Generated
-                      </Typography>
-                    </Stack>
-                  </Box>
-                  {editingField !== 'aiSummary' && (
-                    <IconButton 
-                      onClick={() => handleEdit('aiSummary')}
-                      sx={{ color: '#3C3C3C' }}
-                    >
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                  )}
-                </Stack>
-                
-                {editingField === 'aiSummary' ? (
                   <Stack spacing={2}>
-                    <TextField
-                      multiline
-                      rows={4}
-                      value={tempValue}
-                      onChange={(e) => setTempValue(e.target.value)}
-                      fullWidth
-                      variant="outlined"
-                    />
-                    <Stack direction="row" spacing={2}>
-                      <Button
-                        startIcon={<SaveIcon />}
-                        onClick={() => handleSave('aiSummary')}
-                        sx={{
-                          backgroundColor: '#007AFF',
-                          color: '#FFFFFF',
-                          textTransform: 'none',
-                          fontWeight: 500,
-                          px: 3,
-                          py: 1,
-                          borderRadius: '6px',
-                          '&:hover': {
-                            backgroundColor: '#0056CC'
-                          }
-                        }}
-                      >
-                        Save
-                      </Button>
-                      <Button
-                        onClick={handleCancel}
-                        sx={{
-                          color: '#3C3C3C',
-                          textTransform: 'none',
-                          fontWeight: 500,
-                          px: 3,
-                          py: 1,
-                          borderRadius: '6px'
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                    </Stack>
+                    {groups[otherEmail].map(meeting => (
+                      <Card key={meeting.id} sx={{ p: 2, borderRadius: '8px', border: '1px solid #E5E5E5', backgroundColor: '#F8F9FA' }}>
+                        <Typography variant="body1" sx={{ fontWeight: 600, color: '#1E1E1E' }}>{meeting.title || meeting.summary}</Typography>
+                        <Typography variant="body2" sx={{ color: '#3C3C3C' }}>{formatDateTime(meeting.date)}</Typography>
+                        <Typography variant="body2" sx={{ color: '#999999' }}>{meeting.summary}</Typography>
+                      </Card>
+                    ))}
                   </Stack>
-                ) : (
-                  <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6 }}>
-                    {clientData.aiSummary}
-                  </Typography>
-                )}
-              </Card>
-
-              {/* Ask AI Button */}
-              <Button
-                variant="contained"
-                startIcon={<ChatIcon />}
-                sx={{
-                  backgroundColor: '#007AFF',
-                  color: '#FFFFFF',
-                  fontWeight: 500,
-                  textTransform: 'none',
-                  py: 2,
-                  px: 4,
-                  borderRadius: '8px',
-                  boxShadow: 'none',
-                  alignSelf: 'flex-start',
-                  '&:hover': {
-                    backgroundColor: '#0056CC',
-                    boxShadow: '0 4px 16px rgba(0, 122, 255, 0.3)',
-                  }
-                }}
-              >
-                Ask AI about this client
-              </Button>
-            </Stack>
-          )}
-        </Card>
+                </Box>
+              ));
+            })()}
+          </Card>
+        )}
       </Box>
     </Box>
   );
