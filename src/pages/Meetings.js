@@ -403,47 +403,6 @@ export default function Meetings() {
                   
                   <Stack direction="row" spacing={2} alignItems="center">
                     <Button
-                      variant="contained"
-                      startIcon={<EmailIcon />}
-                      onClick={handleEmailSummary}
-                      sx={{
-                        backgroundColor: '#007AFF',
-                        color: '#FFFFFF',
-                        fontWeight: 500,
-                        textTransform: 'none',
-                        px: 3,
-                        py: 1,
-                        borderRadius: '6px',
-                        boxShadow: 'none',
-                        '&:hover': {
-                          backgroundColor: '#0056CC',
-                          boxShadow: 'none'
-                        }
-                      }}
-                    >
-                      Email Summary
-                    </Button>
-                    
-                    <FormControl size="small" sx={{ minWidth: 140 }}>
-                      <Select
-                        value={emailTemplate}
-                        onChange={(e) => setEmailTemplate(e.target.value)}
-                        sx={{
-                          borderRadius: '6px',
-                          '& .MuiOutlinedInput-notchedOutline': {
-                            borderColor: '#E5E5E5'
-                          }
-                        }}
-                      >
-                        {emailTemplates.map((template) => (
-                          <MenuItem key={template.value} value={template.value}>
-                            {template.label}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                    
-                    <Button
                       variant="outlined"
                       startIcon={<PersonIcon />}
                       onClick={handleViewClient}
@@ -463,7 +422,6 @@ export default function Meetings() {
                     >
                       View Client
                     </Button>
-                    
                     <Button
                       variant="outlined"
                       startIcon={<ChatIcon />}
