@@ -396,9 +396,6 @@ export default function Meetings() {
                   </Typography>
                 </Box>
                 <Stack direction="row" spacing={2} alignItems="center">
-                  <Card sx={{ p: 1, backgroundColor: '#F0F8FF', border: '1px solid #007AFF', borderRadius: '6px' }}>
-                    <Typography variant="caption" sx={{ color: '#007AFF', fontWeight: 500 }}>Notes completed</Typography>
-                  </Card>
                   <Button variant="outlined" startIcon={<ChatIcon />} sx={{ borderColor: '#007AFF', color: '#007AFF', fontWeight: 500, textTransform: 'none', px: 3, py: 1, borderRadius: '6px' }}>Ask AI</Button>
                   <Button variant="outlined" startIcon={<PersonIcon />} sx={{ borderColor: '#007AFF', color: '#007AFF', fontWeight: 500, textTransform: 'none', px: 3, py: 1, borderRadius: '6px' }}>View client</Button>
                 </Stack>
