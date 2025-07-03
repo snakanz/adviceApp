@@ -21,7 +21,6 @@ const formatDateTime = (dateTimeStr) => {
 const ViewClient = () => {
   const navigate = useNavigate();
   const { clientId } = useParams();
-  const [selectedMeetingId, setSelectedMeetingId] = useState(null);
   const [editingField, setEditingField] = useState(null);
   const [clientData, setClientData] = useState(null);
   const [meetings, setMeetings] = useState([]);
@@ -41,9 +40,6 @@ const ViewClient = () => {
         const meetingsRes = await fetch(`/api/clients/${clientId}/meetings`);
         const meetingsData = await meetingsRes.json();
         setMeetings(meetingsData);
-        if (meetingsData.length > 0) {
-          setSelectedMeetingId(meetingsData[0].id);
-        }
       } catch (e) {
         // handle error
       } finally {
