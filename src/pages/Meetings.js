@@ -5,6 +5,8 @@ import {
 } from '@mui/material';
 import EventIcon from '@mui/icons-material/Event';
 import EmailIcon from '@mui/icons-material/Email';
+import PersonIcon from '@mui/icons-material/Person';
+import ChatIcon from '@mui/icons-material/Chat';
 import SendIcon from '@mui/icons-material/Send';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
@@ -374,8 +376,59 @@ export default function Meetings() {
         >
           {selectedMeetingId ? (
             <>
-              {/* Navigation Tabs */}
+              {/* Top Controls */}
               <Box sx={{ p: 4, pb: 0 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 3 }}>
+                  <Typography variant="h2" sx={{ fontWeight: 700, color: '#1E1E1E' }}>
+                    {selectedMeeting?.summary || 'Meeting Details'}
+                  </Typography>
+                  
+                  <Stack direction="row" spacing={2} alignItems="center">
+                    <Button
+                      variant="outlined"
+                      startIcon={<PersonIcon />}
+                      onClick={() => alert('Client view not implemented yet')}
+                      sx={{
+                        borderColor: '#007AFF',
+                        color: '#007AFF',
+                        fontWeight: 500,
+                        textTransform: 'none',
+                        px: 3,
+                        py: 1,
+                        borderRadius: '6px',
+                        '&:hover': {
+                          borderColor: '#0056CC',
+                          backgroundColor: '#F0F8FF'
+                        }
+                      }}
+                    >
+                      View Client
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      startIcon={<ChatIcon />}
+                      onClick={() => setShowAIChat(!showAIChat)}
+                      sx={{
+                        borderColor: showAIChat ? '#007AFF' : '#E5E5E5',
+                        color: showAIChat ? '#007AFF' : '#3C3C3C',
+                        backgroundColor: showAIChat ? '#F0F8FF' : 'transparent',
+                        fontWeight: 500,
+                        textTransform: 'none',
+                        px: 3,
+                        py: 1,
+                        borderRadius: '6px',
+                        '&:hover': {
+                          borderColor: '#007AFF',
+                          backgroundColor: '#F0F8FF'
+                        }
+                      }}
+                    >
+                      Ask AI About Meeting
+                    </Button>
+                  </Stack>
+                </Stack>
+
+                {/* Navigation Tabs */}
                 <Tabs 
                   value={activeTab}
                   onChange={(_, newValue) => setActiveTab(newValue)}
