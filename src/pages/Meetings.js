@@ -495,54 +495,7 @@ export default function Meetings() {
                   </Stack>
                 </Stack>
 
-                {/* Meeting Info Bar */}
-                <Card sx={{ p: 3, mb: 4, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
-                  <Stack direction="row" spacing={3} alignItems="center">
-                    <Box display="flex" alignItems="center" gap={1}>
-                      <TeamsIcon sx={{ color: '#3C3C3C', fontSize: 20 }} />
-                      <Typography variant="body2" sx={{ color: '#3C3C3C' }}>
-                        Teams Meeting • {formatDateTime(selectedMeeting?.start?.dateTime)}
-                      </Typography>
-                    </Box>
-                    <Box display="flex" alignItems="center" gap={1}>
-                      <Box display="flex">
-                        {Array.from({ length: 3 }).map((_, i) => (
-                          <Box
-                            key={i}
-                            sx={{
-                              width: 24,
-                              height: 24,
-                              borderRadius: '50%',
-                              backgroundColor: i === 0 ? '#007AFF' : i === 1 ? '#34C759' : '#FF9500',
-                              border: '2px solid #FFFFFF',
-                              ml: i > 0 ? -0.5 : 0
-                            }}
-                          />
-                        ))}
-                      </Box>
-                      <Typography variant="caption" sx={{ color: '#999999', ml: 1 }}>
-                        3 participants
-                      </Typography>
-                    </Box>
-                    {isPastMeeting && (
-                      <Card 
-                        sx={{ 
-                          p: 2,
-                          backgroundColor: '#F0F8FF',
-                          border: '1px solid #007AFF',
-                          borderRadius: '6px'
-                        }}
-                      >
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <CheckCircleIcon sx={{ color: '#007AFF', fontSize: 16 }} />
-                          <Typography variant="caption" sx={{ color: '#007AFF', fontWeight: 500 }}>
-                            Notes completed
-                          </Typography>
-                        </Stack>
-                      </Card>
-                    )}
-                  </Stack>
-                </Card>
+                
 
                 {/* Navigation Tabs */}
                 <Tabs 
