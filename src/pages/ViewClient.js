@@ -1,13 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Box, Typography, Card, Stack, Button, TextField, Chip, 
-  IconButton, Divider, Tabs, Tab
+  Box, Typography, Card, Stack, Button, TextField, Tabs, Tab
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import EventIcon from '@mui/icons-material/Event';
-import ChatIcon from '@mui/icons-material/Chat';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 
@@ -59,8 +55,6 @@ const ViewClient = () => {
 
   if (loading) return <Box>Loading...</Box>;
   if (!clientData) return <Box>Client not found.</Box>;
-
-  const selectedMeeting = meetings.find(m => m.id === selectedMeetingId);
 
   const handleBack = () => {
     navigate('/clients');
