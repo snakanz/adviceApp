@@ -380,69 +380,8 @@ export default function Meetings() {
         >
           {selectedMeetingId ? (
             <>
-              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-                <Typography variant="h2" sx={{ fontWeight: 700, color: '#1E1E1E' }}>{selectedMeeting?.summary || 'Meeting Details'}</Typography>
-                <Stack direction="row" spacing={2} alignItems="center">
-                  <Button variant="outlined" startIcon={<ChatIcon />} sx={{ borderColor: '#007AFF', color: '#007AFF', fontWeight: 500, textTransform: 'none', px: 3, py: 1, borderRadius: '6px' }}>Ask AI</Button>
-                  <Button variant="outlined" startIcon={<PersonIcon />} sx={{ borderColor: '#007AFF', color: '#007AFF', fontWeight: 500, textTransform: 'none', px: 3, py: 1, borderRadius: '6px' }}>View client</Button>
-                </Stack>
-              </Stack>
-
-              {/* Top Controls */}
+              {/* Navigation Tabs */}
               <Box sx={{ p: 4, pb: 0 }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 3 }}>
-                  <Typography variant="h2" sx={{ fontWeight: 700, color: '#1E1E1E' }}>
-                    {selectedMeeting?.summary || 'Meeting Details'}
-                  </Typography>
-                  
-                  <Stack direction="row" spacing={2} alignItems="center">
-                    <Button
-                      variant="outlined"
-                      startIcon={<PersonIcon />}
-                      onClick={handleViewClient}
-                      sx={{
-                        borderColor: '#007AFF',
-                        color: '#007AFF',
-                        fontWeight: 500,
-                        textTransform: 'none',
-                        px: 3,
-                        py: 1,
-                        borderRadius: '6px',
-                        '&:hover': {
-                          borderColor: '#0056CC',
-                          backgroundColor: '#F0F8FF'
-                        }
-                      }}
-                    >
-                      View Client
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<ChatIcon />}
-                      onClick={() => setShowAIChat(!showAIChat)}
-                      sx={{
-                        borderColor: showAIChat ? '#007AFF' : '#E5E5E5',
-                        color: showAIChat ? '#007AFF' : '#3C3C3C',
-                        backgroundColor: showAIChat ? '#F0F8FF' : 'transparent',
-                        fontWeight: 500,
-                        textTransform: 'none',
-                        px: 3,
-                        py: 1,
-                        borderRadius: '6px',
-                        '&:hover': {
-                          borderColor: '#007AFF',
-                          backgroundColor: '#F0F8FF'
-                        }
-                      }}
-                    >
-                      Ask AI About Meeting
-                    </Button>
-                  </Stack>
-                </Stack>
-
-                
-
-                {/* Navigation Tabs */}
                 <Tabs 
                   value={activeTab}
                   onChange={(_, newValue) => setActiveTab(newValue)}
