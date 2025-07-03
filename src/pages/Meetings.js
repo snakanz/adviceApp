@@ -388,6 +388,10 @@ export default function Meetings() {
             <>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
                 <Typography variant="h2" sx={{ fontWeight: 700, color: '#1E1E1E' }}>{selectedMeeting?.summary || 'Meeting Details'}</Typography>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Button variant="outlined" startIcon={<ChatIcon />} sx={{ borderColor: '#007AFF', color: '#007AFF', fontWeight: 500, textTransform: 'none', px: 3, py: 1, borderRadius: '6px' }}>Ask AI</Button>
+                  <Button variant="outlined" startIcon={<PersonIcon />} sx={{ borderColor: '#007AFF', color: '#007AFF', fontWeight: 500, textTransform: 'none', px: 3, py: 1, borderRadius: '6px' }}>View client</Button>
+                </Stack>
               </Stack>
 
               {/* Top Controls */}
