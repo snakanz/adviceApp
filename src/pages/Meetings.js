@@ -3,8 +3,6 @@ import {
   Box, Typography, Button, Chip, Snackbar, Alert, CircularProgress, Card, Stack, Divider,
   Select, MenuItem, FormControl, Collapse, TextField, Paper, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
-import TeamsIcon from '@mui/icons-material/Groups';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import EventIcon from '@mui/icons-material/Event';
 import EmailIcon from '@mui/icons-material/Email';
 import PersonIcon from '@mui/icons-material/Person';
