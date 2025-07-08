@@ -48,6 +48,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
     oauth2Client.setCredentials(tokens);
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const userInfo = await oauth2.userinfo.get();
+    console.log('Google user info:', userInfo.data);
     // Upsert user in Postgres
     const { email, name, id: googleId } = userInfo.data;
     let user;
@@ -64,6 +65,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
     }
     // Issue JWT
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, process.env.JWT_SECRET, { expiresIn: '24h' });
+    console.log('Issued JWT:', token);
     // Redirect to frontend with token
     res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}`);
   } catch (err) {
@@ -81,6 +83,7 @@ app.get('/api/protected', (req, res) => {
   if (!auth) return res.status(401).json({ error: 'No token' });
   try {
     const token = auth.split(' ')[1];
+    console.log('Verifying JWT with secret:', process.env.JWT_SECRET);
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     res.json({ message: 'Protected data', user: decoded });
   } catch (e) {
