@@ -14,9 +14,10 @@ const LoginPage = () => {
         }
     }, [isAuthenticated, navigate]);
 
-    const handleGoogleLogin = () => {
-        const loginUrl = `${process.env.REACT_APP_API_URL}/auth/google`;
-        window.location.href = loginUrl;
+    const handleGoogleLogin = async () => {
+        const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/google`);
+        const data = await response.json();
+        window.location.href = data.url;
     };
 
     return (
