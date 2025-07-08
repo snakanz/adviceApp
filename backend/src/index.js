@@ -91,6 +91,18 @@ app.get('/api/protected', (req, res) => {
   }
 });
 
+app.get('/api/auth/verify', (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    res.json(decoded);
+  } catch (e) {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+});
+
 const port = process.env.PORT || 8787;
 app.listen(port, () => {
   console.log(`Backend running on port ${port}`);
