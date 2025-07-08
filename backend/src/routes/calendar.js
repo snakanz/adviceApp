@@ -35,10 +35,10 @@ router.get('/auth/google', async (req, res) => {
 router.get('/auth/google/callback', async (req, res) => {
   const { code, error } = req.query;
   if (error) {
-    return res.redirect('http://localhost:3000/login?error=' + encodeURIComponent(error));
+    return res.redirect(`${process.env.FRONTEND_URL}/login?error=${encodeURIComponent(error)}`);
   }
   if (!code) {
-    return res.redirect('http://localhost:3000/login?error=NoCode');
+    return res.redirect(`${process.env.FRONTEND_URL}/login?error=NoCode`);
   }
   try {
     const oauth2Client = new google.auth.OAuth2(
@@ -88,9 +88,9 @@ router.get('/auth/google/callback', async (req, res) => {
     const jwtToken = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
     // Redirect to frontend with token in URL
-    res.redirect(`http://localhost:3000/auth/callback?token=${jwtToken}`);
+    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${jwtToken}`);
   } catch (err) {
-    res.redirect('http://localhost:3000/login?error=OAuthFailed');
+    res.redirect(`${process.env.FRONTEND_URL}/login?error=OAuthFailed`);
   }
 });
 
