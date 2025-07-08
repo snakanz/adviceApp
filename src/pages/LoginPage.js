@@ -15,8 +15,7 @@ const LoginPage = () => {
     }, [isAuthenticated, navigate]);
 
     const handleGoogleLogin = () => {
-        const loginUrl = `${process.env.REACT_APP_API_URL}/calendar/auth/google`;
-        console.log('Redirecting to Google login URL:', loginUrl);
+        const loginUrl = `${process.env.REACT_APP_API_URL}/auth/google`;
         window.location.href = loginUrl;
     };
 
