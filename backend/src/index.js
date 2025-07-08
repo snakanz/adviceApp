@@ -68,7 +68,10 @@ app.get('/api/auth/google/callback', async (req, res) => {
     res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}`);
   } catch (err) {
     console.error('Google OAuth error:', err);
-    res.status(500).json({ error: 'OAuth failed' });
+    if (err.response) {
+      console.error('Google OAuth error response data:', err.response.data);
+    }
+    res.status(500).json({ error: 'OAuth failed', details: err.response ? err.response.data : err.message });
   }
 });
 
