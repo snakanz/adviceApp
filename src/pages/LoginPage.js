@@ -15,7 +15,9 @@ const LoginPage = () => {
     }, [isAuthenticated, navigate]);
 
     const handleGoogleLogin = () => {
-        window.location.href = 'https://marloo-dashboard-backend.nelson-ec5.workers.dev/api/calendar/auth/google';
+        const loginUrl = `${process.env.REACT_APP_API_URL}/calendar/auth/google`;
+        console.log('Redirecting to Google login URL:', loginUrl);
+        window.location.href = loginUrl;
     };
 
     return (

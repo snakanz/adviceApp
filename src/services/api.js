@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://marloo-dashboard-backend.nelson-ec5.workers.dev/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL;
 
 class ApiService {
     constructor() {

@@ -16,7 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import MicIcon from '@mui/icons-material/Mic';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 
-const API_URL = process.env.REACT_APP_API_URL || 'https://marloo-dashboard-backend.nelson-ec5.workers.dev/api';
+const API_URL = process.env.REACT_APP_API_URL;
 
 const formatDateTime = (dateTimeStr) => {
   const date = new Date(dateTimeStr);
@@ -94,21 +94,37 @@ export default function Meetings() {
       setLoading(true);
       try {
         const token = localStorage.getItem('jwt');
-        const res = await fetch(`${API_URL}/calendar/meetings/all`, {
+        let url;
+        if (window.location.hostname === 'localhost') {
+          url = `${API_URL}/api/dev/meetings`;
+        } else {
+          url = `${API_URL}/calendar/meetings/all`;
+        }
+        const res = await fetch(url, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!res.ok) throw new Error('Failed to fetch meetings');
         const data = await res.json();
-        setMeetings(data);
-        
+        // For /dev/meetings, wrap in { past: [...], future: [...] }
+        let meetingsData = data;
+        if (window.location.hostname === 'localhost') {
+          const now = new Date();
+          meetingsData = { past: [], future: [] };
+          data.forEach(m => {
+            const start = new Date(m.startTime);
+            if (start < now) meetingsData.past.push({ ...m, id: m.googleEventId });
+            else meetingsData.future.push({ ...m, id: m.googleEventId });
+          });
+        }
+        setMeetings(meetingsData);
         // Set initial selected meeting and content
-        if (data.past.length > 0) {
-          setSelectedMeetingId(data.past[0].id);
-          setSummaryContent(data.past[0].meetingSummary);
-        } else if (data.future.length > 0) {
-          setSelectedMeetingId(data.future[0].id);
-          setSummaryContent(data.future[0].meetingSummary);
-          setMeetingPrep(data.future[0].prep || '');
+        if (meetingsData.past.length > 0) {
+          setSelectedMeetingId(meetingsData.past[0].id);
+          setSummaryContent(meetingsData.past[0].meetingSummary);
+        } else if (meetingsData.future.length > 0) {
+          setSelectedMeetingId(meetingsData.future[0].id);
+          setSummaryContent(meetingsData.future[0].meetingSummary);
+          setMeetingPrep(meetingsData.future[0].prep || '');
         }
       } catch (err) {
         console.error('Failed to fetch meetings:', err);

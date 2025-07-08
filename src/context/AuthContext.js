@@ -2,12 +2,38 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext(null);
 
-const API_URL = 'https://marloo-dashboard-backend.nelson-ec5.workers.dev/api';
+const API_URL = process.env.REACT_APP_API_URL;
 
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState(null);
+
+  // Localhost mock user for UI development
+  useEffect(() => {
+    // if (window.location.hostname === 'localhost') {
+    //   setUser({
+    //     id: '7ddad7e1-a221-4e42-bd86-f3ff6f1b6790',
+    //     name: 'Test User',
+    //     email: 'testuser@gmail.com',
+    //     picture: 'https://ui-avatars.com/api/?name=Test+User',
+    //     provider: 'google',
+    //     providerId: 'mock-google-id',
+    //   });
+    //   setIsAuthenticated(true);
+    //   setIsLoading(false);
+    //   return;
+    // }
+    const initAuth = async () => {
+      const token = localStorage.getItem('jwt');
+      if (token) {
+        await verifyTokenAndGetUser(token);
+      }
+      setIsLoading(false);
+    };
+    
+    initAuth();
+  }, []);
 
   const verifyTokenAndGetUser = async (token) => {
     try {
@@ -44,18 +70,6 @@ export const AuthProvider = ({ children }) => {
       return false;
     }
   };
-
-  useEffect(() => {
-    const initAuth = async () => {
-      const token = localStorage.getItem('jwt');
-      if (token) {
-        await verifyTokenAndGetUser(token);
-      }
-      setIsLoading(false);
-    };
-    
-    initAuth();
-  }, []);
 
   const login = async (token) => {
     console.log('Login function called with token');
