@@ -30,7 +30,9 @@ app.get('/api/health', (req, res) => {
 app.get('/api/auth/google', (req, res) => {
   const scopes = [
     'https://www.googleapis.com/auth/userinfo.profile',
-    'https://www.googleapis.com/auth/userinfo.email'
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/calendar.events'
   ];
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
@@ -49,20 +51,44 @@ app.get('/api/auth/google/callback', async (req, res) => {
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const userInfo = await oauth2.userinfo.get();
     console.log('Google user info:', userInfo.data);
+    
     // Upsert user in Postgres
     const { email, name, id: googleId } = userInfo.data;
     let user;
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const result = await pool.query('SELECT * FROM "User" WHERE email = $1', [email]);
     if (result.rows.length > 0) {
       user = result.rows[0];
-      await pool.query('UPDATE users SET name = $1, google_id = $2 WHERE email = $3', [name, googleId, email]);
+      // Update user info
+      await pool.query(
+        'UPDATE "User" SET name = $1, "providerId" = $2 WHERE email = $3',
+        [name, googleId, email]
+      );
     } else {
       const insert = await pool.query(
-        'INSERT INTO users (email, name, google_id) VALUES ($1, $2, $3) RETURNING *',
-        [email, name, googleId]
+        'INSERT INTO "User" (id, email, name, provider, "providerId") VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        [googleId, email, name, 'google', googleId]
       );
       user = insert.rows[0];
     }
+    
+    // Store/update calendar tokens
+    const expiresAt = new Date(Date.now() + (tokens.expires_in * 1000));
+    await pool.query(
+      `INSERT INTO "CalendarToken" (id, "userId", "accessToken", "refreshToken", "expiresAt", provider, "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT ("userId") DO UPDATE
+       SET "accessToken" = $3, "refreshToken" = $4, "expiresAt" = $5, "updatedAt" = $7`,
+      [
+        `token_${user.id}`,
+        user.id,
+        tokens.access_token,
+        tokens.refresh_token || null,
+        expiresAt,
+        'google',
+        new Date()
+      ]
+    );
+    
     // Issue JWT
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, process.env.JWT_SECRET, { expiresIn: '24h' });
     console.log('Issued JWT:', token);
@@ -103,6 +129,22 @@ app.get('/api/auth/verify', (req, res) => {
   }
 });
 
+// Reconnect Google endpoint - forces re-authentication
+app.get('/api/auth/reconnect-google', (req, res) => {
+  const scopes = [
+    'https://www.googleapis.com/auth/userinfo.profile',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/calendar',
+    'https://www.googleapis.com/auth/calendar.events'
+  ];
+  const url = oauth2Client.generateAuthUrl({
+    access_type: 'offline',
+    scope: scopes,
+    prompt: 'consent' // This forces re-consent
+  });
+  res.json({ url });
+});
+
 app.get('/api/calendar/meetings/all', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
@@ -111,11 +153,68 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
 
-    // Set up Google OAuth2 client with user's tokens (assume tokens are stored in users table for now)
-    // You may need to adjust this if you store tokens elsewhere
-    // For demo, we'll use the main oauth2Client (should be per-user in production)
+    // Get user's Google tokens from database
+    const tokenResult = await pool.query(
+      'SELECT "accessToken", "refreshToken", "expiresAt" FROM "CalendarToken" WHERE "userId" = $1',
+      [userId]
+    );
+    
+    if (!tokenResult.rows[0]?.accessToken) {
+      return res.status(401).json({ error: 'User not connected to Google Calendar. Please reconnect your Google account.' });
+    }
+    
+    // Check if token is expired and refresh if needed
+    let accessToken = tokenResult.rows[0].accessToken;
+    const refreshToken = tokenResult.rows[0].refreshToken;
+    const expiresAt = new Date(tokenResult.rows[0].expiresAt);
+    
+    if (expiresAt < new Date()) {
+      // Token is expired, refresh it
+      try {
+        const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            client_id: process.env.GOOGLE_CLIENT_ID,
+            client_secret: process.env.GOOGLE_CLIENT_SECRET,
+            refresh_token: refreshToken,
+            grant_type: 'refresh_token'
+          })
+        });
+        
+        if (refreshResponse.ok) {
+          const newTokens = await refreshResponse.json();
+          accessToken = newTokens.access_token;
+          
+          // Update the token in database
+          const newExpiresAt = new Date(Date.now() + (newTokens.expires_in * 1000));
+          await pool.query(
+            'UPDATE "CalendarToken" SET "accessToken" = $1, "expiresAt" = $2, "updatedAt" = $3 WHERE "userId" = $4',
+            [accessToken, newExpiresAt, new Date(), userId]
+          );
+        } else {
+          return res.status(401).json({ error: 'Failed to refresh Google token. Please reconnect your Google account.' });
+        }
+      } catch (error) {
+        console.error('Token refresh error:', error);
+        return res.status(401).json({ error: 'Failed to refresh Google token. Please reconnect your Google account.' });
+      }
+    }
 
-    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    // Create per-user OAuth2 client
+    const userOAuth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    );
+
+    // Set user's credentials
+    userOAuth2Client.setCredentials({
+      access_token: accessToken,
+      refresh_token: refreshToken
+    });
+
+    const calendar = google.calendar({ version: 'v3', auth: userOAuth2Client });
     const now = new Date();
     const timeMin = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days ago
     const timeMax = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days ahead
@@ -134,18 +233,18 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
     for (const event of events) {
       if (!event.start || !event.start.dateTime) continue; // skip all-day events
       await pool.query(
-        `INSERT INTO meetings (google_event_id, user_id, summary, start_time, end_time, description, location)
+        `INSERT INTO "Meeting" ("googleEventId", "userId", title, "startTime", "endTime", summary, "updatedAt")
          VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT (google_event_id, user_id) DO UPDATE
-         SET summary = $3, start_time = $4, end_time = $5, description = $6, location = $7`,
+         ON CONFLICT ("googleEventId", "userId") DO UPDATE
+         SET title = $3, "startTime" = $4, "endTime" = $5, summary = $6, "updatedAt" = $7`,
         [
           event.id,
           userId,
           event.summary || 'Untitled Meeting',
           event.start.dateTime,
           event.end ? event.end.dateTime : null,
-          event.description,
-          event.location
+          event.description || '',
+          new Date()
         ]
       );
     }
