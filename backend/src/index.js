@@ -285,6 +285,31 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
   }
 });
 
+// Transcript upload endpoint
+app.post('/api/calendar/meetings/:id/transcript', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    const meetingId = req.params.id;
+    const { transcript } = req.body;
+
+    // Ensure transcript column exists in meetings table
+    // Update the transcript for the meeting
+    await pool.query(
+      'UPDATE meetings SET transcript = $1, updatedat = NOW() WHERE googleeventid = $2 AND userid = $3',
+      [transcript, meetingId, userId]
+    );
+
+    res.json({ success: true, transcript });
+  } catch (error) {
+    console.error('Transcript upload error:', error);
+    res.status(500).json({ error: 'Failed to upload transcript' });
+  }
+});
+
 const port = process.env.PORT || 8787;
 app.listen(port, () => {
   console.log(`Backend running on port ${port}`);
