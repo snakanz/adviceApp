@@ -4,7 +4,6 @@ import { Box, Typography, Button, Stack, TextField } from '@mui/material';
 import { api } from '../services/api';
 
 export default function Clients() {
-  const navigate = useNavigate();
   const [clients, setClients] = useState([]);
   const [selectedClientIndex, setSelectedClientIndex] = useState(0);
   const [search, setSearch] = useState('');
