@@ -72,7 +72,15 @@ app.get('/api/auth/google/callback', async (req, res) => {
     }
     
     // Store/update calendar tokens
-    const expiresAt = new Date(Date.now() + (tokens.expires_in * 1000));
+    let expiresAt;
+    if (tokens.expiry_date) {
+      expiresAt = new Date(tokens.expiry_date);
+    } else if (tokens.expires_in) {
+      expiresAt = new Date(Date.now() + (tokens.expires_in * 1000));
+    } else {
+      // Fallback: set to 1 hour from now
+      expiresAt = new Date(Date.now() + 3600 * 1000);
+    }
     await pool.query(
       `INSERT INTO calendartoken (id, userid, accesstoken, refreshtoken, expiresat, provider, updatedat)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
