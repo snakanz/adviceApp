@@ -10,8 +10,11 @@ import { api } from '../services/api';
 export default function Clients() {
   const navigate = useNavigate();
   const [clients, setClients] = useState([]);
+  const [selectedClientIndex, setSelectedClientIndex] = useState(0);
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [tab, setTab] = useState(0);
 
   useEffect(() => {
     async function fetchClients() {
@@ -19,6 +22,7 @@ export default function Clients() {
       try {
         const data = await api.request('/clients');
         setClients(data);
+        setSelectedClientIndex(0); // Always select the first client by default
       } catch (err) {
         setError(err.message);
         setClients([]);
@@ -28,6 +32,12 @@ export default function Clients() {
     }
     fetchClients();
   }, []);
+
+  const filteredClients = clients.filter(c =>
+    (c.name || c.email).toLowerCase().includes(search.toLowerCase())
+  );
+
+  const selectedClient = filteredClients[selectedClientIndex] || filteredClients[0];
 
   const handleViewDetails = (clientId) => {
     navigate(`/clients/${clientId}`);
@@ -50,221 +60,84 @@ export default function Clients() {
   }
 
   return (
-    <Box sx={{ p: 4 }}>
-      {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Box>
-          <Typography variant="h2" sx={{ fontWeight: 700, color: '#1E1E1E', mb: 1 }}>
-            Clients
-          </Typography>
-          <Typography variant="body1" sx={{ color: '#3C3C3C' }}>
-            Manage your client relationships and track opportunities
-          </Typography>
-        </Box>
-        <Button 
-          variant="contained" 
-          startIcon={<AddIcon />} 
-          sx={{
-            backgroundColor: '#007AFF',
-            color: '#FFFFFF',
-            fontWeight: 500,
-            textTransform: 'none',
-            py: 1.5,
-            px: 3,
-            borderRadius: '8px',
-            boxShadow: 'none',
-            '&:hover': {
-              backgroundColor: '#0056CC',
-              boxShadow: '0 4px 16px rgba(0, 122, 255, 0.3)',
-            }
-          }}
-        >
-          Add Client
-        </Button>
-      </Box>
-
-      {/* Search */}
-      <Box sx={{ mb: 4 }}>
+    <Box sx={{ display: 'flex', height: '100%' }}>
+      {/* Client List Panel */}
+      <Box sx={{ width: 300, borderRight: '1px solid #eee', p: 2 }}>
         <TextField
-          placeholder="Search clients..."
-          variant="outlined"
+          placeholder="Search Client"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
           size="small"
-          InputProps={{
-            startAdornment: <SearchIcon sx={{ color: '#999999', mr: 1 }} />,
-          }}
-          sx={{ 
-            width: 340,
-            '& .MuiOutlinedInput-root': {
-              backgroundColor: '#FFFFFF'
-            }
-          }}
+          fullWidth
+          sx={{ mb: 2 }}
         />
+        <Box>
+          {filteredClients.map((client, idx) => (
+            <Card
+              key={client.email}
+              sx={{
+                mb: 1,
+                p: 1,
+                background: idx === selectedClientIndex ? '#e3f2fd' : '#fff',
+                cursor: 'pointer',
+                border: idx === selectedClientIndex ? '2px solid #1976d2' : '1px solid #eee',
+              }}
+              onClick={() => setSelectedClientIndex(idx)}
+            >
+              <Typography fontWeight={600}>{client.name || client.email}</Typography>
+              <Typography variant="body2" color="text.secondary">{client.email}</Typography>
+            </Card>
+          ))}
+        </Box>
       </Box>
 
-      {/* Client Grid */}
-      {clients.length === 0 ? (
-        <Box sx={{ textAlign: 'center', py: 8 }}>
-          <Typography variant="h5" sx={{ color: '#999999', mb: 2 }}>
-            No clients found
-          </Typography>
-          <Typography variant="body1" sx={{ color: '#999999' }}>
-            Add your first client to get started
-          </Typography>
-        </Box>
-      ) : (
-        <Grid container spacing={3}>
-          {clients.map((client) => {
-            return (
-              <Grid item xs={12} sm={6} md={4} lg={3} key={client.id}>
-                <Card 
-                  sx={{ 
-                    borderRadius: '12px', 
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                    border: '1px solid #E5E5E5',
-                    backgroundColor: '#FFFFFF',
-                    transition: 'all 0.2s',
-                    '&:hover': {
-                      boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-                      transform: 'translateY(-2px)'
-                    }
-                  }}
-                  onClick={() => handleViewDetails(client.id)}
-                >
-                  <CardContent sx={{ p: 3 }}>
-                    {/* Client Header */}
-                    <Box display="flex" alignItems="center" sx={{ mb: 2 }}>
-                      <Avatar 
-                        sx={{ 
-                          bgcolor: '#F0F8FF', 
-                          color: '#007AFF', 
-                          mr: 2,
-                          width: 40,
-                          height: 40,
-                          fontWeight: 600
-                        }}
-                      >
-                        {client.name ? client.name[0] : '?'}
-                      </Avatar>
-                      <Box flex={1}>
-                        <Typography variant="body1" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 0.5 }}>
-                          {client.name || 'Unknown Client'}
-                        </Typography>
-                        <Stack direction="row" spacing={1}>
-                          <Chip 
-                            label={client.status || 'Unknown'} 
-                            size="small" 
-                            sx={{
-                              fontSize: '11px',
-                              fontWeight: 500,
-                              height: 20,
-                              backgroundColor: client.status === 'Active' ? '#E8F5E8' : '#FFF3E0',
-                              color: client.status === 'Active' ? '#2E7D32' : '#F57C00',
-                              borderRadius: '6px'
-                            }}
-                          />
-                          <Chip 
-                            label={`${client.meeting ? client.meeting : 'No'} Meeting`} 
-                            size="small"
-                            sx={{
-                              fontSize: '11px',
-                              fontWeight: 500,
-                              height: 20,
-                              backgroundColor: '#F0F8FF',
-                              color: '#007AFF',
-                              borderRadius: '6px'
-                            }}
-                          />
-                        </Stack>
-                      </Box>
-                    </Box>
-
-                    {/* Value */}
-                    <Typography 
-                      variant="h4" 
-                      sx={{ 
-                        fontWeight: 700, 
-                        color: '#1E1E1E', 
-                        mb: 2 
-                      }}
-                    >
-                      {client.value || '$0'}
-                    </Typography>
-
-                    {/* Contact Info */}
-                    <Stack spacing={1} sx={{ mb: 2 }}>
-                      <Stack direction="row" alignItems="center" spacing={1}>
-                        <EmailIcon sx={{ fontSize: 16, color: '#3C3C3C' }} />
-                        <Typography variant="body2" sx={{ color: '#3C3C3C', fontSize: '12px' }}>
-                          {client.email || 'No email'}
-                        </Typography>
-                      </Stack>
-                      <Stack direction="row" alignItems="center" spacing={1}>
-                        <PhoneIcon sx={{ fontSize: 16, color: '#3C3C3C' }} />
-                        <Typography variant="body2" sx={{ color: '#3C3C3C', fontSize: '12px' }}>
-                          {client.phone || 'No phone'}
-                        </Typography>
-                      </Stack>
-                    </Stack>
-
-                    {/* Last Contact */}
-                    <Typography variant="caption" sx={{ color: '#999999', mb: 3, display: 'block' }}>
-                      Last contact: {client.lastContact || 'Never'}
-                    </Typography>
-
-                    {/* Action Buttons */}
-                    <Stack direction="row" spacing={1}>
-                      <Button 
-                        variant="outlined" 
-                        size="small" 
-                        onClick={() => handleViewDetails(client.id)}
-                        sx={{
-                          borderColor: '#007AFF',
-                          color: '#007AFF',
-                          textTransform: 'none',
-                          fontWeight: 500,
-                          px: 2,
-                          py: 0.5,
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          flex: 1,
-                          '&:hover': {
-                            borderColor: '#0056CC',
-                            backgroundColor: '#F0F8FF'
-                          }
-                        }}
-                      >
-                        View Details
-                      </Button>
-                      <Button 
-                        variant="contained" 
-                        size="small"
-                        sx={{
-                          backgroundColor: '#007AFF',
-                          color: '#FFFFFF',
-                          textTransform: 'none',
-                          fontWeight: 500,
-                          px: 2,
-                          py: 0.5,
-                          borderRadius: '6px',
-                          fontSize: '12px',
-                          flex: 1,
-                          boxShadow: 'none',
-                          '&:hover': {
-                            backgroundColor: '#0056CC',
-                            boxShadow: 'none'
-                          }
-                        }}
-                      >
-                        Contact
-                      </Button>
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-            );
-          })}
-        </Grid>
-      )}
+      {/* Main Details Area */}
+      <Box sx={{ flex: 1, p: 4 }}>
+        {selectedClient ? (
+          <>
+            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+              <Stack direction="row" spacing={2}>
+                <Button onClick={() => setTab(0)} variant={tab === 0 ? 'contained' : 'text'}>AI summary of Client</Button>
+                <Button onClick={() => setTab(1)} variant={tab === 1 ? 'contained' : 'text'}>All Meetings</Button>
+                <Button onClick={() => setTab(2)} variant={tab === 2 ? 'contained' : 'text'}>Client Pipeline</Button>
+              </Stack>
+            </Box>
+            {tab === 0 && (
+              <Box>
+                <Typography variant="h5" fontWeight={700} mb={2}>AI summary of Client</Typography>
+                <Typography variant="body1" color="text.secondary">(AI summary placeholder)</Typography>
+              </Box>
+            )}
+            {tab === 1 && (
+              <Box>
+                <Typography variant="h5" fontWeight={700} mb={2}>All Meetings</Typography>
+                {selectedClient.meetings && selectedClient.meetings.length > 0 ? (
+                  selectedClient.meetings.map(mtg => (
+                    <Card key={mtg.id} sx={{ mb: 2, p: 2 }}>
+                      <Typography fontWeight={600}>{mtg.title}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {new Date(mtg.starttime).toLocaleString()} - {new Date(mtg.endtime).toLocaleString()}
+                      </Typography>
+                    </Card>
+                  ))
+                ) : (
+                  <Typography>No meetings found for this client.</Typography>
+                )}
+              </Box>
+            )}
+            {tab === 2 && (
+              <Box>
+                <Typography variant="h5" fontWeight={700} mb={2}>Client Pipeline</Typography>
+                <Typography>Business expected: (placeholder)</Typography>
+                <Typography>Value of business: (placeholder)</Typography>
+                <Typography>Expected close month: (placeholder)</Typography>
+              </Box>
+            )}
+          </>
+        ) : (
+          <Typography>Select a client to view details.</Typography>
+        )}
+      </Box>
     </Box>
   );
 } 
