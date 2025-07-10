@@ -4,6 +4,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const { google } = require('googleapis');
+const clientsRouter = require('./routes/clients');
 
 const app = express();
 app.use(cors({
@@ -313,6 +314,8 @@ app.post('/api/calendar/meetings/:id/transcript', async (req, res) => {
     res.status(500).json({ error: 'Failed to upload transcript' });
   }
 });
+
+app.use('/api/clients', clientsRouter);
 
 const port = process.env.PORT || 8787;
 app.listen(port, () => {
