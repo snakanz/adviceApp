@@ -17,6 +17,7 @@ router.get('/', async (req, res) => {
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
+    const userEmail = decoded.email;
 
     // Get all meetings for this advisor
     const result = await pool.query('SELECT id, title, starttime, endtime, attendees FROM meetings WHERE userid = $1', [userId]);
@@ -32,8 +33,8 @@ router.get('/', async (req, res) => {
         attendees = [];
       }
       attendees.forEach(att => {
-        // Use email as unique key
-        if (att && att.email) {
+        // Use email as unique key, skip advisor's own email
+        if (att && att.email && att.email !== userEmail) {
           if (!clientsMap[att.email]) {
             clientsMap[att.email] = { email: att.email, name: att.displayName || '', meetings: [] };
           }
