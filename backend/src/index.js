@@ -103,6 +103,81 @@ app.get('/api/auth/verify', (req, res) => {
   }
 });
 
+app.get('/api/calendar/meetings/all', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+
+    // Set up Google OAuth2 client with user's tokens (assume tokens are stored in users table for now)
+    // You may need to adjust this if you store tokens elsewhere
+    // For demo, we'll use the main oauth2Client (should be per-user in production)
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    const now = new Date();
+    const timeMin = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days ago
+    const timeMax = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days ahead
+
+    const response = await calendar.events.list({
+      calendarId: 'primary',
+      timeMin,
+      timeMax,
+      singleEvents: true,
+      orderBy: 'startTime',
+      maxResults: 2500
+    });
+    const events = response.data.items || [];
+
+    // Upsert each meeting into the database
+    for (const event of events) {
+      if (!event.start || !event.start.dateTime) continue; // skip all-day events
+      await pool.query(
+        `INSERT INTO meetings (google_event_id, user_id, summary, start_time, end_time, description, location)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (google_event_id, user_id) DO UPDATE
+         SET summary = $3, start_time = $4, end_time = $5, description = $6, location = $7`,
+        [
+          event.id,
+          userId,
+          event.summary || 'Untitled Meeting',
+          event.start.dateTime,
+          event.end ? event.end.dateTime : null,
+          event.description,
+          event.location
+        ]
+      );
+    }
+
+    // Group into past and future
+    const past = [];
+    const future = [];
+    for (const event of events) {
+      if (!event.start || !event.start.dateTime) continue;
+      const eventStart = new Date(event.start.dateTime);
+      const processedEvent = {
+        id: event.id,
+        summary: event.summary || 'Untitled Meeting',
+        start: { dateTime: event.start.dateTime },
+        end: event.end ? { dateTime: event.end.dateTime } : null,
+        description: event.description,
+        location: event.location,
+        attendees: event.attendees || []
+      };
+      if (eventStart > now) {
+        future.push(processedEvent);
+      } else {
+        past.push(processedEvent);
+      }
+    }
+    res.json({ past, future });
+  } catch (error) {
+    console.error('Error fetching or saving meetings:', error);
+    res.status(500).json({ error: 'Failed to fetch or save meetings' });
+  }
+});
+
 const port = process.env.PORT || 8787;
 app.listen(port, () => {
   console.log(`Backend running on port ${port}`);
