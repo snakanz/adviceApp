@@ -6,7 +6,10 @@ const jwt = require('jsonwebtoken');
 const { google } = require('googleapis');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'https://adviceapp.pages.dev'],
+  credentials: true
+}));
 app.use(express.json());
 
 const pool = new Pool({
@@ -250,7 +253,7 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
           userId,
           event.summary || 'Untitled Meeting',
           event.start.dateTime,
-          event.end ? event.end.dateTime : null,
+          event.end ? { dateTime: event.end.dateTime } : null,
           event.description || '',
           new Date()
         ]
