@@ -103,7 +103,18 @@ export default function Meetings() {
         const res = await fetch(url, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (!res.ok) throw new Error('Failed to fetch meetings');
+        if (!res.ok) {
+          if (res.status === 401) {
+            // Check if it's a Google Calendar connection issue
+            const errorData = await res.json();
+            if (errorData.error && errorData.error.includes('Google Calendar')) {
+              setShowSnackbar(true);
+              setSnackbarMessage('Google Calendar connection issue. Please reconnect your Google account.');
+              setSnackbarSeverity('warning');
+            }
+          }
+          throw new Error('Failed to fetch meetings');
+        }
         const data = await res.json();
         // For /dev/meetings, wrap in { past: [...], future: [...] }
         let meetingsData = data;
@@ -134,6 +145,73 @@ export default function Meetings() {
     };
     if (isAuthenticated) fetchMeetings();
   }, [isAuthenticated]);
+
+  const handleReconnectGoogle = async () => {
+    try {
+      const token = localStorage.getItem('jwt');
+      const res = await fetch(`${API_URL}/auth/reconnect-google`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to get reconnect URL');
+      const { url } = await res.json();
+      window.location.href = url;
+    } catch (error) {
+      console.error('Failed to get reconnect URL:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to initiate Google reconnection');
+      setSnackbarSeverity('error');
+    }
+  };
+
+  const handleSyncMeetings = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('jwt');
+      let url;
+      if (window.location.hostname === 'localhost') {
+        url = `${API_URL}/api/dev/meetings`;
+      } else {
+        url = `${API_URL}/calendar/meetings/all`;
+      }
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        if (res.status === 401) {
+          const errorData = await res.json();
+          if (errorData.error && errorData.error.includes('Google Calendar')) {
+            setShowSnackbar(true);
+            setSnackbarMessage('Google Calendar connection issue. Please reconnect your Google account.');
+            setSnackbarSeverity('warning');
+            return;
+          }
+        }
+        throw new Error('Failed to sync meetings');
+      }
+      const data = await res.json();
+      let meetingsData = data;
+      if (window.location.hostname === 'localhost') {
+        const now = new Date();
+        meetingsData = { past: [], future: [] };
+        data.forEach(m => {
+          const start = new Date(m.startTime);
+          if (start < now) meetingsData.past.push({ ...m, id: m.googleEventId });
+          else meetingsData.future.push({ ...m, id: m.googleEventId });
+        });
+      }
+      setMeetings(meetingsData);
+      setShowSnackbar(true);
+      setSnackbarMessage('Meetings synced successfully');
+      setSnackbarSeverity('success');
+    } catch (error) {
+      console.error('Failed to sync meetings:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to sync meetings');
+      setSnackbarSeverity('error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const isPastMeeting = meetings.past.some(m => m.id === selectedMeetingId);
 
@@ -339,7 +417,6 @@ export default function Meetings() {
 
   return (
     <>
-      <Button onClick={() => { alert('Test button works!'); }}>Test Button</Button>
       <Box sx={{ height: 'calc(100vh - 128px)', display: 'flex', gap: 3 }}>
         {/* Left Sidebar */}
         <Card 
@@ -400,6 +477,51 @@ export default function Meetings() {
                   </Typography>
                   
                   <Stack direction="row" spacing={2} alignItems="center">
+                    <Button
+                      variant="outlined"
+                      startIcon={<EventIcon />}
+                      onClick={handleReconnectGoogle}
+                      sx={{
+                        borderColor: '#FF6B35',
+                        color: '#FF6B35',
+                        fontWeight: 500,
+                        textTransform: 'none',
+                        px: 3,
+                        py: 1,
+                        borderRadius: '6px',
+                        '&:hover': {
+                          borderColor: '#E55A2B',
+                          backgroundColor: '#FFF5F2'
+                        }
+                      }}
+                    >
+                      Reconnect Google
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      startIcon={<EventIcon />}
+                      onClick={handleSyncMeetings}
+                      disabled={loading}
+                      sx={{
+                        borderColor: '#28A745',
+                        color: '#28A745',
+                        fontWeight: 500,
+                        textTransform: 'none',
+                        px: 3,
+                        py: 1,
+                        borderRadius: '6px',
+                        '&:hover': {
+                          borderColor: '#218838',
+                          backgroundColor: '#F8FFF9'
+                        },
+                        '&:disabled': {
+                          borderColor: '#6C757D',
+                          color: '#6C757D'
+                        }
+                      }}
+                    >
+                      {loading ? 'Syncing...' : 'Sync Meetings'}
+                    </Button>
                     <Button
                       variant="outlined"
                       startIcon={<PersonIcon />}

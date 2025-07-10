@@ -97,5 +97,104 @@
     "assignee": "Nelson",
     "created": "2024-06-27",
     "updated": "2024-06-27"
+  },
+  {
+    "id": 12,
+    "title": "Migrate backend from Cloudflare Workers to Node.js/Express on Render",
+    "description": "Move backend to Render for better compatibility, update all environment variables, and ensure smooth deployment.",
+    "status": "done",
+    "assignee": "Nelson",
+    "created": "2024-07-08",
+    "updated": "2024-07-08"
+  },
+  {
+    "id": 13,
+    "title": "Supabase/Postgres integration for production backend",
+    "description": "Connect backend to Supabase using transaction pooler, update DATABASE_URL, and create required tables.",
+    "status": "done",
+    "assignee": "Nelson",
+    "created": "2024-07-08",
+    "updated": "2024-07-08"
+  },
+  {
+    "id": 14,
+    "title": "Production Google OAuth and JWT troubleshooting",
+    "description": "Debug and fix Google OAuth callback, JWT secret mismatches, and ensure secure login flow in production.",
+    "status": "done",
+    "assignee": "Nelson",
+    "created": "2024-07-08",
+    "updated": "2024-07-08"
+  },
+  {
+    "id": 15,
+    "title": "Implement /api/auth/verify endpoint for JWT validation",
+    "description": "Add missing endpoint to backend for frontend to verify JWTs after login.",
+    "status": "done",
+    "assignee": "Nelson",
+    "created": "2024-07-08",
+    "updated": "2024-07-08"
+  },
+  {
+    "id": 16,
+    "title": "Sync past and future meetings from Google Calendar (START HERE)",
+    "description": "[Current priority] Fetch both past and future meetings from the user's Google account and display them in the app. This is the foundation for all other features.",
+    "status": "done",
+    "assignee": "Nelson",
+    "created": "2024-07-08",
+    "updated": "2024-07-08"
+  },
+  {
+    "id": 17,
+    "title": "Save meetings to database",
+    "description": "Persist all fetched meetings (past and future) from Google Calendar into the Postgres database.",
+    "status": "done",
+    "assignee": "Nelson",
+    "created": "2024-07-08",
+    "updated": "2024-07-08"
+  },
+  {
+    "id": 18,
+    "title": "Integrate ChatGPT for meeting summaries and chat",
+    "description": "Embed ChatGPT in the app to process meeting summaries and provide AI chat about meetings.",
+    "status": "todo",
+    "assignee": "Nelson",
+    "created": "2024-07-08",
+    "updated": "2024-07-08"
+  },
+  {
+    "id": 19,
+    "title": "CRUD for client records",
+    "description": "Enable adding, editing, and saving data to client records in the app, with persistence to the database.",
+    "status": "todo",
+    "assignee": "Nelson",
+    "created": "2024-07-08",
+    "updated": "2024-07-08"
+  },
+  {
+    "id": 20,
+    "title": "Instructions for best-practice ChatGPT integration",
+    "description": "Document and implement the best way to integrate ChatGPT for processing meeting summaries and other AI features.",
+    "status": "todo",
+    "assignee": "Nelson",
+    "created": "2024-07-08",
+    "updated": "2024-07-08"
+  },
+  {
+    "id": 21,
+    "title": "Database reliability and optimization",
+    "description": "Ensure the database is robust, reliable, and optimized for all app features (meetings, clients, notes, etc.).",
+    "status": "todo",
+    "assignee": "Nelson",
+    "created": "2024-07-08",
+    "updated": "2024-07-08"
+  },
+  {
+    "id": 22,
+    "title": "Fix Google OAuth scopes and implement per-user token management",
+    "description": "Update OAuth scopes to include calendar access, implement per-user token storage and refresh, add reconnect functionality, and create comprehensive setup guide.",
+    "status": "done",
+    "assignee": "Nelson",
+    "created": "2024-07-08",
+    "updated": "2024-07-08"
   }
 ] 
