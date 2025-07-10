@@ -4,6 +4,7 @@ import {
   Box, Typography, Card, Stack, Button, Tabs, Tab, Grid
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { api } from '../services/api';
 
 const formatDateTime = (dateTimeStr) => {
   const date = new Date(dateTimeStr);
