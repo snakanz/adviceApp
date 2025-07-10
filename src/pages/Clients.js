@@ -1,10 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Typography, Grid, Card, CardContent, Button, Chip, Stack, TextField, Avatar } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import EmailIcon from '@mui/icons-material/Email';
-import PhoneIcon from '@mui/icons-material/Phone';
-import SearchIcon from '@mui/icons-material/Search';
+import { Box, Typography, Button, Stack, TextField } from '@mui/material';
 import { api } from '../services/api';
 
 export default function Clients() {
@@ -39,10 +35,6 @@ export default function Clients() {
 
   const selectedClient = filteredClients[selectedClientIndex] || filteredClients[0];
 
-  const handleViewDetails = (clientId) => {
-    navigate(`/clients/${clientId}`);
-  };
-
   if (loading) {
     return (
       <Box sx={{ p: 4 }}>
@@ -73,7 +65,7 @@ export default function Clients() {
         />
         <Box>
           {filteredClients.map((client, idx) => (
-            <Card
+            <Box
               key={client.email}
               sx={{
                 mb: 1,
@@ -86,7 +78,7 @@ export default function Clients() {
             >
               <Typography fontWeight={600}>{client.name || client.email}</Typography>
               <Typography variant="body2" color="text.secondary">{client.email}</Typography>
-            </Card>
+            </Box>
           ))}
         </Box>
       </Box>
@@ -113,12 +105,12 @@ export default function Clients() {
                 <Typography variant="h5" fontWeight={700} mb={2}>All Meetings</Typography>
                 {selectedClient.meetings && selectedClient.meetings.length > 0 ? (
                   selectedClient.meetings.map(mtg => (
-                    <Card key={mtg.id} sx={{ mb: 2, p: 2 }}>
+                    <Box key={mtg.id} sx={{ mb: 2, p: 2 }}>
                       <Typography fontWeight={600}>{mtg.title}</Typography>
                       <Typography variant="body2" color="text.secondary">
                         {new Date(mtg.starttime).toLocaleString()} - {new Date(mtg.endtime).toLocaleString()}
                       </Typography>
-                    </Card>
+                    </Box>
                   ))
                 ) : (
                   <Typography>No meetings found for this client.</Typography>
