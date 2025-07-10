@@ -244,18 +244,19 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
     for (const event of events) {
       if (!event.start || !event.start.dateTime) continue; // skip all-day events
       await pool.query(
-        `INSERT INTO meetings (googleeventid, userid, title, starttime, endtime, summary, updatedat)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `INSERT INTO meetings (googleeventid, userid, title, starttime, endtime, summary, updatedat, attendees)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          ON CONFLICT (googleeventid, userid) DO UPDATE
-         SET title = $3, starttime = $4, endtime = $5, summary = $6, updatedat = $7`,
+         SET title = $3, starttime = $4, endtime = $5, summary = $6, updatedat = $7, attendees = $8`,
         [
           event.id,
           userId,
           event.summary || 'Untitled Meeting',
           event.start.dateTime,
-          event.end ? { dateTime: event.end.dateTime } : null,
+          event.end && event.end.dateTime ? event.end.dateTime : null,
           event.description || '',
-          new Date()
+          new Date(),
+          JSON.stringify(event.attendees || [])
         ]
       );
     }

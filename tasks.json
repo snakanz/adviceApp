@@ -196,5 +196,23 @@
     "assignee": "Nelson",
     "created": "2024-07-08",
     "updated": "2024-07-08"
+  },
+  {
+    "id": 23,
+    "title": "Backend Meeting CRUD & Transcript/AI Summary Functionality QA",
+    "description": "Test and ensure all backend endpoints for meetings (create, read, update, delete), transcript upload, and summary save work for multiple users. Fix any issues found.",
+    "status": "in_progress",
+    "assignee": "Nelson",
+    "created": "2024-07-10",
+    "updated": "2024-07-10"
+  },
+  {
+    "id": 24,
+    "title": "Ensure every meeting is associated with a client and client dashboard integration",
+    "description": "For every meeting synced from Google, ensure there is a corresponding client record. Each meeting should be uniquely linked to a client. Under the Clients tab, display all meetings for that client, show AI summary, and client pipeline as per the provided wireframes. Avoid duplicate client records. Reference the three provided wireframes for the different client dashboard pages.",
+    "status": "in_progress",
+    "assignee": "Nelson",
+    "created": "2024-07-10",
+    "updated": "2024-07-10"
   }
 ] 
