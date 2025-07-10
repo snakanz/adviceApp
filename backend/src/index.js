@@ -55,17 +55,17 @@ app.get('/api/auth/google/callback', async (req, res) => {
     // Upsert user in Postgres
     const { email, name, id: googleId } = userInfo.data;
     let user;
-    const result = await pool.query('SELECT * FROM "User" WHERE email = $1', [email]);
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
     if (result.rows.length > 0) {
       user = result.rows[0];
       // Update user info
       await pool.query(
-        'UPDATE "User" SET name = $1, "providerId" = $2 WHERE email = $3',
+        'UPDATE users SET name = $1, providerid = $2 WHERE email = $3',
         [name, googleId, email]
       );
     } else {
       const insert = await pool.query(
-        'INSERT INTO "User" (id, email, name, provider, "providerId") VALUES ($1, $2, $3, $4, $5) RETURNING *',
+        'INSERT INTO users (id, email, name, provider, providerid) VALUES ($1, $2, $3, $4, $5) RETURNING *',
         [googleId, email, name, 'google', googleId]
       );
       user = insert.rows[0];
@@ -74,10 +74,10 @@ app.get('/api/auth/google/callback', async (req, res) => {
     // Store/update calendar tokens
     const expiresAt = new Date(Date.now() + (tokens.expires_in * 1000));
     await pool.query(
-      `INSERT INTO "CalendarToken" (id, "userId", "accessToken", "refreshToken", "expiresAt", provider, "updatedAt")
+      `INSERT INTO calendartoken (id, userid, accesstoken, refreshtoken, expiresat, provider, updatedat)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT ("userId") DO UPDATE
-       SET "accessToken" = $3, "refreshToken" = $4, "expiresAt" = $5, "updatedAt" = $7`,
+       ON CONFLICT (userid) DO UPDATE
+       SET accesstoken = $3, refreshtoken = $4, expiresat = $5, updatedat = $7`,
       [
         `token_${user.id}`,
         user.id,
@@ -155,18 +155,18 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
 
     // Get user's Google tokens from database
     const tokenResult = await pool.query(
-      'SELECT "accessToken", "refreshToken", "expiresAt" FROM "CalendarToken" WHERE "userId" = $1',
+      'SELECT accesstoken, refreshtoken, expiresat FROM calendartoken WHERE userid = $1',
       [userId]
     );
     
-    if (!tokenResult.rows[0]?.accessToken) {
+    if (!tokenResult.rows[0]?.accesstoken) {
       return res.status(401).json({ error: 'User not connected to Google Calendar. Please reconnect your Google account.' });
     }
     
     // Check if token is expired and refresh if needed
-    let accessToken = tokenResult.rows[0].accessToken;
-    const refreshToken = tokenResult.rows[0].refreshToken;
-    const expiresAt = new Date(tokenResult.rows[0].expiresAt);
+    let accessToken = tokenResult.rows[0].accesstoken;
+    const refreshToken = tokenResult.rows[0].refreshtoken;
+    const expiresAt = new Date(tokenResult.rows[0].expiresat);
     
     if (expiresAt < new Date()) {
       // Token is expired, refresh it
@@ -189,7 +189,7 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
           // Update the token in database
           const newExpiresAt = new Date(Date.now() + (newTokens.expires_in * 1000));
           await pool.query(
-            'UPDATE "CalendarToken" SET "accessToken" = $1, "expiresAt" = $2, "updatedAt" = $3 WHERE "userId" = $4',
+            'UPDATE calendartoken SET accesstoken = $1, expiresat = $2, updatedat = $3 WHERE userid = $4',
             [accessToken, newExpiresAt, new Date(), userId]
           );
         } else {
@@ -233,10 +233,10 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
     for (const event of events) {
       if (!event.start || !event.start.dateTime) continue; // skip all-day events
       await pool.query(
-        `INSERT INTO "Meeting" ("googleEventId", "userId", title, "startTime", "endTime", summary, "updatedAt")
+        `INSERT INTO meetings (googleeventid, userid, title, starttime, endtime, summary, updatedat)
          VALUES ($1, $2, $3, $4, $5, $6, $7)
-         ON CONFLICT ("googleEventId", "userId") DO UPDATE
-         SET title = $3, "startTime" = $4, "endTime" = $5, summary = $6, "updatedAt" = $7`,
+         ON CONFLICT (googleeventid, userid) DO UPDATE
+         SET title = $3, starttime = $4, endtime = $5, summary = $6, updatedat = $7`,
         [
           event.id,
           userId,

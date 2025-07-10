@@ -4,20 +4,20 @@ import { SignJWT, jwtVerify } from 'https://cdn.jsdelivr.net/npm/jose@5.2.4/+esm
 
 // D1 helper: expects env.DB to be bound in wrangler.toml
 async function getUserByEmail(env, email) {
-  const stmt = env.DB.prepare('SELECT * FROM User WHERE email = ?');
+  const stmt = env.DB.prepare('SELECT * FROM users WHERE email = ?');
   const result = await stmt.bind(email).first();
   return result;
 }
 
 async function createUser(env, { email, name, provider, providerId }) {
-  const stmt = env.DB.prepare('INSERT INTO User (id, email, name, provider, providerId, createdAt) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)');
+  const stmt = env.DB.prepare('INSERT INTO users (id, email, name, provider, providerId, createdAt) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)');
   const id = crypto.randomUUID();
   await stmt.bind(id, email, name, provider, providerId).run();
   return { id, email, name, provider, providerId };
 }
 
 async function updateUser(env, { id, name }) {
-  const stmt = env.DB.prepare('UPDATE User SET name = ? WHERE id = ?');
+  const stmt = env.DB.prepare('UPDATE users SET name = ? WHERE id = ?');
   await stmt.bind(name, id).run();
 }
 
