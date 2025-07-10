@@ -1,12 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-  Box, Typography, Card, Stack, Button, Tabs, Tab, Divider, Grid
+  Box, Typography, Card, Stack, Button, Tabs, Tab, Grid
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import EditIcon from '@mui/icons-material/Edit';
-import SaveIcon from '@mui/icons-material/Save';
-import { api } from '../services/api';
 
 const formatDateTime = (dateTimeStr) => {
   const date = new Date(dateTimeStr);
