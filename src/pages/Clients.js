@@ -9,6 +9,9 @@ export default function Clients() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tab, setTab] = useState(0);
+  const [clientAISummary, setClientAISummary] = useState('');
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState(null);
 
   useEffect(() => {
     async function fetchClients() {
@@ -26,6 +29,15 @@ export default function Clients() {
     }
     fetchClients();
   }, []);
+
+  useEffect(() => {
+    // When selectedClient changes, update summary
+    if (selectedClient && selectedClient.ai_summary) {
+      setClientAISummary(selectedClient.ai_summary);
+    } else {
+      setClientAISummary('');
+    }
+  }, [selectedClient]);
 
   const filteredClients = clients.filter(c =>
     (c.name || c.email).toLowerCase().includes(search.toLowerCase())
@@ -95,7 +107,40 @@ export default function Clients() {
             {tab === 0 && (
               <Box>
                 <Typography variant="h5" fontWeight={700} mb={2}>AI summary of Client</Typography>
-                <Typography variant="body1" color="text.secondary">(AI summary placeholder)</Typography>
+                <Button
+                  variant="contained"
+                  onClick={async () => {
+                    setLoadingSummary(true);
+                    setSummaryError(null);
+                    try {
+                      const token = localStorage.getItem('token'); // or get from context
+                      const res = await fetch(
+                        `/api/clients/${encodeURIComponent(selectedClient.email)}/ai-summary`,
+                        {
+                          method: 'POST',
+                          headers: {
+                            Authorization: `Bearer ${token}`
+                          }
+                        }
+                      );
+                      if (!res.ok) throw new Error('Failed to generate summary');
+                      const data = await res.json();
+                      setClientAISummary(data.ai_summary);
+                    } catch (err) {
+                      setSummaryError(err.message);
+                    } finally {
+                      setLoadingSummary(false);
+                    }
+                  }}
+                  disabled={loadingSummary}
+                  sx={{ mb: 2 }}
+                >
+                  {loadingSummary ? 'Generating...' : 'Generate AI Summary'}
+                </Button>
+                {summaryError && <Typography color="error">{summaryError}</Typography>}
+                <Typography variant="body1" sx={{ mt: 2 }}>
+                  {clientAISummary || 'No summary yet. Click "Generate AI Summary" to create one.'}
+                </Typography>
               </Box>
             )}
             {tab === 1 && (
