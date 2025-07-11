@@ -746,9 +746,8 @@ export default function Meetings() {
                 {/* Summary Content (for past meetings) */}
                 {activeTab === 'summary' && isPastMeeting && (() => {
                   const ms = selectedMeeting?.meetingSummary;
-                  // Use hasTranscript and hasSummary from selectedMeeting
+                  // Use hasTranscript from selectedMeeting
                   const hasTranscript = selectedMeeting?.hasTranscript;
-                  const hasSummary = selectedMeeting?.hasSummary;
                   const transcript = selectedMeeting?.transcript;
                   const hasRealKeyPoints = Array.isArray(ms?.keyPoints) && ms.keyPoints.some(kp => kp && !kp.toLowerCase().includes('not implemented') && kp.trim() !== '');
                   const hasRealActionItems = Array.isArray(ms?.actionItems) && ms.actionItems.some(ai => ai && ai.trim() !== '');
