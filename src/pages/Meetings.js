@@ -749,6 +749,7 @@ export default function Meetings() {
                   // Use hasTranscript and hasSummary from selectedMeeting
                   const hasTranscript = selectedMeeting?.hasTranscript;
                   const hasSummary = selectedMeeting?.hasSummary;
+                  const transcript = selectedMeeting?.transcript;
                   const hasRealKeyPoints = Array.isArray(ms?.keyPoints) && ms.keyPoints.some(kp => kp && !kp.toLowerCase().includes('not implemented') && kp.trim() !== '');
                   const hasRealActionItems = Array.isArray(ms?.actionItems) && ms.actionItems.some(ai => ai && ai.trim() !== '');
                   const hasRealFinancial = ms?.financialSnapshot && Object.values(ms.financialSnapshot).some(val => val && val.trim() !== '');
