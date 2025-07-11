@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
-const { Configuration, OpenAIApi } = require('openai');
-const openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
+// const { Configuration, OpenAIApi } = require('openai');
+// const openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
 
 // Use the same pool as in index.js
 const pool = new Pool({
@@ -99,16 +99,16 @@ router.post('/:clientEmail/ai-summary', async (req, res) => {
     prompt += '\nProvide a concise summary for the advisor.';
 
     // Call OpenAI
-    const response = await openai.createChatCompletion({
-      model: 'gpt-4',
-      messages: [
-        { role: 'system', content: 'You are a professional client summary assistant.' },
-        { role: 'user', content: prompt }
-      ],
-      max_tokens: 500,
-      temperature: 0.7
-    });
-    const aiSummary = response.data.choices[0].message.content;
+    // const response = await openai.createChatCompletion({
+    //   model: 'gpt-4',
+    //   messages: [
+    //     { role: 'system', content: 'You are a professional client summary assistant.' },
+    //     { role: 'user', content: prompt }
+    //   ],
+    //   max_tokens: 500,
+    //   temperature: 0.7
+    // });
+    // const aiSummary = response.data.choices[0].message.content;
 
     // Upsert into clients table
     // Try to get client name from meetings
@@ -119,15 +119,16 @@ router.post('/:clientEmail/ai-summary', async (req, res) => {
       const found = attendees.find(att => att && att.email === clientEmail && att.displayName);
       if (found) { clientName = found.displayName; break; }
     }
-    await pool.query(
-      `INSERT INTO clients (advisor_id, email, name, ai_summary, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, NOW(), NOW())
-       ON CONFLICT (advisor_id, email)
-       DO UPDATE SET name = $3, ai_summary = $4, updated_at = NOW()`,
-      [advisorId, clientEmail, clientName, aiSummary]
-    );
+    // await pool.query(
+    //   `INSERT INTO clients (advisor_id, email, name, ai_summary, created_at, updated_at)
+    //    VALUES ($1, $2, $3, $4, NOW(), NOW())
+    //    ON CONFLICT (advisor_id, email)
+    //    DO UPDATE SET name = $3, ai_summary = $4, updated_at = NOW()`,
+    //   [advisorId, clientEmail, clientName, aiSummary]
+    // );
 
-    res.json({ success: true, ai_summary: aiSummary });
+    // res.json({ success: true, ai_summary: aiSummary });
+    res.json({ success: true, message: 'AI summary generation is currently disabled.' });
   } catch (error) {
     console.error('Error generating AI summary for client:', error);
     res.status(500).json({ error: 'Failed to generate AI summary.' });

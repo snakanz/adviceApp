@@ -5,8 +5,8 @@ const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const { google } = require('googleapis');
 const clientsRouter = require('./routes/clients');
-const { Configuration, OpenAIApi } = require('openai');
-const openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
+// const { Configuration, OpenAIApi } = require('openai');
+// const openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
 
 const app = express();
 app.use(cors({
@@ -319,53 +319,7 @@ app.post('/api/calendar/meetings/:id/transcript', async (req, res) => {
 
 // POST /api/meetings/:meetingId/summary - generate/update AI summary for a meeting
 app.post('/api/meetings/:meetingId/summary', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
-    const meetingId = req.params.meetingId;
-
-    // Fetch the meeting and transcript
-    const result = await pool.query(
-      'SELECT transcript, title, starttime FROM meetings WHERE id = $1 AND userid = $2',
-      [meetingId, userId]
-    );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Meeting not found' });
-    }
-    const meeting = result.rows[0];
-    if (!meeting.transcript) {
-      return res.status(400).json({ error: 'No transcript available for this meeting.' });
-    }
-
-    // Build prompt for OpenAI
-    const prompt = `You are a professional meeting summarizer. Summarize the following meeting.\nTitle: ${meeting.title}\nDate: ${meeting.starttime}\nTranscript: ${meeting.transcript}\n\nProvide a concise summary for the advisor, focusing on key points, decisions, and action items.`;
-
-    // Call OpenAI
-    const response = await openai.createChatCompletion({
-      model: 'gpt-4',
-      messages: [
-        { role: 'system', content: 'You are a professional meeting summarizer.' },
-        { role: 'user', content: prompt }
-      ],
-      max_tokens: 500,
-      temperature: 0.7
-    });
-    const summary = response.data.choices[0].message.content;
-
-    // Save summary in the database
-    await pool.query(
-      'UPDATE meetings SET summary = $1, updatedat = NOW() WHERE id = $2 AND userid = $3',
-      [summary, meetingId, userId]
-    );
-
-    res.json({ success: true, summary });
-  } catch (error) {
-    console.error('Error generating meeting summary:', error);
-    res.status(500).json({ error: 'Failed to generate meeting summary.' });
-  }
+  return res.status(200).json({ success: false, message: 'AI summary generation is currently disabled.' });
 });
 
 app.use('/api/clients', clientsRouter);
