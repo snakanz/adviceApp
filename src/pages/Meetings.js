@@ -745,14 +745,10 @@ export default function Meetings() {
 
                 {/* Summary Content (for past meetings) */}
                 {activeTab === 'summary' && isPastMeeting && (() => {
-                  const ms = selectedMeeting?.meetingSummary;
-                  // Use hasTranscript from selectedMeeting
+                  const summary = selectedMeeting?.summary;
                   const hasTranscript = selectedMeeting?.hasTranscript;
                   const transcript = selectedMeeting?.transcript;
-                  const hasRealKeyPoints = Array.isArray(ms?.keyPoints) && ms.keyPoints.some(kp => kp && !kp.toLowerCase().includes('not implemented') && kp.trim() !== '');
-                  const hasRealActionItems = Array.isArray(ms?.actionItems) && ms.actionItems.some(ai => ai && ai.trim() !== '');
-                  const hasRealFinancial = ms?.financialSnapshot && Object.values(ms.financialSnapshot).some(val => val && val.trim() !== '');
-                  if (!hasTranscript || !ms || (!hasRealKeyPoints && !hasRealActionItems && !hasRealFinancial))
+                  if (!hasTranscript) {
                     return (
                       <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
                         <Typography variant="h5" sx={{ mb: 3 }}>
@@ -768,14 +764,33 @@ export default function Meetings() {
                         </Stack>
                       </Box>
                     );
+                  }
+                  if (!summary) {
+                    return (
+                      <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
+                        <Typography variant="h5" sx={{ mb: 3 }}>
+                          No summary generated yet.
+                        </Typography>
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          onClick={handleGenerateSummary}
+                          disabled={generatingSummary}
+                          sx={{ mt: 2, px: 4, py: 1, borderRadius: '6px', fontWeight: 600 }}
+                        >
+                          {generatingSummary ? <CircularProgress size={20} sx={{ color: '#fff', mr: 1 }} /> : null}
+                          {generatingSummary ? 'Generating AI Summary...' : 'Generate AI Summary'}
+                        </Button>
+                      </Box>
+                    );
+                  }
+                  // Show the summary and email options
                   return (
                     <Box>
-                      {/* Tabs for Email Summary and Todo List */}
                       <Tabs value={meetingDetailTab} onChange={(_, v) => setMeetingDetailTab(v)} sx={{ borderBottom: '1px solid #E5E5E5', mb: 3 }}>
                         <Tab label="Email Summary" value="emailSummary" />
                         <Tab label="Todo List" value="todoList" />
                       </Tabs>
-                      {/* Email Summary Tab */}
                       {meetingDetailTab === 'emailSummary' && (
                         <Box>
                           <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
@@ -789,11 +804,10 @@ export default function Meetings() {
                             <Button variant="contained" startIcon={<EmailIcon />} sx={{ backgroundColor: '#007AFF', color: '#FFFFFF', fontWeight: 500, textTransform: 'none', px: 3, py: 1, borderRadius: '6px', boxShadow: 'none', '&:hover': { backgroundColor: '#0056CC', boxShadow: 'none' } }}>Send Email</Button>
                           </Stack>
                           <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', mb: 3 }}>
-                            <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{ms?.emailSummary || 'No email summary available.'}</Typography>
+                            <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{summary}</Typography>
                           </Card>
                         </Box>
                       )}
-                      {/* Todo List Tab */}
                       {meetingDetailTab === 'todoList' && (
                         <Box>
                           <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', mb: 3 }}>
