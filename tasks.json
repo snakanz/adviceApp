@@ -214,5 +214,29 @@
     "assignee": "Nelson",
     "created": "2024-07-10",
     "updated": "2024-07-10"
+  },
+  {
+    "task": "Redesign All Meetings tab to use card/box UI for each meeting, showing date/time/platform and summary.",
+    "status": "todo"
+  },
+  {
+    "task": "Integrate ChatGPT to generate meeting summaries from transcripts and save to database.",
+    "status": "todo"
+  },
+  {
+    "task": "Integrate ChatGPT to generate an AI summary of the client based on all their meetings and display in the client dashboard.",
+    "status": "todo"
+  },
+  {
+    "task": "Add backend endpoint and/or database field to store and retrieve AI summary of client.",
+    "status": "todo"
+  },
+  {
+    "task": "Add tenant_id (GUID) to all relevant tables and update backend logic for multi-tenancy (SaaS readiness)",
+    "status": "todo"
+  },
+  {
+    "task": "Evaluate and potentially implement OIDC authentication for SaaS multi-provider support",
+    "status": "todo"
   }
 ] 

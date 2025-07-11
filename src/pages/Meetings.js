@@ -15,6 +15,7 @@ import { adjustMeetingSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import MicIcon from '@mui/icons-material/Mic';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -88,6 +89,7 @@ export default function Meetings() {
       null
     );
   }, [meetings, selectedMeetingId]);
+  const [generatingSummary, setGeneratingSummary] = useState(false);
 
   useEffect(() => {
     const fetchMeetings = async () => {
@@ -307,6 +309,36 @@ export default function Meetings() {
       setShowSnackbar(true);
       setSnackbarMessage('Failed to upload transcript');
       setSnackbarSeverity('error');
+    }
+  };
+
+  const handleGenerateSummary = async () => {
+    setGeneratingSummary(true);
+    try {
+      const res = await fetch(`${API_URL}/api/meetings/${selectedMeetingId}/summary`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('jwt')}`
+        }
+      });
+      if (!res.ok) throw new Error('Failed to generate summary');
+      const data = await res.json();
+      setMeetings(prev => {
+        const updateMeeting = m => m.id === selectedMeetingId ? { ...m, meetingSummary: { ...m.meetingSummary, emailSummary: data.summary } } : m;
+        return {
+          future: prev.future.map(updateMeeting),
+          past: prev.past.map(updateMeeting)
+        };
+      });
+      setShowSnackbar(true);
+      setSnackbarMessage('AI summary generated successfully');
+      setSnackbarSeverity('success');
+    } catch (err) {
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to generate summary');
+      setSnackbarSeverity('error');
+    } finally {
+      setGeneratingSummary(false);
     }
   };
 
@@ -798,6 +830,7 @@ export default function Meetings() {
                   (() => {
                     const transcript = selectedMeeting?.transcript;
                     const isTranscriptValid = transcript && !transcript.toLowerCase().includes('not implemented');
+                    const hasSummary = selectedMeeting?.meetingSummary && selectedMeeting.meetingSummary.emailSummary && selectedMeeting.meetingSummary.emailSummary.trim() !== '';
                     if (!isTranscriptValid) {
                       return (
                         <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
@@ -815,20 +848,30 @@ export default function Meetings() {
                         </Box>
                       );
                     }
-                    // Otherwise, show the transcript as before
+                    // Transcript is present: show green tick, hide upload options, show transcript and generate summary button if no summary
                     return (
-                      <Box>
-                        <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 3 }}>
-                          Meeting Transcript
-                        </Typography>
-                        <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
-                          <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6 }}>
-                            {transcript}
+                      <Box sx={{ textAlign: 'center', mt: 6 }}>
+                        <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" sx={{ mb: 2 }}>
+                          <CheckCircleIcon sx={{ color: '#28A745', fontSize: 28 }} />
+                          <Typography variant="body1" sx={{ color: '#28A745', fontWeight: 600 }}>
+                            Transcript uploaded
                           </Typography>
-                          <Typography variant="body2" sx={{ color: '#999999', mt: 3, fontStyle: 'italic' }}>
-                            Full transcript available
-                          </Typography>
+                        </Stack>
+                        <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', mb: 3 }}>
+                          <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6 }}>{transcript}</Typography>
                         </Card>
+                        {!hasSummary && (
+                          <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={handleGenerateSummary}
+                            disabled={generatingSummary}
+                            sx={{ mt: 2, px: 4, py: 1, borderRadius: '6px', fontWeight: 600 }}
+                          >
+                            {generatingSummary ? <CircularProgress size={20} sx={{ color: '#fff', mr: 1 }} /> : null}
+                            {generatingSummary ? 'Generating AI Summary...' : 'Generate AI Summary'}
+                          </Button>
+                        )}
                       </Box>
                     );
                   })()
