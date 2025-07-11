@@ -30,6 +30,12 @@ export default function Clients() {
     fetchClients();
   }, []);
 
+  const filteredClients = clients.filter(c =>
+    (c.name || c.email).toLowerCase().includes(search.toLowerCase())
+  );
+
+  const selectedClient = filteredClients[selectedClientIndex] || filteredClients[0];
+
   useEffect(() => {
     // When selectedClient changes, update summary
     if (selectedClient && selectedClient.ai_summary) {
@@ -38,12 +44,6 @@ export default function Clients() {
       setClientAISummary('');
     }
   }, [selectedClient]);
-
-  const filteredClients = clients.filter(c =>
-    (c.name || c.email).toLowerCase().includes(search.toLowerCase())
-  );
-
-  const selectedClient = filteredClients[selectedClientIndex] || filteredClients[0];
 
   if (loading) {
     return (
