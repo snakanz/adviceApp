@@ -190,18 +190,37 @@ class CalendarService {
         orderBy: 'startTime'
       });
 
-      // Split into past and future
       const allMeetings = response.data.items || [];
+      // Get meeting records from our database
+      const meetingRecords = await prisma.meeting.findMany({
+        where: {
+          userId,
+          googleEventId: {
+            in: allMeetings.map(event => event.id)
+          }
+        }
+      });
+      const meetingRecordsMap = new Map(
+        meetingRecords.map(record => [record.googleEventId, record])
+      );
+
       const past = [];
       const future = [];
       for (const event of allMeetings) {
-        if (event.start && event.start.dateTime) {
-          const eventDate = new Date(event.start.dateTime);
-          if (eventDate < now) {
-            past.push(event);
-          } else {
-            future.push(event);
-          }
+        const meetingRecord = meetingRecordsMap.get(event.id);
+        const eventDate = event.start && event.start.dateTime ? new Date(event.start.dateTime) : null;
+        const eventEndTime = event.end && (event.end.dateTime || event.end.date) ? new Date(event.end.dateTime || event.end.date) : null;
+        const enrichedEvent = {
+          ...event,
+          hasRecording: !!meetingRecord?.recallBotId,
+          hasTranscript: !!meetingRecord?.transcript,
+          hasSummary: !!meetingRecord?.summary,
+          isPast: eventEndTime ? eventEndTime < now : false
+        };
+        if (eventDate && eventDate < now) {
+          past.push(enrichedEvent);
+        } else {
+          future.push(enrichedEvent);
         }
       }
       return { past, future };

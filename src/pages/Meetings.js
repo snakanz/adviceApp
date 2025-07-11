@@ -746,12 +746,13 @@ export default function Meetings() {
                 {/* Summary Content (for past meetings) */}
                 {activeTab === 'summary' && isPastMeeting && (() => {
                   const ms = selectedMeeting?.meetingSummary;
-                  const transcript = selectedMeeting?.transcript;
-                  const isTranscriptValid = transcript && !transcript.toLowerCase().includes('not implemented');
+                  // Use hasTranscript and hasSummary from selectedMeeting
+                  const hasTranscript = selectedMeeting?.hasTranscript;
+                  const hasSummary = selectedMeeting?.hasSummary;
                   const hasRealKeyPoints = Array.isArray(ms?.keyPoints) && ms.keyPoints.some(kp => kp && !kp.toLowerCase().includes('not implemented') && kp.trim() !== '');
                   const hasRealActionItems = Array.isArray(ms?.actionItems) && ms.actionItems.some(ai => ai && ai.trim() !== '');
                   const hasRealFinancial = ms?.financialSnapshot && Object.values(ms.financialSnapshot).some(val => val && val.trim() !== '');
-                  if (!isTranscriptValid || !ms || (!hasRealKeyPoints && !hasRealActionItems && !hasRealFinancial)) {
+                  if (!hasTranscript || !ms || (!hasRealKeyPoints && !hasRealActionItems && !hasRealFinancial))
                     return (
                       <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
                         <Typography variant="h5" sx={{ mb: 3 }}>
@@ -767,7 +768,6 @@ export default function Meetings() {
                         </Stack>
                       </Box>
                     );
-                  }
                   return (
                     <Box>
                       {/* Tabs for Email Summary and Todo List */}
@@ -828,10 +828,11 @@ export default function Meetings() {
                 {/* Transcript Content */}
                 {activeTab === 'transcript' && isPastMeeting && (
                   (() => {
+                    // Use hasTranscript and hasSummary from selectedMeeting
+                    const hasTranscript = selectedMeeting?.hasTranscript;
+                    const hasSummary = selectedMeeting?.hasSummary;
                     const transcript = selectedMeeting?.transcript;
-                    const isTranscriptValid = transcript && !transcript.toLowerCase().includes('not implemented');
-                    const hasSummary = selectedMeeting?.meetingSummary && selectedMeeting.meetingSummary.emailSummary && selectedMeeting.meetingSummary.emailSummary.trim() !== '';
-                    if (!isTranscriptValid) {
+                    if (!hasTranscript) {
                       return (
                         <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
                           <Typography variant="h5" sx={{ mb: 3 }}>
