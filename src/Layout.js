@@ -172,9 +172,7 @@ export default function Layout() {
         anchor="left"
       >
         <Toolbar sx={{ px: 3, py: 3 }}>
-          <Typography variant="h3" noWrap component="div" sx={{ fontWeight: 700, color: 'pink' }}>
-            App
-          </Typography>
+          <img src={process.env.PUBLIC_URL + '/logo-advicly.png'} alt="Advicly Logo" style={{ height: 40, width: 'auto', display: 'block' }} />
         </Toolbar>
         <Box sx={{ px: 3, py: 2 }}>
           <Button
