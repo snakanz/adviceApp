@@ -91,60 +91,61 @@ export default function Meetings() {
   }, [meetings, selectedMeetingId]);
   const [generatingSummary, setGeneratingSummary] = useState(false);
 
-  useEffect(() => {
-    const fetchMeetings = async () => {
-      setLoading(true);
-      try {
-        const token = localStorage.getItem('jwt');
-        let url;
-        if (window.location.hostname === 'localhost') {
-          url = `${API_URL}/api/dev/meetings`;
-        } else {
-          url = `${API_URL}/calendar/meetings/all`;
-        }
-        const res = await fetch(url, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!res.ok) {
-          if (res.status === 401) {
-            // Check if it's a Google Calendar connection issue
-            const errorData = await res.json();
-            if (errorData.error && errorData.error.includes('Google Calendar')) {
-              setShowSnackbar(true);
-              setSnackbarMessage('Google Calendar connection issue. Please reconnect your Google account.');
-              setSnackbarSeverity('warning');
-            }
-          }
-          throw new Error('Failed to fetch meetings');
-        }
-        const data = await res.json();
-        // For /dev/meetings, wrap in { past: [...], future: [...] }
-        let meetingsData = data;
-        if (window.location.hostname === 'localhost') {
-          const now = new Date();
-          meetingsData = { past: [], future: [] };
-          data.forEach(m => {
-            const start = new Date(m.startTime);
-            if (start < now) meetingsData.past.push({ ...m, id: m.googleEventId });
-            else meetingsData.future.push({ ...m, id: m.googleEventId });
-          });
-        }
-        setMeetings(meetingsData);
-        // Set initial selected meeting and content
-        if (meetingsData.past.length > 0) {
-          setSelectedMeetingId(meetingsData.past[0].id);
-          setSummaryContent(meetingsData.past[0].meetingSummary);
-        } else if (meetingsData.future.length > 0) {
-          setSelectedMeetingId(meetingsData.future[0].id);
-          setSummaryContent(meetingsData.future[0].meetingSummary);
-          setMeetingPrep(meetingsData.future[0].prep || '');
-        }
-      } catch (err) {
-        console.error('Failed to fetch meetings:', err);
-      } finally {
-        setLoading(false);
+  // Move fetchMeetings out of useEffect so it can be called directly
+  const fetchMeetings = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('jwt');
+      let url;
+      if (window.location.hostname === 'localhost') {
+        url = `${API_URL}/api/dev/meetings`;
+      } else {
+        url = `${API_URL}/calendar/meetings/all`;
       }
-    };
+      const res = await fetch(url, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) {
+        if (res.status === 401) {
+          // Check if it's a Google Calendar connection issue
+          const errorData = await res.json();
+          if (errorData.error && errorData.error.includes('Google Calendar')) {
+            setShowSnackbar(true);
+            setSnackbarMessage('Google Calendar connection issue. Please reconnect your Google account.');
+            setSnackbarSeverity('warning');
+          }
+        }
+        throw new Error('Failed to fetch meetings');
+      }
+      const data = await res.json();
+      let meetingsData = data;
+      if (window.location.hostname === 'localhost') {
+        const now = new Date();
+        meetingsData = { past: [], future: [] };
+        data.forEach(m => {
+          const start = new Date(m.startTime);
+          if (start < now) meetingsData.past.push({ ...m, id: m.googleEventId });
+          else meetingsData.future.push({ ...m, id: m.googleEventId });
+        });
+      }
+      setMeetings(meetingsData);
+      // Set initial selected meeting and content
+      if (meetingsData.past.length > 0) {
+        setSelectedMeetingId(meetingsData.past[0].id);
+        setSummaryContent(meetingsData.past[0].meetingSummary);
+      } else if (meetingsData.future.length > 0) {
+        setSelectedMeetingId(meetingsData.future[0].id);
+        setSummaryContent(meetingsData.future[0].meetingSummary);
+        setMeetingPrep(meetingsData.future[0].prep || '');
+      }
+    } catch (err) {
+      console.error('Failed to fetch meetings:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     if (isAuthenticated) fetchMeetings();
   }, [isAuthenticated]);
 
@@ -294,13 +295,8 @@ export default function Meetings() {
         body: JSON.stringify({ transcript: pastedTranscript, clientId: selectedMeeting?.clientId })
       });
       if (!res.ok) throw new Error('Failed to save transcript');
-      setMeetings(prev => {
-        const updateMeeting = m => m.id === selectedMeetingId ? { ...m, transcript: pastedTranscript } : m;
-        return {
-          future: prev.future.map(updateMeeting),
-          past: prev.past.map(updateMeeting)
-        };
-      });
+      // Refetch meetings from backend to get updated hasTranscript/summary
+      await fetchMeetings();
       setOpenPasteDialog(false);
       setShowSnackbar(true);
       setSnackbarMessage('Transcript uploaded successfully');
@@ -745,9 +741,13 @@ export default function Meetings() {
 
                 {/* Summary Content (for past meetings) */}
                 {activeTab === 'summary' && isPastMeeting && (() => {
-                  const summary = selectedMeeting?.summary;
+                  let summary = selectedMeeting?.summary;
                   const hasTranscript = selectedMeeting?.hasTranscript;
                   const transcript = selectedMeeting?.transcript;
+                  // If no AI summary, but transcript exists, show transcript as summary
+                  if (!summary && hasTranscript && transcript) {
+                    summary = transcript;
+                  }
                   if (!hasTranscript) {
                     return (
                       <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
@@ -784,7 +784,7 @@ export default function Meetings() {
                       </Box>
                     );
                   }
-                  // Show the summary and email options
+                  // Show the summary (AI or transcript) and email options
                   return (
                     <Box>
                       <Tabs value={meetingDetailTab} onChange={(_, v) => setMeetingDetailTab(v)} sx={{ borderBottom: '1px solid #E5E5E5', mb: 3 }}>

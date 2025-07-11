@@ -215,6 +215,7 @@ class CalendarService {
           hasRecording: !!meetingRecord?.recallBotId,
           hasTranscript: !!meetingRecord?.transcript,
           hasSummary: !!meetingRecord?.summary,
+          summary: meetingRecord?.summary || null,
           isPast: eventEndTime ? eventEndTime < now : false
         };
         if (eventDate && eventDate < now) {
