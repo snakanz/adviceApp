@@ -612,12 +612,11 @@ export default function Meetings() {
                   </Stack>
                 </Stack>
 
+                {/* TEST BUTTON: Set activeTab to 'summary' */}
+                <Button variant="contained" color="secondary" onClick={() => { console.log('Test button clicked'); setActiveTab('summary'); }}>
+                  Set Tab to Summary (Test)
+                </Button>
                 {/* Navigation Tabs */}
-                {/* Debug output for activeTab and selectedMeetingId */}
-                <Box sx={{ p: 2, color: '#888', fontSize: 16 }}>
-                  <div>DEBUG: activeTab = {activeTab}</div>
-                  <div>DEBUG: selectedMeetingId = {selectedMeetingId}</div>
-                </Box>
                 <Tabs 
                   value={activeTab}
                   onChange={(_, newValue) => {
