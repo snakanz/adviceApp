@@ -13,6 +13,7 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
 const drawerWidth = 280;
 
@@ -34,6 +35,7 @@ const navItems = [
   { label: 'Meetings', icon: <CalendarMonthIcon />, path: '/meetings' },
   { label: 'Clients', icon: <PeopleIcon />, path: '/clients' },
   { label: 'Templates', icon: <DescriptionIcon />, path: '/templates' },
+  { label: 'Ask Advicly', icon: <AutoAwesomeIcon />, path: '/ask-advicly' },
   { label: 'Settings', icon: <SettingsIcon />, path: '/settings' },
 ];
 

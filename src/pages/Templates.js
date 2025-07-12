@@ -58,6 +58,8 @@ function saveTemplates(templates) {
   localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(templates));
 }
 
+const allowedTemplateTitles = ['Advicly AI Auto', 'Review Meeting'];
+
 export default function Templates() {
   const [templates, setTemplates] = useState(loadTemplates());
   const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
@@ -70,6 +72,9 @@ export default function Templates() {
   useEffect(() => {
     saveTemplates(templates);
   }, [templates]);
+
+  // Filter templates to only allowed titles
+  const filteredTemplates = templates.filter(t => allowedTemplateTitles.includes(t.title));
 
   const handleContentChange = (newContent) => {
     setEditedContent(newContent);
@@ -94,71 +99,78 @@ export default function Templates() {
     setSnackbarSeverity('success');
   };
 
+  const handleAddTemplate = () => {
+    const newTemplate = {
+      id: `custom_${Date.now()}`,
+      title: 'New Template',
+      content: 'Edit your prompt here...'
+    };
+    setTemplates([newTemplate, ...templates]);
+    setSelectedTemplate(newTemplate);
+    setEditedContent(newTemplate.content);
+  };
+
   return (
     <Box display="flex" height="calc(100vh - 64px)">
       {/* Left Sidebar */}
       <Box
-        width={300}
+        width={340}
         bgcolor="#fff"
         overflow="auto"
         p={3}
         sx={{ boxShadow: 2, borderRadius: 3 }}
       >
-        <Typography variant="h5" fontWeight={700} mb={3}>
-          Templates
-        </Typography>
-        <List>
-          {templates.map((template) => {
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
+          <Typography variant="h5" fontWeight={700}>
+            Templates
+          </Typography>
+          <Button
+            variant="contained"
+            color="primary"
+            sx={{ borderRadius: 2, fontWeight: 600, textTransform: 'none', px: 2, py: 1, fontSize: 15 }}
+            onClick={handleAddTemplate}
+          >
+            + Add New Template
+          </Button>
+        </Box>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {filteredTemplates.map((template) => {
             const isSelected = template.id === selectedTemplate.id;
             const meetingStyles = getMeetingTypeStyles(template.title);
             return (
-              <ListItem 
-                key={template.id} 
-                disablePadding 
-                sx={{ mb: 2 }}
+              <Box
+                key={template.id}
+                onClick={() => {
+                  setSelectedTemplate(template);
+                  setEditedContent(template.content);
+                }}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  p: 2.5,
+                  borderRadius: 3,
+                  background: isSelected ? '#F0F8FF' : '#fff',
+                  boxShadow: isSelected ? '0 4px 16px rgba(0,122,255,0.08)' : '0 1px 4px rgba(0,0,0,0.04)',
+                  cursor: 'pointer',
+                  border: isSelected ? '2px solid #007AFF' : '1px solid #F0F0F0',
+                  transition: 'all 0.2s',
+                  '&:hover': {
+                    background: '#F8FAFF',
+                    boxShadow: '0 4px 16px rgba(0,122,255,0.10)',
+                    borderColor: '#007AFF',
+                  }
+                }}
               >
-                <ListItemButton
-                  selected={isSelected}
-                  onClick={() => {
-                    setSelectedTemplate(template);
-                    setEditedContent(template.content);
-                  }}
-                  sx={{
-                    borderRadius: 2,
-                    boxShadow: isSelected ? 3 : 1,
-                    border: 'none',
-                    bgcolor: isSelected ? 'primary.50' : '#fff',
-                    transition: 'box-shadow 0.2s',
-                    '&:hover': {
-                      bgcolor: 'primary.50',
-                      boxShadow: 3,
-                    }
-                  }}
-                >
-                  <ListItemText
-                    primary={
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <AutoAwesomeIcon fontSize="small" sx={{ color: meetingStyles.backgroundColor }} />
-                        <Chip
-                          label={template.title}
-                          size="small"
-                          sx={{
-                            ...MeetingTypeIndicator({ type: template.title }),
-                            fontSize: 13,
-                            fontWeight: 600,
-                            bgcolor: meetingStyles.backgroundColor,
-                            color: meetingStyles.color,
-                            mb: 1
-                          }}
-                        />
-                      </Box>
-                    }
-                  />
-                </ListItemButton>
-              </ListItem>
+                <AutoAwesomeIcon fontSize="medium" sx={{ color: meetingStyles.backgroundColor, mr: 1 }} />
+                <Typography variant="subtitle1" fontWeight={600} sx={{ color: '#222', flex: 1 }}>
+                  {template.title}
+                </Typography>
+                <InfoOutlinedIcon color="action" />
+              </Box>
             );
           })}
-        </List>
+        </Box>
       </Box>
 
       {/* Main Content */}

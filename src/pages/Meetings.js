@@ -15,6 +15,7 @@ import OutlookIcon from '../components/OutlookIcon';
 import ShareIcon from '@mui/icons-material/Share';
 import Avatar from '@mui/material/Avatar';
 import Tooltip from '@mui/material/Tooltip';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -375,6 +376,14 @@ export default function Meetings() {
     );
   };
 
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+
+  // Handler for file selection
+  const handleNotesFileUpload = (e) => {
+    const files = Array.from(e.target.files);
+    setUploadedFiles(prev => [...prev, ...files]);
+  };
+
   return (
     <>
       <Box sx={{ height: 'calc(100vh - 128px)', display: 'flex', gap: 3 }}>
@@ -588,7 +597,38 @@ export default function Meetings() {
                 </Box>
               )}
               {activeTab === 'notes' && (
-                <Box sx={{ mt: 6, textAlign: 'center', fontSize: 32, color: '#007AFF', fontWeight: 700 }}>Notes</Box>
+                <Box sx={{ mt: 6, textAlign: 'center' }}>
+                  <Typography sx={{ fontSize: 32, color: '#007AFF', fontWeight: 700, mb: 3 }}>Notes</Typography>
+                  <Button
+                    variant="outlined"
+                    startIcon={<AttachFileIcon />}
+                    component="label"
+                    sx={{ mb: 2 }}
+                  >
+                    Upload Files
+                    <input
+                      type="file"
+                      multiple
+                      hidden
+                      onChange={handleNotesFileUpload}
+                    />
+                  </Button>
+                  {/* List of uploaded files */}
+                  <Box sx={{ mt: 2, maxWidth: 400, mx: 'auto', textAlign: 'left' }}>
+                    {uploadedFiles.length > 0 && (
+                      <>
+                        <Typography variant="subtitle2" sx={{ color: '#888', mb: 1 }}>Uploaded Files:</Typography>
+                        <ul style={{ paddingLeft: 16 }}>
+                          {uploadedFiles.map((file, idx) => (
+                            <li key={file.name + file.size + idx} style={{ marginBottom: 4 }}>
+                              <span style={{ fontWeight: 500 }}>{file.name}</span> <span style={{ color: '#888', fontSize: 13 }}>({(file.size/1024).toFixed(1)} KB)</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </Box>
+                </Box>
               )}
             </>
           ) : (
