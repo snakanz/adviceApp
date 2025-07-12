@@ -149,6 +149,11 @@ export default function Meetings() {
     if (isAuthenticated) fetchMeetings();
   }, [isAuthenticated]);
 
+  // Set default tab to 'summary' when a new meeting is selected
+  useEffect(() => {
+    setActiveTab('summary');
+  }, [selectedMeetingId]);
+
   const handleReconnectGoogle = async () => {
     try {
       const token = localStorage.getItem('jwt');
@@ -620,9 +625,11 @@ export default function Meetings() {
                       color: '#3C3C3C',
                       py: 2,
                       px: 3,
+                      borderRadius: '8px 8px 0 0',
                       '&.Mui-selected': {
                         color: '#007AFF',
-                        fontWeight: 600
+                        fontWeight: 600,
+                        backgroundColor: '#E6F3FF', // light blue for selected tab
                       }
                     },
                     '& .MuiTabs-indicator': {
@@ -648,10 +655,6 @@ export default function Meetings() {
 
               {/* Content Area */}
               <Box sx={{ flex: 1, overflow: 'auto', p: 4, pt: 3 }}>
-                {/* Debug output for activeTab */}
-                <Box sx={{ p: 2, color: '#888', fontSize: 16 }}>
-                  <div>DEBUG: activeTab = {activeTab}</div>
-                </Box>
                 {/* Meeting Prep Content (for future meetings) */}
                 {activeTab === 'prep' && !isPastMeeting && (
                   <Box>
