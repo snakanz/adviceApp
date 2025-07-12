@@ -59,6 +59,7 @@ const emailTemplates = [
 ];
 
 export default function Meetings() {
+  console.log('Meetings component render:', { activeTab, selectedMeetingId });
   const [meetings, setMeetings] = useState({ future: [], past: [] });
   const [selectedMeetingId, setSelectedMeetingId] = useState(null);
   const [loading, setLoading] = useState(true);
