@@ -326,8 +326,10 @@ Only return the body of the email.` + "\n\nTranscript:\n" + transcript;
 
   try {
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-3.5-turbo-16k',
       messages: [{ role: 'user', content: prompt }],
+      max_tokens: 800,
+      temperature: 0.7,
     });
     return res.json({ summary: completion.choices[0].message.content });
   } catch (err) {

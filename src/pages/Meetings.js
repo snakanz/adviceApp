@@ -13,6 +13,8 @@ import { adjustMeetingSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import MicIcon from '@mui/icons-material/Mic';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import GoogleIcon from '../components/GoogleIcon';
+import OutlookIcon from '../components/OutlookIcon';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -48,6 +50,13 @@ const groupMeetingsByDate = (meetings) => {
   });
   return grouped;
 };
+
+// Helper to determine meeting source
+function getMeetingSource(meeting) {
+  if (meeting.hangoutLink || meeting.conferenceData) return 'google';
+  if (meeting.outlookEventId) return 'outlook'; // Example field for Outlook
+  return 'default';
+}
 
 export default function Meetings() {
   const [meetings, setMeetings] = useState({ future: [], past: [] });
@@ -173,8 +182,15 @@ export default function Meetings() {
   const handleMeetingSelect = (meeting) => {
     if (meeting.id !== selectedMeetingId) {
       setSelectedMeetingId(meeting.id);
-      setActiveTab('summary');
-      setSummaryContent(meeting.meetingSummary);
+      // Set appropriate default tab based on meeting type
+      const isPast = meetings.past.some(m => m.id === meeting.id);
+      if (isPast) {
+        setActiveTab('summary');
+        setSummaryContent(meeting.meetingSummary);
+      } else {
+        // For future meetings, we don't need to set activeTab since we only show Meeting Prep
+        setSummaryContent(null);
+      }
     }
   };
 
@@ -246,6 +262,8 @@ export default function Meetings() {
   };
 
   const isPastMeeting = meetings.past.some(m => m.id === selectedMeetingId);
+  // In the main content area, show only Meeting Prep for future meetings
+  const isFutureMeeting = meetings.future.some(m => m.id === selectedMeetingId);
 
   const handleAIAdjustment = async (adjustmentPrompt) => {
     setLoading(true);
@@ -317,9 +335,9 @@ export default function Meetings() {
     }
   };
 
+  // Update renderGroupedMeetings to show icons and improved styling
   const renderGroupedMeetings = (meetings, title, isPast = false) => {
     const grouped = groupMeetingsByDate(meetings);
-    
     return (
       <Stack spacing={2}>
         <Typography 
@@ -333,7 +351,6 @@ export default function Meetings() {
         >
           {title}
         </Typography>
-        
         {Object.keys(grouped).length === 0 ? (
           <Typography variant="body2" sx={{ color: '#999999', py: 2 }}>
             {isPast ? 'No past meetings in last 2 weeks' : 'No upcoming meetings'}
@@ -356,7 +373,10 @@ export default function Meetings() {
               <Stack spacing={1}>
                 {dateMeetings.map((meeting) => {
                   const selected = meeting.id === selectedMeetingId;
-                  
+                  const source = getMeetingSource(meeting);
+                  let IconComponent = EventIcon;
+                  if (source === 'google') IconComponent = GoogleIcon;
+                  if (source === 'outlook') IconComponent = OutlookIcon;
                   return (
                     <Card
                       key={meeting.id}
@@ -366,6 +386,10 @@ export default function Meetings() {
                         border: selected ? '2px solid #007AFF' : '1px solid #E5E5E5',
                         backgroundColor: selected ? '#F0F8FF' : '#FFFFFF',
                         cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 2,
+                        boxShadow: selected ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
                         transition: 'all 0.2s',
                         '&:hover': {
                           backgroundColor: selected ? '#E6F3FF' : '#F8F9FA',
@@ -375,42 +399,29 @@ export default function Meetings() {
                       }}
                       onClick={() => handleMeetingSelect(meeting)}
                     >
-                      <Stack spacing={1}>
+                      <Box sx={{ mr: 2, display: 'flex', alignItems: 'center' }}>
+                        <IconComponent size={32} />
+                      </Box>
+                      <Box sx={{ flex: 1 }}>
                         <Typography 
                           variant="body1" 
                           sx={{ 
                             fontWeight: 600, 
-                            color: selectedMeetingId === meeting.id ? '#007AFF' : '#1E1E1E',
-                            mb: 1,
-                            cursor: 'pointer'
+                            color: selected ? '#007AFF' : '#1E1E1E',
+                            mb: 0.5,
+                            cursor: 'pointer',
+                            fontSize: 16
                           }}
-                          onClick={() => handleMeetingSelect(meeting)}
                         >
-                          {meeting.summary}
+                          {meeting.summary || meeting.title || 'Untitled meeting'}
                         </Typography>
                         <Typography 
                           variant="body2" 
-                          sx={{ 
-                            color: '#666666', 
-                            fontSize: '13px' 
-                          }}
+                          sx={{ color: '#666666', fontSize: '13px' }}
                         >
-                          {meeting.start?.dateTime ? formatDateTime(meeting.start.dateTime) : 'No time'}
+                          {meeting.start?.dateTime ? formatDateTime(meeting.start.dateTime) : ''}
                         </Typography>
-                        <Chip
-                          label={meeting.summary || 'Meeting'}
-                          size="small"
-                          sx={{
-                            fontSize: '11px',
-                            fontWeight: 500,
-                            height: 24,
-                            backgroundColor: selected ? '#007AFF' : '#F0F8FF',
-                            color: selected ? '#FFFFFF' : '#007AFF',
-                            borderRadius: '6px',
-                            alignSelf: 'flex-start'
-                          }}
-                        />
-                      </Stack>
+                      </Box>
                     </Card>
                   );
                 })}
@@ -489,315 +500,143 @@ export default function Meetings() {
         >
           {selectedMeetingId ? (
             <>
-              {/* Top Controls */}
-              <Box sx={{ p: 4, pb: 0 }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 3 }}>
-                  <Typography variant="h2" sx={{ fontWeight: 700, color: '#1E1E1E' }}>
-                    {selectedMeeting?.summary || 'Meeting Details'}
+              {/* Future Meeting: Show only Meeting Prep */}
+              {!isPastMeeting && (
+                <Box sx={{ p: 4 }}>
+                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#1E1E1E', mb: 2 }}>
+                    Meeting Prep
                   </Typography>
-                  
-                  <Stack direction="row" spacing={2} alignItems="center">
-                    <Button
-                      variant="outlined"
-                      startIcon={<EventIcon />}
-                      onClick={handleReconnectGoogle}
-                      sx={{
-                        borderColor: '#FF6B35',
-                        color: '#FF6B35',
-                        fontWeight: 500,
-                        textTransform: 'none',
-                        px: 3,
-                        py: 1,
-                        borderRadius: '6px',
-                        '&:hover': {
-                          borderColor: '#E55A2B',
-                          backgroundColor: '#FFF5F2'
-                        }
-                      }}
-                    >
-                      Reconnect Google
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<EventIcon />}
-                      onClick={handleSyncMeetings}
-                      disabled={loading}
-                      sx={{
-                        borderColor: '#28A745',
-                        color: '#28A745',
-                        fontWeight: 500,
-                        textTransform: 'none',
-                        px: 3,
-                        py: 1,
-                        borderRadius: '6px',
-                        '&:hover': {
-                          borderColor: '#218838',
-                          backgroundColor: '#F8FFF9'
-                        },
-                        '&:disabled': {
-                          borderColor: '#6C757D',
-                          color: '#6C757D'
-                        }
-                      }}
-                    >
-                      {loading ? 'Syncing...' : 'Sync Meetings'}
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<PersonIcon />}
-                      onClick={() => alert('Client view not implemented yet')}
-                      sx={{
-                        borderColor: '#007AFF',
-                        color: '#007AFF',
-                        fontWeight: 500,
-                        textTransform: 'none',
-                        px: 3,
-                        py: 1,
-                        borderRadius: '6px',
-                        '&:hover': {
-                          borderColor: '#0056CC',
-                          backgroundColor: '#F0F8FF'
-                        }
-                      }}
-                    >
-                      View Client
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      startIcon={<ChatIcon />}
-                      onClick={() => setShowAIChat(!showAIChat)}
-                      sx={{
-                        borderColor: showAIChat ? '#007AFF' : '#E5E5E5',
-                        color: showAIChat ? '#007AFF' : '#3C3C3C',
-                        backgroundColor: showAIChat ? '#F0F8FF' : 'transparent',
-                        fontWeight: 500,
-                        textTransform: 'none',
-                        px: 3,
-                        py: 1,
-                        borderRadius: '6px',
-                        '&:hover': {
-                          borderColor: '#007AFF',
-                          backgroundColor: '#F0F8FF'
-                        }
-                      }}
-                    >
-                      Ask AI About Meeting
-                    </Button>
-                  </Stack>
-                </Stack>
-
-                {/* Minimal Tab Switcher Reset */}
-                <Box sx={{ display: 'flex', gap: 2, my: 2 }}>
-                  <Button variant={activeTab === 'summary' ? 'contained' : 'outlined'} onClick={() => setActiveTab('summary')}>Summary</Button>
-                  <Button variant={activeTab === 'transcript' ? 'contained' : 'outlined'} onClick={() => setActiveTab('transcript')}>Transcript</Button>
-                  <Button variant={activeTab === 'notes' ? 'contained' : 'outlined'} onClick={() => setActiveTab('notes')}>Notes</Button>
+                  <Typography variant="body1" sx={{ color: '#666', mb: 2 }}>
+                    Upload documents or notes to prepare for this meeting.
+                  </Typography>
+                  <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => setOpenUploadDialog(true)}>
+                    Upload Document
+                  </Button>
+                  {/* You can add a list of uploaded files here if needed */}
                 </Box>
-                {/* Transcript Tab Logic */}
-                {activeTab === 'transcript' && isPastMeeting && (() => {
-                  const transcript = selectedMeeting?.transcript;
-                  if (!transcript || transcript.trim() === '' || transcript.toLowerCase() === 'null') {
-                    return (
-                      <Box sx={{ textAlign: 'center', mt: 6 }}>
-                        <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Transcript</Typography>
-                        <Typography variant="h6" sx={{ color: '#888', mb: 2 }}>Add a transcript</Typography>
-                        <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
-                          Marloo creates transcripts from audio or text
-                        </Typography>
-                        <Stack direction="row" spacing={2} justifyContent="center">
-                          <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start recording</Button>
-                          <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload audio</Button>
-                          <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste transcript</Button>
-                        </Stack>
-                      </Box>
-                    );
-                  }
-                  // Transcript is present: show transcript only
+              )}
+              
+              {/* Past Meeting: Show tabs */}
+              {isPastMeeting && (
+                <>
+                  {/* Tab Switcher */}
+                  <Box sx={{ display: 'flex', gap: 2, p: 4, pb: 2 }}>
+                    <Button variant={activeTab === 'summary' ? 'contained' : 'outlined'} onClick={() => setActiveTab('summary')}>Summary</Button>
+                    <Button variant={activeTab === 'transcript' ? 'contained' : 'outlined'} onClick={() => setActiveTab('transcript')}>Transcript</Button>
+                    <Button variant={activeTab === 'notes' ? 'contained' : 'outlined'} onClick={() => setActiveTab('notes')}>Notes</Button>
+                  </Box>
+                </>
+              )}
+              {/* Transcript Tab Logic */}
+              {activeTab === 'transcript' && isPastMeeting && (() => {
+                const transcript = selectedMeeting?.transcript;
+                if (!transcript || transcript.trim() === '' || transcript.toLowerCase() === 'null') {
                   return (
-                    <Box sx={{ textAlign: 'center', mt: 6, position: 'relative' }}>
+                    <Box sx={{ textAlign: 'center', mt: 6 }}>
                       <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Transcript</Typography>
-                      <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', mb: 3, position: 'relative' }}>
-                        {/* Delete (X) button */}
-                        <Button
-                          size="small"
-                          onClick={async () => {
-                            const token = localStorage.getItem('jwt');
-                            await fetch(`${process.env.REACT_APP_API_URL}/calendar/meetings/${selectedMeetingId}/transcript`, {
-                              method: 'DELETE',
-                              headers: { 'Authorization': `Bearer ${token}` }
-                            });
-                            await fetchMeetings();
-                            setSelectedMeetingId(selectedMeetingId); // force UI update
-                            setActiveTab('transcript'); // ensure upload options are shown
-                          }}
-                          sx={{
-                            position: 'absolute',
-                            top: 8,
-                            right: 8,
-                            minWidth: 0,
-                            width: 28,
-                            height: 28,
-                            borderRadius: '50%',
-                            color: '#888',
-                            background: 'transparent',
-                            fontWeight: 700,
-                            fontSize: 18,
-                            '&:hover': { background: '#eee', color: '#b00' }
-                          }}
-                        >
-                          ×
-                        </Button>
-                        <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{transcript}</Typography>
-                      </Card>
+                      <Typography variant="h6" sx={{ color: '#888', mb: 2 }}>Add a transcript</Typography>
+                      <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
+                        Marloo creates transcripts from audio or text
+                      </Typography>
+                      <Stack direction="row" spacing={2} justifyContent="center">
+                        <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start recording</Button>
+                        <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload audio</Button>
+                        <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste transcript</Button>
+                      </Stack>
                     </Box>
                   );
-                })()}
-                {/* Other tabs: just show the tab name for now */}
-                {activeTab === 'summary' && (
-                  <Box sx={{ mt: 6, textAlign: 'center' }}>
-                    {selectedMeeting && isPastMeeting && selectedMeeting.transcript ? (
-                      <>
-                        {/* Only show the Generate AI Summary Email button */}
-                        <Button
-                          variant="contained"
-                          color="primary"
-                          onClick={handleGenerateAISummary}
-                          sx={{ mb: 3 }}
-                        >
-                          Generate AI Summary Email
-                        </Button>
-                        <Box sx={{ maxWidth: 500, mx: 'auto', textAlign: 'left' }}>
-                          {loadingEmailSummary ? (
-                            <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
-                              <CircularProgress />
-                            </Box>
-                          ) : (
-                            <TextField
-                              multiline
-                              minRows={8}
-                              fullWidth
-                              value={emailBody}
-                              onChange={e => setEmailBody(e.target.value)}
-                              sx={{ mb: 2, background: '#f9fafb', borderRadius: 2 }}
-                              placeholder="Email summary will appear here..."
-                            />
-                          )}
-                          <Button
-                            variant="contained"
-                            color="success"
-                            sx={{ mt: 2, width: '100%' }}
-                            disabled={!emailBody || loadingEmailSummary}
-                            onClick={() => alert('Send Email functionality coming soon!')}
-                          >
-                            Send Email
-                          </Button>
-                        </Box>
-                      </>
-                    ) : (
-                      <Typography variant="body1" sx={{ color: '#888' }}>
-                        To generate an email summary, upload a transcript for a past meeting.
-                      </Typography>
-                    )}
-                  </Box>
-                )}
-                {activeTab === 'notes' && (
-                  <Box sx={{ mt: 6, textAlign: 'center', fontSize: 32, color: '#007AFF', fontWeight: 700 }}>Notes</Box>
-                )}
-              </Box>
-
-              {/* AI Chat Overlay */}
-              <Collapse in={showAIChat}>
-                <Paper 
-                  sx={{ 
-                    m: 4, 
-                    mt: 0,
-                    borderRadius: '12px',
-                    border: '1px solid #E5E5E5',
-                    boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
-                  }}
-                >
-                  <Box sx={{ p: 3, borderBottom: '1px solid #E5E5E5' }}>
-                    <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
-                      AI Assistant
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#3C3C3C' }}>
-                      Ask me anything about this meeting
-                    </Typography>
-                  </Box>
-                  
-                  <Box sx={{ p: 3, maxHeight: '200px', overflow: 'auto' }}>
-                    {chatMessages.length === 0 ? (
-                      <Typography variant="body2" sx={{ color: '#999999', textAlign: 'center', py: 2 }}>
-                        Start a conversation by asking a question about the meeting
-                      </Typography>
-                    ) : (
-                      <Stack spacing={2}>
-                        {chatMessages.map((chat, index) => (
-                          <Box 
-                            key={index}
-                            sx={{ 
-                              display: 'flex', 
-                              justifyContent: chat.type === 'user' ? 'flex-end' : 'flex-start' 
-                            }}
-                          >
-                            <Card 
-                              sx={{ 
-                                p: 2, 
-                                maxWidth: '70%',
-                                backgroundColor: chat.type === 'user' ? '#007AFF' : '#F8F9FA',
-                                color: chat.type === 'user' ? '#FFFFFF' : '#1E1E1E'
-                              }}
-                            >
-                              <Typography variant="body2">{chat.message}</Typography>
-                            </Card>
-                          </Box>
-                        ))}
-                      </Stack>
-                    )}
-                  </Box>
-                  
-                  <Box sx={{ p: 3, borderTop: '1px solid #E5E5E5' }}>
-                    <Stack direction="row" spacing={2}>
-                      <TextField
-                        fullWidth
-                        size="small"
-                        placeholder="Ask a question about this meeting..."
-                        value={chatMessages[chatMessages.length - 1].message}
-                        onChange={(e) => setChatMessages(prev => [...prev.slice(0, -1), { ...prev[prev.length - 1], message: e.target.value }])}
-                        onKeyPress={(e) => e.key === 'Enter' && handleSendChatMessage()}
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: '6px',
-                            '& fieldset': { borderColor: '#E5E5E5' },
-                            '&:hover fieldset': { borderColor: '#007AFF' },
-                            '&.Mui-focused fieldset': { borderColor: '#007AFF' }
-                          }
-                        }}
-                      />
+                }
+                // Transcript is present: show transcript only
+                return (
+                  <Box sx={{ textAlign: 'center', mt: 6, position: 'relative' }}>
+                    <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Transcript</Typography>
+                    <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', mb: 3, position: 'relative' }}>
+                      {/* Delete (X) button */}
                       <Button
-                        variant="contained"
-                        endIcon={<SendIcon />}
-                        onClick={handleSendChatMessage}
-                        disabled={!chatMessages[chatMessages.length - 1].message.trim()}
+                        size="small"
+                        onClick={async () => {
+                          const token = localStorage.getItem('jwt');
+                          await fetch(`${process.env.REACT_APP_API_URL}/calendar/meetings/${selectedMeetingId}/transcript`, {
+                            method: 'DELETE',
+                            headers: { 'Authorization': `Bearer ${token}` }
+                          });
+                          await fetchMeetings();
+                          setSelectedMeetingId(selectedMeetingId); // force UI update
+                          setActiveTab('transcript'); // ensure upload options are shown
+                        }}
                         sx={{
-                          backgroundColor: '#007AFF',
-                          color: '#FFFFFF',
-                          fontWeight: 500,
-                          textTransform: 'none',
-                          px: 3,
-                          borderRadius: '6px',
-                          boxShadow: 'none',
-                          '&:hover': {
-                            backgroundColor: '#0056CC',
-                            boxShadow: 'none'
-                          }
+                          position: 'absolute',
+                          top: 8,
+                          right: 8,
+                          minWidth: 0,
+                          width: 28,
+                          height: 28,
+                          borderRadius: '50%',
+                          color: '#888',
+                          background: 'transparent',
+                          fontWeight: 700,
+                          fontSize: 18,
+                          '&:hover': { background: '#eee', color: '#b00' }
                         }}
                       >
-                        Send
+                        ×
                       </Button>
-                    </Stack>
+                      <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{transcript}</Typography>
+                    </Card>
                   </Box>
-                </Paper>
-              </Collapse>
+                );
+              })()}
+              {/* Other tabs: just show the tab name for now */}
+              {activeTab === 'summary' && (
+                <Box sx={{ mt: 6, textAlign: 'center' }}>
+                  {selectedMeeting && isPastMeeting && selectedMeeting.transcript ? (
+                    <>
+                      {/* Only show the Generate AI Summary Email button */}
+                      <Button
+                        variant="contained"
+                        color="primary"
+                        onClick={handleGenerateAISummary}
+                        sx={{ mb: 3 }}
+                      >
+                        Generate AI Summary Email
+                      </Button>
+                      <Box sx={{ maxWidth: 500, mx: 'auto', textAlign: 'left' }}>
+                        {loadingEmailSummary ? (
+                          <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
+                            <CircularProgress />
+                          </Box>
+                        ) : (
+                          <TextField
+                            multiline
+                            minRows={8}
+                            fullWidth
+                            value={emailBody}
+                            onChange={e => setEmailBody(e.target.value)}
+                            sx={{ mb: 2, background: '#f9fafb', borderRadius: 2 }}
+                            placeholder="Email summary will appear here..."
+                          />
+                        )}
+                        <Button
+                          variant="contained"
+                          color="success"
+                          sx={{ mt: 2, width: '100%' }}
+                          disabled={!emailBody || loadingEmailSummary}
+                          onClick={() => alert('Send Email functionality coming soon!')}
+                        >
+                          Send Email
+                        </Button>
+                      </Box>
+                    </>
+                  ) : (
+                    <Typography variant="body1" sx={{ color: '#888' }}>
+                      To generate an email summary, upload a transcript for a past meeting.
+                    </Typography>
+                  )}
+                </Box>
+              )}
+              {activeTab === 'notes' && (
+                <Box sx={{ mt: 6, textAlign: 'center', fontSize: 32, color: '#007AFF', fontWeight: 700 }}>Notes</Box>
+              )}
             </>
           ) : (
             <Box 
