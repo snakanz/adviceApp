@@ -576,152 +576,14 @@ export default function Meetings() {
                   <Button variant={activeTab === 'transcript' ? 'contained' : 'outlined'} onClick={() => setActiveTab('transcript')}>Transcript</Button>
                   <Button variant={activeTab === 'notes' ? 'contained' : 'outlined'} onClick={() => setActiveTab('notes')}>Notes</Button>
                 </Box>
-                <Box sx={{ mt: 6, textAlign: 'center', fontSize: 32, color: '#007AFF', fontWeight: 700 }}>
-                  {activeTab === 'summary' && 'Summary'}
-                  {activeTab === 'transcript' && 'Transcript'}
-                  {activeTab === 'notes' && 'Notes'}
-                </Box>
-              </Box>
-
-              {/* Content Area */}
-              <Box sx={{ flex: 1, overflow: 'auto', p: 4, pt: 3 }}>
-                {/* Meeting Prep Content (for future meetings) */}
-                {activeTab === 'prep' && !isPastMeeting && (
-                  <Box>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
-                      <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
-                        Meeting Preparation
-                      </Typography>
-                      {editingPrep ? (
-                        <Stack direction="row" spacing={1}>
-                          <Button
-                            variant="contained"
-                            startIcon={<SaveIcon />}
-                            onClick={handleSavePrep}
-                            sx={{
-                              backgroundColor: '#007AFF',
-                              color: '#FFFFFF',
-                              fontWeight: 500,
-                              textTransform: 'none',
-                              px: 2,
-                              py: 1,
-                              borderRadius: '6px',
-                              boxShadow: 'none',
-                              '&:hover': { backgroundColor: '#0056CC', boxShadow: 'none' }
-                            }}
-                          >
-                            Save
-                          </Button>
-                          <Button
-                            variant="outlined"
-                            onClick={() => setEditingPrep(false)}
-                            sx={{
-                              borderColor: '#E5E5E5',
-                              color: '#3C3C3C',
-                              fontWeight: 500,
-                              textTransform: 'none',
-                              px: 2,
-                              py: 1,
-                              borderRadius: '6px'
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        </Stack>
-                      ) : (
-                        <Button
-                          variant="outlined"
-                          startIcon={<EditIcon />}
-                          onClick={() => setEditingPrep(true)}
-                          sx={{
-                            borderColor: '#007AFF',
-                            color: '#007AFF',
-                            fontWeight: 500,
-                            textTransform: 'none',
-                            px: 2,
-                            py: 1,
-                            borderRadius: '6px'
-                          }}
-                        >
-                          Edit
-                        </Button>
-                      )}
-                    </Stack>
-
-                    {editingPrep ? (
-                      <TextField
-                        fullWidth
-                        multiline
-                        rows={12}
-                        value={meetingPrep}
-                        onChange={(e) => setMeetingPrep(e.target.value)}
-                        placeholder="Add your meeting preparation notes, agenda items, questions to ask, etc."
-                        sx={{
-                          '& .MuiOutlinedInput-root': {
-                            borderRadius: '8px',
-                            '& fieldset': { borderColor: '#E5E5E5' },
-                            '&:hover fieldset': { borderColor: '#007AFF' },
-                            '&.Mui-focused fieldset': { borderColor: '#007AFF' }
-                          }
-                        }}
-                      />
-                    ) : (
-                      <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
-                        {meetingPrep ? (
-                          <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                            {meetingPrep}
-                          </Typography>
-                        ) : (
-                          <Typography variant="body2" sx={{ color: '#999999', fontStyle: 'italic' }}>
-                            Click "Edit" to add meeting preparation notes, agenda items, and questions.
-                          </Typography>
-                        )}
-                      </Card>
-                    )}
-                  </Box>
-                )}
-
-                {/* Summary Content (for past meetings) */}
-                {activeTab === 'summary' && isPastMeeting && (() => {
-                  const transcript = selectedMeeting?.transcript;
-                  const summary = selectedMeeting?.summary;
-                  if (!transcript || transcript.trim() === '' || transcript.toLowerCase() === 'null') {
-                    return (
-                      <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
-                        <Typography variant="h5" sx={{ mb: 3 }}>
-                          No transcript found for this meeting.
-                        </Typography>
-                        <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
-                          Please upload a transcript in the Transcript tab to generate a summary and enable other features.
-                        </Typography>
-                      </Box>
-                    );
-                  }
-                  // Transcript exists, show summary if available
-                  if (!summary) {
-                    return (
-                      <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
-                        <Typography variant="h5" sx={{ mb: 3 }}>
-                          No summary generated yet.
-                        </Typography>
-                      </Box>
-                    );
-                  }
-                  return (
-                    <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#222' }}>
-                      <Typography variant="body1" sx={{ fontWeight: 500, fontSize: 18 }}>{summary}</Typography>
-                    </Box>
-                  );
-                })()}
-                {/* Transcript Content */}
+                {/* Transcript Tab Logic */}
                 {activeTab === 'transcript' && isPastMeeting && (() => {
                   const transcript = selectedMeeting?.transcript;
                   if (!transcript || transcript.trim() === '' || transcript.toLowerCase() === 'null') {
                     return (
-                      <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#b00', fontSize: 24 }}>
-                        <Typography variant="h5" sx={{ mb: 3, mt: 3, color: '#888', fontSize: 20 }}>
-                          Add a transcript
-                        </Typography>
+                      <Box sx={{ textAlign: 'center', mt: 6 }}>
+                        <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Transcript</Typography>
+                        <Typography variant="h6" sx={{ color: '#888', mb: 2 }}>Add a transcript</Typography>
                         <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
                           Marloo creates transcripts from audio or text
                         </Typography>
@@ -736,19 +598,19 @@ export default function Meetings() {
                   // Transcript is present: show transcript only
                   return (
                     <Box sx={{ textAlign: 'center', mt: 6 }}>
+                      <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Transcript</Typography>
                       <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', mb: 3 }}>
                         <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{transcript}</Typography>
                       </Card>
                     </Box>
                   );
                 })()}
-                {/* Notes Content */}
+                {/* Other tabs: just show the tab name for now */}
+                {activeTab === 'summary' && (
+                  <Box sx={{ mt: 6, textAlign: 'center', fontSize: 32, color: '#007AFF', fontWeight: 700 }}>Summary</Box>
+                )}
                 {activeTab === 'notes' && (
-                  <Box>
-                    <Typography variant="body2" sx={{ color: '#999999', fontStyle: 'italic' }}>
-                      Add your meeting notes here.
-                    </Typography>
-                  </Box>
+                  <Box sx={{ mt: 6, textAlign: 'center', fontSize: 32, color: '#007AFF', fontWeight: 700 }}>Notes</Box>
                 )}
               </Box>
 
