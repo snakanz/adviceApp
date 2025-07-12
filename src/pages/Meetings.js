@@ -8,7 +8,6 @@ import PersonIcon from '@mui/icons-material/Person';
 import ChatIcon from '@mui/icons-material/Chat';
 import SendIcon from '@mui/icons-material/Send';
 import EditIcon from '@mui/icons-material/Edit';
-import SaveIcon from '@mui/icons-material/Save';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -59,8 +58,6 @@ export default function Meetings() {
   const [chatMessages, setChatMessages] = useState([
     { type: 'ai', message: 'I can help you with questions about this meeting. Ask me anything!' }
   ]);
-  const [editingPrep, setEditingPrep] = useState(false);
-  const [meetingPrep, setMeetingPrep] = useState('');
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
   const [openPasteDialog, setOpenPasteDialog] = useState(false);
   const [showSnackbar, setShowSnackbar] = useState(false);
@@ -128,7 +125,6 @@ export default function Meetings() {
         } else if (meetingsData.future.length > 0) {
           setSelectedMeetingId(meetingsData.future[0].id);
           setSummaryContent(meetingsData.future[0].meetingSummary);
-          setMeetingPrep(meetingsData.future[0].prep || '');
         }
       }
     } catch (err) {
@@ -149,10 +145,6 @@ export default function Meetings() {
       setSelectedMeetingId(meeting.id);
       setActiveTab('summary');
       setSummaryContent(meeting.meetingSummary);
-      if (!meetings.past.some(m => m.id === meeting.id)) {
-        setMeetingPrep(meeting.prep || '');
-      }
-      setShowAIChat(false);
     }
   };
 
@@ -254,13 +246,6 @@ export default function Meetings() {
       { type: 'ai', message: 'I can help you with questions about this meeting. Ask me anything!' }
     ]);
     setChatMessages(prev => prev.slice(0, -2));
-  };
-
-  const handleSavePrep = () => {
-    setEditingPrep(false);
-    setShowSnackbar(true);
-    setSnackbarMessage('Meeting preparation saved successfully');
-    setSnackbarSeverity('success');
   };
 
   const handleStartRecording = () => {
