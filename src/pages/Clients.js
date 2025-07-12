@@ -148,11 +148,35 @@ export default function Clients() {
                 <Typography variant="h5" fontWeight={700} mb={2}>All Meetings</Typography>
                 {selectedClient.meetings && selectedClient.meetings.length > 0 ? (
                   selectedClient.meetings.map(mtg => (
-                    <Box key={mtg.id} sx={{ mb: 2, p: 2 }}>
-                      <Typography fontWeight={600}>{mtg.title}</Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {new Date(mtg.starttime).toLocaleString()} - {new Date(mtg.endtime).toLocaleString()}
-                      </Typography>
+                    <Box key={mtg.id} sx={{ mb: 2 }}>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          flexDirection: { xs: 'column', md: 'row' },
+                          alignItems: { xs: 'flex-start', md: 'stretch' },
+                          p: 2,
+                          borderRadius: '12px',
+                          background: '#F8F9FA',
+                          border: '1px solid #E5E5E5',
+                          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+                        }}
+                      >
+                        {/* Meeting Info */}
+                        <Box sx={{ flex: 1, minWidth: 200 }}>
+                          <Typography fontWeight={600} sx={{ mb: 1 }}>{mtg.title}</Typography>
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                            {new Date(mtg.starttime).toLocaleString()} - {new Date(mtg.endtime).toLocaleString()}
+                          </Typography>
+                        </Box>
+                        {/* Divider for desktop */}
+                        <Box sx={{ width: 24, display: { xs: 'none', md: 'block' } }} />
+                        {/* Meeting Summary */}
+                        <Box sx={{ flex: 2, minWidth: 200 }}>
+                          <Typography variant="body2" color="text.primary" sx={{ whiteSpace: 'pre-line' }}>
+                            {mtg.summary || 'No summary available.'}
+                          </Typography>
+                        </Box>
+                      </Box>
                     </Box>
                   ))
                 ) : (

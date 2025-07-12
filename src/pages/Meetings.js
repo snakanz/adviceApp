@@ -130,14 +130,16 @@ export default function Meetings() {
         });
       }
       setMeetings(meetingsData);
-      // Set initial selected meeting and content
-      if (meetingsData.past.length > 0) {
-        setSelectedMeetingId(meetingsData.past[0].id);
-        setSummaryContent(meetingsData.past[0].meetingSummary);
-      } else if (meetingsData.future.length > 0) {
-        setSelectedMeetingId(meetingsData.future[0].id);
-        setSummaryContent(meetingsData.future[0].meetingSummary);
-        setMeetingPrep(meetingsData.future[0].prep || '');
+      // Only set selectedMeetingId if it is null (initial load)
+      if (selectedMeetingId === null) {
+        if (meetingsData.past.length > 0) {
+          setSelectedMeetingId(meetingsData.past[0].id);
+          setSummaryContent(meetingsData.past[0].meetingSummary);
+        } else if (meetingsData.future.length > 0) {
+          setSelectedMeetingId(meetingsData.future[0].id);
+          setSummaryContent(meetingsData.future[0].meetingSummary);
+          setMeetingPrep(meetingsData.future[0].prep || '');
+        }
       }
     } catch (err) {
       console.error('Failed to fetch meetings:', err);
@@ -150,8 +152,9 @@ export default function Meetings() {
     if (isAuthenticated) fetchMeetings();
   }, [isAuthenticated]);
 
-  // Set default tab to 'summary' only when a new meeting is selected (not on every render)
+  // Update useEffect for resetting activeTab
   useEffect(() => {
+    // Only reset activeTab if selectedMeetingId actually changes
     setActiveTab('summary');
   }, [selectedMeetingId]);
 
