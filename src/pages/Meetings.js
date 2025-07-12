@@ -149,7 +149,7 @@ export default function Meetings() {
     if (isAuthenticated) fetchMeetings();
   }, [isAuthenticated]);
 
-  // Set default tab to 'summary' when a new meeting is selected
+  // Set default tab to 'summary' only when a new meeting is selected (not on every render)
   useEffect(() => {
     setActiveTab('summary');
   }, [selectedMeetingId]);
@@ -223,14 +223,15 @@ export default function Meetings() {
 
   const isPastMeeting = meetings.past.some(m => m.id === selectedMeetingId);
 
+  // Remove setActiveTab from handleMeetingSelect (let useEffect handle it)
   const handleMeetingSelect = (meeting) => {
     setSelectedMeetingId(meeting.id);
     setSummaryContent(meeting.meetingSummary);
     if (!isPastMeeting) {
       setMeetingPrep(meeting.prep || '');
-      setActiveTab('prep');
+      // setActiveTab('prep'); // REMOVE THIS LINE
     } else {
-      setActiveTab('summary');
+      // setActiveTab('summary'); // REMOVE THIS LINE
     }
     setShowAIChat(false);
   };
