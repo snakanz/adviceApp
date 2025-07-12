@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -11,9 +11,12 @@ import {
   Chip,
   Snackbar,
   Alert,
-  CircularProgress
+  CircularProgress,
+  Button
 } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import Tooltip from '@mui/material/Tooltip';
 import { getMeetingTypeStyles, MeetingTypeIndicator } from '../theme/meetingTypes';
 import { improveTemplate } from '../services/api';
 
@@ -40,8 +43,26 @@ const defaultTemplates = [
   },
 ];
 
+const LOCAL_STORAGE_KEY = 'advicly_templates';
+
+function loadTemplates() {
+  const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      return defaultTemplates;
+    }
+  }
+  return defaultTemplates;
+}
+
+function saveTemplates(templates) {
+  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(templates));
+}
+
 export default function Templates() {
-  const [templates, setTemplates] = useState(defaultTemplates);
+  const [templates, setTemplates] = useState(loadTemplates());
   const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
   const [editedContent, setEditedContent] = useState(selectedTemplate.content);
   const [loading, setLoading] = useState(false);
@@ -50,6 +71,11 @@ export default function Templates() {
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
   const [adjustment, setAdjustment] = useState('');
   const maxChars = 150;
+
+  // Save templates to localStorage whenever they change
+  useEffect(() => {
+    saveTemplates(templates);
+  }, [templates]);
 
   const handleContentChange = (newContent) => {
     setEditedContent(newContent);
@@ -60,6 +86,18 @@ export default function Templates() {
     );
     setTemplates(updatedTemplates);
     setSelectedTemplate(prev => ({ ...prev, content: newContent }));
+  };
+
+  const handleSave = () => {
+    const updatedTemplates = templates.map(t => 
+      t.id === selectedTemplate.id 
+        ? { ...t, content: editedContent }
+        : t
+    );
+    setTemplates(updatedTemplates);
+    setShowSnackbar(true);
+    setSnackbarMessage('Template saved!');
+    setSnackbarSeverity('success');
   };
 
   const handleAIAdjustment = async () => {
@@ -88,11 +126,10 @@ export default function Templates() {
       {/* Left Sidebar */}
       <Box
         width={300}
-        borderRight={1}
-        borderColor="divider"
         bgcolor="#fff"
         overflow="auto"
         p={3}
+        sx={{ boxShadow: 2, borderRadius: 3 }}
       >
         <Typography variant="h5" fontWeight={700} mb={3}>
           Templates
@@ -101,7 +138,6 @@ export default function Templates() {
           {templates.map((template) => {
             const isSelected = template.id === selectedTemplate.id;
             const meetingStyles = getMeetingTypeStyles(template.title);
-            
             return (
               <ListItem 
                 key={template.id} 
@@ -116,18 +152,20 @@ export default function Templates() {
                   }}
                   sx={{
                     borderRadius: 2,
-                    border: '1px solid',
-                    borderColor: isSelected ? 'primary.main' : 'divider',
+                    boxShadow: isSelected ? 3 : 1,
+                    border: 'none',
                     bgcolor: isSelected ? 'primary.50' : '#fff',
+                    transition: 'box-shadow 0.2s',
                     '&:hover': {
                       bgcolor: 'primary.50',
-                      borderColor: 'primary.main',
+                      boxShadow: 3,
                     }
                   }}
                 >
                   <ListItemText
                     primary={
-                      <Box>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <AutoAwesomeIcon fontSize="small" sx={{ color: meetingStyles.backgroundColor }} />
                         <Chip
                           label={template.title}
                           size="small"
@@ -140,19 +178,6 @@ export default function Templates() {
                             mb: 1
                           }}
                         />
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                            whiteSpace: 'pre-line'
-                          }}
-                        >
-                          {template.content.split('\n').slice(0, 2).join('\n')}
-                        </Typography>
                       </Box>
                     }
                   />
@@ -171,7 +196,10 @@ export default function Templates() {
         flexDirection="column"
         sx={{
           borderLeft: 1,
-          borderColor: 'divider'
+          borderColor: 'divider',
+          boxShadow: 2,
+          borderRadius: 3,
+          m: 2
         }}
       >
         {/* Header */}
@@ -179,79 +207,16 @@ export default function Templates() {
           p={3} 
           borderBottom={1} 
           borderColor="divider"
+          display="flex"
+          alignItems="center"
+          gap={1}
         >
           <Typography variant="h4" fontWeight={700} mb={3}>
             {selectedTemplate.title}
           </Typography>
-
-          {/* AI Input Area */}
-          <Box 
-            display="flex" 
-            gap={2}
-            sx={{
-              position: 'relative'
-            }}
-          >
-            <TextField
-              fullWidth
-              value={adjustment}
-              onChange={(e) => {
-                if (e.target.value.length <= maxChars) {
-                  setAdjustment(e.target.value);
-                }
-              }}
-              placeholder="How would you like to improve this template? Press Enter to submit"
-              variant="outlined"
-              size="medium"
-              disabled={loading}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleAIAdjustment();
-                }
-              }}
-              InputProps={{
-                sx: {
-                  bgcolor: '#f9fafb',
-                  '&:hover': {
-                    bgcolor: '#f3f4f6',
-                  },
-                  pr: 5
-                }
-              }}
-            />
-            <Box
-              sx={{
-                position: 'absolute',
-                right: 12,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1
-              }}
-            >
-              <Typography 
-                variant="caption" 
-                color="text.secondary"
-                sx={{ opacity: adjustment.length > 0 ? 1 : 0 }}
-              >
-                {adjustment.length}/{maxChars}
-              </Typography>
-              {loading ? (
-                <CircularProgress size={20} />
-              ) : (
-                <IconButton
-                  size="small"
-                  onClick={handleAIAdjustment}
-                  disabled={!adjustment.trim()}
-                  color="primary"
-                >
-                  <AutoAwesomeIcon />
-                </IconButton>
-              )}
-            </Box>
-          </Box>
+          <Tooltip title="This is the AI prompt that controls how your email summaries are generated for this meeting type." placement="right">
+            <InfoOutlinedIcon color="action" sx={{ ml: 1, mt: 0.5 }} />
+          </Tooltip>
         </Box>
 
         {/* Content Area */}
@@ -281,6 +246,15 @@ export default function Templates() {
               }
             }}
           />
+          <Button
+            variant="contained"
+            color="primary"
+            sx={{ mt: 2, alignSelf: 'flex-end' }}
+            onClick={handleSave}
+            disabled={editedContent === selectedTemplate.content}
+          >
+            Save
+          </Button>
         </Box>
       </Box>
 
