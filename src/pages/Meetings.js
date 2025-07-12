@@ -833,9 +833,8 @@ export default function Meetings() {
                 {/* Transcript Content */}
                 {activeTab === 'transcript' && isPastMeeting && (
                   (() => {
-                    const hasTranscript = selectedMeeting?.hasTranscript;
                     const transcript = selectedMeeting?.transcript;
-                    if (!hasTranscript) {
+                    if (!transcript || transcript.trim() === '' || transcript.toLowerCase() === 'null') {
                       return (
                         <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
                           <Typography variant="h5" sx={{ mb: 3 }}>
@@ -856,7 +855,7 @@ export default function Meetings() {
                     return (
                       <Box sx={{ textAlign: 'center', mt: 6 }}>
                         <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', mb: 3 }}>
-                          <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6 }}>{transcript}</Typography>
+                          <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{transcript}</Typography>
                         </Card>
                       </Box>
                     );
