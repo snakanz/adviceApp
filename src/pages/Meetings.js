@@ -568,10 +568,7 @@ export default function Meetings() {
             >
               <EventIcon sx={{ fontSize: 64, color: '#E5E5E5', mb: 2 }} />
               <Typography variant="h3" sx={{ fontWeight: 600, color: '#3C3C3C', mb: 1 }}>
-                Select a Meeting
-              </Typography>
-              <Typography variant="body1" sx={{ color: '#999999' }}>
-                Choose a meeting from the sidebar to view its details and summary
+                Click on a meeting to view more.
               </Typography>
             </Box>
           )}
