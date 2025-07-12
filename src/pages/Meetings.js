@@ -591,7 +591,7 @@ export default function Meetings() {
                           size="small"
                           onClick={async () => {
                             const token = localStorage.getItem('jwt');
-                            await fetch(`${process.env.REACT_APP_API_URL}/api/calendar/meetings/${selectedMeetingId}/transcript`, {
+                            await fetch(`${process.env.REACT_APP_API_URL}/calendar/meetings/${selectedMeetingId}/transcript`, {
                               method: 'DELETE',
                               headers: { 'Authorization': `Bearer ${token}` }
                             });
