@@ -15,7 +15,6 @@ import { adjustMeetingSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import MicIcon from '@mui/icons-material/Mic';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
