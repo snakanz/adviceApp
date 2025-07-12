@@ -733,26 +733,17 @@ export default function Meetings() {
                 {/* Summary Content (for past meetings) */}
                 {activeTab === 'summary' && isPastMeeting && (() => {
                   let summary = selectedMeeting?.summary;
-                  const hasTranscript = selectedMeeting?.hasTranscript;
                   const transcript = selectedMeeting?.transcript;
-                  // If no AI summary, but transcript exists, show transcript as summary
-                  if (!summary && hasTranscript && transcript) {
-                    summary = transcript;
-                  }
-                  if (!hasTranscript) {
+                  // If no transcript, show message to upload transcript (no upload options here)
+                  if (!transcript || transcript.trim() === '' || transcript.toLowerCase() === 'null') {
                     return (
                       <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
                         <Typography variant="h5" sx={{ mb: 3 }}>
-                          No summary available for this meeting.
+                          No transcript found for this meeting.
                         </Typography>
                         <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
-                          In order to produce info such as email summary and other features, please provide one of the following from the meeting uploads:
+                          Please upload a transcript in the Transcript tab to generate a summary and enable other features.
                         </Typography>
-                        <Stack direction="row" spacing={2} justifyContent="center">
-                          <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start Recording</Button>
-                          <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload Audio</Button>
-                          <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste Transcript</Button>
-                        </Stack>
                       </Box>
                     );
                   }
