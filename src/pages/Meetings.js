@@ -150,15 +150,23 @@ export default function Meetings() {
     }
   }, [selectedMeetingId]);
 
+  // Only fetch meetings on initial load or when syncing
   useEffect(() => {
     if (isAuthenticated) fetchMeetings();
   }, [isAuthenticated, fetchMeetings]);
 
-  // Update useEffect for resetting activeTab
-  useEffect(() => {
-    console.log('useEffect: selectedMeetingId changed, resetting activeTab to summary', selectedMeetingId);
-    setActiveTab('summary');
-  }, [selectedMeetingId]);
+  // Update handleMeetingSelect to reset activeTab only when a new meeting is selected
+  const handleMeetingSelect = (meeting) => {
+    if (meeting.id !== selectedMeetingId) {
+      setSelectedMeetingId(meeting.id);
+      setActiveTab('summary');
+      setSummaryContent(meeting.meetingSummary);
+      if (!meetings.past.some(m => m.id === meeting.id)) {
+        setMeetingPrep(meeting.prep || '');
+      }
+      setShowAIChat(false);
+    }
+  };
 
   const handleReconnectGoogle = async () => {
     try {
@@ -228,21 +236,6 @@ export default function Meetings() {
   };
 
   const isPastMeeting = meetings.past.some(m => m.id === selectedMeetingId);
-
-  // Remove setActiveTab from handleMeetingSelect (let useEffect handle it)
-  const handleMeetingSelect = (meeting) => {
-    setSelectedMeetingId(meeting.id);
-    setSummaryContent(meeting.meetingSummary);
-    if (!isPastMeeting) {
-      setMeetingPrep(meeting.prep || '');
-      // setActiveTab('prep'); // REMOVE THIS LINE
-    } else {
-      // setActiveTab('summary'); // REMOVE THIS LINE
-    }
-    setShowAIChat(false);
-  };
-
-
 
   const handleAIAdjustment = async (adjustmentPrompt) => {
     setLoading(true);
