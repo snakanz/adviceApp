@@ -855,6 +855,9 @@ export default function Meetings() {
                 {activeTab === 'notes' && (
                   <Box>
                     {/* Show notes or a placeholder, but not the transcript message */}
+                    <Typography variant="body2" sx={{ color: '#999999', fontStyle: 'italic' }}>
+                      Add your meeting notes here.
+                    </Typography>
                   </Box>
                 )}
               </Box>
