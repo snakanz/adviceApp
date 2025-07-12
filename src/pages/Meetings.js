@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Button, Chip, Snackbar, Alert, CircularProgress, Card, Stack,
-  Collapse, TextField, Paper, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions
+  Collapse, TextField, Paper, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import EventIcon from '@mui/icons-material/Event';
 import PersonIcon from '@mui/icons-material/Person';
