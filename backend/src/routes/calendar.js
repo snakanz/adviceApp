@@ -337,4 +337,9 @@ Only return the body of the email.` + "\n\nTranscript:\n" + transcript;
   }
 });
 
+// Debug route to confirm calendar.js is loaded
+router.get('/debug-alive', (req, res) => {
+  res.json({ status: 'calendar routes alive' });
+});
+
 module.exports = router; 
