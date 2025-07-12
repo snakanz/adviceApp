@@ -81,6 +81,7 @@ export default function Meetings() {
   const { isAuthenticated } = useAuth();
   const [meetingDetailTab, setMeetingDetailTab] = useState('emailSummary');
   const [todoList, setTodoList] = useState([]);
+  const [meetingView, setMeetingView] = useState('future'); // 'future' or 'past'
   const selectedMeeting = React.useMemo(() => {
     return (
       meetings.past.find(m => m.id === selectedMeetingId) ||
@@ -461,21 +462,34 @@ export default function Meetings() {
             Meetings
           </Typography>
 
+          {/* Toggle Buttons for Future/Past */}
+          <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+            <Button
+              variant={meetingView === 'future' ? 'contained' : 'outlined'}
+              onClick={() => setMeetingView('future')}
+              sx={{ flex: 1, fontWeight: 600, borderRadius: '8px', textTransform: 'none' }}
+            >
+              Future
+            </Button>
+            <Button
+              variant={meetingView === 'past' ? 'contained' : 'outlined'}
+              onClick={() => setMeetingView('past')}
+              sx={{ flex: 1, fontWeight: 600, borderRadius: '8px', textTransform: 'none' }}
+            >
+              Past
+            </Button>
+          </Box>
+
           {loading ? (
             <Box display="flex" justifyContent="center" py={4}>
               <CircularProgress size={24} />
             </Box>
           ) : (
             <>
-              {/* Future Meetings */}
-              {renderGroupedMeetings(meetings.future, 'Upcoming Meetings')}
-              
-              {meetings.future.length > 0 && meetings.past.length > 0 && (
-                <Divider sx={{ my: 3, borderColor: '#E5E5E5' }} />
-              )}
-
-              {/* Past Meetings */}
-              {renderGroupedMeetings(meetings.past, 'Past Meetings', true)}
+              {/* Show only the selected meeting type */}
+              {meetingView === 'future'
+                ? renderGroupedMeetings(meetings.future, 'Upcoming Meetings')
+                : renderGroupedMeetings(meetings.past, 'Past Meetings', true)}
             </>
           )}
         </Card>
