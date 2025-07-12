@@ -634,21 +634,6 @@ export default function Meetings() {
 
               {/* Content Area */}
               <Box sx={{ flex: 1, overflow: 'auto', p: 4, pt: 3 }}>
-                {/* TEST MESSAGE FOR DEBUGGING */}
-                <Box sx={{ p: 4, background: '#ffe', color: '#b00', fontSize: 32, textAlign: 'center' }}>
-                  HELLO FROM TAB CONTENT
-                </Box>
-                {/* Debug output for troubleshooting */}
-                <Box sx={{ p: 2, color: '#888', fontSize: 16 }}>
-                  <div>DEBUG: typeof selectedMeeting = {typeof selectedMeeting}</div>
-                  <div>DEBUG: selectedMeeting is {selectedMeeting ? 'defined' : 'undefined/null'}</div>
-                </Box>
-                {/* Fallback if selectedMeeting is not defined */}
-                {(!selectedMeeting) && (
-                  <Box sx={{ p: 4, color: '#b00', fontSize: 24, textAlign: 'center' }}>
-                    selectedMeeting is not defined or null
-                  </Box>
-                )}
                 {/* Meeting Prep Content (for future meetings) */}
                 {activeTab === 'prep' && !isPastMeeting && (
                   <Box>
@@ -749,7 +734,6 @@ export default function Meetings() {
                 {activeTab === 'summary' && isPastMeeting && (() => {
                   let summary = selectedMeeting?.summary;
                   const transcript = selectedMeeting?.transcript;
-                  // If no transcript, show message to upload transcript (no upload options here)
                   if (!transcript || transcript.trim() === '' || transcript.toLowerCase() === 'null') {
                     return (
                       <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
@@ -836,36 +820,34 @@ export default function Meetings() {
                   );
                 })()}
                 {/* Transcript Content */}
-                {activeTab === 'transcript' && isPastMeeting && (
-                  (() => {
-                    const transcript = selectedMeeting?.transcript;
-                    if (!transcript || transcript.trim() === '' || transcript.toLowerCase() === 'null') {
-                      return (
-                        <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
-                          <Typography variant="h5" sx={{ mb: 3 }}>
-                            Add a transcript
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
-                            Marloo creates transcripts from audio or text
-                          </Typography>
-                          <Stack direction="row" spacing={2} justifyContent="center">
-                            <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start recording</Button>
-                            <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload audio</Button>
-                            <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste transcript</Button>
-                          </Stack>
-                        </Box>
-                      );
-                    }
-                    // Transcript is present: show transcript only
+                {activeTab === 'transcript' && isPastMeeting && (() => {
+                  const transcript = selectedMeeting?.transcript;
+                  if (!transcript || transcript.trim() === '' || transcript.toLowerCase() === 'null') {
                     return (
-                      <Box sx={{ textAlign: 'center', mt: 6 }}>
-                        <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', mb: 3 }}>
-                          <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{transcript}</Typography>
-                        </Card>
+                      <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
+                        <Typography variant="h5" sx={{ mb: 3 }}>
+                          Add a transcript
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
+                          Marloo creates transcripts from audio or text
+                        </Typography>
+                        <Stack direction="row" spacing={2} justifyContent="center">
+                          <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start recording</Button>
+                          <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload audio</Button>
+                          <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste transcript</Button>
+                        </Stack>
                       </Box>
                     );
-                  })()
-                )}
+                  }
+                  // Transcript is present: show transcript only
+                  return (
+                    <Box sx={{ textAlign: 'center', mt: 6 }}>
+                      <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', mb: 3 }}>
+                        <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{transcript}</Typography>
+                      </Card>
+                    </Box>
+                  );
+                })()}
                 {/* Notes Content */}
                 {activeTab === 'notes' && (
                   <Box>
