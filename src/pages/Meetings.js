@@ -597,6 +597,7 @@ export default function Meetings() {
                             });
                             await fetchMeetings();
                             setSelectedMeetingId(selectedMeetingId); // force UI update
+                            setActiveTab('transcript'); // ensure upload options are shown
                           }}
                           sx={{
                             position: 'absolute',
