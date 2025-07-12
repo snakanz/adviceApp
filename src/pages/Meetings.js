@@ -618,26 +618,18 @@ export default function Meetings() {
                     }
                   }}
                 >
-                  {!isPastMeeting && <Tab label="Meeting Prep" value="prep" />}
-                  {isPastMeeting && (() => {
-                    const ms = selectedMeeting?.meetingSummary;
-                    const transcript = selectedMeeting?.transcript;
-                    const isTranscriptValid = transcript && !transcript.toLowerCase().includes('not implemented');
-                    const hasRealKeyPoints = Array.isArray(ms?.keyPoints) && ms.keyPoints.some(kp => kp && !kp.toLowerCase().includes('not implemented') && kp.trim() !== '');
-                    const hasRealActionItems = Array.isArray(ms?.actionItems) && ms.actionItems.some(ai => ai && ai.trim() !== '');
-                    const hasRealFinancial = ms?.financialSnapshot && Object.values(ms.financialSnapshot).some(val => val && val.trim() !== '');
-                    // If no transcript or no real summary, show only Transcript tab
-                    if (!isTranscriptValid && !hasRealKeyPoints && !hasRealActionItems && !hasRealFinancial) {
-                      return <Tab label="Transcript" value="transcript" />;
-                    }
-                    // Otherwise, show all tabs
-                    return <>
+                  {isPastMeeting ? (
+                    <>
                       <Tab label="Summary" value="summary" />
                       <Tab label="Transcript" value="transcript" />
                       <Tab label="Notes" value="notes" />
-                    </>;
-                  })()}
-                  {!isPastMeeting && <Tab label="Notes" value="notes" />}
+                    </>
+                  ) : (
+                    <>
+                      <Tab label="Meeting Prep" value="prep" />
+                      <Tab label="Notes" value="notes" />
+                    </>
+                  )}
                 </Tabs>
               </Box>
 
@@ -842,51 +834,31 @@ export default function Meetings() {
                 {/* Transcript Content */}
                 {activeTab === 'transcript' && isPastMeeting && (
                   (() => {
-                    // Use hasTranscript and hasSummary from selectedMeeting
                     const hasTranscript = selectedMeeting?.hasTranscript;
-                    const hasSummary = selectedMeeting?.hasSummary;
                     const transcript = selectedMeeting?.transcript;
                     if (!hasTranscript) {
                       return (
                         <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
                           <Typography variant="h5" sx={{ mb: 3 }}>
-                            No transcript available. Upload transcript.
+                            Add a transcript
                           </Typography>
                           <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
-                            In order to produce info such as email summary and other features, please provide one of the following from the meeting uploads:
+                            Marloo creates transcripts from audio or text
                           </Typography>
                           <Stack direction="row" spacing={2} justifyContent="center">
-                            <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start Recording</Button>
-                            <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload Audio</Button>
-                            <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste Transcript</Button>
+                            <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start recording</Button>
+                            <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload audio</Button>
+                            <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste transcript</Button>
                           </Stack>
                         </Box>
                       );
                     }
-                    // Transcript is present: show green tick, hide upload options, show transcript and generate summary button if no summary
+                    // Transcript is present: show transcript only
                     return (
                       <Box sx={{ textAlign: 'center', mt: 6 }}>
-                        <Stack direction="row" spacing={1} alignItems="center" justifyContent="center" sx={{ mb: 2 }}>
-                          <CheckCircleIcon sx={{ color: '#28A745', fontSize: 28 }} />
-                          <Typography variant="body1" sx={{ color: '#28A745', fontWeight: 600 }}>
-                            Transcript uploaded
-                          </Typography>
-                        </Stack>
                         <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', mb: 3 }}>
                           <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6 }}>{transcript}</Typography>
                         </Card>
-                        {!hasSummary && (
-                          <Button
-                            variant="contained"
-                            color="primary"
-                            onClick={handleGenerateSummary}
-                            disabled={generatingSummary}
-                            sx={{ mt: 2, px: 4, py: 1, borderRadius: '6px', fontWeight: 600 }}
-                          >
-                            {generatingSummary ? <CircularProgress size={20} sx={{ color: '#fff', mr: 1 }} /> : null}
-                            {generatingSummary ? 'Generating AI Summary...' : 'Generate AI Summary'}
-                          </Button>
-                        )}
                       </Box>
                     );
                   })()
