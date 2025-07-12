@@ -570,15 +570,16 @@ export default function Meetings() {
                   </Stack>
                 </Stack>
 
-                {/* TEST BUTTON: Set activeTab to 'summary' */}
-                <Button variant="contained" color="secondary" onClick={() => { console.log('Test button clicked'); setActiveTab('summary'); }}>
-                  Set Tab to Summary (Test)
-                </Button>
-                {/* Minimal Custom Tab Bar for Debugging */}
+                {/* Minimal Tab Switcher Reset */}
                 <Box sx={{ display: 'flex', gap: 2, my: 2 }}>
                   <Button variant={activeTab === 'summary' ? 'contained' : 'outlined'} onClick={() => setActiveTab('summary')}>Summary</Button>
                   <Button variant={activeTab === 'transcript' ? 'contained' : 'outlined'} onClick={() => setActiveTab('transcript')}>Transcript</Button>
                   <Button variant={activeTab === 'notes' ? 'contained' : 'outlined'} onClick={() => setActiveTab('notes')}>Notes</Button>
+                </Box>
+                <Box sx={{ mt: 6, textAlign: 'center', fontSize: 32, color: '#007AFF', fontWeight: 700 }}>
+                  {activeTab === 'summary' && 'Summary'}
+                  {activeTab === 'transcript' && 'Transcript'}
+                  {activeTab === 'notes' && 'Notes'}
                 </Box>
               </Box>
 
