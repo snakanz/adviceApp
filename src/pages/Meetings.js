@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Button, Chip, Snackbar, Alert, CircularProgress, Card, Stack,
-  Select, MenuItem, FormControl, Collapse, TextField, Paper, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions
+  Collapse, TextField, Paper, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import EventIcon from '@mui/icons-material/Event';
-import EmailIcon from '@mui/icons-material/Email';
 import PersonIcon from '@mui/icons-material/Person';
 import ChatIcon from '@mui/icons-material/Chat';
 import SendIcon from '@mui/icons-material/Send';
@@ -51,20 +50,12 @@ const groupMeetingsByDate = (meetings) => {
   return grouped;
 };
 
-const emailTemplates = [
-  { value: 'standard', label: 'Standard Summary' },
-  { value: 'detailed', label: 'Detailed Report' },
-  { value: 'executive', label: 'Executive Brief' },
-  { value: 'client_friendly', label: 'Client-Friendly' }
-];
-
 export default function Meetings() {
   const [meetings, setMeetings] = useState({ future: [], past: [] });
   const [selectedMeetingId, setSelectedMeetingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAIDialog, setShowAIDialog] = useState(false);
   const [showAIChat, setShowAIChat] = useState(false);
-  const [emailTemplate, setEmailTemplate] = useState('standard');
   const [chatMessages, setChatMessages] = useState([
     { type: 'ai', message: 'I can help you with questions about this meeting. Ask me anything!' }
   ]);
@@ -79,8 +70,6 @@ export default function Meetings() {
   const [pastedTranscript, setPastedTranscript] = useState('');
   const [activeTab, setActiveTab] = useState('summary');
   const { isAuthenticated } = useAuth();
-  const [meetingDetailTab, setMeetingDetailTab] = useState('emailSummary');
-  const [todoList, setTodoList] = useState([]);
   const [meetingView, setMeetingView] = useState('future'); // 'future' or 'past'
   
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
@@ -92,7 +81,6 @@ export default function Meetings() {
       null
     );
   }, [meetings, selectedMeetingId]);
-  const [generatingSummary, setGeneratingSummary] = useState(false);
 
   // Move fetchMeetings out of useEffect so it can be called directly
   const fetchMeetings = useCallback(async () => {
@@ -310,36 +298,6 @@ export default function Meetings() {
       setShowSnackbar(true);
       setSnackbarMessage('Failed to upload transcript');
       setSnackbarSeverity('error');
-    }
-  };
-
-  const handleGenerateSummary = async () => {
-    setGeneratingSummary(true);
-    try {
-      const res = await fetch(`${API_URL}/api/meetings/${selectedMeetingId}/summary`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('jwt')}`
-        }
-      });
-      if (!res.ok) throw new Error('Failed to generate summary');
-      const data = await res.json();
-      setMeetings(prev => {
-        const updateMeeting = m => m.id === selectedMeetingId ? { ...m, meetingSummary: { ...m.meetingSummary, emailSummary: data.summary } } : m;
-        return {
-          future: prev.future.map(updateMeeting),
-          past: prev.past.map(updateMeeting)
-        };
-      });
-      setShowSnackbar(true);
-      setSnackbarMessage('AI summary generated successfully');
-      setSnackbarSeverity('success');
-    } catch (err) {
-      setShowSnackbar(true);
-      setSnackbarMessage('Failed to generate summary');
-      setSnackbarSeverity('error');
-    } finally {
-      setGeneratingSummary(false);
     }
   };
 
