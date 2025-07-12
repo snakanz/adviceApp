@@ -820,7 +820,6 @@ export default function Meetings() {
                     </Box>
                   );
                 })()}
-
                 {/* Transcript Content */}
                 {activeTab === 'transcript' && isPastMeeting && (
                   (() => {
@@ -852,19 +851,10 @@ export default function Meetings() {
                     );
                   })()
                 )}
-
                 {/* Notes Content */}
                 {activeTab === 'notes' && (
                   <Box>
-                    <Typography variant="h3" sx={{ fontWeight: 600, color: '#1E1E1E', mb: 3 }}>
-                      Meeting Notes
-                    </Typography>
-                    
-                    <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5' }}>
-                      <Typography variant="body2" sx={{ color: '#999999', fontStyle: 'italic' }}>
-                        Detailed meeting notes will appear here. This feature is coming soon.
-                      </Typography>
-                    </Card>
+                    {/* Show notes or a placeholder, but not the transcript message */}
                   </Box>
                 )}
               </Box>
