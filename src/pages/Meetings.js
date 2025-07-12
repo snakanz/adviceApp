@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box, Typography, Button, Chip, Snackbar, Alert, CircularProgress, Card, Stack,
   Select, MenuItem, FormControl, Collapse, TextField, Paper, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions
@@ -59,7 +59,6 @@ const emailTemplates = [
 ];
 
 export default function Meetings() {
-  console.log('Meetings component render:', { activeTab, selectedMeetingId });
   const [meetings, setMeetings] = useState({ future: [], past: [] });
   const [selectedMeetingId, setSelectedMeetingId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -83,6 +82,9 @@ export default function Meetings() {
   const [meetingDetailTab, setMeetingDetailTab] = useState('emailSummary');
   const [todoList, setTodoList] = useState([]);
   const [meetingView, setMeetingView] = useState('future'); // 'future' or 'past'
+  
+  console.log('Meetings component render:', { activeTab, selectedMeetingId });
+  
   const selectedMeeting = React.useMemo(() => {
     return (
       meetings.past.find(m => m.id === selectedMeetingId) ||
@@ -93,7 +95,7 @@ export default function Meetings() {
   const [generatingSummary, setGeneratingSummary] = useState(false);
 
   // Move fetchMeetings out of useEffect so it can be called directly
-  const fetchMeetings = async () => {
+  const fetchMeetings = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('jwt');
@@ -146,11 +148,11 @@ export default function Meetings() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedMeetingId]);
 
   useEffect(() => {
     if (isAuthenticated) fetchMeetings();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, fetchMeetings]);
 
   // Update useEffect for resetting activeTab
   useEffect(() => {
