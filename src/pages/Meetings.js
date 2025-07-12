@@ -69,9 +69,8 @@ export default function Meetings() {
   const { isAuthenticated } = useAuth();
   const [meetingView, setMeetingView] = useState('future'); // 'future' or 'past'
   
-  const [showEmailSummaryUI, setShowEmailSummaryUI] = useState(false);
-  // Remove template selection state
-  // const [selectedTemplate, setSelectedTemplate] = useState('auto');
+  // Remove showEmailSummaryUI state
+  // const [showEmailSummaryUI, setShowEmailSummaryUI] = useState(false);
   const [emailBody, setEmailBody] = useState('');
   const [loadingEmailSummary, setLoadingEmailSummary] = useState(false);
 
@@ -658,43 +657,40 @@ export default function Meetings() {
                     {selectedMeeting && isPastMeeting && selectedMeeting.transcript ? (
                       <>
                         {/* Only show the Generate AI Summary Email button */}
-                        {!showEmailSummaryUI ? (
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          onClick={handleGenerateAISummary}
+                          sx={{ mb: 3 }}
+                        >
+                          Generate AI Summary Email
+                        </Button>
+                        <Box sx={{ maxWidth: 500, mx: 'auto', textAlign: 'left' }}>
+                          {loadingEmailSummary ? (
+                            <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
+                              <CircularProgress />
+                            </Box>
+                          ) : (
+                            <TextField
+                              multiline
+                              minRows={8}
+                              fullWidth
+                              value={emailBody}
+                              onChange={e => setEmailBody(e.target.value)}
+                              sx={{ mb: 2, background: '#f9fafb', borderRadius: 2 }}
+                              placeholder="Email summary will appear here..."
+                            />
+                          )}
                           <Button
                             variant="contained"
-                            color="primary"
-                            onClick={() => setShowEmailSummaryUI(true)}
-                            sx={{ mb: 3 }}
+                            color="success"
+                            sx={{ mt: 2, width: '100%' }}
+                            disabled={!emailBody || loadingEmailSummary}
+                            onClick={() => alert('Send Email functionality coming soon!')}
                           >
-                            Generate AI Summary Email
+                            Send Email
                           </Button>
-                        ) : (
-                          <Box sx={{ maxWidth: 500, mx: 'auto', textAlign: 'left' }}>
-                            {loadingEmailSummary ? (
-                              <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
-                                <CircularProgress />
-                              </Box>
-                            ) : (
-                              <TextField
-                                multiline
-                                minRows={8}
-                                fullWidth
-                                value={emailBody}
-                                onChange={e => setEmailBody(e.target.value)}
-                                sx={{ mb: 2, background: '#f9fafb', borderRadius: 2 }}
-                                placeholder="Email summary will appear here..."
-                              />
-                            )}
-                            <Button
-                              variant="contained"
-                              color="success"
-                              sx={{ mt: 2, width: '100%' }}
-                              disabled={!emailBody || loadingEmailSummary}
-                              onClick={() => alert('Send Email functionality coming soon!')}
-                            >
-                              Send Email
-                            </Button>
-                          </Box>
-                        )}
+                        </Box>
                       </>
                     ) : (
                       <Typography variant="body1" sx={{ color: '#888' }}>
