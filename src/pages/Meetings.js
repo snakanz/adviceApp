@@ -132,7 +132,7 @@ export default function Meetings() {
     } finally {
       setLoading(false);
     }
-  }, [selectedMeetingId]);
+  }, [API_URL, selectedMeetingId]);
 
   // Only fetch meetings on initial load or when syncing
   useEffect(() => {
