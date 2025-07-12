@@ -2,12 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemText,
   TextField,
-  Chip,
   Snackbar,
   Alert,
   Button
@@ -15,7 +10,7 @@ import {
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import Tooltip from '@mui/material/Tooltip';
-import { getMeetingTypeStyles, MeetingTypeIndicator } from '../theme/meetingTypes';
+import { getMeetingTypeStyles } from '../theme/meetingTypes';
 
 const defaultTemplates = [
   {
