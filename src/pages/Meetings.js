@@ -634,6 +634,21 @@ export default function Meetings() {
 
               {/* Content Area */}
               <Box sx={{ flex: 1, overflow: 'auto', p: 4, pt: 3 }}>
+                {/* TEST MESSAGE FOR DEBUGGING */}
+                <Box sx={{ p: 4, background: '#ffe', color: '#b00', fontSize: 32, textAlign: 'center' }}>
+                  HELLO FROM TAB CONTENT
+                </Box>
+                {/* Debug output for troubleshooting */}
+                <Box sx={{ p: 2, color: '#888', fontSize: 16 }}>
+                  <div>DEBUG: typeof selectedMeeting = {typeof selectedMeeting}</div>
+                  <div>DEBUG: selectedMeeting is {selectedMeeting ? 'defined' : 'undefined/null'}</div>
+                </Box>
+                {/* Fallback if selectedMeeting is not defined */}
+                {(!selectedMeeting) && (
+                  <Box sx={{ p: 4, color: '#b00', fontSize: 24, textAlign: 'center' }}>
+                    selectedMeeting is not defined or null
+                  </Box>
+                )}
                 {/* Meeting Prep Content (for future meetings) */}
                 {activeTab === 'prep' && !isPastMeeting && (
                   <Box>
