@@ -269,6 +269,12 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
     const future = [];
     for (const event of events) {
       if (!event.start || !event.start.dateTime) continue;
+      // Fetch transcript from DB
+      const transcriptResult = await pool.query(
+        'SELECT transcript FROM meetings WHERE googleeventid = $1 AND userid = $2',
+        [event.id, userId]
+      );
+      const transcript = transcriptResult.rows[0]?.transcript || null;
       const eventStart = new Date(event.start.dateTime);
       const processedEvent = {
         id: event.id,
@@ -277,7 +283,8 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
         end: event.end ? { dateTime: event.end.dateTime } : null,
         description: event.description,
         location: event.location,
-        attendees: event.attendees || []
+        attendees: event.attendees || [],
+        transcript // <-- add transcript to response
       };
       if (eventStart > now) {
         future.push(processedEvent);
