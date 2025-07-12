@@ -574,48 +574,12 @@ export default function Meetings() {
                 <Button variant="contained" color="secondary" onClick={() => { console.log('Test button clicked'); setActiveTab('summary'); }}>
                   Set Tab to Summary (Test)
                 </Button>
-                {/* Navigation Tabs */}
-                <Tabs 
-                  value={activeTab}
-                  onChange={(_, newValue) => {
-                    console.log('Tab changed to:', newValue);
-                    setActiveTab(newValue);
-                  }}
-                  sx={{
-                    borderBottom: '1px solid #E5E5E5',
-                    '& .MuiTab-root': {
-                      textTransform: 'none',
-                      fontSize: '14px',
-                      fontWeight: 500,
-                      color: '#3C3C3C',
-                      py: 2,
-                      px: 3,
-                      borderRadius: '8px 8px 0 0',
-                      '&.Mui-selected': {
-                        color: '#007AFF',
-                        fontWeight: 600,
-                        backgroundColor: '#E6F3FF', // light blue for selected tab
-                      }
-                    },
-                    '& .MuiTabs-indicator': {
-                      backgroundColor: '#007AFF',
-                      height: 2
-                    }
-                  }}
-                >
-                  {isPastMeeting ? (
-                    <>
-                      <Tab label="Summary" value="summary" />
-                      <Tab label="Transcript" value="transcript" />
-                      <Tab label="Notes" value="notes" />
-                    </>
-                  ) : (
-                    <>
-                      <Tab label="Meeting Prep" value="prep" />
-                      <Tab label="Notes" value="notes" />
-                    </>
-                  )}
-                </Tabs>
+                {/* Minimal Custom Tab Bar for Debugging */}
+                <Box sx={{ display: 'flex', gap: 2, my: 2 }}>
+                  <Button variant={activeTab === 'summary' ? 'contained' : 'outlined'} onClick={() => setActiveTab('summary')}>Summary</Button>
+                  <Button variant={activeTab === 'transcript' ? 'contained' : 'outlined'} onClick={() => setActiveTab('transcript')}>Transcript</Button>
+                  <Button variant={activeTab === 'notes' ? 'contained' : 'outlined'} onClick={() => setActiveTab('notes')}>Notes</Button>
+                </Box>
               </Box>
 
               {/* Content Area */}
