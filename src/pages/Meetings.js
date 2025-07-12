@@ -156,7 +156,7 @@ export default function Meetings() {
 
   // Update useEffect for resetting activeTab
   useEffect(() => {
-    // Only reset activeTab if selectedMeetingId actually changes
+    console.log('useEffect: selectedMeetingId changed, resetting activeTab to summary', selectedMeetingId);
     setActiveTab('summary');
   }, [selectedMeetingId]);
 
