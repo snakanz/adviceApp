@@ -86,7 +86,7 @@ export default function Meetings() {
     if (template === 'auto') {
       setLoadingEmailSummary(true);
       try {
-        const res = await fetch(`${API_URL}/generate-summary`, {
+        const res = await fetch(`${API_URL}/calendar/generate-summary`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
