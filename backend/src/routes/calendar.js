@@ -302,4 +302,45 @@ router.post('/meetings/:id/generate-summary', authenticateToken, async (req, res
   }
 });
 
+// Generate follow-up email summary for a meeting
+router.post('/generate-summary', authenticateToken, async (req, res) => {
+  try {
+    const { transcript } = req.body;
+    if (!transcript) {
+      return res.status(400).json({ error: 'Transcript is required.' });
+    }
+    const prompt = `You are an assistant to a financial advisor. Based on the transcript of a client meeting, write a professional follow-up email. It should:
+
+- Start with a warm greeting (e.g. "Hi [Client Name], it was great speaking with you today")
+- Summarize key discussion points, including:
+  • Pension balance (~£100,000)
+  • No current contributions but £300/month available
+  • £200/month expenses
+  • No mortgage
+- Outline next steps:
+  • Sending a Letter of Authority (LOA)
+  • Requesting recent pension statements
+  • Scheduling a follow-up to review options
+- Finish with a polite sign-off from the advisor
+
+Only return the body of the email — no subject line or extra formatting.`;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [
+        { role: 'system', content: 'You are a helpful assistant.' },
+        { role: 'user', content: `${prompt}\n\nTranscript:\n${transcript}` }
+      ],
+      max_tokens: 800,
+      temperature: 0.7
+    });
+
+    const summary = response.choices[0].message.content.trim();
+    res.json({ summary });
+  } catch (error) {
+    console.error('Error generating follow-up email summary:', error);
+    res.status(500).json({ error: 'Failed to generate summary.' });
+  }
+});
+
 module.exports = router; 

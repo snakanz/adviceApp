@@ -84,18 +84,16 @@ export default function Meetings() {
   const handleTemplateChange = async (template) => {
     setSelectedTemplate(template);
     if (template === 'auto') {
-      // 4. Call backend to generate AI summary
       setLoadingEmailSummary(true);
       try {
-        const res = await fetch(`${API_URL}/calendar/meetings/${selectedMeetingId}/generate-summary`, {
+        const res = await fetch(`${API_URL}/generate-summary`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${localStorage.getItem('jwt')}`
           },
           body: JSON.stringify({
-            transcript: selectedMeeting.transcript,
-            prompt: 'Summarise this financial advisor meeting as an email to the client using professional tone. Include key points discussed, any action items, and next steps.'
+            transcript: selectedMeeting.transcript
           })
         });
         if (!res.ok) throw new Error('Failed to generate summary');
