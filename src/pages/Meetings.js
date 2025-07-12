@@ -583,9 +583,38 @@ export default function Meetings() {
                   }
                   // Transcript is present: show transcript only
                   return (
-                    <Box sx={{ textAlign: 'center', mt: 6 }}>
+                    <Box sx={{ textAlign: 'center', mt: 6, position: 'relative' }}>
                       <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Transcript</Typography>
-                      <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', mb: 3 }}>
+                      <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', mb: 3, position: 'relative' }}>
+                        {/* Delete (X) button */}
+                        <Button
+                          size="small"
+                          onClick={async () => {
+                            const token = localStorage.getItem('jwt');
+                            await fetch(`${process.env.REACT_APP_API_URL}/api/calendar/meetings/${selectedMeetingId}/transcript`, {
+                              method: 'DELETE',
+                              headers: { 'Authorization': `Bearer ${token}` }
+                            });
+                            await fetchMeetings();
+                            setSelectedMeetingId(selectedMeetingId); // force UI update
+                          }}
+                          sx={{
+                            position: 'absolute',
+                            top: 8,
+                            right: 8,
+                            minWidth: 0,
+                            width: 28,
+                            height: 28,
+                            borderRadius: '50%',
+                            color: '#888',
+                            background: 'transparent',
+                            fontWeight: 700,
+                            fontSize: 18,
+                            '&:hover': { background: '#eee', color: '#b00' }
+                          }}
+                        >
+                          ×
+                        </Button>
                         <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{transcript}</Typography>
                       </Card>
                     </Box>
