@@ -275,6 +275,7 @@ export default function Meetings() {
       if (!res.ok) throw new Error('Failed to save transcript');
       // Refetch meetings from backend to get updated hasTranscript/summary
       await fetchMeetings();
+      setSelectedMeetingId(selectedMeetingId); // Force re-select to update UI
       setOpenPasteDialog(false);
       setShowSnackbar(true);
       setSnackbarMessage('Transcript uploaded successfully');
