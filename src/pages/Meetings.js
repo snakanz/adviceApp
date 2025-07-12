@@ -70,43 +70,33 @@ export default function Meetings() {
   const [meetingView, setMeetingView] = useState('future'); // 'future' or 'past'
   
   const [showEmailSummaryUI, setShowEmailSummaryUI] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState('auto');
+  // Remove template selection state
+  // const [selectedTemplate, setSelectedTemplate] = useState('auto');
   const [emailBody, setEmailBody] = useState('');
   const [loadingEmailSummary, setLoadingEmailSummary] = useState(false);
 
-  const defaultTemplate = {
-    intro: 'Hi [Client Name],\n\nThank you for joining the intro meeting. Here are the key points discussed...\n\nBest,\n[Your Name]',
-    cashflow: 'Hi [Client Name],\n\nHere is a summary of our cashflow meeting...\n\nBest,\n[Your Name]',
-    performance: 'Hi [Client Name],\n\nHere is a summary of your portfolio performance...\n\nBest,\n[Your Name]',
-    signup: 'Hi [Client Name],\n\nWelcome aboard! Here are the next steps after your signup...\n\nBest,\n[Your Name]'
-  };
-
-  const handleTemplateChange = async (template) => {
-    setSelectedTemplate(template);
-    if (template === 'auto') {
-      setLoadingEmailSummary(true);
-      try {
-        const res = await fetch(`${API_URL}/calendar/generate-summary`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('jwt')}`
-          },
-          body: JSON.stringify({
-            transcript: selectedMeeting.transcript
-          })
-        });
-        if (!res.ok) throw new Error('Failed to generate summary');
-        const data = await res.json();
-        setEmailBody(data.summary || '');
-      } catch (err) {
-        setEmailBody('Error generating summary.');
-      } finally {
-        setLoadingEmailSummary(false);
-      }
-    } else {
-      // 5. Load template (from defaultTemplate for now)
-      setEmailBody(defaultTemplate[template] || '');
+  // Add a single handler for generating the AI summary
+  const handleGenerateAISummary = async () => {
+    setLoadingEmailSummary(true);
+    setEmailBody('');
+    try {
+      const res = await fetch(`${API_URL}/calendar/generate-summary`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('jwt')}`
+        },
+        body: JSON.stringify({
+          transcript: selectedMeeting.transcript
+        })
+      });
+      if (!res.ok) throw new Error('Failed to generate summary');
+      const data = await res.json();
+      setEmailBody(data.summary || '');
+    } catch (err) {
+      setEmailBody('Error generating summary.');
+    } finally {
+      setLoadingEmailSummary(false);
     }
   };
   
@@ -665,10 +655,9 @@ export default function Meetings() {
                 {/* Other tabs: just show the tab name for now */}
                 {activeTab === 'summary' && (
                   <Box sx={{ mt: 6, textAlign: 'center' }}>
-                    {/* 1. Check if meeting is past and has transcript */}
                     {selectedMeeting && isPastMeeting && selectedMeeting.transcript ? (
                       <>
-                        {/* 2. Generate Email Summary Button */}
+                        {/* Only show the Generate AI Summary Email button */}
                         {!showEmailSummaryUI ? (
                           <Button
                             variant="contained"
@@ -676,24 +665,10 @@ export default function Meetings() {
                             onClick={() => setShowEmailSummaryUI(true)}
                             sx={{ mb: 3 }}
                           >
-                            Generate Email Summary
+                            Generate AI Summary Email
                           </Button>
                         ) : (
                           <Box sx={{ maxWidth: 500, mx: 'auto', textAlign: 'left' }}>
-                            {/* 3. Dropdown for template selection */}
-                            <Typography variant="h6" sx={{ mb: 1 }}>Choose a template:</Typography>
-                            <select
-                              value={selectedTemplate}
-                              onChange={e => handleTemplateChange(e.target.value)}
-                              style={{ width: '100%', padding: 8, fontSize: 16, marginBottom: 16 }}
-                            >
-                              <option value="auto">Auto (AI Generated)</option>
-                              <option value="intro">Intro Meeting</option>
-                              <option value="cashflow">Cashflow Meeting</option>
-                              <option value="performance">Performance Meeting</option>
-                              <option value="signup">Signup Meeting</option>
-                            </select>
-                            {/* 4. If Auto, show spinner while loading, else show textarea for editing */}
                             {loadingEmailSummary ? (
                               <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
                                 <CircularProgress />
@@ -709,7 +684,6 @@ export default function Meetings() {
                                 placeholder="Email summary will appear here..."
                               />
                             )}
-                            {/* 5. Send Email Button (placeholder) */}
                             <Button
                               variant="contained"
                               color="success"
