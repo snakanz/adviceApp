@@ -324,6 +324,28 @@ app.post('/api/calendar/meetings/:id/transcript', async (req, res) => {
   }
 });
 
+// DELETE transcript endpoint
+app.delete('/api/calendar/meetings/:id/transcript', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    const meetingId = req.params.id;
+
+    await pool.query(
+      'UPDATE meetings SET transcript = NULL, updatedat = NOW() WHERE googleeventid = $1 AND userid = $2',
+      [meetingId, userId]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Transcript delete error:', error);
+    res.status(500).json({ error: 'Failed to delete transcript' });
+  }
+});
+
 // POST /api/meetings/:meetingId/summary - generate/update AI summary for a meeting
 app.post('/api/meetings/:meetingId/summary', async (req, res) => {
   return res.status(200).json({ success: false, message: 'AI summary generation is currently disabled.' });
