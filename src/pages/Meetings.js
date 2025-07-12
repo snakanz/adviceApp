@@ -717,18 +717,43 @@ export default function Meetings() {
                 )}
 
                 {/* Summary Content (for past meetings) */}
-                {activeTab === 'summary' && isPastMeeting && (
-                  <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
-                    <Typography variant="h3">Test</Typography>
-                  </Box>
-                )}
-                {/* Transcript Section (always visible below tabs) */}
+                {activeTab === 'summary' && isPastMeeting && (() => {
+                  const transcript = selectedMeeting?.transcript;
+                  const summary = selectedMeeting?.summary;
+                  if (!transcript || transcript.trim() === '' || transcript.toLowerCase() === 'null') {
+                    return (
+                      <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
+                        <Typography variant="h5" sx={{ mb: 3 }}>
+                          No transcript found for this meeting.
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
+                          Please upload a transcript in the Transcript tab to generate a summary and enable other features.
+                        </Typography>
+                      </Box>
+                    );
+                  }
+                  // Transcript exists, show summary if available
+                  if (!summary) {
+                    return (
+                      <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
+                        <Typography variant="h5" sx={{ mb: 3 }}>
+                          No summary generated yet.
+                        </Typography>
+                      </Box>
+                    );
+                  }
+                  return (
+                    <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#222' }}>
+                      <Typography variant="body1" sx={{ fontWeight: 500, fontSize: 18 }}>{summary}</Typography>
+                    </Box>
+                  );
+                })()}
+                {/* Transcript Content */}
                 {activeTab === 'transcript' && isPastMeeting && (() => {
                   const transcript = selectedMeeting?.transcript;
                   if (!transcript || transcript.trim() === '' || transcript.toLowerCase() === 'null') {
                     return (
                       <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#b00', fontSize: 24 }}>
-                        UPLOAD OPTIONS SHOULD BE HERE
                         <Typography variant="h5" sx={{ mb: 3, mt: 3, color: '#888', fontSize: 20 }}>
                           Add a transcript
                         </Typography>
@@ -755,7 +780,6 @@ export default function Meetings() {
                 {/* Notes Content */}
                 {activeTab === 'notes' && (
                   <Box>
-                    {/* Show notes or a placeholder, but not the transcript message */}
                     <Typography variant="body2" sx={{ color: '#999999', fontStyle: 'italic' }}>
                       Add your meeting notes here.
                     </Typography>
