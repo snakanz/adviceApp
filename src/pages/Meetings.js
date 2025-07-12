@@ -634,6 +634,10 @@ export default function Meetings() {
 
               {/* Content Area */}
               <Box sx={{ flex: 1, overflow: 'auto', p: 4, pt: 3 }}>
+                {/* Debug output for activeTab */}
+                <Box sx={{ p: 2, color: '#888', fontSize: 16 }}>
+                  <div>DEBUG: activeTab = {activeTab}</div>
+                </Box>
                 {/* Meeting Prep Content (for future meetings) */}
                 {activeTab === 'prep' && !isPastMeeting && (
                   <Box>
@@ -824,8 +828,9 @@ export default function Meetings() {
                   const transcript = selectedMeeting?.transcript;
                   if (!transcript || transcript.trim() === '' || transcript.toLowerCase() === 'null') {
                     return (
-                      <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#888' }}>
-                        <Typography variant="h5" sx={{ mb: 3 }}>
+                      <Box sx={{ mt: 8, mb: 8, textAlign: 'center', color: '#b00', fontSize: 24 }}>
+                        UPLOAD OPTIONS SHOULD BE HERE
+                        <Typography variant="h5" sx={{ mb: 3, mt: 3, color: '#888', fontSize: 20 }}>
                           Add a transcript
                         </Typography>
                         <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
