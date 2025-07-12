@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Box, Typography, Button, Chip, Snackbar, Alert, CircularProgress, Card, Stack,
-  Collapse, TextField, Paper, Dialog, DialogTitle, DialogContent, DialogActions
+  Box, Typography, Button, Snackbar, Alert, CircularProgress, Card, Stack,
+  TextField, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import EventIcon from '@mui/icons-material/Event';
-import PersonIcon from '@mui/icons-material/Person';
-import ChatIcon from '@mui/icons-material/Chat';
-import SendIcon from '@mui/icons-material/Send';
 import EditIcon from '@mui/icons-material/Edit';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -63,10 +60,6 @@ export default function Meetings() {
   const [selectedMeetingId, setSelectedMeetingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAIDialog, setShowAIDialog] = useState(false);
-  const [showAIChat, setShowAIChat] = useState(false);
-  const [chatMessages, setChatMessages] = useState([
-    { type: 'ai', message: 'I can help you with questions about this meeting. Ask me anything!' }
-  ]);
   const [openUploadDialog, setOpenUploadDialog] = useState(false);
   const [openPasteDialog, setOpenPasteDialog] = useState(false);
   const [showSnackbar, setShowSnackbar] = useState(false);
@@ -194,76 +187,7 @@ export default function Meetings() {
     }
   };
 
-  const handleReconnectGoogle = async () => {
-    try {
-      const token = localStorage.getItem('jwt');
-      const res = await fetch(`${API_URL}/auth/reconnect-google`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error('Failed to get reconnect URL');
-      const { url } = await res.json();
-      window.location.href = url;
-    } catch (error) {
-      console.error('Failed to get reconnect URL:', error);
-      setShowSnackbar(true);
-      setSnackbarMessage('Failed to initiate Google reconnection');
-      setSnackbarSeverity('error');
-    }
-  };
-
-  const handleSyncMeetings = async () => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('jwt');
-      let url;
-      if (window.location.hostname === 'localhost') {
-        url = `${API_URL}/api/dev/meetings`;
-      } else {
-        url = `${API_URL}/calendar/meetings/all`;
-      }
-      const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        if (res.status === 401) {
-          const errorData = await res.json();
-          if (errorData.error && errorData.error.includes('Google Calendar')) {
-            setShowSnackbar(true);
-            setSnackbarMessage('Google Calendar connection issue. Please reconnect your Google account.');
-            setSnackbarSeverity('warning');
-            return;
-          }
-        }
-        throw new Error('Failed to sync meetings');
-      }
-      const data = await res.json();
-      let meetingsData = data;
-      if (window.location.hostname === 'localhost') {
-        const now = new Date();
-        meetingsData = { past: [], future: [] };
-        data.forEach(m => {
-          const start = new Date(m.startTime);
-          if (start < now) meetingsData.past.push({ ...m, id: m.googleEventId });
-          else meetingsData.future.push({ ...m, id: m.googleEventId });
-        });
-      }
-      setMeetings(meetingsData);
-      setShowSnackbar(true);
-      setSnackbarMessage('Meetings synced successfully');
-      setSnackbarSeverity('success');
-    } catch (error) {
-      console.error('Failed to sync meetings:', error);
-      setShowSnackbar(true);
-      setSnackbarMessage('Failed to sync meetings');
-      setSnackbarSeverity('error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const isPastMeeting = meetings.past.some(m => m.id === selectedMeetingId);
-  // In the main content area, show only Meeting Prep for future meetings
-  const isFutureMeeting = meetings.future.some(m => m.id === selectedMeetingId);
 
   const handleAIAdjustment = async (adjustmentPrompt) => {
     setLoading(true);
@@ -286,15 +210,7 @@ export default function Meetings() {
     }
   };
 
-  const handleSendChatMessage = () => {
-    if (!chatMessages[chatMessages.length - 1].message.trim()) return;
-    
-    setChatMessages(prev => [...prev, 
-      { type: 'user', message: chatMessages[chatMessages.length - 1].message },
-      { type: 'ai', message: 'I can help you with questions about this meeting. Ask me anything!' }
-    ]);
-    setChatMessages(prev => prev.slice(0, -2));
-  };
+
 
   const handleStartRecording = () => {
     // Implementation of handleStartRecording
