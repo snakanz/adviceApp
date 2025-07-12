@@ -613,9 +613,17 @@ export default function Meetings() {
                 </Stack>
 
                 {/* Navigation Tabs */}
+                {/* Debug output for activeTab and selectedMeetingId */}
+                <Box sx={{ p: 2, color: '#888', fontSize: 16 }}>
+                  <div>DEBUG: activeTab = {activeTab}</div>
+                  <div>DEBUG: selectedMeetingId = {selectedMeetingId}</div>
+                </Box>
                 <Tabs 
                   value={activeTab}
-                  onChange={(_, newValue) => setActiveTab(newValue)}
+                  onChange={(_, newValue) => {
+                    console.log('Tab changed to:', newValue);
+                    setActiveTab(newValue);
+                  }}
                   sx={{
                     borderBottom: '1px solid #E5E5E5',
                     '& .MuiTab-root': {
