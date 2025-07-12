@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   Typography,
-  IconButton,
   List,
   ListItem,
   ListItemButton,
@@ -11,14 +10,12 @@ import {
   Chip,
   Snackbar,
   Alert,
-  CircularProgress,
   Button
 } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import Tooltip from '@mui/material/Tooltip';
 import { getMeetingTypeStyles, MeetingTypeIndicator } from '../theme/meetingTypes';
-import { improveTemplate } from '../services/api';
 
 const defaultTemplates = [
   {
@@ -65,12 +62,9 @@ export default function Templates() {
   const [templates, setTemplates] = useState(loadTemplates());
   const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
   const [editedContent, setEditedContent] = useState(selectedTemplate.content);
-  const [loading, setLoading] = useState(false);
   const [showSnackbar, setShowSnackbar] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
-  const [adjustment, setAdjustment] = useState('');
-  const maxChars = 150;
 
   // Save templates to localStorage whenever they change
   useEffect(() => {
@@ -98,27 +92,6 @@ export default function Templates() {
     setShowSnackbar(true);
     setSnackbarMessage('Template saved!');
     setSnackbarSeverity('success');
-  };
-
-  const handleAIAdjustment = async () => {
-    if (!adjustment.trim()) return;
-    
-    setLoading(true);
-    try {
-      const improvedContent = await improveTemplate(selectedTemplate.content, adjustment);
-      handleContentChange(improvedContent);
-      setAdjustment('');
-      setShowSnackbar(true);
-      setSnackbarMessage('Template improved successfully');
-      setSnackbarSeverity('success');
-    } catch (error) {
-      console.error('Failed to improve template:', error);
-      setShowSnackbar(true);
-      setSnackbarMessage('Failed to improve template. Please try again.');
-      setSnackbarSeverity('error');
-    } finally {
-      setLoading(false);
-    }
   };
 
   return (
