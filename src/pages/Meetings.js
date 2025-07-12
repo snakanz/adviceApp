@@ -12,6 +12,9 @@ import MicIcon from '@mui/icons-material/Mic';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
+import ShareIcon from '@mui/icons-material/Share';
+import Avatar from '@mui/material/Avatar';
+import Tooltip from '@mui/material/Tooltip';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -53,6 +56,26 @@ function getMeetingSource(meeting) {
   if (meeting.hangoutLink || meeting.conferenceData) return 'google';
   if (meeting.outlookEventId) return 'outlook'; // Example field for Outlook
   return 'default';
+}
+
+// Helper to format meeting time range
+function formatMeetingTime(meeting) {
+  if (!meeting?.start?.dateTime || !meeting?.end?.dateTime) return '';
+  const start = new Date(meeting.start.dateTime);
+  const end = new Date(meeting.end.dateTime);
+  return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+// Helper to render participant avatars/initials
+function renderParticipants(meeting) {
+  if (!meeting?.attendees || !Array.isArray(meeting.attendees)) return null;
+  return meeting.attendees.slice(0, 3).map((att, idx) => (
+    <Tooltip title={att.displayName || att.email} key={att.email || idx}>
+      <Avatar sx={{ width: 32, height: 32, fontSize: 14, ml: idx > 0 ? -1 : 0, bgcolor: '#f3f4f6', color: '#222', border: '2px solid #fff' }}>
+        {att.displayName ? att.displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2) : (att.email ? att.email[0].toUpperCase() : '?')}
+      </Avatar>
+    </Tooltip>
+  ));
 }
 
 export default function Meetings() {
@@ -331,12 +354,15 @@ export default function Meetings() {
                         >
                           {meeting.summary || meeting.title || 'Untitled meeting'}
                         </Typography>
-                        <Typography 
-                          variant="body2" 
-                          sx={{ color: '#666666', fontSize: '13px' }}
-                        >
-                          {meeting.start?.dateTime ? formatDateTime(meeting.start.dateTime) : ''}
-                        </Typography>
+                        {/* Remove the date from inside the card for past meetings */}
+                        {!isPast && (
+                          <Typography 
+                            variant="body2" 
+                            sx={{ color: '#666666', fontSize: '13px' }}
+                          >
+                            {meeting.start?.dateTime ? formatDateTime(meeting.start.dateTime) : ''}
+                          </Typography>
+                        )}
                       </Box>
                     </Card>
                   );
@@ -416,32 +442,43 @@ export default function Meetings() {
         >
           {selectedMeetingId ? (
             <>
-              {/* Future Meeting: Show only Meeting Prep */}
-              {!isPastMeeting && (
-                <Box sx={{ p: 4 }}>
-                  <Typography variant="h4" sx={{ fontWeight: 700, color: '#1E1E1E', mb: 2 }}>
-                    Meeting Prep
+              {/* Meeting Header (for both past and future meetings) */}
+              <Box sx={{ px: 4, pt: 4, pb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box>
+                  <Typography variant="h3" sx={{ fontWeight: 700, color: '#1E1E1E', mb: 1, textAlign: 'left' }}>
+                    {selectedMeeting?.summary || selectedMeeting?.title || 'Untitled Meeting'}
                   </Typography>
-                  <Typography variant="body1" sx={{ color: '#666', mb: 2 }}>
-                    Upload documents or notes to prepare for this meeting.
-                  </Typography>
-                  <Button variant="outlined" startIcon={<UploadFileIcon />} onClick={() => setOpenUploadDialog(true)}>
-                    Upload Document
-                  </Button>
-                  {/* You can add a list of uploaded files here if needed */}
-                </Box>
-              )}
-              
-              {/* Past Meeting: Show tabs */}
-              {isPastMeeting && (
-                <>
-                  {/* Tab Switcher */}
-                  <Box sx={{ display: 'flex', gap: 2, p: 4, pb: 2 }}>
-                    <Button variant={activeTab === 'summary' ? 'contained' : 'outlined'} onClick={() => setActiveTab('summary')}>Summary</Button>
-                    <Button variant={activeTab === 'transcript' ? 'contained' : 'outlined'} onClick={() => setActiveTab('transcript')}>Transcript</Button>
-                    <Button variant={activeTab === 'notes' ? 'contained' : 'outlined'} onClick={() => setActiveTab('notes')}>Notes</Button>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
+                    {/* Platform Icon */}
+                    {(() => {
+                      const source = getMeetingSource(selectedMeeting);
+                      if (source === 'google') return <GoogleIcon size={24} />;
+                      if (source === 'outlook') return <OutlookIcon size={24} />;
+                      return <EventIcon sx={{ color: '#888' }} />;
+                    })()}
+                    {/* Meeting Time */}
+                    <Typography variant="body1" sx={{ color: '#666', fontWeight: 500 }}>
+                      {formatMeetingTime(selectedMeeting)}
+                    </Typography>
+                    {/* Participants */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', ml: 2 }}>
+                      {renderParticipants(selectedMeeting)}
+                    </Box>
+                    {/* Share Icon */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', ml: 2 }}>
+                      <ShareIcon sx={{ color: '#888', fontSize: 22, cursor: 'pointer', ml: 1 }} />
+                      <Typography variant="body2" sx={{ color: '#888', ml: 0.5 }}>Share</Typography>
+                    </Box>
                   </Box>
-                </>
+                </Box>
+              </Box>
+              {/* Tab Switcher (unchanged) */}
+              {(isPastMeeting || !isPastMeeting) && (
+                <Box sx={{ display: 'flex', gap: 2, px: 4, pb: 2 }}>
+                  <Button variant={activeTab === 'summary' ? 'contained' : 'outlined'} onClick={() => setActiveTab('summary')}>Summary</Button>
+                  <Button variant={activeTab === 'transcript' ? 'contained' : 'outlined'} onClick={() => setActiveTab('transcript')}>Transcript</Button>
+                  <Button variant={activeTab === 'notes' ? 'contained' : 'outlined'} onClick={() => setActiveTab('notes')}>Notes</Button>
+                </Box>
               )}
               {/* Transcript Tab Logic */}
               {activeTab === 'transcript' && isPastMeeting && (() => {
