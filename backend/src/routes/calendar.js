@@ -285,4 +285,21 @@ router.post('/meetings/:eventId/attachments', authenticateToken, async (req, res
   }
 });
 
+// Generate email summary for a meeting (AI or template)
+router.post('/meetings/:id/generate-summary', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { transcript, prompt } = req.body;
+    if (!transcript || !prompt) {
+      return res.status(400).json({ error: 'Transcript and prompt are required.' });
+    }
+    // Call OpenAI to generate summary
+    const summary = await openai.generateMeetingSummary(transcript, undefined, { prompt });
+    res.json({ summary });
+  } catch (error) {
+    console.error('Error generating email summary:', error);
+    res.status(500).json({ error: 'Failed to generate email summary.' });
+  }
+});
+
 module.exports = router; 

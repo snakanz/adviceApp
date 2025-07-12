@@ -69,6 +69,49 @@ export default function Meetings() {
   const { isAuthenticated } = useAuth();
   const [meetingView, setMeetingView] = useState('future'); // 'future' or 'past'
   
+  const [showEmailSummaryUI, setShowEmailSummaryUI] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState('auto');
+  const [emailBody, setEmailBody] = useState('');
+  const [loadingEmailSummary, setLoadingEmailSummary] = useState(false);
+
+  const defaultTemplate = {
+    intro: 'Hi [Client Name],\n\nThank you for joining the intro meeting. Here are the key points discussed...\n\nBest,\n[Your Name]',
+    cashflow: 'Hi [Client Name],\n\nHere is a summary of our cashflow meeting...\n\nBest,\n[Your Name]',
+    performance: 'Hi [Client Name],\n\nHere is a summary of your portfolio performance...\n\nBest,\n[Your Name]',
+    signup: 'Hi [Client Name],\n\nWelcome aboard! Here are the next steps after your signup...\n\nBest,\n[Your Name]'
+  };
+
+  const handleTemplateChange = async (template) => {
+    setSelectedTemplate(template);
+    if (template === 'auto') {
+      // 4. Call backend to generate AI summary
+      setLoadingEmailSummary(true);
+      try {
+        const res = await fetch(`${API_URL}/calendar/meetings/${selectedMeetingId}/generate-summary`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('jwt')}`
+          },
+          body: JSON.stringify({
+            transcript: selectedMeeting.transcript,
+            prompt: 'Summarise this financial advisor meeting as an email to the client using professional tone. Include key points discussed, any action items, and next steps.'
+          })
+        });
+        if (!res.ok) throw new Error('Failed to generate summary');
+        const data = await res.json();
+        setEmailBody(data.summary || '');
+      } catch (err) {
+        setEmailBody('Error generating summary.');
+      } finally {
+        setLoadingEmailSummary(false);
+      }
+    } else {
+      // 5. Load template (from defaultTemplate for now)
+      setEmailBody(defaultTemplate[template] || '');
+    }
+  };
+  
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
   const selectedMeeting = React.useMemo(() => {
@@ -623,7 +666,70 @@ export default function Meetings() {
                 })()}
                 {/* Other tabs: just show the tab name for now */}
                 {activeTab === 'summary' && (
-                  <Box sx={{ mt: 6, textAlign: 'center', fontSize: 32, color: '#007AFF', fontWeight: 700 }}>Summary</Box>
+                  <Box sx={{ mt: 6, textAlign: 'center' }}>
+                    {/* 1. Check if meeting is past and has transcript */}
+                    {selectedMeeting && isPastMeeting && selectedMeeting.transcript ? (
+                      <>
+                        {/* 2. Generate Email Summary Button */}
+                        {!showEmailSummaryUI ? (
+                          <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={() => setShowEmailSummaryUI(true)}
+                            sx={{ mb: 3 }}
+                          >
+                            Generate Email Summary
+                          </Button>
+                        ) : (
+                          <Box sx={{ maxWidth: 500, mx: 'auto', textAlign: 'left' }}>
+                            {/* 3. Dropdown for template selection */}
+                            <Typography variant="h6" sx={{ mb: 1 }}>Choose a template:</Typography>
+                            <select
+                              value={selectedTemplate}
+                              onChange={e => handleTemplateChange(e.target.value)}
+                              style={{ width: '100%', padding: 8, fontSize: 16, marginBottom: 16 }}
+                            >
+                              <option value="auto">Auto (AI Generated)</option>
+                              <option value="intro">Intro Meeting</option>
+                              <option value="cashflow">Cashflow Meeting</option>
+                              <option value="performance">Performance Meeting</option>
+                              <option value="signup">Signup Meeting</option>
+                            </select>
+                            {/* 4. If Auto, show spinner while loading, else show textarea for editing */}
+                            {loadingEmailSummary ? (
+                              <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
+                                <CircularProgress />
+                              </Box>
+                            ) : (
+                              <TextField
+                                multiline
+                                minRows={8}
+                                fullWidth
+                                value={emailBody}
+                                onChange={e => setEmailBody(e.target.value)}
+                                sx={{ mb: 2, background: '#f9fafb', borderRadius: 2 }}
+                                placeholder="Email summary will appear here..."
+                              />
+                            )}
+                            {/* 5. Send Email Button (placeholder) */}
+                            <Button
+                              variant="contained"
+                              color="success"
+                              sx={{ mt: 2, width: '100%' }}
+                              disabled={!emailBody || loadingEmailSummary}
+                              onClick={() => alert('Send Email functionality coming soon!')}
+                            >
+                              Send Email
+                            </Button>
+                          </Box>
+                        )}
+                      </>
+                    ) : (
+                      <Typography variant="body1" sx={{ color: '#888' }}>
+                        To generate an email summary, upload a transcript for a past meeting.
+                      </Typography>
+                    )}
+                  </Box>
                 )}
                 {activeTab === 'notes' && (
                   <Box sx={{ mt: 6, textAlign: 'center', fontSize: 32, color: '#007AFF', fontWeight: 700 }}>Notes</Box>
