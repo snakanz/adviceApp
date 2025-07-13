@@ -11,47 +11,20 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// GET /api/clients - returns unique clients (by attendee email) and their meetings
+// GET /api/clients - returns all real clients for the advisor
 router.get('/', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
   try {
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
-    const userEmail = decoded.email;
-
-    // Get all meetings for this advisor
-    const result = await pool.query('SELECT id, title, starttime, endtime, attendees FROM meetings WHERE userid = $1', [userId]);
-    const meetings = result.rows;
-
-    // Map: email -> { email, meetings: [] }
-    const clientsMap = {};
-    meetings.forEach(meeting => {
-      let attendees = [];
-      try {
-        attendees = JSON.parse(meeting.attendees || '[]');
-      } catch (e) {
-        attendees = [];
-      }
-      attendees.forEach(att => {
-        // Use email as unique key, skip advisor's own email
-        if (att && att.email && att.email !== userEmail) {
-          if (!clientsMap[att.email]) {
-            clientsMap[att.email] = { email: att.email, name: att.displayName || '', meetings: [] };
-          }
-          clientsMap[att.email].meetings.push({
-            id: meeting.id,
-            title: meeting.title,
-            starttime: meeting.starttime,
-            endtime: meeting.endtime
-          });
-        }
-      });
-    });
-
-    // Return as array
-    res.json(Object.values(clientsMap));
+    const advisorId = decoded.id;
+    // Query all real clients for this advisor
+    const result = await pool.query(
+      'SELECT id, name, emails, likely_value, business_type, likely_close_month, email, ai_summary, created_at, updated_at FROM clients WHERE advisor_id = $1',
+      [advisorId]
+    );
+    res.json(result.rows);
   } catch (error) {
     console.error('Error fetching clients:', error);
     res.status(500).json({ error: 'Failed to fetch clients' });
