@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Typography, Button, Snackbar, Alert, CircularProgress, Card, Stack,
-  TextField, Dialog, DialogTitle, DialogContent, DialogActions
+  TextField, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem,
+  IconButton
 } from '@mui/material';
 import EventIcon from '@mui/icons-material/Event';
 import EditIcon from '@mui/icons-material/Edit';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -77,6 +80,41 @@ function renderParticipants(meeting) {
       </Avatar>
     </Tooltip>
   ));
+}
+
+const defaultTemplates = [
+  {
+    id: 'intro',
+    title: 'Intro Meeting',
+    content: `Dear [Client Name],\n\nThank you for meeting with me today. Here's a summary of our discussion and next steps.\n\nKey Points:\n- Your current financial situation\n- Your goals and priorities\n- Next steps for our engagement\n\nPlease let me know if you have any questions.\n\nBest regards,\n[Your Name]`,
+  },
+  {
+    id: 'cashflow',
+    title: 'Cashflow Meeting',
+    content: `Dear [Client Name],\n\nThank you for our recent meeting to review your cashflow.\n\nKey Points:\n- Income and expenses overview\n- Budgeting and savings opportunities\n- Action items for next steps\n\nLet me know if you need clarification on any points.\n\nBest regards,\n[Your Name]`,
+  },
+  {
+    id: 'performance',
+    title: 'Performance Meeting',
+    content: `Dear [Client Name],\n\nThank you for meeting to review your portfolio performance.\n\nKey Points:\n- Portfolio returns and allocation\n- Market commentary\n- Recommendations and next steps\n\nPlease reach out if you have any questions.\n\nBest regards,\n[Your Name]`,
+  },
+  {
+    id: 'signup',
+    title: 'Signup Meeting',
+    content: `Dear [Client Name],\n\nCongratulations on taking the next step! Here's a summary of your signup meeting.\n\nKey Points:\n- Services agreed upon\n- Documentation required\n- Next steps for onboarding\n\nWe look forward to working with you.\n\nBest regards,\n[Your Name]`,
+  },
+];
+
+function loadTemplates() {
+  const saved = localStorage.getItem('advicly_templates');
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      return defaultTemplates;
+    }
+  }
+  return defaultTemplates;
 }
 
 export default function Meetings() {
@@ -388,6 +426,49 @@ export default function Meetings() {
     setUploadedFiles(prev => [...prev, ...files]);
   };
 
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [templates, setTemplates] = useState(loadTemplates());
+  
+  // Dropdown menu state
+  const [summaryMenuAnchor, setSummaryMenuAnchor] = useState(null);
+  const [summaryMenuOpen, setSummaryMenuOpen] = useState(false);
+
+  // Copy to clipboard functionality
+  const handleCopyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(summaryContent);
+      setShowSnackbar(true);
+      setSnackbarMessage('Summary copied to clipboard!');
+      setSnackbarSeverity('success');
+    } catch (err) {
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to copy to clipboard');
+      setSnackbarSeverity('error');
+    }
+  };
+
+  // Dropdown menu handlers
+  const handleSummaryMenuOpen = (event) => {
+    setSummaryMenuAnchor(event.currentTarget);
+    setSummaryMenuOpen(true);
+  };
+
+  const handleSummaryMenuClose = () => {
+    setSummaryMenuAnchor(null);
+    setSummaryMenuOpen(false);
+  };
+
+  const handleEditSummary = () => {
+    handleSummaryMenuClose();
+    setShowAIDialog(true);
+  };
+
+  const handleRegenerateSummary = () => {
+    handleSummaryMenuClose();
+    handleGenerateAISummary();
+  };
+
   return (
     <>
       <Box sx={{ height: 'calc(100vh - 128px)', display: 'flex', gap: 3 }}>
@@ -554,54 +635,109 @@ export default function Meetings() {
                   </Box>
                 );
               })()}
-              {/* Other tabs: just show the tab name for now */}
-              {activeTab === 'summary' && (
-                <Box sx={{ mt: 6, textAlign: 'center' }}>
-                  {selectedMeeting && isPastMeeting && selectedMeeting.transcript ? (
-                    <>
-                      {/* Only show the Generate AI Summary Email button */}
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={handleGenerateAISummary}
-                        sx={{ mb: 3 }}
-                      >
-                        Generate AI Summary Email
-                      </Button>
-                      <Box sx={{ maxWidth: 500, mx: 'auto', textAlign: 'left' }}>
-                        {loadingEmailSummary ? (
-                          <Box sx={{ display: 'flex', justifyContent: 'center', my: 3 }}>
-                            <CircularProgress />
-                          </Box>
-                        ) : (
-                          <TextField
-                            multiline
-                            minRows={8}
-                            fullWidth
-                            value={emailBody}
-                            onChange={e => setEmailBody(e.target.value)}
-                            sx={{ mb: 2, background: '#f9fafb', borderRadius: 2 }}
-                            placeholder="Email summary will appear here..."
-                          />
-                        )}
-                        <Button
-                          variant="contained"
-                          color="success"
-                          sx={{ mt: 2, width: '100%' }}
-                          disabled={!emailBody || loadingEmailSummary}
-                          onClick={() => alert('Send Email functionality coming soon!')}
-                        >
-                          Send Email
-                        </Button>
-                      </Box>
-                    </>
-                  ) : (
-                    <Typography variant="body1" sx={{ color: '#888' }}>
-                      To generate an email summary, upload a transcript for a past meeting.
-                    </Typography>
-                  )}
-                </Box>
-              )}
+              {/* Summary Tab Logic */}
+              {activeTab === 'summary' && (() => {
+                const hasSummary = summaryContent && summaryContent.length > 0;
+                const hasTranscript = selectedMeeting?.transcript && selectedMeeting.transcript.trim() !== '' && selectedMeeting.transcript.toLowerCase() !== 'null';
+
+                if (!hasSummary && hasTranscript) {
+                  return (
+                    <Box sx={{ mt: 6, textAlign: 'center' }}>
+                      <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Summary</Typography>
+                      <Typography variant="h6" sx={{ color: '#888', mb: 2 }}>No summary available. Generate one?</Typography>
+                      <Stack direction="row" spacing={2} justifyContent="center">
+                        <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setShowAIDialog(true)}>✍️ Auto Generate with Advicly AI</Button>
+                        <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setShowTemplateModal(true)}>📄 Use a Template</Button>
+                      </Stack>
+                    </Box>
+                  );
+                } else if (hasSummary) {
+                  return (
+                    <Box sx={{ mt: 6, textAlign: 'center' }}>
+                      <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Summary</Typography>
+                      <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', mb: 3, position: 'relative' }}>
+                        {/* Action buttons in top-right corner */}
+                        <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 1 }}>
+                          {/* Copy button */}
+                          <Tooltip title="Copy to clipboard">
+                            <IconButton
+                              size="small"
+                              onClick={handleCopyToClipboard}
+                              sx={{
+                                width: 32,
+                                height: 32,
+                                color: '#888',
+                                background: 'transparent',
+                                '&:hover': { background: '#eee', color: '#007AFF' }
+                              }}
+                            >
+                              <ContentCopyIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          
+                          {/* Dropdown menu button */}
+                          <Tooltip title="More options">
+                            <IconButton
+                              size="small"
+                              onClick={handleSummaryMenuOpen}
+                              sx={{
+                                width: 32,
+                                height: 32,
+                                color: '#888',
+                                background: 'transparent',
+                                '&:hover': { background: '#eee', color: '#007AFF' }
+                              }}
+                            >
+                              <MoreVertIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          
+                          {/* Delete (X) button */}
+                          <Button
+                            size="small"
+                            onClick={async () => {
+                              const token = localStorage.getItem('jwt');
+                              await fetch(`${process.env.REACT_APP_API_URL}/calendar/meetings/${selectedMeetingId}/summary`, {
+                                method: 'DELETE',
+                                headers: { 'Authorization': `Bearer ${token}` }
+                              });
+                              await fetchMeetings();
+                              setSelectedMeetingId(selectedMeetingId); // force UI update
+                              setActiveTab('summary'); // ensure summary options are shown
+                            }}
+                            sx={{
+                              minWidth: 0,
+                              width: 32,
+                              height: 32,
+                              borderRadius: '50%',
+                              color: '#888',
+                              background: 'transparent',
+                              fontWeight: 700,
+                              fontSize: 18,
+                              '&:hover': { background: '#eee', color: '#b00' }
+                            }}
+                          >
+                            ×
+                          </Button>
+                        </Box>
+                        
+                        <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap', pr: 8 }}>{summaryContent}</Typography>
+                      </Card>
+                    </Box>
+                  );
+                } else {
+                  return (
+                    <Box sx={{ mt: 6, textAlign: 'center' }}>
+                      <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Summary</Typography>
+                      <Typography variant="h6" sx={{ color: '#888', mb: 2 }}>No summary available. Generate one?</Typography>
+                      <Stack direction="row" spacing={2} justifyContent="center">
+                        <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setShowAIDialog(true)}>✍️ Auto Generate with Advicly AI</Button>
+                        <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setShowTemplateModal(true)}>📄 Use a Template</Button>
+                      </Stack>
+                    </Box>
+                  );
+                }
+              })()}
               {activeTab === 'notes' && (
                 <Box sx={{ mt: 6, textAlign: 'center' }}>
                   <Typography sx={{ fontSize: 32, color: '#007AFF', fontWeight: 700, mb: 3 }}>Notes</Typography>
@@ -719,6 +855,58 @@ export default function Meetings() {
             <Button onClick={handleUploadAudioSubmit} variant="contained">Upload</Button>
           </DialogActions>
         </Dialog>
+
+        {/* Template Selection Modal */}
+        <Dialog open={showTemplateModal} onClose={() => setShowTemplateModal(false)}>
+          <DialogTitle>Select a Template</DialogTitle>
+          <DialogContent>
+            {templates.map((template) => (
+              <Box key={template.id} sx={{ mb: 2, p: 2, border: '1px solid #eee', borderRadius: 2, cursor: 'pointer', bgcolor: selectedTemplate?.id === template.id ? '#F0F8FF' : '#fff' }}
+                onClick={() => setSelectedTemplate(template)}
+              >
+                <Typography fontWeight={600}>{template.title}</Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1, whiteSpace: 'pre-line' }}>{template.content.slice(0, 120)}...</Typography>
+              </Box>
+            ))}
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setShowTemplateModal(false)}>Cancel</Button>
+            <Button
+              variant="contained"
+              disabled={!selectedTemplate}
+              onClick={() => {
+                // Placeholder: generate summary with selectedTemplate
+                setShowTemplateModal(false);
+              }}
+            >
+              Generate with Template
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Summary Actions Dropdown Menu */}
+        <Menu
+          anchorEl={summaryMenuAnchor}
+          open={summaryMenuOpen}
+          onClose={handleSummaryMenuClose}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'right',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+        >
+          <MenuItem onClick={handleEditSummary}>
+            <EditIcon sx={{ mr: 1, fontSize: 20 }} />
+            Edit Summary
+          </MenuItem>
+          <MenuItem onClick={handleRegenerateSummary}>
+            <EditIcon sx={{ mr: 1, fontSize: 20 }} />
+            Regenerate Summary
+          </MenuItem>
+        </Menu>
       </Box>
     </>
   );
