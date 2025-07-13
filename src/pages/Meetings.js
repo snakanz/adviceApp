@@ -22,17 +22,6 @@ import AttachFileIcon from '@mui/icons-material/AttachFile';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
-const formatDateTime = (dateTimeStr) => {
-  const date = new Date(dateTimeStr);
-  return date.toLocaleString(undefined, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-};
-
 const formatDate = (dateTimeStr) => {
   const date = new Date(dateTimeStr);
   return date.toLocaleDateString(undefined, {
