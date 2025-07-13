@@ -117,6 +117,15 @@ function loadTemplates() {
   return defaultTemplates;
 }
 
+// Helper to determine if a summary is real (not just the title or a placeholder)
+function isRealSummary(summary, meeting) {
+  if (!summary || summary.trim() === '') return false;
+  const title = meeting?.summary || meeting?.title || '';
+  if (summary.trim() === title.trim()) return false;
+  if (summary.trim().toLowerCase().includes('untitled meeting')) return false;
+  return true;
+}
+
 export default function Meetings() {
   const [meetings, setMeetings] = useState({ future: [], past: [] });
   const [selectedMeetingId, setSelectedMeetingId] = useState(null);
@@ -612,10 +621,10 @@ export default function Meetings() {
               })()}
               {/* Summary Tab Logic */}
               {activeTab === 'summary' && (() => {
-                const hasSummary = summaryContent && summaryContent.length > 0;
+                // Use improved logic to determine if a real summary exists
+                const hasRealSummary = isRealSummary(summaryContent, selectedMeeting);
                 const hasTranscript = selectedMeeting?.transcript && selectedMeeting.transcript.trim() !== '' && selectedMeeting.transcript.toLowerCase() !== 'null';
-
-                if (!hasSummary && hasTranscript) {
+                if (!hasRealSummary && hasTranscript) {
                   return (
                     <Box sx={{ mt: 6, textAlign: 'center' }}>
                       <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Summary</Typography>
@@ -626,7 +635,7 @@ export default function Meetings() {
                       </Stack>
                     </Box>
                   );
-                } else if (hasSummary) {
+                } else if (hasRealSummary) {
                   return (
                     <Box sx={{ mt: 6, textAlign: 'center' }}>
                       <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Summary</Typography>
@@ -649,7 +658,6 @@ export default function Meetings() {
                               <ContentCopyIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                          
                           {/* Dropdown menu button */}
                           <Tooltip title="More options">
                             <IconButton
@@ -666,7 +674,6 @@ export default function Meetings() {
                               <MoreVertIcon fontSize="small" />
                             </IconButton>
                           </Tooltip>
-                          
                           {/* Delete (X) button */}
                           <Button
                             size="small"
@@ -695,7 +702,6 @@ export default function Meetings() {
                             ×
                           </Button>
                         </Box>
-                        
                         <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap', pr: 8 }}>{summaryContent}</Typography>
                       </Card>
                     </Box>
