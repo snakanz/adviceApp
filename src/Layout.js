@@ -194,10 +194,6 @@ export default function Layout() {
         variant="permanent"
         anchor="left"
       >
-        {/* Logo */}
-        <Box sx={{ px: 3, pt: 3, pb: 2, borderBottom: '1px solid #F1F3F4', background: '#fff', position: 'sticky', top: 0, zIndex: 2 }}>
-          <img src={process.env.PUBLIC_URL + '/logo-advicly.png'} alt="Advicly Logo" style={{ height: 40, width: 'auto', display: 'block', margin: '0 auto' }} />
-        </Box>
         {/* Nav Items */}
         <Box sx={{ flex: 1, overflowY: 'auto', py: 2 }}>
           <List sx={{ px: 2, py: 1 }}>
@@ -323,6 +319,10 @@ export default function Layout() {
               PRO PLAN
             </Box>
           </Box>
+        </Box>
+        {/* Logo */}
+        <Box sx={{ px: 3, pt: 2, pb: 2, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <img src={process.env.PUBLIC_URL + '/logo-advicly.png'} alt="Advicly Logo" style={{ height: 40, width: 'auto', display: 'block', margin: '0 auto' }} />
         </Box>
       </Drawer>
       {/* Main Content */}
