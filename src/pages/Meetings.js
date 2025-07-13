@@ -368,61 +368,92 @@ export default function Meetings() {
                 {date}
               </Typography>
               <Stack spacing={1}>
-                {dateMeetings.map((meeting) => {
+                {dateMeetings.map((meeting, idx) => {
                   const selected = meeting.id === selectedMeetingId;
-                  const source = getMeetingSource(meeting);
+                  // Determine icon and tooltip
                   let IconComponent = EventIcon;
-                  if (source === 'google') IconComponent = GoogleIcon;
-                  if (source === 'outlook') IconComponent = OutlookIcon;
+                  let iconTooltip = 'Other Meeting';
+                  const source = getMeetingSource(meeting);
+                  if (source === 'google') {
+                    IconComponent = GoogleIcon;
+                    iconTooltip = 'Google Meeting';
+                  } else if (source === 'outlook') {
+                    IconComponent = OutlookIcon;
+                    iconTooltip = 'Outlook Meeting';
+                  }
+                  // Extra info
+                  const location = meeting.location || '';
+                  const participantCount = meeting.attendees ? meeting.attendees.length : 0;
                   return (
-                    <Card
-                      key={meeting.id}
-                      sx={{
-                        p: 2,
-                        borderRadius: '8px',
-                        border: selected ? '2px solid #007AFF' : '1px solid #E5E5E5',
-                        backgroundColor: selected ? '#F0F8FF' : '#FFFFFF',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 2,
-                        boxShadow: selected ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
-                        transition: 'all 0.2s',
-                        '&:hover': {
-                          backgroundColor: selected ? '#E6F3FF' : '#F8F9FA',
-                          borderColor: '#007AFF',
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-                        }
-                      }}
-                      onClick={() => handleMeetingSelect(meeting)}
-                    >
-                      <Box sx={{ mr: 2, display: 'flex', alignItems: 'center' }}>
-                        <IconComponent size={32} />
-                      </Box>
-                      <Box sx={{ flex: 1 }}>
-                        <Typography 
-                          variant="body1" 
-                          sx={{ 
-                            fontWeight: 600, 
-                            color: selected ? '#007AFF' : '#1E1E1E',
-                            mb: 0.5,
-                            cursor: 'pointer',
-                            fontSize: 16
-                          }}
-                        >
-                          {meeting.summary || meeting.title || 'Untitled meeting'}
-                        </Typography>
-                        {/* Remove the date from inside the card for past meetings */}
-                        {!isPast && (
-                          <Typography 
-                            variant="body2" 
-                            sx={{ color: '#666666', fontSize: '13px' }}
+                    <React.Fragment key={meeting.id}>
+                      <Card
+                        sx={{
+                          minHeight: 64,
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 2,
+                          p: 2,
+                          borderRadius: '16px',
+                          border: selected ? '2px solid #007AFF' : '1px solid #E5E5E5',
+                          backgroundColor: selected ? '#F0F8FF' : '#FFFFFF',
+                          boxShadow: selected ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          '&:hover': {
+                            backgroundColor: selected ? '#E6F3FF' : '#F8F9FA',
+                            borderColor: '#007AFF',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                          },
+                          mb: 1
+                        }}
+                        onClick={() => handleMeetingSelect(meeting)}
+                      >
+                        {/* Icon with tooltip */}
+                        <Tooltip title={iconTooltip}>
+                          <Box sx={{ mr: 2, display: 'flex', alignItems: 'center' }}>
+                            <IconComponent size={32} />
+                          </Box>
+                        </Tooltip>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography
+                            variant="body1"
+                            sx={{
+                              fontWeight: 600,
+                              color: selected ? '#007AFF' : '#1E1E1E',
+                              mb: 0.5,
+                              fontSize: 16,
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
                           >
-                            {meeting.start?.dateTime ? formatDateTime(meeting.start.dateTime) : ''}
+                            {meeting.summary || meeting.title || 'Untitled meeting'}
                           </Typography>
-                        )}
-                      </Box>
-                    </Card>
+                          <Typography
+                            variant="body2"
+                            sx={{ color: '#666666', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                          >
+                            {meeting.start?.dateTime && meeting.end?.dateTime ? `${new Date(meeting.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to ${new Date(meeting.end.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+                          </Typography>
+                          {/* Extra info row */}
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
+                            {location && (
+                              <Typography variant="caption" sx={{ color: '#888', fontSize: 13, mr: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {location}
+                              </Typography>
+                            )}
+                            {participantCount > 0 && (
+                              <Typography variant="caption" sx={{ color: '#888', fontSize: 13 }}>
+                                {participantCount} participant{participantCount > 1 ? 's' : ''}
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      </Card>
+                      {/* Divider between cards, except after last */}
+                      {idx < dateMeetings.length - 1 && <Box sx={{ height: 8 }} />}
+                    </React.Fragment>
                   );
                 })}
               </Stack>
