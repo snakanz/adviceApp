@@ -13,6 +13,7 @@ import Templates from './pages/Templates';
 import Settings from './pages/Settings';
 import LoginPage from './pages/LoginPage';
 import AuthCallback from './pages/AuthCallback';
+import AskAdvicly from './pages/AskAdvicly';
 
 function PrivateRoute() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -41,6 +42,7 @@ function App() {
             <Route path="pipeline" element={<Pipeline />} />
             <Route path="templates" element={<Templates />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="ask-advicly" element={<AskAdvicly />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to="/meetings" />} />
