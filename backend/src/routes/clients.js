@@ -135,6 +135,35 @@ router.post('/:clientEmail/ai-summary', async (req, res) => {
   }
 });
 
+// POST /api/clients/upsert - upsert a client by email for the advisor
+router.post('/upsert', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const advisorId = decoded.id;
+    const { email, name } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required' });
+    // Check if client exists
+    const existing = await pool.query('SELECT * FROM clients WHERE advisor_id = $1 AND email = $2', [advisorId, email]);
+    let client;
+    if (existing.rows.length > 0) {
+      // Update name
+      const result = await pool.query('UPDATE clients SET name = $1, updated_at = NOW() WHERE advisor_id = $2 AND email = $3 RETURNING *', [name, advisorId, email]);
+      client = result.rows[0];
+    } else {
+      // Insert new client
+      const result = await pool.query('INSERT INTO clients (advisor_id, email, name, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW()) RETURNING *', [advisorId, email, name]);
+      client = result.rows[0];
+    }
+    res.json(client);
+  } catch (error) {
+    console.error('Error upserting client:', error);
+    res.status(500).json({ error: 'Failed to upsert client' });
+  }
+});
+
 // PATCH /api/clients/:clientId - update client details
 router.patch('/:clientId', async (req, res) => {
   const auth = req.headers.authorization;

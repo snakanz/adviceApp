@@ -69,16 +69,10 @@ export default function Clients() {
 
   // Add this function to open the drawer and populate the form
   const openEditDrawer = () => {
-    if (!selectedClient || !selectedClient.id) {
-      alert('This client cannot be edited (no id)');
-      return;
-    }
+    if (!selectedClient) return;
     setEditForm({
       name: selectedClient.name || '',
-      emails: selectedClient.emails || (selectedClient.email ? [selectedClient.email] : ['']),
-      likely_value: selectedClient.likely_value || '',
-      business_type: selectedClient.business_type || '',
-      likely_close_month: selectedClient.likely_close_month || ''
+      email: selectedClient.email || '',
     });
     setDrawerOpen(true);
   };
@@ -98,8 +92,8 @@ export default function Clients() {
     setSaving(true);
     try {
       const token = localStorage.getItem('jwt');
-      const res = await fetch(`/api/clients/${selectedClient.id}`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/clients/upsert`, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
@@ -222,7 +216,7 @@ export default function Clients() {
                     )}
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={openEditDrawer} disabled={!selectedClient?.id}>
+                <Button variant="outline" size="sm" onClick={openEditDrawer}>
                   Edit
                 </Button>
               </div>
@@ -445,56 +439,10 @@ export default function Clients() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1">Email Addresses</label>
-                  {(editForm.emails || []).map((email, idx) => (
-                    <div key={idx} className="flex items-center gap-2 mb-2">
-                      <Input
-                        value={email}
-                        onChange={e => handleEmailChange(idx, e.target.value)}
-                        placeholder="Enter email address"
-                        type="email"
-                      />
-                      {(editForm.emails || []).length > 1 && (
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removeEmailField(idx)}>
-                          &times;
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                  <Button type="button" variant="outline" size="sm" onClick={addEmailField}>
-                    + Add Email
-                  </Button>
-                </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Likely Value of Transaction</label>
+            <label className="block text-sm font-medium mb-1">Email Address</label>
             <Input
-              value={editForm.likely_value || ''}
-              onChange={e => handleEditChange('likely_value', e.target.value)}
-              placeholder="e.g. 10000"
-              type="number"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Type of Business</label>
-            <select
-              className="w-full border border-border rounded-lg p-2 bg-background text-foreground"
-              value={editForm.business_type || ''}
-              onChange={e => handleEditChange('business_type', e.target.value)}
-            >
-              <option value="">Select type</option>
-              <option value="Pension">Pension</option>
-              <option value="Pension Regular">Pension Regular</option>
-              <option value="ISA">ISA</option>
-              <option value="Mortgage">Mortgage</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Likely Close Month</label>
-            <Input
-              value={editForm.likely_close_month || ''}
-              onChange={e => handleEditChange('likely_close_month', e.target.value)}
-              type="month"
+              value={editForm.email || ''}
+              disabled
             />
           </div>
           <div className="flex gap-2 pt-4">
