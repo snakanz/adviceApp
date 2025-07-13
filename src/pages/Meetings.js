@@ -301,6 +301,37 @@ export default function Meetings() {
     }
   };
 
+  // Handler for generating the AI summary (used for initial summary generation)
+  const handleAutoGenerateSummary = async () => {
+    if (!selectedMeeting?.transcript) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/calendar/generate-summary`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('jwt')}`
+        },
+        body: JSON.stringify({
+          transcript: selectedMeeting.transcript
+        })
+      });
+      if (!res.ok) throw new Error('Failed to generate summary');
+      const data = await res.json();
+      setSummaryContent(data.summary || '');
+      setShowSnackbar(true);
+      setSnackbarMessage('Summary generated successfully!');
+      setSnackbarSeverity('success');
+      await fetchMeetings();
+    } catch (err) {
+      setShowSnackbar(true);
+      setSnackbarMessage('Error generating summary.');
+      setSnackbarSeverity('error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Update renderGroupedMeetings to show icons and improved styling
   const renderGroupedMeetings = (meetings, title, isPast = false) => {
     const grouped = groupMeetingsByDate(meetings);
@@ -701,7 +732,7 @@ export default function Meetings() {
                       <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Summary</Typography>
                       <Typography variant="h6" sx={{ color: '#888', mb: 2 }}>No summary available. Generate one?</Typography>
                       <Stack direction="row" spacing={2} justifyContent="center">
-                        <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setShowAIDialog(true)}>✍️ Auto Generate with Advicly AI</Button>
+                        <Button startIcon={<EditIcon />} variant="outlined" onClick={handleAutoGenerateSummary}>✍️ Auto Generate with Advicly AI</Button>
                         <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setShowTemplateModal(true)}>📄 Use a Template</Button>
                       </Stack>
                     </Box>
