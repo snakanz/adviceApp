@@ -161,4 +161,29 @@ export const improveTemplate = async (template, improvement) => {
     console.error('Error improving template:', error);
     throw error;
   }
+};
+
+export const generateAISummary = async (transcript) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/generate-summary`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': api.token ? `Bearer ${api.token}` : '',
+      },
+      body: JSON.stringify({
+        transcript,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to generate AI summary');
+    }
+
+    const data = await response.json();
+    return data.summary;
+  } catch (error) {
+    console.error('Error generating AI summary:', error);
+    throw error;
+  }
 }; 

@@ -20,10 +20,11 @@ import {
   MessageSquare,
   Sparkles,
   Play,
-  Pause
+  Pause,
+  X
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
-import { adjustMeetingSummary } from '../services/api';
+import { adjustMeetingSummary, generateAISummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
@@ -103,6 +104,7 @@ export default function Meetings() {
   // Add state for UI mode
   const [showPasteTranscript, setShowPasteTranscript] = useState(false);
   const [deletingTranscript, setDeletingTranscript] = useState(false);
+  const [generatingSummary, setGeneratingSummary] = useState(false);
 
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
@@ -258,28 +260,71 @@ export default function Meetings() {
 
   const handleDeleteTranscript = async () => {
     if (!selectedMeeting) return;
+    
     setDeletingTranscript(true);
     try {
-      await api.request(`/calendar/meetings/${selectedMeeting.id}/transcript`, {
+      const token = localStorage.getItem('jwt');
+      let url;
+      if (window.location.hostname === 'localhost') {
+        url = `${API_URL}/api/dev/meetings/${selectedMeeting.id}/transcript`;
+      } else {
+        url = `${API_URL}/calendar/meetings/${selectedMeeting.id}/transcript`;
+      }
+      
+      const response = await fetch(url, {
         method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      setMeetings(prev => {
-        const update = m => m.id === selectedMeeting.id ? { ...m, transcript: null } : m;
-        return {
-          ...prev,
-          past: prev.past.map(update),
-          future: prev.future.map(update)
-        };
-      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete transcript');
+      }
+      
+      // Update local state
+      setMeetings(prev => ({
+        ...prev,
+        past: prev.past.map(m => 
+          m.id === selectedMeeting.id 
+            ? { ...m, transcript: null }
+            : m
+        ),
+        future: prev.future.map(m => 
+          m.id === selectedMeeting.id 
+            ? { ...m, transcript: null }
+            : m
+        )
+      }));
+      
       setShowSnackbar(true);
-      setSnackbarMessage('Transcript deleted');
+      setSnackbarMessage('Transcript deleted successfully');
       setSnackbarSeverity('success');
-    } catch (err) {
+    } catch (error) {
+      console.error('Error deleting transcript:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to delete transcript');
       setSnackbarSeverity('error');
     } finally {
       setDeletingTranscript(false);
+    }
+  };
+
+  const handleGenerateAISummary = async () => {
+    if (!selectedMeeting?.transcript) return;
+    
+    setGeneratingSummary(true);
+    try {
+      const summary = await generateAISummary(selectedMeeting.transcript);
+      setSummaryContent(summary);
+      setShowSnackbar(true);
+      setSnackbarMessage('AI summary generated successfully');
+      setSnackbarSeverity('success');
+    } catch (error) {
+      console.error('Error generating AI summary:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to generate AI summary');
+      setSnackbarSeverity('error');
+    } finally {
+      setGeneratingSummary(false);
     }
   };
 
@@ -510,10 +555,22 @@ export default function Meetings() {
                   {activeTab === 'summary' && (
                     <Card className="border-border/50">
                       <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Sparkles className="w-5 h-5 text-primary" />
-                          AI-Generated Summary
-                        </CardTitle>
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="flex items-center gap-2">
+                            <Sparkles className="w-5 h-5 text-primary" />
+                            AI-Generated Summary
+                          </CardTitle>
+                          {summaryContent && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSummaryContent(null)}
+                              className="text-muted-foreground hover:text-foreground"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
                       </CardHeader>
                       <CardContent>
                         {summaryContent ? (
@@ -528,7 +585,17 @@ export default function Meetings() {
                           <div className="text-center py-12">
                             <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                             <h3 className="text-lg font-medium text-foreground mb-2">No summary available</h3>
-                            <p className="text-muted-foreground">This meeting doesn't have a summary yet.</p>
+                            <p className="text-muted-foreground mb-4">This meeting doesn't have a summary yet.</p>
+                            {selectedMeeting?.transcript && (
+                              <Button
+                                onClick={handleGenerateAISummary}
+                                disabled={generatingSummary}
+                                className="flex items-center gap-2"
+                              >
+                                <Sparkles className="w-4 h-4" />
+                                {generatingSummary ? 'Generating...' : 'Generate AI Summary'}
+                              </Button>
+                            )}
                           </div>
                         )}
                       </CardContent>
