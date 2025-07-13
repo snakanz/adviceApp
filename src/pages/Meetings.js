@@ -27,6 +27,7 @@ import { adjustMeetingSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
+import { api } from '../services/api';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -97,6 +98,9 @@ export default function Meetings() {
   const selectedMeetingIdRef = useRef(null);
   selectedMeetingIdRef.current = selectedMeetingId;
   
+  const [transcriptUpload, setTranscriptUpload] = useState('');
+  const [uploadingTranscript, setUploadingTranscript] = useState(false);
+
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
   const selectedMeeting = React.useMemo(() => {
@@ -204,6 +208,33 @@ export default function Meetings() {
       setShowSnackbar(true);
       setSnackbarMessage('Failed to copy to clipboard');
       setSnackbarSeverity('error');
+    }
+  };
+
+  const handleTranscriptUpload = async () => {
+    if (!selectedMeeting || !transcriptUpload.trim()) return;
+    setUploadingTranscript(true);
+    try {
+      await api.uploadMeetingTranscript(selectedMeeting.id, transcriptUpload.trim());
+      setShowSnackbar(true);
+      setSnackbarMessage('Transcript uploaded successfully');
+      setSnackbarSeverity('success');
+      // Update the selected meeting's transcript in state
+      setMeetings(prev => {
+        const update = m => m.id === selectedMeeting.id ? { ...m, transcript: transcriptUpload.trim() } : m;
+        return {
+          ...prev,
+          past: prev.past.map(update),
+          future: prev.future.map(update)
+        };
+      });
+      setTranscriptUpload('');
+    } catch (err) {
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to upload transcript');
+      setSnackbarSeverity('error');
+    } finally {
+      setUploadingTranscript(false);
     }
   };
 
@@ -468,11 +499,33 @@ export default function Meetings() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="text-center py-12">
-                          <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                          <h3 className="text-lg font-medium text-foreground mb-2">Transcript coming soon</h3>
-                          <p className="text-muted-foreground">Full meeting transcripts will be available here.</p>
-                        </div>
+                        {selectedMeeting.transcript ? (
+                          <div className="prose prose-invert max-w-none">
+                            <div className="bg-card/50 border border-border/50 rounded-lg p-6 whitespace-pre-wrap text-foreground leading-relaxed">
+                              {selectedMeeting.transcript}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center py-8">
+                            <FileText className="w-12 h-12 text-muted-foreground mb-4" />
+                            <h3 className="text-lg font-medium text-foreground mb-2">No transcript uploaded</h3>
+                            <p className="text-muted-foreground mb-4">Upload or paste a transcript for this meeting.</p>
+                            <textarea
+                              className="w-full max-w-lg min-h-[120px] p-3 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary mb-3"
+                              placeholder="Paste transcript here..."
+                              value={transcriptUpload || ''}
+                              onChange={e => setTranscriptUpload(e.target.value)}
+                              disabled={uploadingTranscript}
+                            />
+                            <Button
+                              onClick={handleTranscriptUpload}
+                              disabled={!transcriptUpload?.trim() || uploadingTranscript}
+                              className="w-full max-w-lg"
+                            >
+                              {uploadingTranscript ? 'Uploading...' : 'Upload Transcript'}
+                            </Button>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   )}
