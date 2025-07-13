@@ -14,7 +14,6 @@ import Settings from './pages/Settings';
 import LoginPage from './pages/LoginPage';
 import AuthCallback from './pages/AuthCallback';
 import AskAdvicly from './pages/AskAdvicly';
-import Dashboard from './pages/Dashboard';
 
 function PrivateRoute() {
   const { isAuthenticated, isLoading } = useAuth();
