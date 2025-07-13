@@ -70,7 +70,10 @@ export default function Clients() {
 
   // Add this function to open the drawer and populate the form
   const openEditDrawer = () => {
-    if (!selectedClient) return;
+    if (!selectedClient || !selectedClient.id) {
+      alert('This client cannot be edited (no id)');
+      return;
+    }
     setEditForm({
       name: selectedClient.name || '',
       emails: selectedClient.emails || (selectedClient.email ? [selectedClient.email] : ['']),
@@ -220,7 +223,7 @@ export default function Clients() {
                     )}
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={openEditDrawer}>
+                <Button variant="outline" size="sm" onClick={openEditDrawer} disabled={!selectedClient.id}>
                   Edit
                 </Button>
               </div>
