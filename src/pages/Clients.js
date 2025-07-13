@@ -48,9 +48,9 @@ export default function Clients() {
     fetchClients();
   }, []);
 
-  const filteredClients = clients.filter(c =>
-    (c.name || c.email).toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredClients = clients
+    .filter(c => (c.name || c.email).toLowerCase().includes(search.toLowerCase()))
+    .filter(c => c.id); // Only show clients with an id
 
   const selectedClient = filteredClients[selectedClientIndex] || filteredClients[0];
 
