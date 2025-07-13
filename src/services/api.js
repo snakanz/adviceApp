@@ -165,7 +165,7 @@ export const improveTemplate = async (template, improvement) => {
 
 export const generateAISummary = async (transcript) => {
   try {
-    const response = await fetch(`${API_BASE_URL}/generate-summary`, {
+    const response = await fetch(`${API_BASE_URL}/calendar/generate-summary`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
