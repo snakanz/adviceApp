@@ -6,14 +6,39 @@
 
 @layer base {
   :root {
+    /* Dark mode colors - these are the default now */
+    --background: 217 33% 17%; /* #1F2937 */
+    --foreground: 249 6% 98%; /* #F9FAFB */
+    --card: 217 33% 25%; /* #2D3748 */
+    --card-foreground: 249 6% 98%;
+    --popover: 217 33% 25%;
+    --popover-foreground: 249 6% 98%;
+    --primary: 142 76% 36%; /* #4ADE80 */
+    --primary-foreground: 217 33% 17%;
+    --secondary: 217 33% 25%;
+    --secondary-foreground: 249 6% 98%;
+    --muted: 217 33% 25%;
+    --muted-foreground: 156 16% 56%; /* #9CA3AF */
+    --accent: 217 33% 25%;
+    --accent-foreground: 249 6% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 249 6% 98%;
+    --border: 217 33% 30%;
+    --input: 217 33% 30%;
+    --ring: 142 76% 36%;
+    --radius: 0.75rem;
+  }
+
+  /* Light mode - kept for potential future toggle */
+  .light {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 142 76% 36%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 210 40% 96%;
     --secondary-foreground: 222.2 84% 4.9%;
     --muted: 210 40% 96%;
@@ -24,30 +49,7 @@
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --ring: 142 76% 36%;
   }
 }
 
@@ -55,8 +57,52 @@
   * {
     @apply border-border;
   }
+  
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  }
+
+  /* Typography scale */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+
+  h1 { @apply text-2xl; }
+  h2 { @apply text-xl; }
+  h3 { @apply text-lg; }
+  h4 { @apply text-base; }
+
+  /* Labels and tags */
+  .label {
+    @apply text-xs font-medium tracking-wider uppercase text-muted-foreground;
+  }
+
+  /* Pill-shaped elements */
+  .pill {
+    @apply rounded-full;
+  }
+
+  /* Line clamping utilities */
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+  }
+
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
   }
 }
 
@@ -67,28 +113,68 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #F8F9FA;
+  @apply bg-card;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #CCCCCC;
-  border-radius: 3px;
+  @apply bg-border rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #999999;
+  @apply bg-muted-foreground;
 }
 
 /* Focus styles */
 *:focus {
-  outline: 2px solid #007AFF;
-  outline-offset: 2px;
+  @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
 }
 
-button:focus,
-input:focus,
-select:focus,
-textarea:focus {
-  outline: 2px solid #007AFF;
-  outline-offset: 2px;
+/* Smooth transitions for all interactive elements */
+button, a, [role="button"] {
+  @apply transition-all duration-150;
+}
+
+/* Card hover effects */
+.card-hover {
+  @apply transition-all duration-150 hover:shadow-lg hover:scale-[1.02];
+}
+
+/* Button hover animations */
+.btn-primary {
+  @apply bg-primary text-primary-foreground hover:bg-primary/90 shadow-md hover:shadow-lg transition-all duration-150;
+}
+
+/* Sidebar styling */
+.sidebar-item {
+  @apply flex items-center gap-3 px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-150;
+}
+
+.sidebar-item.active {
+  @apply bg-primary/10 text-primary border border-primary/20;
+}
+
+/* Prose styles for dark mode */
+.prose-invert {
+  @apply text-foreground;
+}
+
+.prose-invert h1,
+.prose-invert h2,
+.prose-invert h3,
+.prose-invert h4,
+.prose-invert h5,
+.prose-invert h6 {
+  @apply text-foreground;
+}
+
+.prose-invert p {
+  @apply text-foreground;
+}
+
+.prose-invert strong {
+  @apply text-foreground;
+}
+
+.prose-invert em {
+  @apply text-muted-foreground;
 }

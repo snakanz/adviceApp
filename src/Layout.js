@@ -25,8 +25,6 @@ import {
   AutoAwesomeIcon
 } from './components/icons';
 
-
-
 const navItems = [
   { label: 'Meetings', icon: <CalendarIcon />, path: '/meetings' },
   { label: 'Clients', icon: <PeopleIcon />, path: '/clients' },
@@ -54,9 +52,9 @@ export default function Layout() {
   };
 
   return (
-    <div className="flex h-screen font-sans">
+    <div className="flex h-screen font-sans bg-background">
       {/* AppBar */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-sm border-b border-border/50 shadow-soft">
         <div className="flex items-center justify-between px-6 py-4 h-18">
           {/* Hamburger for mobile */}
           <div className="block sm:hidden">
@@ -64,7 +62,7 @@ export default function Layout() {
               variant="ghost"
               size="icon"
               onClick={() => setOpen(!open)}
-              className="text-gray-600"
+              className="text-muted-foreground hover:text-foreground"
             >
               <MenuIcon />
             </Button>
@@ -77,22 +75,22 @@ export default function Layout() {
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-gray-50"
+                className="flex items-center gap-3 px-3 py-2 rounded-full hover:bg-accent"
               >
-                <Avatar className="w-8 h-8 bg-blue-600 text-white text-sm font-semibold rounded-xl">
-                  <AvatarFallback className="bg-blue-600 text-white text-sm font-semibold rounded-xl">
+                <Avatar className="w-8 h-8 bg-primary text-primary-foreground text-sm font-semibold rounded-full">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold rounded-full">
                     {getUserInitials(user?.name)}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col items-start">
-                  <span className="text-sm font-semibold text-gray-900">
+                  <span className="text-sm font-semibold text-foreground">
                     {user?.name || 'User'}
                   </span>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-muted-foreground">
                     {user?.email || 'user@example.com'}
                   </span>
                 </div>
-                <KeyboardArrowDownIcon className="w-4 h-4 text-gray-400" />
+                <KeyboardArrowDownIcon className="w-4 h-4 text-muted-foreground" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48 mt-2">
@@ -113,10 +111,10 @@ export default function Layout() {
       </header>
 
       {/* Sidebar Drawer */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 shadow-sm z-40">
+      <aside className="fixed left-0 top-0 h-full w-64 bg-card/80 backdrop-blur-sm border-r border-border/50 shadow-soft z-40">
         <div className="flex flex-col h-full">
           {/* Logo */}
-          <div className="flex items-center justify-center p-6 border-b border-gray-100">
+          <div className="flex items-center justify-center p-6 border-b border-border/50">
             <img 
               src={process.env.PUBLIC_URL + '/logo-advicly.png'} 
               alt="Advicly Logo" 
@@ -133,17 +131,12 @@ export default function Layout() {
                   to={item.path}
                   className={({ isActive }) =>
                     cn(
-                      "flex items-center gap-3 px-3 py-2 rounded-2xl text-sm font-semibold transition-all duration-200",
-                      isActive
-                        ? "bg-blue-50 text-blue-600"
-                        : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                      "sidebar-item",
+                      isActive && "active"
                     )
                   }
                 >
-                  <span className={cn(
-                    "w-5 h-5",
-                    location.pathname === item.path ? "text-blue-600" : "text-gray-500"
-                  )}>
+                  <span className="w-5 h-5">
                     {item.icon}
                   </span>
                   {item.label}
@@ -154,7 +147,7 @@ export default function Layout() {
             {/* Analytics Section */}
             <div className="mt-6 px-4">
               <div className="mb-2">
-                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                <span className="label">
                   Analytics
                 </span>
               </div>
@@ -165,17 +158,12 @@ export default function Layout() {
                     to={item.path}
                     className={({ isActive }) =>
                       cn(
-                        "flex items-center gap-3 px-3 py-2 rounded-2xl text-sm font-semibold transition-all duration-200",
-                        isActive
-                          ? "bg-blue-50 text-blue-600"
-                          : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                        "sidebar-item",
+                        isActive && "active"
                       )
                     }
                   >
-                    <span className={cn(
-                      "w-5 h-5",
-                      location.pathname === item.path ? "text-blue-600" : "text-gray-500"
-                    )}>
+                    <span className="w-5 h-5">
                       {item.icon}
                     </span>
                     {item.label}
@@ -186,9 +174,9 @@ export default function Layout() {
           </nav>
 
           {/* Sticky Footer with Plan Badge */}
-          <div className="p-4 border-t border-gray-100">
+          <div className="p-4 border-t border-border/50">
             <div className="flex items-center justify-center">
-              <div className="bg-gradient-to-r from-blue-600 to-blue-400 text-white text-xs font-bold px-3 py-1 rounded-xl tracking-wider shadow-sm">
+              <div className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground text-xs font-bold px-3 py-1 rounded-full tracking-wider shadow-soft">
                 PRO PLAN
               </div>
             </div>
@@ -197,8 +185,8 @@ export default function Layout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 ml-0 sm:ml-64 bg-gray-50 min-h-screen pt-18">
-        <div className="p-4 sm:p-6">
+      <main className="flex-1 ml-0 sm:ml-64 bg-background min-h-screen pt-18">
+        <div className="h-full">
           <Outlet />
         </div>
       </main>
@@ -206,9 +194,9 @@ export default function Layout() {
       {/* Mobile Menu Dialog */}
       {open && (
         <div className="fixed inset-0 z-50 sm:hidden">
-          <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setOpen(false)} />
-          <div className="fixed left-0 top-0 h-full w-64 bg-white shadow-lg">
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <div className="fixed left-0 top-0 h-full w-64 bg-card/95 backdrop-blur-sm shadow-large">
+            <div className="flex items-center justify-between p-4 border-b border-border/50">
               <img 
                 src={process.env.PUBLIC_URL + '/logo-advicly.png'} 
                 alt="Advicly Logo" 
@@ -218,6 +206,7 @@ export default function Layout() {
                 variant="ghost"
                 size="icon"
                 onClick={() => setOpen(false)}
+                className="text-muted-foreground hover:text-foreground"
               >
                 <CloseIcon />
               </Button>
@@ -230,14 +219,12 @@ export default function Layout() {
                   onClick={() => setOpen(false)}
                   className={({ isActive }) =>
                     cn(
-                      "flex items-center gap-3 px-3 py-2 rounded-2xl text-sm font-semibold transition-all duration-200",
-                      isActive
-                        ? "bg-blue-50 text-blue-600"
-                        : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                      "sidebar-item",
+                      isActive && "active"
                     )
                   }
                 >
-                  <span className="w-5 h-5 text-gray-500">
+                  <span className="w-5 h-5">
                     {item.icon}
                   </span>
                   {item.label}
@@ -251,8 +238,8 @@ export default function Layout() {
       {/* New Meeting Dialog */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setOpen(false)} />
-          <Card className="w-full max-w-md">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <Card className="w-full max-w-md border-border/50">
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xl font-semibold">New Meeting</CardTitle>
@@ -260,6 +247,7 @@ export default function Layout() {
                   variant="ghost"
                   size="icon"
                   onClick={() => setOpen(false)}
+                  className="text-muted-foreground hover:text-foreground"
                 >
                   <CloseIcon />
                 </Button>
@@ -267,9 +255,9 @@ export default function Layout() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Meeting Summary</label>
+                <label className="text-sm font-medium text-foreground">Meeting Summary</label>
                 <textarea
-                  className="w-full h-24 px-3 py-2 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full h-24 px-3 py-2 border border-border bg-background text-foreground rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                   placeholder="Enter meeting summary..."
                 />
               </div>

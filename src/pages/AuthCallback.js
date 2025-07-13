@@ -2,7 +2,13 @@ import React, { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { Box, CircularProgress, Typography } from '@mui/material';
+import { Card, CardContent } from '../components/ui/card';
+import { 
+  Loader2, 
+  CheckCircle, 
+  XCircle,
+  Shield
+} from 'lucide-react';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
@@ -58,21 +64,29 @@ const AuthCallback = () => {
   }, [navigate, login, location]);
 
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        gap: 2
-      }}
-    >
-      <CircularProgress />
-      <Typography>
-        Completing sign in...
-      </Typography>
-    </Box>
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <Card className="w-full max-w-md border-border/50 shadow-large">
+        <CardContent className="p-8 text-center">
+          <div className="flex items-center justify-center mb-6">
+            <div className="p-3 bg-primary/10 rounded-full">
+              <Shield className="w-8 h-8 text-primary" />
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-center mb-4">
+            <Loader2 className="w-6 h-6 text-primary animate-spin" />
+          </div>
+          
+          <h2 className="text-xl font-semibold text-foreground mb-2">
+            Completing Sign In
+          </h2>
+          
+          <p className="text-sm text-muted-foreground">
+            Please wait while we verify your credentials and set up your session.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 

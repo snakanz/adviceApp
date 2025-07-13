@@ -1,7 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Box, Typography, TextField, Button, Paper, Avatar, Stack, CircularProgress } from '@mui/material';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import SendIcon from '@mui/icons-material/Send';
+import { Button } from '../components/ui/button';
+import { Card, CardContent } from '../components/ui/card';
+import { Avatar, AvatarFallback } from '../components/ui/avatar';
+import { cn } from '../lib/utils';
+import { 
+  Sparkles, 
+  Send, 
+  User,
+  Bot
+} from 'lucide-react';
 import { api } from '../services/api';
 
 const SYSTEM_PROMPT = 'You are a helpful assistant for financial advisors using Advicly.';
@@ -53,116 +60,107 @@ export default function AskAdvicly() {
   };
 
   return (
-    <Box sx={{
-      minHeight: '100vh',
-      bgcolor: '#F3F6FA',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      p: 2
-    }}>
-      <Paper elevation={6} sx={{
-        width: '100%',
-        maxWidth: 540,
-        minHeight: 600,
-        borderRadius: 5,
-        boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'relative',
-        overflow: 'hidden',
-        bgcolor: '#F8FAFC'
-      }}>
-        {/* Header */}
-        <Box sx={{
-          px: 4, py: 3,
-          borderBottom: '1px solid #E5E5E5',
-          bgcolor: '#fff',
-          position: 'sticky',
-          top: 0,
-          zIndex: 2
-        }}>
-          <Stack direction="row" alignItems="center" gap={2}>
-            <AutoAwesomeIcon sx={{ color: '#007AFF', fontSize: 28 }} />
-            <Typography variant="h5" fontWeight={700} color="#1E1E1E">Ask Advicly</Typography>
-          </Stack>
-        </Box>
-        {/* Chat Feed */}
-        <Box ref={feedRef} sx={{
-          flex: 1,
-          overflowY: 'auto',
-          px: 3, py: 4,
-          bgcolor: '#F8FAFC',
-          display: 'flex', flexDirection: 'column',
-        }}>
-          {messages.filter(m => m.role !== 'system').map((msg, idx) => (
-            <Box key={idx} sx={{
-              display: 'flex',
-              flexDirection: msg.role === 'user' ? 'row-reverse' : 'row',
-              alignItems: 'flex-end',
-              mb: 3
-            }}>
-              <Avatar sx={{
-                bgcolor: msg.role === 'user' ? '#007AFF' : '#F0F0F0',
-                color: msg.role === 'user' ? '#fff' : '#222',
-                ml: msg.role === 'user' ? 2 : 0, mr: msg.role === 'assistant' ? 2 : 0
-              }}>
-                {msg.role === 'user' ? 'You' : <AutoAwesomeIcon sx={{ color: '#007AFF' }} />}
-              </Avatar>
-              <Paper elevation={0} sx={{
-                p: 2,
-                borderRadius: 3,
-                bgcolor: msg.role === 'user' ? '#E6F0FF' : '#fff',
-                color: '#222',
-                maxWidth: 340,
-                minWidth: 80,
-                ml: msg.role === 'assistant' ? 1 : 0, mr: msg.role === 'user' ? 1 : 0,
-                boxShadow: msg.role === 'assistant' ? '0 1px 4px rgba(0,122,255,0.04)' : '0 1px 4px rgba(0,0,0,0.04)'
-              }}>
-                <Typography variant="body1" sx={{ whiteSpace: 'pre-line' }}>{msg.content}</Typography>
-              </Paper>
-            </Box>
-          ))}
-          {loading && (
-            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-              <CircularProgress size={20} sx={{ mr: 2 }} />
-              <Typography variant="body2" color="#888">Advicly is thinking...</Typography>
-            </Box>
-          )}
-        </Box>
-        {/* Input */}
-        <Box sx={{
-          px: 3, py: 2,
-          borderTop: '1px solid #E5E5E5',
-          bgcolor: '#fff',
-          display: 'flex', alignItems: 'center', gap: 2,
-          position: 'sticky',
-          bottom: 0,
-          zIndex: 2
-        }}>
-          <TextField
-            fullWidth
-            multiline
-            minRows={1}
-            maxRows={4}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Type your question..."
-            sx={{ borderRadius: 2, bgcolor: '#F8FAFC' }}
-          />
-          <Button
-            variant="contained"
-            color="primary"
-            endIcon={<SendIcon />}
-            onClick={handleSend}
-            disabled={loading || !input.trim()}
-            sx={{ borderRadius: 2, fontWeight: 600, px: 3, py: 1.5 }}
+    <div className="h-full flex items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-2xl h-[600px] border-border/50 shadow-large">
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="border-b border-border/50 p-6 bg-card/50">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-lg">
+                <Sparkles className="w-6 h-6 text-primary" />
+              </div>
+              <h1 className="text-xl font-bold text-foreground">Ask Advicly</h1>
+            </div>
+          </div>
+
+          {/* Chat Feed */}
+          <div 
+            ref={feedRef} 
+            className="flex-1 overflow-y-auto p-6 space-y-4 bg-background"
           >
-            Send
-          </Button>
-        </Box>
-      </Paper>
-    </Box>
+            {messages.filter(m => m.role !== 'system').map((msg, idx) => (
+              <div 
+                key={idx} 
+                className={cn(
+                  "flex items-end gap-3",
+                  msg.role === 'user' && "flex-row-reverse"
+                )}
+              >
+                <Avatar className={cn(
+                  "w-8 h-8 text-sm font-medium",
+                  msg.role === 'user' 
+                    ? "bg-primary text-primary-foreground" 
+                    : "bg-accent text-accent-foreground"
+                )}>
+                  <AvatarFallback className={cn(
+                    "text-sm font-medium",
+                    msg.role === 'user' 
+                      ? "bg-primary text-primary-foreground" 
+                      : "bg-accent text-accent-foreground"
+                  )}>
+                    {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+                  </AvatarFallback>
+                </Avatar>
+                
+                <Card className={cn(
+                  "max-w-[280px] border-border/50",
+                  msg.role === 'user' 
+                    ? "bg-primary/10 border-primary/20" 
+                    : "bg-card/50"
+                )}>
+                  <CardContent className="p-3">
+                    <div className="text-sm text-foreground whitespace-pre-line leading-relaxed">
+                      {msg.content}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ))}
+            
+            {loading && (
+              <div className="flex items-center gap-3">
+                <Avatar className="w-8 h-8 bg-accent text-accent-foreground">
+                  <AvatarFallback className="bg-accent text-accent-foreground">
+                    <Bot className="w-4 h-4" />
+                  </AvatarFallback>
+                </Avatar>
+                <Card className="border-border/50 bg-card/50">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
+                      <span className="text-sm text-muted-foreground">Advicly is thinking...</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </div>
+
+          {/* Input */}
+          <div className="border-t border-border/50 p-4 bg-card/50">
+            <div className="flex items-end gap-3">
+              <div className="flex-1">
+                <textarea
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Type your question..."
+                  className="w-full min-h-[40px] max-h-32 p-3 bg-background text-foreground border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm leading-relaxed"
+                  rows={1}
+                />
+              </div>
+              <Button
+                onClick={handleSend}
+                disabled={loading || !input.trim()}
+                className="flex items-center gap-2 px-4 py-3"
+              >
+                <Send className="w-4 h-4" />
+                Send
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
   );
 } 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '../components/ui/button';
-import { Card, CardContent } from '../components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { 
   DropdownMenu, 
@@ -16,7 +16,12 @@ import {
   Share, 
   Clock,
   Users,
-  FileText
+  FileText,
+  MessageSquare,
+  Sparkles,
+  ChevronRight,
+  Play,
+  Pause
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -58,7 +63,7 @@ function formatMeetingTime(meeting) {
   if (!meeting?.start?.dateTime || !meeting?.end?.dateTime) return '';
   const start = new Date(meeting.start.dateTime);
   const end = new Date(meeting.end.dateTime);
-  return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 }
 
 function renderParticipants(meeting) {
@@ -66,20 +71,16 @@ function renderParticipants(meeting) {
   return meeting.attendees.slice(0, 3).map((att, idx) => (
     <div key={att.email || idx} className="relative" title={att.displayName || att.email}>
       <Avatar className={cn(
-        "w-8 h-8 text-sm font-medium bg-gray-100 text-gray-700 border-2 border-white",
-        idx > 0 && "-ml-1"
+        "w-7 h-7 text-xs font-medium bg-accent text-accent-foreground border-2 border-card",
+        idx > 0 && "-ml-2"
       )}>
-        <AvatarFallback className="bg-gray-100 text-gray-700 text-sm font-medium">
+        <AvatarFallback className="bg-accent text-accent-foreground text-xs font-medium">
           {att.displayName ? att.displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2) : (att.email ? att.email[0].toUpperCase() : '?')}
         </AvatarFallback>
       </Avatar>
     </div>
   ));
 }
-
-
-
-
 
 export default function Meetings() {
   const [meetings, setMeetings] = useState({ future: [], past: [] });
@@ -214,68 +215,81 @@ export default function Meetings() {
     
     return (
       <div className="space-y-6">
-        <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-foreground">{title}</h2>
+          <span className="text-sm text-muted-foreground bg-accent px-2 py-1 rounded-full">
+            {meetings.length}
+          </span>
+        </div>
         {Object.entries(grouped).map(([date, dayMeetings]) => (
-          <div key={date} className="space-y-3">
-            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+          <div key={date} className="space-y-4">
+            <h3 className="label text-xs font-medium tracking-wider uppercase text-muted-foreground">
               {date}
             </h3>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {dayMeetings.map((meeting) => (
                 <Card
                   key={meeting.id}
                   className={cn(
-                    "cursor-pointer transition-all duration-200 hover:shadow-md",
-                    selectedMeetingId === meeting.id && "ring-2 ring-blue-500 bg-blue-50"
+                    "cursor-pointer card-hover border-border/50",
+                    selectedMeetingId === meeting.id && "ring-2 ring-primary/20 bg-primary/5 border-primary/30"
                   )}
                   onClick={() => handleMeetingSelect(meeting)}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Calendar className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm text-gray-500">
-                            {formatMeetingTime(meeting)}
-                          </span>
-                        </div>
-                        <h4 className="font-semibold text-gray-900 mb-1 truncate">
-                          {meeting.summary || meeting.title || 'Untitled Meeting'}
-                        </h4>
-                        <div className="flex items-center gap-4 text-sm text-gray-500">
-                          {meeting.attendees && meeting.attendees.length > 0 && (
-                            <div className="flex items-center gap-1">
-                              <Users className="w-4 h-4" />
-                              <span>{meeting.attendees.length} attendees</span>
-                            </div>
-                          )}
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Clock className="w-3 h-3" />
+                            <span>{formatMeetingTime(meeting)}</span>
+                          </div>
                           {getMeetingSource(meeting) === 'google' && (
-                            <GoogleIcon size={16} />
+                            <GoogleIcon size={14} className="text-muted-foreground" />
                           )}
                           {getMeetingSource(meeting) === 'outlook' && (
-                            <OutlookIcon size={16} />
+                            <OutlookIcon size={14} className="text-muted-foreground" />
                           )}
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {renderParticipants(meeting)}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={handleCopyToClipboard}>
-                              <Copy className="w-4 h-4 mr-2" />
-                              Copy Summary
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Share className="w-4 h-4 mr-2" />
-                              Share
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <h4 className="font-semibold text-foreground mb-2 line-clamp-2">
+                          {meeting.summary || meeting.title || 'Untitled Meeting'}
+                        </h4>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            {meeting.attendees && meeting.attendees.length > 0 && (
+                              <div className="flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                <span>{meeting.attendees.length}</span>
+                              </div>
+                            )}
+                            {meeting.meetingSummary && (
+                              <div className="flex items-center gap-1">
+                                <MessageSquare className="w-3 h-3" />
+                                <span>Summary</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {renderParticipants(meeting)}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7">
+                                  <MoreVertical className="w-3 h-3" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={handleCopyToClipboard}>
+                                  <Copy className="w-4 h-4 mr-2" />
+                                  Copy Summary
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                  <Share className="w-4 h-4 mr-2" />
+                                  Share
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -291,30 +305,37 @@ export default function Meetings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="flex items-center gap-3">
+          <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent"></div>
+          <span className="text-muted-foreground">Loading meetings...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex">
+    <div className="h-full flex bg-background">
       {/* Left Panel - Meeting List */}
-      <div className="w-1/3 border-r border-gray-200 overflow-y-auto">
+      <div className="w-1/3 border-r border-border/50 overflow-y-auto bg-card/30">
         <div className="p-6">
           {/* View Toggle */}
-          <div className="flex gap-2 mb-6">
+          <div className="flex gap-2 mb-8">
             <Button
               variant={meetingView === 'future' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setMeetingView('future')}
+              className="flex-1"
             >
+              <Play className="w-3 h-3 mr-2" />
               Upcoming
             </Button>
             <Button
               variant={meetingView === 'past' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setMeetingView('past')}
+              className="flex-1"
             >
+              <Pause className="w-3 h-3 mr-2" />
               Past
             </Button>
           </div>
@@ -328,28 +349,36 @@ export default function Meetings() {
       </div>
 
       {/* Right Panel - Meeting Details */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col bg-background">
         {selectedMeeting ? (
           <>
             {/* Meeting Header */}
-            <div className="border-b border-gray-200 p-6">
+            <div className="border-b border-border/50 p-6 bg-card/50">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">
+                      {formatDate(selectedMeeting.start?.dateTime)}
+                    </span>
+                  </div>
+                  <h1 className="text-2xl font-bold text-foreground mb-3">
                     {selectedMeeting.summary || selectedMeeting.title || 'Untitled Meeting'}
                   </h1>
-                  <div className="flex items-center gap-4 text-sm text-gray-500">
-                    <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
                       <Clock className="w-4 h-4" />
                       <span>{formatMeetingTime(selectedMeeting)}</span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      <span>{formatDate(selectedMeeting.start?.dateTime)}</span>
-                    </div>
+                    {selectedMeeting.attendees && selectedMeeting.attendees.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        <span>{selectedMeeting.attendees.length} attendees</span>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <Button variant="outline" size="sm" onClick={handleCopyToClipboard}>
                     <Copy className="w-4 h-4 mr-2" />
                     Copy
@@ -357,6 +386,14 @@ export default function Meetings() {
                   <Button variant="outline" size="sm">
                     <Share className="w-4 h-4 mr-2" />
                     Share
+                  </Button>
+                  <Button 
+                    variant="default" 
+                    size="sm"
+                    onClick={() => setShowAIDialog(true)}
+                  >
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    AI Adjust
                   </Button>
                 </div>
               </div>
@@ -366,55 +403,79 @@ export default function Meetings() {
             <div className="flex-1 overflow-y-auto">
               <div className="p-6">
                 {/* Tabs */}
-                <div className="flex gap-4 mb-6 border-b border-gray-200">
+                <div className="flex gap-6 mb-8 border-b border-border/50">
                   <button
                     className={cn(
-                      "pb-2 px-1 border-b-2 font-medium text-sm transition-colors",
+                      "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
                       activeTab === 'summary'
-                        ? "border-blue-500 text-blue-600"
-                        : "border-transparent text-gray-500 hover:text-gray-700"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
                     )}
                     onClick={() => setActiveTab('summary')}
                   >
+                    <MessageSquare className="w-4 h-4 inline mr-2" />
                     Summary
                   </button>
                   <button
                     className={cn(
-                      "pb-2 px-1 border-b-2 font-medium text-sm transition-colors",
+                      "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
                       activeTab === 'transcript'
-                        ? "border-blue-500 text-blue-600"
-                        : "border-transparent text-gray-500 hover:text-gray-700"
+                        ? "border-primary text-primary"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
                     )}
                     onClick={() => setActiveTab('transcript')}
                   >
+                    <FileText className="w-4 h-4 inline mr-2" />
                     Transcript
                   </button>
                 </div>
 
                 {/* Content */}
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {activeTab === 'summary' && (
-                    <div className="prose max-w-none">
-                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                    <Card className="border-border/50">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Sparkles className="w-5 h-5 text-primary" />
+                          AI-Generated Summary
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
                         {summaryContent ? (
-                          <div className="whitespace-pre-wrap text-gray-700">
-                            {summaryContent}
+                          <div className="prose prose-invert max-w-none">
+                            <div className="bg-card/50 border border-border/50 rounded-lg p-6">
+                              <div className="whitespace-pre-wrap text-foreground leading-relaxed">
+                                {summaryContent}
+                              </div>
+                            </div>
                           </div>
                         ) : (
-                          <div className="text-gray-500 italic">
-                            No summary available for this meeting.
+                          <div className="text-center py-12">
+                            <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                            <h3 className="text-lg font-medium text-foreground mb-2">No summary available</h3>
+                            <p className="text-muted-foreground">This meeting doesn't have a summary yet.</p>
                           </div>
                         )}
-                      </div>
-                    </div>
+                      </CardContent>
+                    </Card>
                   )}
 
                   {activeTab === 'transcript' && (
-                    <div className="bg-white border border-gray-200 rounded-lg p-4">
-                      <div className="text-gray-500 italic">
-                        Transcript view coming soon...
-                      </div>
-                    </div>
+                    <Card className="border-border/50">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <FileText className="w-5 h-5 text-primary" />
+                          Meeting Transcript
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-center py-12">
+                          <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="text-lg font-medium text-foreground mb-2">Transcript coming soon</h3>
+                          <p className="text-muted-foreground">Full meeting transcripts will be available here.</p>
+                        </div>
+                      </CardContent>
+                    </Card>
                   )}
                 </div>
               </div>
@@ -423,9 +484,9 @@ export default function Meetings() {
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No meeting selected</h3>
-              <p className="text-gray-500">Select a meeting from the list to view its details.</p>
+              <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-foreground mb-2">No meeting selected</h3>
+              <p className="text-muted-foreground">Select a meeting from the list to view its details.</p>
             </div>
           </div>
         )}
@@ -440,11 +501,11 @@ export default function Meetings() {
 
       {/* Snackbar */}
       {showSnackbar && (
-        <div className="fixed bottom-4 right-4 z-50">
+        <div className="fixed bottom-4 right-4 z-50 animate-fade-in">
           <div className={cn(
-            "px-4 py-3 rounded-lg shadow-lg text-white",
-            snackbarSeverity === 'success' && "bg-green-600",
-            snackbarSeverity === 'error' && "bg-red-600",
+            "px-4 py-3 rounded-lg shadow-large text-white",
+            snackbarSeverity === 'success' && "bg-primary",
+            snackbarSeverity === 'error' && "bg-destructive",
             snackbarSeverity === 'warning' && "bg-yellow-600"
           )}>
             {snackbarMessage}

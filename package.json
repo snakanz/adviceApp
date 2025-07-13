@@ -4,11 +4,7 @@
   "private": true,
   "homepage": "https://adviceapp.pages.dev",
   "dependencies": {
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.0",
     "@fontsource/inter": "^5.2.6",
-    "@mui/icons-material": "^7.2.0",
-    "@mui/material": "^7.1.1",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dropdown-menu": "^2.1.15",
     "@radix-ui/react-slot": "^1.2.3",

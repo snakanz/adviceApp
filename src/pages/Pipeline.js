@@ -1,23 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Typography,
-  Card,
-  CardContent,
-  Grid,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  IconButton,
-} from '@mui/material';
-import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { cn } from '../lib/utils';
+import { 
+  ChevronLeft, 
+  ChevronRight, 
+  ArrowRight, 
+  TrendingUp, 
+  DollarSign,
+  Repeat,
+  Users,
+  Calendar
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { MeetingTypeIndicator } from '../theme/meetingTypes';
 
 export default function Pipeline() {
   const navigate = useNavigate();
@@ -57,25 +52,42 @@ export default function Pipeline() {
 
   if (loading) {
     return (
-      <Box sx={{ p: 4 }}>
-        <Typography>Loading pipeline data...</Typography>
-      </Box>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center gap-3">
+          <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent"></div>
+          <span className="text-muted-foreground">Loading pipeline data...</span>
+        </div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ p: 4 }}>
-        <Typography color="error">Error loading pipeline data: {error}</Typography>
-      </Box>
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="w-full max-w-md border-destructive/50">
+          <CardContent className="p-6 text-center">
+            <div className="text-destructive mb-4">
+              <TrendingUp className="w-12 h-12 mx-auto" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">Error Loading Pipeline</h3>
+            <p className="text-muted-foreground">{error}</p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   if (!pipelineData) {
     return (
-      <Box sx={{ p: 4 }}>
-        <Typography>No pipeline data available</Typography>
-      </Box>
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="w-full max-w-md border-border/50">
+          <CardContent className="p-6 text-center">
+            <TrendingUp className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">No Pipeline Data</h3>
+            <p className="text-muted-foreground">No pipeline data available at the moment.</p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -86,156 +98,177 @@ export default function Pipeline() {
   );
 
   return (
-    <Box sx={{ p: 4 }}>
+    <div className="h-full flex flex-col bg-background">
       {/* Header */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
-        <Typography variant="h2" sx={{ fontWeight: 700, color: '#1E1E1E' }}>
-          Pipeline
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <IconButton
-            onClick={() => setCurrentMonthIndex(Math.max(0, currentMonthIndex - 1))}
-            disabled={currentMonthIndex === 0}
-            sx={{ color: '#3C3C3C' }}
-          >
-            <ChevronLeftIcon />
-          </IconButton>
-          <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E', minWidth: 120, textAlign: 'center' }}>
-            {currentMonth}
-          </Typography>
-          <IconButton
-            onClick={() => setCurrentMonthIndex(Math.min(pipelineData.months.length - 1, currentMonthIndex + 1))}
-            disabled={currentMonthIndex === pipelineData.months.length - 1}
-            sx={{ color: '#3C3C3C' }}
-          >
-            <ChevronRightIcon />
-          </IconButton>
-        </Box>
-      </Box>
+      <div className="border-b border-border/50 p-6 bg-card/50">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-foreground">Pipeline</h1>
+          <div className="flex items-center gap-4">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setCurrentMonthIndex(Math.max(0, currentMonthIndex - 1))}
+              disabled={currentMonthIndex === 0}
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <h2 className="text-xl font-semibold text-foreground min-w-32 text-center">
+              {currentMonth}
+            </h2>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setCurrentMonthIndex(Math.min(pipelineData.months.length - 1, currentMonthIndex + 1))}
+              disabled={currentMonthIndex === pipelineData.months.length - 1}
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {/* KPI Cards */}
-      <Grid container spacing={3} sx={{ mb: 4 }}>
-        <Grid item xs={12} md={4}>
-          <Card sx={{ borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ color: '#999999', mb: 1 }}>
-                Expected FUM
-              </Typography>
-              <Typography variant="h3" sx={{ fontWeight: 700, color: '#1E1E1E' }}>
+      <div className="p-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <Card className="border-border/50">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <DollarSign className="w-5 h-5 text-primary" />
+                </div>
+                <h3 className="text-sm font-medium text-muted-foreground">Expected FUM</h3>
+              </div>
+              <p className="text-3xl font-bold text-foreground">
                 {formatCurrency(currentKpis.expectedFUM)}
-              </Typography>
+              </p>
             </CardContent>
           </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card sx={{ borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ color: '#999999', mb: 1 }}>
-                Expected IAF
-              </Typography>
-              <Typography variant="h3" sx={{ fontWeight: 700, color: '#1E1E1E' }}>
-                {formatCurrency(currentKpis.expectedIAF)}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid item xs={12} md={4}>
-          <Card sx={{ borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ color: '#999999', mb: 1 }}>
-                Expected Recurring Revenue
-              </Typography>
-              <Typography variant="h3" sx={{ fontWeight: 700, color: '#1E1E1E' }}>
-                {formatCurrency(currentKpis.expectedRecurringRevenue)}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
 
-      {/* Clients Table */}
-      <Card sx={{ borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
-        <CardContent sx={{ p: 0 }}>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow sx={{ backgroundColor: '#F8F9FA' }}>
-                  <TableCell sx={{ fontWeight: 600, color: '#1E1E1E' }}>Client</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#1E1E1E' }}>Stage</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#1E1E1E' }}>Expected FUM</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#1E1E1E' }}>IAF</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#1E1E1E' }}>Waiting On</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#1E1E1E' }}>Notes</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#1E1E1E' }}>Next Meeting</TableCell>
-                  <TableCell sx={{ fontWeight: 600, color: '#1E1E1E' }}></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {currentClients.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} sx={{ textAlign: 'center', py: 4 }}>
-                      <Typography variant="body1" sx={{ color: '#999999' }}>
-                        No clients in pipeline for {currentMonth}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  currentClients.map((client) => (
-                    <TableRow key={client.id} sx={{ '&:hover': { backgroundColor: '#F8F9FA' } }}>
-                      <TableCell>
-                        <Typography variant="body1" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
-                          {client.name}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Box sx={MeetingTypeIndicator({ type: client.stage })} />
-                          <Typography variant="body2" sx={{ color: '#3C3C3C' }}>
-                            {client.stage}
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body1" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
-                          {formatCurrency(client.expectedFUM)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body1" sx={{ color: '#3C3C3C' }}>
-                          {formatCurrency(client.iaf)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ color: '#3C3C3C' }}>
-                          {client.waitingOn}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ color: '#3C3C3C' }}>
-                          {client.notes}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ color: '#3C3C3C' }}>
-                          {client.nextMeeting}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <IconButton
-                          onClick={() => navigate(`/clients/${client.id}`)}
-                          sx={{ color: '#007AFF' }}
-                        >
-                          <ArrowForwardIcon />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
-      </Card>
-    </Box>
+          <Card className="border-border/50">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <TrendingUp className="w-5 h-5 text-primary" />
+                </div>
+                <h3 className="text-sm font-medium text-muted-foreground">Expected IAF</h3>
+              </div>
+              <p className="text-3xl font-bold text-foreground">
+                {formatCurrency(currentKpis.expectedIAF)}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Repeat className="w-5 h-5 text-primary" />
+                </div>
+                <h3 className="text-sm font-medium text-muted-foreground">Expected Recurring Revenue</h3>
+              </div>
+              <p className="text-3xl font-bold text-foreground">
+                {formatCurrency(currentKpis.expectedRecurringRevenue)}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Clients Table */}
+        <Card className="border-border/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-primary" />
+              Pipeline Clients
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {currentClients.length === 0 ? (
+              <div className="p-12 text-center">
+                <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">No clients in pipeline</h3>
+                <p className="text-muted-foreground">No clients in pipeline for {currentMonth}</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border/50">
+                      <th className="text-left p-4 font-semibold text-foreground">Client</th>
+                      <th className="text-left p-4 font-semibold text-foreground">Stage</th>
+                      <th className="text-left p-4 font-semibold text-foreground">Expected FUM</th>
+                      <th className="text-left p-4 font-semibold text-foreground">IAF</th>
+                      <th className="text-left p-4 font-semibold text-foreground">Waiting On</th>
+                      <th className="text-left p-4 font-semibold text-foreground">Notes</th>
+                      <th className="text-left p-4 font-semibold text-foreground">Next Meeting</th>
+                      <th className="text-left p-4 font-semibold text-foreground"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentClients.map((client) => (
+                      <tr 
+                        key={client.id} 
+                        className="border-b border-border/50 hover:bg-accent/50 transition-colors"
+                      >
+                        <td className="p-4">
+                          <p className="font-semibold text-foreground">{client.name}</p>
+                        </td>
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            <div className={cn(
+                              "w-3 h-3 rounded-full",
+                              client.stage === 'Prospect' && "bg-yellow-500",
+                              client.stage === 'Qualified' && "bg-blue-500",
+                              client.stage === 'Proposal' && "bg-purple-500",
+                              client.stage === 'Negotiation' && "bg-orange-500",
+                              client.stage === 'Closed' && "bg-green-500"
+                            )} />
+                            <span className="text-sm text-muted-foreground">{client.stage}</span>
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          <p className="font-semibold text-foreground">
+                            {formatCurrency(client.expectedFUM)}
+                          </p>
+                        </td>
+                        <td className="p-4">
+                          <p className="text-muted-foreground">
+                            {formatCurrency(client.iaf)}
+                          </p>
+                        </td>
+                        <td className="p-4">
+                          <p className="text-sm text-muted-foreground">
+                            {client.waitingOn}
+                          </p>
+                        </td>
+                        <td className="p-4">
+                          <p className="text-sm text-muted-foreground">
+                            {client.notes}
+                          </p>
+                        </td>
+                        <td className="p-4">
+                          <p className="text-sm text-muted-foreground">
+                            {client.nextMeeting}
+                          </p>
+                        </td>
+                        <td className="p-4">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => navigate(`/clients/${client.id}`)}
+                            className="text-primary hover:text-primary/80"
+                          >
+                            <ArrowRight className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
   );
 } 

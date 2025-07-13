@@ -24,9 +24,16 @@ const LoginPage = () => {
     return (
         <div className="min-h-screen bg-background flex items-center justify-center p-6">
             <div className="w-full max-w-md">
-                <Card className="shadow-lg border-0">
+                <Card className="shadow-large border-border/50 bg-card/80 backdrop-blur-sm">
                     <CardHeader className="text-center space-y-4">
-                        <CardTitle className="text-3xl font-bold text-foreground">
+                        <div className="flex justify-center mb-4">
+                            <img 
+                                src={process.env.PUBLIC_URL + '/logo-advicly.png'} 
+                                alt="Advicly Logo" 
+                                className="h-12 w-auto" 
+                            />
+                        </div>
+                        <CardTitle className="text-2xl font-bold text-foreground">
                             Welcome to Advicly
                         </CardTitle>
                         <CardDescription className="text-base text-muted-foreground max-w-sm mx-auto">
@@ -37,9 +44,9 @@ const LoginPage = () => {
                     <CardContent className="space-y-6">
                         <Button
                             onClick={handleGoogleLogin}
-                            className="w-full h-12 text-base font-medium bg-blue-600 hover:bg-blue-700 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200"
+                            className="w-full h-12 text-base font-medium bg-white hover:bg-gray-50 text-gray-900 border border-border shadow-soft hover:shadow-medium transition-all duration-150"
                         >
-                            <GoogleIcon size={20} className="mr-2" />
+                            <GoogleIcon size={20} className="mr-3" />
                             Sign in with Google
                         </Button>
                         

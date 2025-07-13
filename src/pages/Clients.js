@@ -1,5 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Box, Typography, Button, Stack, TextField } from '@mui/material';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Avatar, AvatarFallback } from '../components/ui/avatar';
+import { cn } from '../lib/utils';
+import { 
+  Search, 
+  User, 
+  Calendar, 
+  TrendingUp, 
+  Sparkles, 
+  Clock,
+  Mail,
+  Users,
+  Building2
+} from 'lucide-react';
 import { api } from '../services/api';
 
 export default function Clients() {
@@ -45,158 +60,324 @@ export default function Clients() {
     }
   }, [selectedClient]);
 
+  const getUserInitials = (name) => {
+    if (!name) return 'C';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
   if (loading) {
     return (
-      <Box sx={{ p: 4 }}>
-        <Typography>Loading clients...</Typography>
-      </Box>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center gap-3">
+          <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent"></div>
+          <span className="text-muted-foreground">Loading clients...</span>
+        </div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Box sx={{ p: 4 }}>
-        <Typography color="error">Error loading clients: {error}</Typography>
-      </Box>
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="w-full max-w-md border-destructive/50">
+          <CardContent className="p-6 text-center">
+            <div className="text-destructive mb-4">
+              <Building2 className="w-12 h-12 mx-auto" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">Error Loading Clients</h3>
+            <p className="text-muted-foreground">{error}</p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <Box sx={{ display: 'flex', height: '100%' }}>
+    <div className="h-full flex bg-background">
       {/* Client List Panel */}
-      <Box sx={{ width: 300, borderRight: '1px solid #eee', p: 2 }}>
-        <TextField
-          placeholder="Search Client"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          size="small"
-          fullWidth
-          sx={{ mb: 2 }}
-        />
-        <Box>
-          {filteredClients.map((client, idx) => (
-            <Box
-              key={client.email}
-              sx={{
-                mb: 1,
-                p: 1,
-                background: idx === selectedClientIndex ? '#e3f2fd' : '#fff',
-                cursor: 'pointer',
-                border: idx === selectedClientIndex ? '2px solid #1976d2' : '1px solid #eee',
-              }}
-              onClick={() => setSelectedClientIndex(idx)}
-            >
-              <Typography fontWeight={600}>{client.name || client.email}</Typography>
-              <Typography variant="body2" color="text.secondary">{client.email}</Typography>
-            </Box>
-          ))}
-        </Box>
-      </Box>
+      <div className="w-80 border-r border-border/50 overflow-y-auto bg-card/30">
+        <div className="p-6">
+          <div className="relative mb-6">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search clients..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            {filteredClients.map((client, idx) => (
+              <Card
+                key={client.email}
+                className={cn(
+                  "cursor-pointer card-hover border-border/50",
+                  idx === selectedClientIndex && "ring-2 ring-primary/20 bg-primary/5 border-primary/30"
+                )}
+                onClick={() => setSelectedClientIndex(idx)}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-10 h-10 bg-primary/10 text-primary">
+                      <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                        {getUserInitials(client.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-foreground truncate">
+                        {client.name || 'Unnamed Client'}
+                      </h4>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {client.email}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* Main Details Area */}
-      <Box sx={{ flex: 1, p: 4 }}>
+      <div className="flex-1 flex flex-col bg-background">
         {selectedClient ? (
           <>
-            <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-              <Stack direction="row" spacing={2}>
-                <Button onClick={() => setTab(0)} variant={tab === 0 ? 'contained' : 'text'}>AI summary of Client</Button>
-                <Button onClick={() => setTab(1)} variant={tab === 1 ? 'contained' : 'text'}>All Meetings</Button>
-                <Button onClick={() => setTab(2)} variant={tab === 2 ? 'contained' : 'text'}>Client Pipeline</Button>
-              </Stack>
-            </Box>
-            {tab === 0 && (
-              <Box>
-                <Typography variant="h5" fontWeight={700} mb={2}>AI summary of Client</Typography>
-                <Button
-                  variant="contained"
-                  onClick={async () => {
-                    setLoadingSummary(true);
-                    setSummaryError(null);
-                    try {
-                      const token = localStorage.getItem('token'); // or get from context
-                      const res = await fetch(
-                        `/api/clients/${encodeURIComponent(selectedClient.email)}/ai-summary`,
-                        {
-                          method: 'POST',
-                          headers: {
-                            Authorization: `Bearer ${token}`
-                          }
-                        }
-                      );
-                      if (!res.ok) throw new Error('Failed to generate summary');
-                      const data = await res.json();
-                      setClientAISummary(data.ai_summary);
-                    } catch (err) {
-                      setSummaryError(err.message);
-                    } finally {
-                      setLoadingSummary(false);
-                    }
-                  }}
-                  disabled={loadingSummary}
-                  sx={{ mb: 2 }}
+            {/* Client Header */}
+            <div className="border-b border-border/50 p-6 bg-card/50">
+              <div className="flex items-center gap-4">
+                <Avatar className="w-16 h-16 bg-primary/10 text-primary">
+                  <AvatarFallback className="bg-primary/10 text-primary text-xl font-semibold">
+                    {getUserInitials(selectedClient.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                  <h1 className="text-2xl font-bold text-foreground mb-1">
+                    {selectedClient.name || 'Unnamed Client'}
+                  </h1>
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <Mail className="w-4 h-4" />
+                      <span>{selectedClient.email}</span>
+                    </div>
+                    {selectedClient.meetings && (
+                      <div className="flex items-center gap-1">
+                        <Calendar className="w-4 h-4" />
+                        <span>{selectedClient.meetings.length} meetings</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="border-b border-border/50 px-6">
+              <div className="flex gap-6">
+                <button
+                  className={cn(
+                    "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
+                    tab === 0
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => setTab(0)}
                 >
-                  {loadingSummary ? 'Generating...' : 'Generate AI Summary'}
-                </Button>
-                {summaryError && <Typography color="error">{summaryError}</Typography>}
-                <Typography variant="body1" sx={{ mt: 2 }}>
-                  {clientAISummary || 'No summary yet. Click "Generate AI Summary" to create one.'}
-                </Typography>
-              </Box>
-            )}
-            {tab === 1 && (
-              <Box>
-                <Typography variant="h5" fontWeight={700} mb={2}>All Meetings</Typography>
-                {selectedClient.meetings && selectedClient.meetings.length > 0 ? (
-                  selectedClient.meetings.map(mtg => (
-                    <Box key={mtg.id} sx={{ mb: 2 }}>
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          flexDirection: { xs: 'column', md: 'row' },
-                          alignItems: { xs: 'flex-start', md: 'stretch' },
-                          p: 2,
-                          borderRadius: '12px',
-                          background: '#F8F9FA',
-                          border: '1px solid #E5E5E5',
-                          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-                        }}
-                      >
-                        {/* Meeting Info */}
-                        <Box sx={{ flex: 1, minWidth: 200 }}>
-                          <Typography fontWeight={600} sx={{ mb: 1 }}>{mtg.title}</Typography>
-                          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                            {new Date(mtg.starttime).toLocaleString()} - {new Date(mtg.endtime).toLocaleString()}
-                          </Typography>
-                        </Box>
-                        {/* Divider for desktop */}
-                        <Box sx={{ width: 24, display: { xs: 'none', md: 'block' } }} />
-                        {/* Meeting Summary */}
-                        <Box sx={{ flex: 2, minWidth: 200 }}>
-                          <Typography variant="body2" color="text.primary" sx={{ whiteSpace: 'pre-line' }}>
-                            {mtg.summary || 'No summary available.'}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    </Box>
-                  ))
-                ) : (
-                  <Typography>No meetings found for this client.</Typography>
-                )}
-              </Box>
-            )}
-            {tab === 2 && (
-              <Box>
-                <Typography variant="h5" fontWeight={700} mb={2}>Client Pipeline</Typography>
-                <Typography>Business expected: (placeholder)</Typography>
-                <Typography>Value of business: (placeholder)</Typography>
-                <Typography>Expected close month: (placeholder)</Typography>
-              </Box>
-            )}
+                  <Sparkles className="w-4 h-4 inline mr-2" />
+                  AI Summary
+                </button>
+                <button
+                  className={cn(
+                    "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
+                    tab === 1
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => setTab(1)}
+                >
+                  <Calendar className="w-4 h-4 inline mr-2" />
+                  All Meetings
+                </button>
+                <button
+                  className={cn(
+                    "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
+                    tab === 2
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => setTab(2)}
+                >
+                  <TrendingUp className="w-4 h-4 inline mr-2" />
+                  Pipeline
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {tab === 0 && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold text-foreground">AI Summary</h2>
+                    <Button
+                      onClick={async () => {
+                        setLoadingSummary(true);
+                        setSummaryError(null);
+                        try {
+                          const token = localStorage.getItem('token');
+                          const res = await fetch(
+                            `/api/clients/${encodeURIComponent(selectedClient.email)}/ai-summary`,
+                            {
+                              method: 'POST',
+                              headers: {
+                                Authorization: `Bearer ${token}`
+                              }
+                            }
+                          );
+                          if (!res.ok) throw new Error('Failed to generate summary');
+                          const data = await res.json();
+                          setClientAISummary(data.ai_summary);
+                        } catch (err) {
+                          setSummaryError(err.message);
+                        } finally {
+                          setLoadingSummary(false);
+                        }
+                      }}
+                      disabled={loadingSummary}
+                      className="flex items-center gap-2"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      {loadingSummary ? 'Generating...' : 'Generate AI Summary'}
+                    </Button>
+                  </div>
+                  
+                  {summaryError && (
+                    <Card className="border-destructive/50">
+                      <CardContent className="p-4">
+                        <p className="text-destructive">{summaryError}</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                  
+                  <Card className="border-border/50">
+                    <CardContent className="p-6">
+                      {clientAISummary ? (
+                        <div className="prose prose-invert max-w-none">
+                          <div className="whitespace-pre-wrap text-foreground leading-relaxed">
+                            {clientAISummary}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-12">
+                          <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="text-lg font-medium text-foreground mb-2">No summary yet</h3>
+                          <p className="text-muted-foreground">Click "Generate AI Summary" to create one.</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {tab === 1 && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold text-foreground">All Meetings</h2>
+                  {selectedClient.meetings && selectedClient.meetings.length > 0 ? (
+                    <div className="space-y-4">
+                      {selectedClient.meetings.map(mtg => (
+                        <Card key={mtg.id} className="border-border/50">
+                          <CardContent className="p-6">
+                            <div className="flex flex-col lg:flex-row gap-6">
+                              {/* Meeting Info */}
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold text-foreground mb-2">{mtg.title}</h4>
+                                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="w-4 h-4" />
+                                    <span>
+                                      {new Date(mtg.starttime).toLocaleDateString()} - {new Date(mtg.starttime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to {new Date(mtg.endtime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              {/* Meeting Summary */}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm text-foreground whitespace-pre-line">
+                                  {mtg.summary || 'No summary available.'}
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <Card className="border-border/50">
+                      <CardContent className="p-6 text-center">
+                        <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-foreground mb-2">No meetings found</h3>
+                        <p className="text-muted-foreground">This client doesn't have any meetings yet.</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+              )}
+
+              {tab === 2 && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold text-foreground">Client Pipeline</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <Card className="border-border/50">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <TrendingUp className="w-5 h-5 text-primary" />
+                          Business Expected
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-muted-foreground">Coming soon...</p>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card className="border-border/50">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <Building2 className="w-5 h-5 text-primary" />
+                          Value of Business
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-muted-foreground">Coming soon...</p>
+                      </CardContent>
+                    </Card>
+                    
+                    <Card className="border-border/50">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-lg">
+                          <Calendar className="w-5 h-5 text-primary" />
+                          Expected Close Month
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-muted-foreground">Coming soon...</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              )}
+            </div>
           </>
         ) : (
-          <Typography>Select a client to view details.</Typography>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-foreground mb-2">No client selected</h3>
+              <p className="text-muted-foreground">Select a client from the list to view details.</p>
+            </div>
+          </div>
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 } 

@@ -1,9 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  Box, Typography, Card, Stack, Button, Tabs, Tab, Grid
-} from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Avatar, AvatarFallback } from '../components/ui/avatar';
+import { cn } from '../lib/utils';
+import { 
+  ArrowLeft, 
+  Calendar, 
+  TrendingUp, 
+  Sparkles, 
+  Clock,
+  Mail,
+  Users,
+  Building2,
+  MessageSquare
+} from 'lucide-react';
 import { api } from '../services/api';
 
 const formatDateTime = (dateTimeStr) => {
@@ -51,98 +62,233 @@ const ViewClient = () => {
     fetchClientAndMeetings();
   }, [clientId]);
 
-  if (loading) return <Box>Loading...</Box>;
-  if (!clientData) return <Box>Client not found.</Box>;
+  const getUserInitials = (name) => {
+    if (!name) return 'C';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="flex items-center gap-3">
+          <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent"></div>
+          <span className="text-muted-foreground">Loading client details...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!clientData) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Card className="w-full max-w-md border-destructive/50">
+          <CardContent className="p-6 text-center">
+            <div className="text-destructive mb-4">
+              <Users className="w-12 h-12 mx-auto" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">Client Not Found</h3>
+            <p className="text-muted-foreground">The requested client could not be found.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   const handleBack = () => {
     navigate('/clients');
   };
 
   return (
-    <Box sx={{ height: 'calc(100vh - 128px)', display: 'flex', flexDirection: 'column', gap: 3 }}>
-      {/* Header with Back Button */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={handleBack}
-          sx={{
-            color: '#3C3C3C',
-            textTransform: 'none',
-            fontWeight: 500,
-            px: 2,
-            py: 1,
-            borderRadius: '6px',
-            '&:hover': { backgroundColor: '#F8F9FA' }
-          }}
-        >
-          Back to Clients
-        </Button>
-        <Typography variant="h2" sx={{ fontWeight: 700, color: '#1E1E1E' }}>
-          {clientData.name}
-        </Typography>
-      </Box>
+    <div className="h-full flex flex-col bg-background">
+      {/* Header */}
+      <div className="border-b border-border/50 p-6 bg-card/50">
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            onClick={handleBack}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Clients
+          </Button>
+          <div className="flex items-center gap-4">
+            <Avatar className="w-12 h-12 bg-primary/10 text-primary">
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                {getUserInitials(clientData.name)}
+              </AvatarFallback>
+            </Avatar>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">
+                {clientData.name || 'Unnamed Client'}
+              </h1>
+              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <Mail className="w-4 h-4" />
+                  <span>{clientData.email}</span>
+                </div>
+                {meetings.length > 0 && (
+                  <div className="flex items-center gap-1">
+                    <Calendar className="w-4 h-4" />
+                    <span>{meetings.length} meetings</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      {/* Tabs for AI Summary, All Meetings, Client Pipeline */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-        <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
-          <Tab label="AI Summary" value="aiSummary" />
-          <Tab label="All Meetings" value="allMeetings" />
-          <Tab label="Client Pipeline" value="pipeline" />
-        </Tabs>
-      </Box>
+      {/* Tabs */}
+      <div className="border-b border-border/50 px-6">
+        <div className="flex gap-6">
+          <button
+            className={cn(
+              "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
+              activeTab === 'aiSummary'
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+            onClick={() => setActiveTab('aiSummary')}
+          >
+            <Sparkles className="w-4 h-4 inline mr-2" />
+            AI Summary
+          </button>
+          <button
+            className={cn(
+              "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
+              activeTab === 'allMeetings'
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+            onClick={() => setActiveTab('allMeetings')}
+          >
+            <Calendar className="w-4 h-4 inline mr-2" />
+            All Meetings
+          </button>
+          <button
+            className={cn(
+              "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
+              activeTab === 'pipeline'
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+            onClick={() => setActiveTab('pipeline')}
+          >
+            <TrendingUp className="w-4 h-4 inline mr-2" />
+            Client Pipeline
+          </button>
+        </div>
+      </div>
 
       {/* Main Content */}
-      {activeTab === 'aiSummary' && (
-        <Card sx={{ p: 4, borderRadius: '12px', mb: 3 }}>
-          <Typography variant="h4" sx={{ fontWeight: 700, mb: 2 }}>AI Summary of Client</Typography>
-          <Typography variant="body1" sx={{ color: '#3C3C3C' }}>
-            {/* Placeholder for AI summary */}
-            {clientData.aiSummary || 'AI summary will appear here.'}
-          </Typography>
-        </Card>
-      )}
+      <div className="flex-1 overflow-y-auto p-6">
+        {activeTab === 'aiSummary' && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-semibold text-foreground">AI Summary</h2>
+            <Card className="border-border/50">
+              <CardContent className="p-6">
+                {clientData.aiSummary ? (
+                  <div className="prose prose-invert max-w-none">
+                    <div className="whitespace-pre-wrap text-foreground leading-relaxed">
+                      {clientData.aiSummary}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-foreground mb-2">No AI summary available</h3>
+                    <p className="text-muted-foreground">AI summary will appear here when generated.</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
-      {activeTab === 'allMeetings' && (
-        <Card sx={{ p: 4, borderRadius: '12px', mb: 3 }}>
-          <Typography variant="h4" sx={{ fontWeight: 700, mb: 2 }}>All Meetings</Typography>
-          <Grid container spacing={2}>
+        {activeTab === 'allMeetings' && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-semibold text-foreground">All Meetings</h2>
             {meetings.length === 0 ? (
-              <Typography>No meetings found for this client.</Typography>
+              <Card className="border-border/50">
+                <CardContent className="p-6 text-center">
+                  <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-foreground mb-2">No meetings found</h3>
+                  <p className="text-muted-foreground">This client doesn't have any meetings yet.</p>
+                </CardContent>
+              </Card>
             ) : (
-              meetings.map(meeting => (
-                <Grid item xs={12} md={6} key={meeting.id}>
-                  <Card sx={{ p: 2, borderRadius: '8px', mb: 2, backgroundColor: '#F8F9FA' }}>
-                    <Typography variant="body1" sx={{ fontWeight: 600, color: '#1E1E1E' }}>{meeting.title || meeting.summary}</Typography>
-                    <Typography variant="body2" sx={{ color: '#3C3C3C' }}>{formatDateTime(meeting.starttime)}</Typography>
-                    <Typography variant="body2" sx={{ color: '#999999' }}>{meeting.summary}</Typography>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {meetings.map(meeting => (
+                  <Card key={meeting.id} className="border-border/50">
+                    <CardContent className="p-4">
+                      <div className="space-y-3">
+                        <div>
+                          <h4 className="font-semibold text-foreground mb-1">
+                            {meeting.title || meeting.summary || 'Untitled Meeting'}
+                          </h4>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Clock className="w-4 h-4" />
+                            <span>{formatDateTime(meeting.starttime)}</span>
+                          </div>
+                        </div>
+                        {meeting.summary && (
+                          <div className="text-sm text-foreground whitespace-pre-line">
+                            {meeting.summary}
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
                   </Card>
-                </Grid>
-              ))
+                ))}
+              </div>
             )}
-          </Grid>
-        </Card>
-      )}
+          </div>
+        )}
 
-      {activeTab === 'pipeline' && (
-        <Card sx={{ p: 4, borderRadius: '12px', mb: 3 }}>
-          <Typography variant="h4" sx={{ fontWeight: 700, mb: 2 }}>Client Pipeline</Typography>
-          <Stack spacing={2}>
-            <Box>
-              <Typography variant="body2" sx={{ color: '#999999' }}>Business expected</Typography>
-              <Typography variant="h5" sx={{ fontWeight: 600 }}>{pipelineMock.businessExpected}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="body2" sx={{ color: '#999999' }}>Value of business</Typography>
-              <Typography variant="h5" sx={{ fontWeight: 600 }}>{pipelineMock.value}</Typography>
-            </Box>
-            <Box>
-              <Typography variant="body2" sx={{ color: '#999999' }}>Expected close month</Typography>
-              <Typography variant="h5" sx={{ fontWeight: 600 }}>{pipelineMock.closeMonth}</Typography>
-            </Box>
-          </Stack>
-        </Card>
-      )}
-    </Box>
+        {activeTab === 'pipeline' && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-semibold text-foreground">Client Pipeline</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="border-border/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <TrendingUp className="w-5 h-5 text-primary" />
+                    Business Expected
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold text-foreground">{pipelineMock.businessExpected}</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="border-border/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Building2 className="w-5 h-5 text-primary" />
+                    Value of Business
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold text-foreground">${pipelineMock.value}</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="border-border/50">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Calendar className="w-5 h-5 text-primary" />
+                    Expected Close Month
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold text-foreground">{pipelineMock.closeMonth}</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 

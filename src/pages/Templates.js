@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import {
-  Box,
-  Typography,
-  TextField,
-  Snackbar,
-  Alert,
-  Button
-} from '@mui/material';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import Tooltip from '@mui/material/Tooltip';
-import { getMeetingTypeStyles } from '../theme/meetingTypes';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { cn } from '../lib/utils';
+import { 
+  Sparkles, 
+  Info, 
+  Plus, 
+  Save,
+  FileText,
+  MessageSquare
+} from 'lucide-react';
 
 const defaultTemplates = [
   {
@@ -106,152 +106,119 @@ export default function Templates() {
   };
 
   return (
-    <Box display="flex" height="calc(100vh - 64px)">
+    <div className="h-full flex bg-background">
       {/* Left Sidebar */}
-      <Box
-        width={340}
-        bgcolor="#fff"
-        overflow="auto"
-        p={3}
-        sx={{ boxShadow: 2, borderRadius: 3 }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 3 }}>
-          <Typography variant="h5" fontWeight={700}>
-            Templates
-          </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            sx={{ borderRadius: 2, fontWeight: 600, textTransform: 'none', px: 2, py: 1, fontSize: 15 }}
-            onClick={handleAddTemplate}
-          >
-            + Add New Template
-          </Button>
-        </Box>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {filteredTemplates.map((template) => {
-            const isSelected = template.id === selectedTemplate.id;
-            const meetingStyles = getMeetingTypeStyles(template.title);
-            return (
-              <Box
-                key={template.id}
-                onClick={() => {
-                  setSelectedTemplate(template);
-                  setEditedContent(template.content);
-                }}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2,
-                  p: 2.5,
-                  borderRadius: 3,
-                  background: isSelected ? '#F0F8FF' : '#fff',
-                  boxShadow: isSelected ? '0 4px 16px rgba(0,122,255,0.08)' : '0 1px 4px rgba(0,0,0,0.04)',
-                  cursor: 'pointer',
-                  border: isSelected ? '2px solid #007AFF' : '1px solid #F0F0F0',
-                  transition: 'all 0.2s',
-                  '&:hover': {
-                    background: '#F8FAFF',
-                    boxShadow: '0 4px 16px rgba(0,122,255,0.10)',
-                    borderColor: '#007AFF',
-                  }
-                }}
-              >
-                <AutoAwesomeIcon fontSize="medium" sx={{ color: meetingStyles.backgroundColor, mr: 1 }} />
-                <Typography variant="subtitle1" fontWeight={600} sx={{ color: '#222', flex: 1 }}>
-                  {template.title}
-                </Typography>
-                <InfoOutlinedIcon color="action" />
-              </Box>
-            );
-          })}
-        </Box>
-      </Box>
+      <div className="w-80 border-r border-border/50 overflow-y-auto bg-card/30">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-foreground">Templates</h2>
+            <Button
+              onClick={handleAddTemplate}
+              className="flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add New
+            </Button>
+          </div>
+          
+          <div className="space-y-3">
+            {filteredTemplates.map((template) => {
+              const isSelected = template.id === selectedTemplate.id;
+              return (
+                <Card
+                  key={template.id}
+                  className={cn(
+                    "cursor-pointer card-hover border-border/50",
+                    isSelected && "ring-2 ring-primary/20 bg-primary/5 border-primary/30"
+                  )}
+                  onClick={() => {
+                    setSelectedTemplate(template);
+                    setEditedContent(template.content);
+                  }}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        <Sparkles className="w-4 h-4 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-foreground truncate">
+                          {template.title}
+                        </h4>
+                        <p className="text-xs text-muted-foreground truncate">
+                          AI prompt template
+                        </p>
+                      </div>
+                      <Info className="w-4 h-4 text-muted-foreground" />
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
       {/* Main Content */}
-      <Box 
-        flex={1} 
-        bgcolor="#fff" 
-        display="flex" 
-        flexDirection="column"
-        sx={{
-          borderLeft: 1,
-          borderColor: 'divider',
-          boxShadow: 2,
-          borderRadius: 3,
-          m: 2
-        }}
-      >
+      <div className="flex-1 flex flex-col bg-background">
         {/* Header */}
-        <Box 
-          p={3} 
-          borderBottom={1} 
-          borderColor="divider"
-          display="flex"
-          alignItems="center"
-          gap={1}
-        >
-          <Typography variant="h4" fontWeight={700} mb={3}>
-            {selectedTemplate.title}
-          </Typography>
-          <Tooltip title="This is the AI prompt that controls how your email summaries are generated for this meeting type." placement="right">
-            <InfoOutlinedIcon color="action" sx={{ ml: 1, mt: 0.5 }} />
-          </Tooltip>
-        </Box>
+        <div className="border-b border-border/50 p-6 bg-card/50">
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-foreground">
+              {selectedTemplate.title}
+            </h1>
+            <div className="group relative">
+              <Info className="w-5 h-5 text-muted-foreground cursor-help" />
+              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-card border border-border rounded-lg shadow-large text-sm text-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                This is the AI prompt that controls how your email summaries are generated for this meeting type.
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-card"></div>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Content Area */}
-        <Box 
-          flex={1} 
-          p={3}
-          sx={{ 
-            overflowY: 'auto',
-            bgcolor: '#f9fafb'
-          }}
-        >
-          <TextField
-            multiline
-            fullWidth
-            value={editedContent}
-            onChange={(e) => handleContentChange(e.target.value)}
-            variant="standard"
-            InputProps={{
-              disableUnderline: true,
-              sx: {
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '1rem',
-                lineHeight: 1.6,
-                '& textarea': {
-                  padding: 0,
-                }
-              }
-            }}
-          />
-          <Button
-            variant="contained"
-            color="primary"
-            sx={{ mt: 2, alignSelf: 'flex-end' }}
-            onClick={handleSave}
-            disabled={editedContent === selectedTemplate.content}
-          >
-            Save
-          </Button>
-        </Box>
-      </Box>
+        <div className="flex-1 overflow-y-auto p-6">
+          <Card className="border-border/50 h-full">
+            <CardContent className="p-6 h-full">
+              <div className="flex flex-col h-full">
+                <div className="flex-1">
+                  <textarea
+                    value={editedContent}
+                    onChange={(e) => handleContentChange(e.target.value)}
+                    className="w-full h-full min-h-[400px] p-4 bg-background text-foreground border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent font-sans text-base leading-relaxed"
+                    placeholder="Edit your prompt here..."
+                  />
+                </div>
+                <div className="flex justify-end mt-4">
+                  <Button
+                    onClick={handleSave}
+                    disabled={editedContent === selectedTemplate.content}
+                    className="flex items-center gap-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    Save Changes
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
-      <Snackbar
-        open={showSnackbar}
-        autoHideDuration={6000}
-        onClose={() => setShowSnackbar(false)}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        <Alert
-          onClose={() => setShowSnackbar(false)}
-          severity={snackbarSeverity}
-          variant="filled"
-        >
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
-    </Box>
+      {/* Snackbar */}
+      {showSnackbar && (
+        <div className="fixed bottom-4 right-4 z-50 animate-fade-in">
+          <div className={cn(
+            "px-4 py-3 rounded-lg shadow-large text-white",
+            snackbarSeverity === 'success' && "bg-primary",
+            snackbarSeverity === 'error' && "bg-destructive",
+            snackbarSeverity === 'warning' && "bg-yellow-600"
+          )}>
+            {snackbarMessage}
+          </div>
+        </div>
+      )}
+    </div>
   );
 } 
