@@ -188,7 +188,7 @@ export default function Meetings() {
     } finally {
       setLoading(false);
     }
-  }, [selectedMeetingId]);
+  }, []); // Remove selectedMeetingId dependency to prevent unnecessary API calls
 
   // Only fetch meetings on initial load or when syncing
   useEffect(() => {
@@ -203,7 +203,7 @@ export default function Meetings() {
       const isPast = meetings.past.some(m => m.id === meeting.id);
       if (isPast) {
         setActiveTab('summary');
-        setSummaryContent(meeting.meetingSummary);
+        setSummaryContent(meeting.meetingSummary || meeting.summary);
       } else {
         // For future meetings, we don't need to set activeTab since we only show Meeting Prep
         setSummaryContent(null);
