@@ -135,37 +135,12 @@ export default function Meetings() {
   
   // Remove showEmailSummaryUI state
   // const [showEmailSummaryUI, setShowEmailSummaryUI] = useState(false);
-  const [emailBody, setEmailBody] = useState('');
-  const [loadingEmailSummary, setLoadingEmailSummary] = useState(false);
   
   // Use ref to access current selectedMeetingId without triggering dependencies
   const selectedMeetingIdRef = useRef(null);
   selectedMeetingIdRef.current = selectedMeetingId;
 
-  // Add a single handler for generating the AI summary
-  const handleGenerateAISummary = async () => {
-    setLoadingEmailSummary(true);
-    setEmailBody('');
-    try {
-      const res = await fetch(`${API_URL}/calendar/generate-summary`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('jwt')}`
-        },
-        body: JSON.stringify({
-          transcript: selectedMeeting.transcript
-        })
-      });
-      if (!res.ok) throw new Error('Failed to generate summary');
-      const data = await res.json();
-      setEmailBody(data.summary || '');
-    } catch (err) {
-      setEmailBody('Error generating summary.');
-    } finally {
-      setLoadingEmailSummary(false);
-    }
-  };
+
   
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
@@ -428,7 +403,7 @@ export default function Meetings() {
 
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [templates, setTemplates] = useState(loadTemplates());
+  const [templates] = useState(loadTemplates());
   
   // Dropdown menu state
   const [summaryMenuAnchor, setSummaryMenuAnchor] = useState(null);
@@ -466,7 +441,7 @@ export default function Meetings() {
 
   const handleRegenerateSummary = () => {
     handleSummaryMenuClose();
-    handleGenerateAISummary();
+    setShowAIDialog(true);
   };
 
   return (
