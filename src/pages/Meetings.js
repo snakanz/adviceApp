@@ -706,6 +706,7 @@ export default function Meetings() {
                               await fetchMeetings();
                               setSelectedMeetingId(selectedMeetingId); // force UI update
                               setActiveTab('summary'); // ensure summary options are shown
+                              setSummaryContent(null); // immediately update UI to show create summary options
                             }}
                             sx={{
                               minWidth: 0,
