@@ -11,51 +11,35 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// GET /api/clients - returns all unique clients (grouped by email) from both clients table and meeting attendees
+// GET /api/clients - returns unique clients (by attendee email) and their meetings
 router.get('/', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
   try {
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const userId = decoded.id;
+    const userEmail = decoded.email;
 
-    // 1. Get all real clients from the clients table
-    const dbClientsResult = await pool.query(
-      'SELECT id, name, emails, likely_value, business_type, likely_close_month, email, ai_summary, created_at, updated_at FROM clients WHERE advisor_id = $1',
-      [advisorId]
-    );
-    const dbClients = dbClientsResult.rows;
+    // Get all meetings for this advisor
+    const result = await pool.query('SELECT id, title, starttime, endtime, attendees FROM meetings WHERE userid = $1', [userId]);
+    const meetings = result.rows;
 
-    // 2. Get all meetings for this advisor
-    const meetingsResult = await pool.query('SELECT id, title, starttime, endtime, attendees FROM meetings WHERE userid = $1', [advisorId]);
-    const meetings = meetingsResult.rows;
-
-    // 3. Build a map: email -> client object
+    // Map: email -> { email, meetings: [] }
     const clientsMap = {};
-    // Add DB clients first
-    dbClients.forEach(client => {
-      const emails = client.emails && client.emails.length ? client.emails : (client.email ? [client.email] : []);
-      emails.forEach(email => {
-        if (!clientsMap[email]) {
-          clientsMap[email] = { ...client, emails: emails.slice(), meetings: [] };
-        }
-      });
-    });
-    // Add meeting attendees
     meetings.forEach(meeting => {
       let attendees = [];
-      try { attendees = JSON.parse(meeting.attendees || '[]'); } catch { attendees = []; }
+      try {
+        attendees = JSON.parse(meeting.attendees || '[]');
+      } catch (e) {
+        attendees = [];
+      }
       attendees.forEach(att => {
-        if (att && att.email && att.email !== decoded.email) {
+        // Use email as unique key, skip advisor's own email
+        if (att && att.email && att.email !== userEmail) {
           if (!clientsMap[att.email]) {
-            clientsMap[att.email] = {
-              emails: [att.email],
-              name: att.displayName || '',
-              meetings: [],
-            };
+            clientsMap[att.email] = { email: att.email, name: att.displayName || '', meetings: [] };
           }
-          // Add meeting info
           clientsMap[att.email].meetings.push({
             id: meeting.id,
             title: meeting.title,
@@ -65,9 +49,9 @@ router.get('/', async (req, res) => {
         }
       });
     });
-    // Convert to array
-    const allClients = Object.values(clientsMap);
-    res.json(allClients);
+
+    // Return as array
+    res.json(Object.values(clientsMap));
   } catch (error) {
     console.error('Error fetching clients:', error);
     res.status(500).json({ error: 'Failed to fetch clients' });
