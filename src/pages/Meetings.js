@@ -100,6 +100,9 @@ export default function Meetings() {
   
   const [transcriptUpload, setTranscriptUpload] = useState('');
   const [uploadingTranscript, setUploadingTranscript] = useState(false);
+  // Add state for UI mode
+  const [showPasteTranscript, setShowPasteTranscript] = useState(false);
+  const [deletingTranscript, setDeletingTranscript] = useState(false);
 
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
@@ -235,6 +238,48 @@ export default function Meetings() {
       setSnackbarSeverity('error');
     } finally {
       setUploadingTranscript(false);
+    }
+  };
+
+  const handleAudioFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploadingTranscript(true);
+    try {
+      // Backend currently only supports text, so show a warning
+      setShowSnackbar(true);
+      setSnackbarMessage('Audio upload is not yet supported.');
+      setSnackbarSeverity('warning');
+    } finally {
+      setUploadingTranscript(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleDeleteTranscript = async () => {
+    if (!selectedMeeting) return;
+    setDeletingTranscript(true);
+    try {
+      await api.request(`/calendar/meetings/${selectedMeeting.id}/transcript`, {
+        method: 'DELETE',
+      });
+      setMeetings(prev => {
+        const update = m => m.id === selectedMeeting.id ? { ...m, transcript: null } : m;
+        return {
+          ...prev,
+          past: prev.past.map(update),
+          future: prev.future.map(update)
+        };
+      });
+      setShowSnackbar(true);
+      setSnackbarMessage('Transcript deleted');
+      setSnackbarSeverity('success');
+    } catch (err) {
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to delete transcript');
+      setSnackbarSeverity('error');
+    } finally {
+      setDeletingTranscript(false);
     }
   };
 
@@ -495,35 +540,68 @@ export default function Meetings() {
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <FileText className="w-5 h-5 text-primary" />
-                          Meeting Transcript
+                          Transcript
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
                         {selectedMeeting.transcript ? (
-                          <div className="prose prose-invert max-w-none">
-                            <div className="bg-card/50 border border-border/50 rounded-lg p-6 whitespace-pre-wrap text-foreground leading-relaxed">
-                              {selectedMeeting.transcript}
-                            </div>
+                          <div className="relative bg-card/50 border border-border/50 rounded-lg p-6 whitespace-pre-wrap text-foreground leading-relaxed">
+                            <button
+                              className="absolute top-2 right-2 text-muted-foreground hover:text-destructive rounded-full p-1"
+                              onClick={handleDeleteTranscript}
+                              disabled={deletingTranscript}
+                              aria-label="Delete transcript"
+                            >
+                              ×
+                            </button>
+                            {selectedMeeting.transcript}
                           </div>
                         ) : (
                           <div className="flex flex-col items-center justify-center py-8">
-                            <FileText className="w-12 h-12 text-muted-foreground mb-4" />
-                            <h3 className="text-lg font-medium text-foreground mb-2">No transcript uploaded</h3>
-                            <p className="text-muted-foreground mb-4">Upload or paste a transcript for this meeting.</p>
-                            <textarea
-                              className="w-full max-w-lg min-h-[120px] p-3 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary mb-3"
-                              placeholder="Paste transcript here..."
-                              value={transcriptUpload || ''}
-                              onChange={e => setTranscriptUpload(e.target.value)}
-                              disabled={uploadingTranscript}
-                            />
-                            <Button
-                              onClick={handleTranscriptUpload}
-                              disabled={!transcriptUpload?.trim() || uploadingTranscript}
-                              className="w-full max-w-lg"
-                            >
-                              {uploadingTranscript ? 'Uploading...' : 'Upload Transcript'}
-                            </Button>
+                            <h3 className="text-lg font-medium text-foreground mb-2">Add a transcript</h3>
+                            <p className="text-muted-foreground mb-4">Advicly creates transcripts from audio or text</p>
+                            <div className="flex flex-col sm:flex-row gap-3 mb-4 w-full max-w-lg">
+                              <Button variant="outline" className="flex-1" disabled>
+                                <span className="mr-2">🎤</span> Start recording
+                              </Button>
+                              <label className="flex-1">
+                                <input
+                                  type="file"
+                                  accept="audio/*"
+                                  className="hidden"
+                                  onChange={handleAudioFileChange}
+                                  disabled={uploadingTranscript}
+                                />
+                                <Button asChild variant="outline" className="w-full">
+                                  <span><span className="mr-2">📁</span> Upload audio</span>
+                                </Button>
+                              </label>
+                              <Button
+                                variant={showPasteTranscript ? "default" : "outline"}
+                                className="flex-1"
+                                onClick={() => setShowPasteTranscript(v => !v)}
+                              >
+                                <span className="mr-2">✏️</span> Paste transcript
+                              </Button>
+                            </div>
+                            {showPasteTranscript && (
+                              <div className="w-full max-w-lg flex flex-col gap-2">
+                                <textarea
+                                  className="w-full min-h-[120px] p-3 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary mb-3"
+                                  placeholder="Paste transcript here..."
+                                  value={transcriptUpload || ''}
+                                  onChange={e => setTranscriptUpload(e.target.value)}
+                                  disabled={uploadingTranscript}
+                                />
+                                <Button
+                                  onClick={handleTranscriptUpload}
+                                  disabled={!transcriptUpload?.trim() || uploadingTranscript}
+                                  className="w-full"
+                                >
+                                  {uploadingTranscript ? 'Uploading...' : 'Upload Transcript'}
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         )}
                       </CardContent>
