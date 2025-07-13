@@ -49,8 +49,7 @@ export default function Clients() {
   }, []);
 
   const filteredClients = clients
-    .filter(c => (`${c.name || c.email || ''}`).toLowerCase().includes(search.toLowerCase()))
-    .filter(c => c.id); // Only show clients with an id
+    .filter(c => (`${c.name || c.email || ''}`).toLowerCase().includes(search.toLowerCase())); // Show all clients
 
   const selectedClient = filteredClients[selectedClientIndex] || filteredClients[0];
 
@@ -223,7 +222,7 @@ export default function Clients() {
                     )}
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={openEditDrawer} disabled={!selectedClient.id}>
+                <Button variant="outline" size="sm" onClick={openEditDrawer} disabled={!selectedClient?.id}>
                   Edit
                 </Button>
               </div>
