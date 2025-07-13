@@ -14,6 +14,7 @@ import Settings from './pages/Settings';
 import LoginPage from './pages/LoginPage';
 import AuthCallback from './pages/AuthCallback';
 import AskAdvicly from './pages/AskAdvicly';
+import Dashboard from './pages/Dashboard';
 
 function PrivateRoute() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -35,7 +36,7 @@ function App() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route element={<PrivateRoute />}>
           <Route path="/" element={<Layout />}>
-            <Route index element={<Navigate to="/meetings" replace />} />
+            <Route index element={<Dashboard />} />
             <Route path="meetings" element={<Meetings />} />
             <Route path="clients" element={<Clients />} />
             <Route path="clients/:clientId" element={<ViewClient />} />

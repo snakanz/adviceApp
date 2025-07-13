@@ -15,7 +15,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
-const drawerWidth = 280;
+const drawerWidth = 260;
 
 const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(
   ({ theme }) => ({
@@ -32,6 +32,7 @@ const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(
 );
 
 const navItems = [
+  { label: 'Dashboard', icon: <BarChartIcon />, path: '/' },
   { label: 'Meetings', icon: <CalendarMonthIcon />, path: '/meetings' },
   { label: 'Clients', icon: <PeopleIcon />, path: '/clients' },
   { label: 'Templates', icon: <DescriptionIcon />, path: '/templates' },
@@ -39,7 +40,9 @@ const navItems = [
   { label: 'Settings', icon: <SettingsIcon />, path: '/settings' },
 ];
 
-const pipelineNav = { label: 'Client Pipeline', icon: <BarChartIcon />, path: '/pipeline' };
+const analyticsNav = [
+  { label: 'Client Pipeline', icon: <BarChartIcon />, path: '/pipeline' },
+];
 
 export default function Layout() {
   const location = useLocation();
@@ -65,26 +68,41 @@ export default function Layout() {
   };
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh' }}>
+    <Box sx={{ display: 'flex', height: '100vh', fontFamily: 'Inter, DM Sans, sans-serif' }}>
       <CssBaseline />
+      {/* AppBar */}
       <AppBar
         position="fixed"
         sx={{
-          width: `calc(100% - ${drawerWidth}px)`,
-          ml: `${drawerWidth}px`,
+          width: { sm: `calc(100% - ${drawerWidth}px)` },
+          ml: { sm: `${drawerWidth}px` },
           backgroundColor: '#FFFFFF',
           color: '#1E1E1E',
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
           borderBottom: '1px solid #E5E5E5',
           zIndex: (theme) => theme.zIndex.drawer + 1,
+          borderRadius: 0,
         }}
       >
-        <Toolbar sx={{ px: 4, py: 2 }}>
-          <Typography variant="h4" noWrap component="div" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
+        <Toolbar sx={{ px: 4, py: 2, minHeight: 72 }}>
+          {/* Hamburger for mobile (structure only) */}
+          <Box sx={{ display: { xs: 'block', sm: 'none' }, mr: 2 }}>
+            <IconButton edge="start" color="inherit" aria-label="menu" onClick={() => setOpen(!open)}>
+              <span style={{ fontSize: 24 }}>☰</span>
+            </IconButton>
+          </Box>
+          <Typography variant="h4" noWrap component="div" sx={{ fontWeight: 700, color: '#1E1E1E', fontFamily: 'Inter, DM Sans, sans-serif' }}>
             Dashboard
           </Typography>
           <Box sx={{ flexGrow: 1 }} />
-          
+          {/* Notification bell placeholder */}
+          <IconButton sx={{ mr: 2 }}>
+            <span style={{ fontSize: 22, color: '#888' }}>🔔</span>
+          </IconButton>
+          {/* Theme toggle placeholder */}
+          <IconButton sx={{ mr: 2 }}>
+            <span style={{ fontSize: 22, color: '#888' }}>🌓</span>
+          </IconButton>
           {/* User Profile Menu */}
           <Button
             onClick={handleUserMenuOpen}
@@ -96,7 +114,8 @@ export default function Layout() {
                   backgroundColor: '#007AFF',
                   color: '#FFFFFF',
                   fontSize: '14px',
-                  fontWeight: 600
+                  fontWeight: 600,
+                  borderRadius: '12px',
                 }}
               >
                 {getUserInitials(user?.name)}
@@ -109,7 +128,8 @@ export default function Layout() {
               fontWeight: 500,
               px: 2,
               py: 1,
-              borderRadius: '8px',
+              borderRadius: '16px',
+              fontFamily: 'Inter, DM Sans, sans-serif',
               '&:hover': {
                 backgroundColor: '#F8F9FA'
               }
@@ -124,7 +144,6 @@ export default function Layout() {
               </Typography>
             </Box>
           </Button>
-          
           <Menu
             anchorEl={anchorEl}
             open={Boolean(anchorEl)}
@@ -140,7 +159,7 @@ export default function Layout() {
             PaperProps={{
               sx: {
                 mt: 1,
-                borderRadius: '8px',
+                borderRadius: '16px',
                 boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
                 border: '1px solid #E5E5E5',
                 minWidth: 200
@@ -158,6 +177,7 @@ export default function Layout() {
           </Menu>
         </Toolbar>
       </AppBar>
+      {/* Sidebar Drawer */}
       <Drawer
         sx={{
           width: drawerWidth,
@@ -167,133 +187,152 @@ export default function Layout() {
             boxSizing: 'border-box',
             backgroundColor: '#FFFFFF',
             borderRight: '1px solid #E5E5E5',
-            boxShadow: 'none',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+            borderRadius: '0 16px 16px 0',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            p: 0,
           },
         }}
         variant="permanent"
         anchor="left"
       >
-        <Toolbar sx={{ px: 3, py: 3 }}>
-          <img src={process.env.PUBLIC_URL + '/logo-advicly.png'} alt="Advicly Logo" style={{ height: 40, width: 'auto', display: 'block' }} />
-        </Toolbar>
-        <Box sx={{ px: 3, py: 2 }}>
-          <Button
-            variant="contained"
-            fullWidth
-            startIcon={<AddIcon />}
-            onClick={() => setOpen(true)}
-            sx={{
-              backgroundColor: '#007AFF',
-              color: '#FFFFFF',
-              fontWeight: 500,
-              py: 1.5,
-              px: 2,
-              borderRadius: '8px',
-              textTransform: 'none',
-              fontSize: '14px',
-              boxShadow: 'none',
-              '&:hover': {
-                backgroundColor: '#0056CC',
-                boxShadow: 'none',
-              }
-            }}
-          >
-            New Meeting
-          </Button>
+        {/* Logo */}
+        <Box sx={{ px: 3, pt: 3, pb: 2, borderBottom: '1px solid #F1F3F4', background: '#fff', position: 'sticky', top: 0, zIndex: 2 }}>
+          <img src={process.env.PUBLIC_URL + '/logo-advicly.png'} alt="Advicly Logo" style={{ height: 40, width: 'auto', display: 'block', margin: '0 auto' }} />
         </Box>
-        <List sx={{ px: 2, py: 1 }}>
-          {navItems.map((item) => (
-            <ListItemButton
-              key={item.label}
-              component={NavLink}
-              to={item.path}
-              selected={location.pathname === item.path}
-              sx={{
-                borderRadius: '8px',
-                mb: 1,
-                py: 1.5,
-                px: 2,
-                '&.Mui-selected': {
-                  backgroundColor: '#F0F8FF',
-                  '& .MuiListItemIcon-root': {
-                    color: '#007AFF',
-                  },
-                  '& .MuiListItemText-primary': {
-                    color: '#007AFF',
-                    fontWeight: 600,
+        {/* Nav Items */}
+        <Box sx={{ flex: 1, overflowY: 'auto', py: 2 }}>
+          <List sx={{ px: 2, py: 1 }}>
+            {navItems.map((item) => (
+              <ListItemButton
+                key={item.label}
+                component={NavLink}
+                to={item.path}
+                selected={location.pathname === item.path}
+                sx={{
+                  borderRadius: '16px',
+                  mb: 1,
+                  py: 1.5,
+                  px: 2,
+                  fontWeight: 600,
+                  fontFamily: 'Inter, DM Sans, sans-serif',
+                  transition: 'all 0.2s',
+                  '&.Mui-selected': {
+                    backgroundColor: '#F0F8FF',
+                    '& .MuiListItemIcon-root': {
+                      color: '#007AFF',
+                    },
+                    '& .MuiListItemText-primary': {
+                      color: '#007AFF',
+                      fontWeight: 700,
+                    },
+                    '&:hover': {
+                      backgroundColor: '#E6F3FF',
+                    }
                   },
                   '&:hover': {
-                    backgroundColor: '#E6F3FF',
+                    backgroundColor: '#F8F9FA',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
                   }
-                },
-                '&:hover': {
-                  backgroundColor: '#F8F9FA',
-                }
-              }}
-            >
-              <ListItemIcon sx={{ minWidth: '40px' }}>
-                {item.icon}
-              </ListItemIcon>
-              <ListItemText 
-                primary={item.label} 
-                primaryTypographyProps={{
-                  fontSize: '14px',
-                  fontWeight: 500,
-                  color: '#1E1E1E'
                 }}
-              />
-            </ListItemButton>
-          ))}
+              >
+                <ListItemIcon sx={{ minWidth: '40px', color: '#3C3C3C' }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText 
+                  primary={item.label} 
+                  primaryTypographyProps={{
+                    fontSize: '15px',
+                    fontWeight: 600,
+                    color: '#1E1E1E',
+                    fontFamily: 'Inter, DM Sans, sans-serif',
+                  }}
+                />
+              </ListItemButton>
+            ))}
+          </List>
+          {/* Analytics Section Divider */}
           <Box sx={{ mt: 3, mb: 1, px: 2 }}>
-            <Typography variant="caption" sx={{ color: '#999999', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <Typography variant="caption" sx={{ color: '#999999', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', fontFamily: 'Inter, DM Sans, sans-serif' }}>
               Analytics
             </Typography>
           </Box>
-          <ListItemButton
-            component={NavLink}
-            to={pipelineNav.path}
-            selected={location.pathname === pipelineNav.path}
-            sx={{
-              borderRadius: '8px',
-              py: 1.5,
-              px: 2,
-              '&.Mui-selected': {
-                backgroundColor: '#F0F8FF',
-                '& .MuiListItemIcon-root': {
-                  color: '#007AFF',
-                },
-                '& .MuiListItemText-primary': {
-                  color: '#007AFF',
+          <List sx={{ px: 2, py: 0 }}>
+            {analyticsNav.map((item) => (
+              <ListItemButton
+                key={item.label}
+                component={NavLink}
+                to={item.path}
+                selected={location.pathname === item.path}
+                sx={{
+                  borderRadius: '16px',
+                  mb: 1,
+                  py: 1.5,
+                  px: 2,
                   fontWeight: 600,
-                },
-                '&:hover': {
-                  backgroundColor: '#E6F3FF',
-                }
-              },
-              '&:hover': {
-                backgroundColor: '#F8F9FA',
-              }
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: '40px' }}>
-              {pipelineNav.icon}
-            </ListItemIcon>
-            <ListItemText 
-              primary={pipelineNav.label} 
-              primaryTypographyProps={{
-                fontSize: '14px',
-                fontWeight: 500,
-                color: '#1E1E1E'
-              }}
-            />
-          </ListItemButton>
-        </List>
-      </Drawer>
-      <Main>
-        <Toolbar />
-        <Box sx={{ p: 4, height: 'calc(100vh - 64px)', overflow: 'auto' }}>
-          <Outlet />
+                  fontFamily: 'Inter, DM Sans, sans-serif',
+                  transition: 'all 0.2s',
+                  '&.Mui-selected': {
+                    backgroundColor: '#F0F8FF',
+                    '& .MuiListItemIcon-root': {
+                      color: '#007AFF',
+                    },
+                    '& .MuiListItemText-primary': {
+                      color: '#007AFF',
+                      fontWeight: 700,
+                    },
+                    '&:hover': {
+                      backgroundColor: '#E6F3FF',
+                    }
+                  },
+                  '&:hover': {
+                    backgroundColor: '#F8F9FA',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  }
+                }}
+              >
+                <ListItemIcon sx={{ minWidth: '40px', color: '#3C3C3C' }}>
+                  {item.icon}
+                </ListItemIcon>
+                <ListItemText 
+                  primary={item.label} 
+                  primaryTypographyProps={{
+                    fontSize: '15px',
+                    fontWeight: 600,
+                    color: '#1E1E1E',
+                    fontFamily: 'Inter, DM Sans, sans-serif',
+                  }}
+                />
+              </ListItemButton>
+            ))}
+          </List>
         </Box>
+        {/* Sticky Footer with Plan Badge */}
+        <Box sx={{ px: 3, py: 3, borderTop: '1px solid #F1F3F4', background: '#fff', position: 'sticky', bottom: 0, zIndex: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+            <Box sx={{
+              background: 'linear-gradient(90deg, #007AFF 60%, #00C6FB 100%)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: '13px',
+              px: 2.5,
+              py: 0.5,
+              borderRadius: '12px',
+              letterSpacing: 1,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              fontFamily: 'Inter, DM Sans, sans-serif',
+            }}>
+              PRO PLAN
+            </Box>
+          </Box>
+        </Box>
+      </Drawer>
+      {/* Main Content */}
+      <Main open={open} sx={{ background: '#F8F9FA', minHeight: '100vh', p: { xs: 2, sm: 4 } }}>
+        <Toolbar sx={{ minHeight: 72 }} />
+        <Outlet />
       </Main>
       <Dialog 
         open={open} 
