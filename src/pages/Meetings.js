@@ -624,18 +624,7 @@ export default function Meetings() {
                 // Use improved logic to determine if a real summary exists
                 const hasRealSummary = isRealSummary(summaryContent, selectedMeeting);
                 const hasTranscript = selectedMeeting?.transcript && selectedMeeting.transcript.trim() !== '' && selectedMeeting.transcript.toLowerCase() !== 'null';
-                if (!hasRealSummary && hasTranscript) {
-                  return (
-                    <Box sx={{ mt: 6, textAlign: 'center' }}>
-                      <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Summary</Typography>
-                      <Typography variant="h6" sx={{ color: '#888', mb: 2 }}>No summary available. Generate one?</Typography>
-                      <Stack direction="row" spacing={2} justifyContent="center">
-                        <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setShowAIDialog(true)}>✍️ Auto Generate with Advicly AI</Button>
-                        <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setShowTemplateModal(true)}>📄 Use a Template</Button>
-                      </Stack>
-                    </Box>
-                  );
-                } else if (hasRealSummary) {
+                if (hasRealSummary) {
                   return (
                     <Box sx={{ mt: 6, textAlign: 'center' }}>
                       <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Summary</Typography>
@@ -706,7 +695,7 @@ export default function Meetings() {
                       </Card>
                     </Box>
                   );
-                } else {
+                } else if (hasTranscript) {
                   return (
                     <Box sx={{ mt: 6, textAlign: 'center' }}>
                       <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Summary</Typography>
@@ -715,6 +704,13 @@ export default function Meetings() {
                         <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setShowAIDialog(true)}>✍️ Auto Generate with Advicly AI</Button>
                         <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setShowTemplateModal(true)}>📄 Use a Template</Button>
                       </Stack>
+                    </Box>
+                  );
+                } else {
+                  return (
+                    <Box sx={{ mt: 6, textAlign: 'center' }}>
+                      <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Summary</Typography>
+                      <Typography variant="h6" sx={{ color: '#888', mb: 2 }}>No transcript available. Add a transcript to generate a summary.</Typography>
                     </Box>
                   );
                 }
