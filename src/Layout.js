@@ -31,7 +31,6 @@ const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(
 );
 
 const navItems = [
-  { label: 'Dashboard', icon: <BarChartIcon />, path: '/' },
   { label: 'Meetings', icon: <CalendarMonthIcon />, path: '/meetings' },
   { label: 'Clients', icon: <PeopleIcon />, path: '/clients' },
   { label: 'Templates', icon: <DescriptionIcon />, path: '/templates' },
@@ -90,9 +89,7 @@ export default function Layout() {
               <span style={{ fontSize: 24 }}>☰</span>
             </IconButton>
           </Box>
-          <Typography variant="h4" noWrap component="div" sx={{ fontWeight: 700, color: '#1E1E1E', fontFamily: 'Inter, DM Sans, sans-serif' }}>
-            Dashboard
-          </Typography>
+          {/* Remove static Dashboard heading. Optionally, add a dynamic heading here. */}
           <Box sx={{ flexGrow: 1 }} />
           {/* Notification bell placeholder */}
           <IconButton sx={{ mr: 2 }}>
