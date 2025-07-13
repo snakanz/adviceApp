@@ -16,7 +16,6 @@ import ShareIcon from '@mui/icons-material/Share';
 import Avatar from '@mui/material/Avatar';
 import Tooltip from '@mui/material/Tooltip';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
-import DeleteIcon from '@mui/icons-material/Delete';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -387,37 +386,6 @@ export default function Meetings() {
   const handleNotesFileUpload = (e) => {
     const files = Array.from(e.target.files);
     setUploadedFiles(prev => [...prev, ...files]);
-  };
-
-  // Delete meeting function
-  const handleDeleteMeeting = async () => {
-    if (!selectedMeetingId) return;
-    
-    if (!window.confirm('Are you sure you want to delete this meeting? This action cannot be undone.')) {
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('jwt');
-      const res = await fetch(`${API_URL}/calendar/meetings/${selectedMeetingId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (!res.ok) throw new Error('Failed to delete meeting');
-      
-      // Refresh meetings list
-      await fetchMeetings();
-      setSelectedMeetingId(null);
-      setShowSnackbar(true);
-      setSnackbarMessage('Meeting deleted successfully');
-      setSnackbarSeverity('success');
-    } catch (err) {
-      console.error('Failed to delete meeting:', err);
-      setShowSnackbar(true);
-      setSnackbarMessage('Failed to delete meeting');
-      setSnackbarSeverity('error');
-    }
   };
 
   return (
