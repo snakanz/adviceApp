@@ -444,25 +444,25 @@ export default function Clients() {
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Email Addresses</label>
-            {(editForm.emails || ['']).map((email, idx) => (
-              <div key={idx} className="flex items-center gap-2 mb-2">
-                <Input
-                  value={email}
-                  onChange={e => handleEmailChange(idx, e.target.value)}
-                  placeholder="Enter email address"
-                  type="email"
-                />
-                {editForm.emails.length > 1 && (
-                  <Button type="button" variant="ghost" size="icon" onClick={() => removeEmailField(idx)}>
-                    &times;
+                  {(editForm.emails || []).map((email, idx) => (
+                    <div key={idx} className="flex items-center gap-2 mb-2">
+                      <Input
+                        value={email}
+                        onChange={e => handleEmailChange(idx, e.target.value)}
+                        placeholder="Enter email address"
+                        type="email"
+                      />
+                      {(editForm.emails || []).length > 1 && (
+                        <Button type="button" variant="ghost" size="icon" onClick={() => removeEmailField(idx)}>
+                          &times;
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <Button type="button" variant="outline" size="sm" onClick={addEmailField}>
+                    + Add Email
                   </Button>
-                )}
-              </div>
-            ))}
-            <Button type="button" variant="outline" size="sm" onClick={addEmailField}>
-              + Add Email
-            </Button>
-          </div>
+                </div>
           <div>
             <label className="block text-sm font-medium mb-1">Likely Value of Transaction</label>
             <Input
