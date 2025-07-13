@@ -341,6 +341,91 @@ Respond with the **email body only** — no headers or subject lines.`;
   }
 });
 
+// Delete a meeting and its associated data
+router.delete('/meetings/:eventId', authenticateToken, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user.id;
+
+    // Find the meeting first to check if it exists and belongs to the user
+    const meeting = await prisma.meeting.findFirst({
+      where: {
+        googleEventId: eventId,
+        userId
+      }
+    });
+
+    if (!meeting) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    // Delete related records first (due to foreign key constraints)
+    await prisma.actionItem.deleteMany({
+      where: { meetingId: meeting.id }
+    });
+
+    await prisma.recording.deleteMany({
+      where: { meetingId: meeting.id }
+    });
+
+    // Delete the meeting
+    await prisma.meeting.delete({
+      where: { id: meeting.id }
+    });
+
+    res.json({ message: 'Meeting deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting meeting:', error);
+    res.status(500).json({ error: 'Failed to delete meeting' });
+  }
+});
+
+// Delete all meetings for a user (cleanup endpoint)
+router.delete('/meetings', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { olderThan } = req.query; // Optional: delete meetings older than X days
+
+    let whereClause = { userId };
+    
+    if (olderThan) {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - parseInt(olderThan));
+      whereClause.startTime = { lt: cutoffDate };
+    }
+
+    // Get all meetings to delete
+    const meetingsToDelete = await prisma.meeting.findMany({
+      where: whereClause,
+      select: { id: true }
+    });
+
+    const meetingIds = meetingsToDelete.map(m => m.id);
+
+    // Delete related records first
+    await prisma.actionItem.deleteMany({
+      where: { meetingId: { in: meetingIds } }
+    });
+
+    await prisma.recording.deleteMany({
+      where: { meetingId: { in: meetingIds } }
+    });
+
+    // Delete the meetings
+    const deletedCount = await prisma.meeting.deleteMany({
+      where: whereClause
+    });
+
+    res.json({ 
+      message: `Deleted ${deletedCount.count} meetings successfully`,
+      deletedCount: deletedCount.count
+    });
+  } catch (error) {
+    console.error('Error deleting meetings:', error);
+    res.status(500).json({ error: 'Failed to delete meetings' });
+  }
+});
+
 // Debug route to confirm calendar.js is loaded
 router.get('/debug-alive', (req, res) => {
   res.json({ status: 'calendar routes alive' });

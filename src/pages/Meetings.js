@@ -16,6 +16,7 @@ import ShareIcon from '@mui/icons-material/Share';
 import Avatar from '@mui/material/Avatar';
 import Tooltip from '@mui/material/Tooltip';
 import AttachFileIcon from '@mui/icons-material/AttachFile';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -388,6 +389,37 @@ export default function Meetings() {
     setUploadedFiles(prev => [...prev, ...files]);
   };
 
+  // Delete meeting function
+  const handleDeleteMeeting = async () => {
+    if (!selectedMeetingId) return;
+    
+    if (!window.confirm('Are you sure you want to delete this meeting? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('jwt');
+      const res = await fetch(`${API_URL}/calendar/meetings/${selectedMeetingId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!res.ok) throw new Error('Failed to delete meeting');
+      
+      // Refresh meetings list
+      await fetchMeetings();
+      setSelectedMeetingId(null);
+      setShowSnackbar(true);
+      setSnackbarMessage('Meeting deleted successfully');
+      setSnackbarSeverity('success');
+    } catch (err) {
+      console.error('Failed to delete meeting:', err);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to delete meeting');
+      setSnackbarSeverity('error');
+    }
+  };
+
   return (
     <>
       <Box sx={{ height: 'calc(100vh - 128px)', display: 'flex', gap: 3 }}>
@@ -456,7 +488,7 @@ export default function Meetings() {
           {selectedMeetingId ? (
             <>
               {/* Meeting Header (for both past and future meetings) */}
-              <Box sx={{ px: 4, pt: 4, pb: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Box sx={{ px: 4, pt: 4, pb: 2, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <Box>
                   <Typography variant="h3" sx={{ fontWeight: 700, color: '#1E1E1E', mb: 1, textAlign: 'left' }}>
                     {selectedMeeting?.summary || selectedMeeting?.title || 'Untitled Meeting'}
@@ -484,6 +516,25 @@ export default function Meetings() {
                     </Box>
                   </Box>
                 </Box>
+                {/* Delete Button */}
+                <Button
+                  variant="outlined"
+                  color="error"
+                  startIcon={<DeleteIcon />}
+                  onClick={handleDeleteMeeting}
+                  sx={{ 
+                    borderRadius: 2, 
+                    textTransform: 'none',
+                    borderColor: '#ff4444',
+                    color: '#ff4444',
+                    '&:hover': {
+                      borderColor: '#cc0000',
+                      backgroundColor: '#fff5f5'
+                    }
+                  }}
+                >
+                  Delete Meeting
+                </Button>
               </Box>
               {/* Tab Switcher (unchanged) */}
               {(isPastMeeting || !isPastMeeting) && (
