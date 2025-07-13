@@ -5,8 +5,6 @@ import { api } from '../services/api';
 import { Card, CardContent } from '../components/ui/card';
 import { 
   Loader2, 
-  CheckCircle, 
-  XCircle,
   Shield
 } from 'lucide-react';
 

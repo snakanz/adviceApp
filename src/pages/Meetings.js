@@ -19,7 +19,6 @@ import {
   FileText,
   MessageSquare,
   Sparkles,
-  ChevronRight,
   Play,
   Pause
 } from 'lucide-react';

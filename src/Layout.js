@@ -38,7 +38,6 @@ const analyticsNav = [
 ];
 
 export default function Layout() {
-  const location = useLocation();
   const [open, setOpen] = useState(false);
   const { logout, user } = useAuth();
 

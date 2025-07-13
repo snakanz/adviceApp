@@ -9,8 +9,7 @@ import {
   TrendingUp, 
   DollarSign,
   Repeat,
-  Users,
-  Calendar
+  Users
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 

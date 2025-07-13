@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 
 const AIAdjustmentDialog = ({

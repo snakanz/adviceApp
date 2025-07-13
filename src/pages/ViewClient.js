@@ -12,8 +12,7 @@ import {
   Clock,
   Mail,
   Users,
-  Building2,
-  MessageSquare
+  Building2
 } from 'lucide-react';
 import { api } from '../services/api';
 
