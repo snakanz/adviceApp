@@ -517,24 +517,7 @@ export default function Meetings() {
                   </Box>
                 </Box>
                 {/* Delete Button */}
-                <Button
-                  variant="outlined"
-                  color="error"
-                  startIcon={<DeleteIcon />}
-                  onClick={handleDeleteMeeting}
-                  sx={{ 
-                    borderRadius: 2, 
-                    textTransform: 'none',
-                    borderColor: '#ff4444',
-                    color: '#ff4444',
-                    '&:hover': {
-                      borderColor: '#cc0000',
-                      backgroundColor: '#fff5f5'
-                    }
-                  }}
-                >
-                  Delete Meeting
-                </Button>
+                {/* (Removed for now) */}
               </Box>
               {/* Tab Switcher (unchanged) */}
               {(isPastMeeting || !isPastMeeting) && (

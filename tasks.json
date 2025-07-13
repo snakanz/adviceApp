@@ -15,6 +15,7 @@
   "backlog": [
     "Analytics/Client Pipeline: No changes made yet; prioritize if needed.",
     "Further UI/UX polish: Any additional design tweaks or new features to add.",
-    "Add file upload support to Notes tab: Implement file upload UI in the Notes tab for meetings. Store files in Supabase Storage and metadata in a new meeting_files table. Display uploaded files per meeting and ensure persistence across refreshes."
+    "Add file upload support to Notes tab: Implement file upload UI in the Notes tab for meetings. Store files in Supabase Storage and metadata in a new meeting_files table. Display uploaded files per meeting and ensure persistence across refreshes.",
+    "Allow deleting clients (and all their meetings) from the Clients section when they have no past or future meetings."
   ]
 } 
