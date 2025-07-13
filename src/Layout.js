@@ -1,37 +1,34 @@
 import React, { useState } from 'react';
-import { styled } from '@mui/material/styles';
-import { Box, Drawer, List, ListItemButton, ListItemIcon, ListItemText, AppBar, Toolbar, Typography, CssBaseline, Button, Dialog, DialogTitle, DialogContent, DialogActions, IconButton, TextField, Avatar, Menu, MenuItem } from '@mui/material';
-import PeopleIcon from '@mui/icons-material/People';
-import CalendarMonthIcon from '@mui/icons-material/CalendarMonth';
-import DescriptionIcon from '@mui/icons-material/Description';
-import SettingsIcon from '@mui/icons-material/Settings';
-import CloseIcon from '@mui/icons-material/Close';
-import BarChartIcon from '@mui/icons-material/BarChart';
-import LogoutIcon from '@mui/icons-material/Logout';
-import AccountCircleIcon from '@mui/icons-material/AccountCircle';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import { Button } from './components/ui/button';
+import { Avatar, AvatarFallback } from './components/ui/avatar';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from './components/ui/dropdown-menu';
+import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
+import { cn } from './lib/utils';
+import {
+  CalendarIcon,
+  PeopleIcon,
+  DescriptionIcon,
+  SettingsIcon,
+  BarChartIcon,
+  LogoutIcon,
+  AccountCircleIcon,
+  KeyboardArrowDownIcon,
+  MenuIcon,
+  CloseIcon,
+  AutoAwesomeIcon
+} from './components/icons';
 
-const drawerWidth = 260;
 
-const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(
-  ({ theme }) => ({
-    flexGrow: 1,
-    padding: 0,
-    transition: theme.transitions.create('margin', {
-      easing: theme.transitions.easing.sharp,
-      duration: theme.transitions.duration.leavingScreen,
-    }),
-    marginLeft: 0,
-    minHeight: '100vh',
-    backgroundColor: '#FFFFFF',
-  }),
-);
 
 const navItems = [
-  { label: 'Meetings', icon: <CalendarMonthIcon />, path: '/meetings' },
+  { label: 'Meetings', icon: <CalendarIcon />, path: '/meetings' },
   { label: 'Clients', icon: <PeopleIcon />, path: '/clients' },
   { label: 'Templates', icon: <DescriptionIcon />, path: '/templates' },
   { label: 'Ask Advicly', icon: <AutoAwesomeIcon />, path: '/ask-advicly' },
@@ -45,19 +42,10 @@ const analyticsNav = [
 export default function Layout() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState(null);
   const { logout, user } = useAuth();
 
   const handleLogout = () => {
     logout();
-  };
-
-  const handleUserMenuOpen = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleUserMenuClose = () => {
-    setAnchorEl(null);
   };
 
   const getUserInitials = (name) => {
@@ -66,339 +54,242 @@ export default function Layout() {
   };
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh', fontFamily: 'Inter, DM Sans, sans-serif' }}>
-      <CssBaseline />
+    <div className="flex h-screen font-sans">
       {/* AppBar */}
-      <AppBar
-        position="fixed"
-        sx={{
-          width: { sm: `calc(100% - ${drawerWidth}px)` },
-          ml: { sm: `${drawerWidth}px` },
-          backgroundColor: '#FFFFFF',
-          color: '#1E1E1E',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          borderBottom: '1px solid #E5E5E5',
-          zIndex: (theme) => theme.zIndex.drawer + 1,
-          borderRadius: 0,
-        }}
-      >
-        <Toolbar sx={{ px: 4, py: 2, minHeight: 72 }}>
-          {/* Hamburger for mobile (structure only) */}
-          <Box sx={{ display: { xs: 'block', sm: 'none' }, mr: 2 }}>
-            <IconButton edge="start" color="inherit" aria-label="menu" onClick={() => setOpen(!open)}>
-              <span style={{ fontSize: 24 }}>☰</span>
-            </IconButton>
-          </Box>
-          {/* Remove static Dashboard heading. Optionally, add a dynamic heading here. */}
-          <Box sx={{ flexGrow: 1 }} />
-          {/* User Profile Menu */}
-          <Button
-            onClick={handleUserMenuOpen}
-            startIcon={
-              <Avatar
-                sx={{
-                  width: 32,
-                  height: 32,
-                  backgroundColor: '#007AFF',
-                  color: '#FFFFFF',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  borderRadius: '12px',
-                }}
-              >
-                {getUserInitials(user?.name)}
-              </Avatar>
-            }
-            endIcon={<KeyboardArrowDownIcon />}
-            sx={{
-              color: '#1E1E1E',
-              textTransform: 'none',
-              fontWeight: 500,
-              px: 2,
-              py: 1,
-              borderRadius: '16px',
-              fontFamily: 'Inter, DM Sans, sans-serif',
-              '&:hover': {
-                backgroundColor: '#F8F9FA'
-              }
-            }}
-          >
-            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', ml: 1 }}>
-              <Typography variant="body2" sx={{ fontWeight: 600, color: '#1E1E1E', fontSize: '14px' }}>
-                {user?.name || 'User'}
-              </Typography>
-              <Typography variant="caption" sx={{ color: '#3C3C3C', fontSize: '12px' }}>
-                {user?.email || 'user@example.com'}
-              </Typography>
-            </Box>
-          </Button>
-          <Menu
-            anchorEl={anchorEl}
-            open={Boolean(anchorEl)}
-            onClose={handleUserMenuClose}
-            anchorOrigin={{
-              vertical: 'bottom',
-              horizontal: 'right',
-            }}
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'right',
-            }}
-            PaperProps={{
-              sx: {
-                mt: 1,
-                borderRadius: '16px',
-                boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-                border: '1px solid #E5E5E5',
-                minWidth: 200
-              }
-            }}
-          >
-            <MenuItem onClick={handleUserMenuClose} sx={{ py: 1.5, px: 2 }}>
-              <AccountCircleIcon sx={{ mr: 2, color: '#3C3C3C' }} />
-              <Typography variant="body2">Profile Settings</Typography>
-            </MenuItem>
-            <MenuItem onClick={() => { handleUserMenuClose(); handleLogout(); }} sx={{ py: 1.5, px: 2 }}>
-              <LogoutIcon sx={{ mr: 2, color: '#3C3C3C' }} />
-              <Typography variant="body2">Logout</Typography>
-            </MenuItem>
-          </Menu>
-        </Toolbar>
-      </AppBar>
-      {/* Sidebar Drawer */}
-      <Drawer
-        sx={{
-          width: drawerWidth,
-          flexShrink: 0,
-          '& .MuiDrawer-paper': {
-            width: drawerWidth,
-            boxSizing: 'border-box',
-            backgroundColor: '#FFFFFF',
-            borderRight: '1px solid #E5E5E5',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
-            borderRadius: '0 16px 16px 0',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            p: 0,
-          },
-        }}
-        variant="permanent"
-        anchor="left"
-      >
-        {/* Nav Items */}
-        <Box sx={{ flex: 1, overflowY: 'auto', py: 2 }}>
-          <List sx={{ px: 2, py: 1 }}>
-            {navItems.map((item) => (
-              <ListItemButton
-                key={item.label}
-                component={NavLink}
-                to={item.path}
-                selected={location.pathname === item.path}
-                sx={{
-                  borderRadius: '16px',
-                  mb: 1,
-                  py: 1.5,
-                  px: 2,
-                  fontWeight: 600,
-                  fontFamily: 'Inter, DM Sans, sans-serif',
-                  transition: 'all 0.2s',
-                  '&.Mui-selected': {
-                    backgroundColor: '#F0F8FF',
-                    '& .MuiListItemIcon-root': {
-                      color: '#007AFF',
-                    },
-                    '& .MuiListItemText-primary': {
-                      color: '#007AFF',
-                      fontWeight: 700,
-                    },
-                    '&:hover': {
-                      backgroundColor: '#E6F3FF',
-                    }
-                  },
-                  '&:hover': {
-                    backgroundColor: '#F8F9FA',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                  }
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: '40px', color: '#3C3C3C' }}>
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText 
-                  primary={item.label} 
-                  primaryTypographyProps={{
-                    fontSize: '15px',
-                    fontWeight: 600,
-                    color: '#1E1E1E',
-                    fontFamily: 'Inter, DM Sans, sans-serif',
-                  }}
-                />
-              </ListItemButton>
-            ))}
-          </List>
-          {/* Analytics Section Divider */}
-          <Box sx={{ mt: 3, mb: 1, px: 2 }}>
-            <Typography variant="caption" sx={{ color: '#999999', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', fontFamily: 'Inter, DM Sans, sans-serif' }}>
-              Analytics
-            </Typography>
-          </Box>
-          <List sx={{ px: 2, py: 0 }}>
-            {analyticsNav.map((item) => (
-              <ListItemButton
-                key={item.label}
-                component={NavLink}
-                to={item.path}
-                selected={location.pathname === item.path}
-                sx={{
-                  borderRadius: '16px',
-                  mb: 1,
-                  py: 1.5,
-                  px: 2,
-                  fontWeight: 600,
-                  fontFamily: 'Inter, DM Sans, sans-serif',
-                  transition: 'all 0.2s',
-                  '&.Mui-selected': {
-                    backgroundColor: '#F0F8FF',
-                    '& .MuiListItemIcon-root': {
-                      color: '#007AFF',
-                    },
-                    '& .MuiListItemText-primary': {
-                      color: '#007AFF',
-                      fontWeight: 700,
-                    },
-                    '&:hover': {
-                      backgroundColor: '#E6F3FF',
-                    }
-                  },
-                  '&:hover': {
-                    backgroundColor: '#F8F9FA',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                  }
-                }}
-              >
-                <ListItemIcon sx={{ minWidth: '40px', color: '#3C3C3C' }}>
-                  {item.icon}
-                </ListItemIcon>
-                <ListItemText 
-                  primary={item.label} 
-                  primaryTypographyProps={{
-                    fontSize: '15px',
-                    fontWeight: 600,
-                    color: '#1E1E1E',
-                    fontFamily: 'Inter, DM Sans, sans-serif',
-                  }}
-                />
-              </ListItemButton>
-            ))}
-          </List>
-        </Box>
-        {/* Sticky Footer with Plan Badge */}
-        <Box sx={{ px: 3, py: 3, borderTop: '1px solid #F1F3F4', background: '#fff', position: 'sticky', bottom: 0, zIndex: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-            <Box sx={{
-              background: 'linear-gradient(90deg, #007AFF 60%, #00C6FB 100%)',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: '13px',
-              px: 2.5,
-              py: 0.5,
-              borderRadius: '12px',
-              letterSpacing: 1,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-              fontFamily: 'Inter, DM Sans, sans-serif',
-            }}>
-              PRO PLAN
-            </Box>
-          </Box>
-        </Box>
-        {/* Logo */}
-        <Box sx={{ px: 3, pt: 2, pb: 2, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <img src={process.env.PUBLIC_URL + '/logo-advicly.png'} alt="Advicly Logo" style={{ height: 40, width: 'auto', display: 'block', margin: '0 auto' }} />
-        </Box>
-      </Drawer>
-      {/* Main Content */}
-      <Main open={open} sx={{ background: '#F8F9FA', minHeight: '100vh', p: { xs: 2, sm: 4 } }}>
-        <Toolbar sx={{ minHeight: 72 }} />
-        <Outlet />
-      </Main>
-      <Dialog 
-        open={open} 
-        onClose={() => setOpen(false)} 
-        maxWidth="sm" 
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: '12px',
-            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          }
-        }}
-      >
-        <DialogTitle sx={{ p: 3, pb: 1 }}>
-          <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Typography variant="h4" sx={{ fontWeight: 600, color: '#1E1E1E' }}>
-              New Meeting
-            </Typography>
-            <IconButton 
-              onClick={() => setOpen(false)} 
-              size="small"
-              sx={{ 
-                color: '#3C3C3C',
-                '&:hover': {
-                  backgroundColor: '#F8F9FA'
-                }
-              }}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+        <div className="flex items-center justify-between px-6 py-4 h-18">
+          {/* Hamburger for mobile */}
+          <div className="block sm:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setOpen(!open)}
+              className="text-gray-600"
             >
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-        <DialogContent sx={{ p: 3, pt: 2 }}>
-          <TextField
-            label="Meeting Summary"
-            multiline
-            rows={4}
-            fullWidth
-            variant="outlined"
-            sx={{ mt: 1 }}
-          />
-        </DialogContent>
-        <DialogActions sx={{ p: 3, pt: 1 }}>
-          <Button 
-            onClick={() => setOpen(false)}
-            sx={{ 
-              color: '#3C3C3C',
-              textTransform: 'none',
-              fontWeight: 500,
-              px: 3,
-              py: 1,
-              borderRadius: '6px'
-            }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            variant="contained" 
-            onClick={() => setOpen(false)}
-            sx={{
-              backgroundColor: '#007AFF',
-              color: '#FFFFFF',
-              textTransform: 'none',
-              fontWeight: 500,
-              px: 3,
-              py: 1,
-              borderRadius: '6px',
-              boxShadow: 'none',
-              '&:hover': {
-                backgroundColor: '#0056CC',
-                boxShadow: 'none',
-              }
-            }}
-          >
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+              <MenuIcon />
+            </Button>
+          </div>
+          
+          <div className="flex-1" />
+          
+          {/* User Profile Menu */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-gray-50"
+              >
+                <Avatar className="w-8 h-8 bg-blue-600 text-white text-sm font-semibold rounded-xl">
+                  <AvatarFallback className="bg-blue-600 text-white text-sm font-semibold rounded-xl">
+                    {getUserInitials(user?.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col items-start">
+                  <span className="text-sm font-semibold text-gray-900">
+                    {user?.name || 'User'}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {user?.email || 'user@example.com'}
+                  </span>
+                </div>
+                <KeyboardArrowDownIcon className="w-4 h-4 text-gray-400" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 mt-2">
+              <DropdownMenuItem className="flex items-center gap-2">
+                <AccountCircleIcon className="w-4 h-4" />
+                Profile Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                className="flex items-center gap-2"
+                onClick={handleLogout}
+              >
+                <LogoutIcon className="w-4 h-4" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </header>
+
+      {/* Sidebar Drawer */}
+      <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 shadow-sm z-40">
+        <div className="flex flex-col h-full">
+          {/* Logo */}
+          <div className="flex items-center justify-center p-6 border-b border-gray-100">
+            <img 
+              src={process.env.PUBLIC_URL + '/logo-advicly.png'} 
+              alt="Advicly Logo" 
+              className="h-10 w-auto" 
+            />
+          </div>
+
+          {/* Navigation Items */}
+          <nav className="flex-1 overflow-y-auto py-4">
+            <div className="px-4 space-y-1">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.label}
+                  to={item.path}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-2xl text-sm font-semibold transition-all duration-200",
+                      isActive
+                        ? "bg-blue-50 text-blue-600"
+                        : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                    )
+                  }
+                >
+                  <span className={cn(
+                    "w-5 h-5",
+                    location.pathname === item.path ? "text-blue-600" : "text-gray-500"
+                  )}>
+                    {item.icon}
+                  </span>
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+
+            {/* Analytics Section */}
+            <div className="mt-6 px-4">
+              <div className="mb-2">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  Analytics
+                </span>
+              </div>
+              <div className="space-y-1">
+                {analyticsNav.map((item) => (
+                  <NavLink
+                    key={item.label}
+                    to={item.path}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex items-center gap-3 px-3 py-2 rounded-2xl text-sm font-semibold transition-all duration-200",
+                        isActive
+                          ? "bg-blue-50 text-blue-600"
+                          : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                      )
+                    }
+                  >
+                    <span className={cn(
+                      "w-5 h-5",
+                      location.pathname === item.path ? "text-blue-600" : "text-gray-500"
+                    )}>
+                      {item.icon}
+                    </span>
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          </nav>
+
+          {/* Sticky Footer with Plan Badge */}
+          <div className="p-4 border-t border-gray-100">
+            <div className="flex items-center justify-center">
+              <div className="bg-gradient-to-r from-blue-600 to-blue-400 text-white text-xs font-bold px-3 py-1 rounded-xl tracking-wider shadow-sm">
+                PRO PLAN
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="flex-1 ml-0 sm:ml-64 bg-gray-50 min-h-screen pt-18">
+        <div className="p-4 sm:p-6">
+          <Outlet />
+        </div>
+      </main>
+
+      {/* Mobile Menu Dialog */}
+      {open && (
+        <div className="fixed inset-0 z-50 sm:hidden">
+          <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setOpen(false)} />
+          <div className="fixed left-0 top-0 h-full w-64 bg-white shadow-lg">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <img 
+                src={process.env.PUBLIC_URL + '/logo-advicly.png'} 
+                alt="Advicly Logo" 
+                className="h-8 w-auto" 
+              />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setOpen(false)}
+              >
+                <CloseIcon />
+              </Button>
+            </div>
+            <nav className="p-4 space-y-2">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.label}
+                  to={item.path}
+                  onClick={() => setOpen(false)}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-2xl text-sm font-semibold transition-all duration-200",
+                      isActive
+                        ? "bg-blue-50 text-blue-600"
+                        : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                    )
+                  }
+                >
+                  <span className="w-5 h-5 text-gray-500">
+                    {item.icon}
+                  </span>
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
+
+      {/* New Meeting Dialog */}
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setOpen(false)} />
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl font-semibold">New Meeting</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setOpen(false)}
+                >
+                  <CloseIcon />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Meeting Summary</label>
+                <textarea
+                  className="w-full h-24 px-3 py-2 border border-gray-300 rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Enter meeting summary..."
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => setOpen(false)}
+                >
+                  Save
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
   );
 } 

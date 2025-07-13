@@ -1,24 +1,28 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  Box, Typography, Button, Snackbar, Alert, CircularProgress, Card, Stack,
-  TextField, Dialog, DialogTitle, DialogContent, DialogActions, Menu, MenuItem,
-  IconButton
-} from '@mui/material';
-import EventIcon from '@mui/icons-material/Event';
-import EditIcon from '@mui/icons-material/Edit';
-import MoreVertIcon from '@mui/icons-material/MoreVert';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import { Button } from '../components/ui/button';
+import { Card, CardContent } from '../components/ui/card';
+import { Avatar, AvatarFallback } from '../components/ui/avatar';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from '../components/ui/dropdown-menu';
+import { cn } from '../lib/utils';
+import { 
+  Calendar, 
+  MoreVertical, 
+  Copy, 
+  Share, 
+  Clock,
+  Users,
+  FileText
+} from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import MicIcon from '@mui/icons-material/Mic';
-import UploadFileIcon from '@mui/icons-material/UploadFile';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
-import ShareIcon from '@mui/icons-material/Share';
-import Avatar from '@mui/material/Avatar';
-import Tooltip from '@mui/material/Tooltip';
-import AttachFileIcon from '@mui/icons-material/AttachFile';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -44,14 +48,12 @@ const groupMeetingsByDate = (meetings) => {
   return grouped;
 };
 
-// Helper to determine meeting source
 function getMeetingSource(meeting) {
   if (meeting.hangoutLink || meeting.conferenceData) return 'google';
-  if (meeting.outlookEventId) return 'outlook'; // Example field for Outlook
+  if (meeting.outlookEventId) return 'outlook';
   return 'default';
 }
 
-// Helper to format meeting time range
 function formatMeetingTime(meeting) {
   if (!meeting?.start?.dateTime || !meeting?.end?.dateTime) return '';
   const start = new Date(meeting.start.dateTime);
@@ -59,86 +61,41 @@ function formatMeetingTime(meeting) {
   return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
 }
 
-// Helper to render participant avatars/initials
 function renderParticipants(meeting) {
   if (!meeting?.attendees || !Array.isArray(meeting.attendees)) return null;
   return meeting.attendees.slice(0, 3).map((att, idx) => (
-    <Tooltip title={att.displayName || att.email} key={att.email || idx}>
-      <Avatar sx={{ width: 32, height: 32, fontSize: 14, ml: idx > 0 ? -1 : 0, bgcolor: '#f3f4f6', color: '#222', border: '2px solid #fff' }}>
-        {att.displayName ? att.displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2) : (att.email ? att.email[0].toUpperCase() : '?')}
+    <div key={att.email || idx} className="relative" title={att.displayName || att.email}>
+      <Avatar className={cn(
+        "w-8 h-8 text-sm font-medium bg-gray-100 text-gray-700 border-2 border-white",
+        idx > 0 && "-ml-1"
+      )}>
+        <AvatarFallback className="bg-gray-100 text-gray-700 text-sm font-medium">
+          {att.displayName ? att.displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2) : (att.email ? att.email[0].toUpperCase() : '?')}
+        </AvatarFallback>
       </Avatar>
-    </Tooltip>
+    </div>
   ));
 }
 
-const defaultTemplates = [
-  {
-    id: 'intro',
-    title: 'Intro Meeting',
-    content: `Dear [Client Name],\n\nThank you for meeting with me today. Here's a summary of our discussion and next steps.\n\nKey Points:\n- Your current financial situation\n- Your goals and priorities\n- Next steps for our engagement\n\nPlease let me know if you have any questions.\n\nBest regards,\n[Your Name]`,
-  },
-  {
-    id: 'cashflow',
-    title: 'Cashflow Meeting',
-    content: `Dear [Client Name],\n\nThank you for our recent meeting to review your cashflow.\n\nKey Points:\n- Income and expenses overview\n- Budgeting and savings opportunities\n- Action items for next steps\n\nLet me know if you need clarification on any points.\n\nBest regards,\n[Your Name]`,
-  },
-  {
-    id: 'performance',
-    title: 'Performance Meeting',
-    content: `Dear [Client Name],\n\nThank you for meeting to review your portfolio performance.\n\nKey Points:\n- Portfolio returns and allocation\n- Market commentary\n- Recommendations and next steps\n\nPlease reach out if you have any questions.\n\nBest regards,\n[Your Name]`,
-  },
-  {
-    id: 'signup',
-    title: 'Signup Meeting',
-    content: `Dear [Client Name],\n\nCongratulations on taking the next step! Here's a summary of your signup meeting.\n\nKey Points:\n- Services agreed upon\n- Documentation required\n- Next steps for onboarding\n\nWe look forward to working with you.\n\nBest regards,\n[Your Name]`,
-  },
-];
 
-function loadTemplates() {
-  const saved = localStorage.getItem('advicly_templates');
-  if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch {
-      return defaultTemplates;
-    }
-  }
-  return defaultTemplates;
-}
 
-// Helper to determine if a summary is real (not just the title or a placeholder)
-function isRealSummary(summary, meeting) {
-  if (!summary || summary.trim() === '') return false;
-  const title = meeting?.summary || meeting?.title || '';
-  if (summary.trim() === title.trim()) return false;
-  if (summary.trim().toLowerCase().includes('untitled meeting')) return false;
-  return true;
-}
+
 
 export default function Meetings() {
   const [meetings, setMeetings] = useState({ future: [], past: [] });
   const [selectedMeetingId, setSelectedMeetingId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAIDialog, setShowAIDialog] = useState(false);
-  const [openUploadDialog, setOpenUploadDialog] = useState(false);
-  const [openPasteDialog, setOpenPasteDialog] = useState(false);
   const [showSnackbar, setShowSnackbar] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
   const [summaryContent, setSummaryContent] = useState(null);
-  const [pastedTranscript, setPastedTranscript] = useState('');
   const [activeTab, setActiveTab] = useState('summary');
   const { isAuthenticated } = useAuth();
-  const [meetingView, setMeetingView] = useState('future'); // 'future' or 'past'
+  const [meetingView, setMeetingView] = useState('future');
   
-  // Remove showEmailSummaryUI state
-  // const [showEmailSummaryUI, setShowEmailSummaryUI] = useState(false);
-  
-  // Use ref to access current selectedMeetingId without triggering dependencies
   const selectedMeetingIdRef = useRef(null);
   selectedMeetingIdRef.current = selectedMeetingId;
-
-
   
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
@@ -150,7 +107,6 @@ export default function Meetings() {
     );
   }, [meetings, selectedMeetingId]);
 
-  // Move fetchMeetings out of useEffect so it can be called directly
   const fetchMeetings = useCallback(async () => {
     setLoading(true);
     try {
@@ -166,7 +122,6 @@ export default function Meetings() {
       });
       if (!res.ok) {
         if (res.status === 401) {
-          // Check if it's a Google Calendar connection issue
           const errorData = await res.json();
           if (errorData.error && errorData.error.includes('Google Calendar')) {
             setShowSnackbar(true);
@@ -188,7 +143,6 @@ export default function Meetings() {
         });
       }
       setMeetings(meetingsData);
-      // Only set selectedMeetingId if it is null (initial load)
       if (selectedMeetingIdRef.current === null) {
         if (meetingsData.past.length > 0) {
           setSelectedMeetingId(meetingsData.past[0].id);
@@ -198,745 +152,305 @@ export default function Meetings() {
           setSummaryContent(meetingsData.future[0].meetingSummary);
         }
       }
-    } catch (err) {
-      console.error('Failed to fetch meetings:', err);
+    } catch (error) {
+      console.error('Error fetching meetings:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to load meetings');
+      setSnackbarSeverity('error');
     } finally {
       setLoading(false);
     }
-  }, []); // Remove selectedMeetingId dependency to prevent unnecessary API calls
+  }, []);
 
-  // Only fetch meetings on initial load or when syncing
   useEffect(() => {
-    if (isAuthenticated) fetchMeetings();
+    if (isAuthenticated) {
+      fetchMeetings();
+    }
   }, [isAuthenticated, fetchMeetings]);
 
-  // Update handleMeetingSelect to reset activeTab only when a new meeting is selected
   const handleMeetingSelect = (meeting) => {
-    if (meeting.id !== selectedMeetingId) {
-      setSelectedMeetingId(meeting.id);
-      // Set appropriate default tab based on meeting type
-      const isPast = meetings.past.some(m => m.id === meeting.id);
-      if (isPast) {
-        setActiveTab('summary');
-        setSummaryContent(meeting.meetingSummary || meeting.summary);
-      } else {
-        // For future meetings, we don't need to set activeTab since we only show Meeting Prep
-        setSummaryContent(null);
-      }
-    }
+    setSelectedMeetingId(meeting.id);
+    setSummaryContent(meeting.meetingSummary || meeting.transcript || '');
+    setActiveTab('summary');
   };
-
-  const isPastMeeting = meetings.past.some(m => m.id === selectedMeetingId);
 
   const handleAIAdjustment = async (adjustmentPrompt) => {
-    setLoading(true);
+    if (!selectedMeeting) return;
+    
     try {
-      const originalSummary = JSON.stringify(summaryContent);
-      const adjustedSummary = await adjustMeetingSummary(originalSummary, adjustmentPrompt);
-      const newSummary = JSON.parse(adjustedSummary);
-      setSummaryContent(newSummary);
-      setShowAIDialog(false);
+      const result = await adjustMeetingSummary(selectedMeeting.id, adjustmentPrompt);
+      setSummaryContent(result.summary);
       setShowSnackbar(true);
-      setSnackbarMessage('Meeting summary updated successfully');
+      setSnackbarMessage('Summary adjusted successfully');
       setSnackbarSeverity('success');
     } catch (error) {
-      console.error('Failed to adjust summary:', error);
+      console.error('Error adjusting summary:', error);
       setShowSnackbar(true);
-      setSnackbarMessage('Failed to update meeting summary. Please try again.');
-      setSnackbarSeverity('error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-
-  const handleStartRecording = () => {
-    // Implementation of handleStartRecording
-  };
-
-  const handleAudioFileChange = (e) => {
-    // Implementation of handleAudioFileChange
-  };
-
-  const handleUploadAudioSubmit = () => {
-    // Implementation of handleUploadAudioSubmit
-  };
-
-  const handlePasteTranscriptSubmit = async () => {
-    console.log("Uploading transcript", pastedTranscript, selectedMeetingId);
-    if (!pastedTranscript.trim()) return;
-    try {
-      const res = await fetch(`${API_URL}/calendar/meetings/${selectedMeetingId}/transcript`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('jwt')}`
-        },
-        body: JSON.stringify({ transcript: pastedTranscript, clientId: selectedMeeting?.clientId })
-      });
-      if (!res.ok) throw new Error('Failed to save transcript');
-      // Refetch meetings from backend to get updated hasTranscript/summary
-      await fetchMeetings();
-      setSelectedMeetingId(selectedMeetingId); // Force re-select to update UI
-      setOpenPasteDialog(false);
-      setShowSnackbar(true);
-      setSnackbarMessage('Transcript uploaded successfully');
-      setSnackbarSeverity('success');
-    } catch (err) {
-      setShowSnackbar(true);
-      setSnackbarMessage('Failed to upload transcript');
+      setSnackbarMessage('Failed to adjust summary');
       setSnackbarSeverity('error');
     }
   };
 
-  // Handler for generating the AI summary (used for initial summary generation)
-  const handleAutoGenerateSummary = async () => {
-    if (!selectedMeeting?.transcript) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_URL}/calendar/generate-summary`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('jwt')}`
-        },
-        body: JSON.stringify({
-          transcript: selectedMeeting.transcript
-        })
-      });
-      if (!res.ok) throw new Error('Failed to generate summary');
-      const data = await res.json();
-      setSummaryContent(data.summary || '');
-      setShowSnackbar(true);
-      setSnackbarMessage('Summary generated successfully!');
-      setSnackbarSeverity('success');
-      await fetchMeetings();
-    } catch (err) {
-      setShowSnackbar(true);
-      setSnackbarMessage('Error generating summary.');
-      setSnackbarSeverity('error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Update renderGroupedMeetings to show icons and improved styling
-  const renderGroupedMeetings = (meetings, title, isPast = false) => {
-    const grouped = groupMeetingsByDate(meetings);
-    return (
-      <Stack spacing={2}>
-        <Typography 
-          variant="caption" 
-          sx={{ 
-            color: '#999999', 
-            fontWeight: 600, 
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px'
-          }}
-        >
-          {title}
-        </Typography>
-        {Object.keys(grouped).length === 0 ? (
-          <Typography variant="body2" sx={{ color: '#999999', py: 2 }}>
-            {isPast ? 'No past meetings in last 2 weeks' : 'No upcoming meetings'}
-          </Typography>
-        ) : (
-          Object.entries(grouped).map(([date, dateMeetings]) => (
-            <Box key={date}>
-              <Typography 
-                variant="caption" 
-                sx={{ 
-                  color: '#666666', 
-                  fontWeight: 500, 
-                  fontSize: '11px',
-                  display: 'block',
-                  mb: 1
-                }}
-              >
-                {date}
-              </Typography>
-              <Stack spacing={1}>
-                {dateMeetings.map((meeting, idx) => {
-                  const selected = meeting.id === selectedMeetingId;
-                  // Determine icon and tooltip
-                  let IconComponent = EventIcon;
-                  let iconTooltip = 'Other Meeting';
-                  const source = getMeetingSource(meeting);
-                  if (source === 'google') {
-                    IconComponent = GoogleIcon;
-                    iconTooltip = 'Google Meeting';
-                  } else if (source === 'outlook') {
-                    IconComponent = OutlookIcon;
-                    iconTooltip = 'Outlook Meeting';
-                  }
-                  // Extra info
-                  const location = meeting.location || '';
-                  const participantCount = meeting.attendees ? meeting.attendees.length : 0;
-                  return (
-                    <React.Fragment key={meeting.id}>
-                      <Card
-                        sx={{
-                          minHeight: 64,
-                          width: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 2,
-                          p: 2,
-                          borderRadius: '16px',
-                          border: selected ? '2px solid #007AFF' : '1px solid #E5E5E5',
-                          backgroundColor: selected ? '#F0F8FF' : '#FFFFFF',
-                          boxShadow: selected ? '0 2px 8px rgba(0,0,0,0.08)' : 'none',
-                          cursor: 'pointer',
-                          transition: 'all 0.2s',
-                          '&:hover': {
-                            backgroundColor: selected ? '#E6F3FF' : '#F8F9FA',
-                            borderColor: '#007AFF',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-                          },
-                          mb: 1
-                        }}
-                        onClick={() => handleMeetingSelect(meeting)}
-                      >
-                        {/* Icon with tooltip */}
-                        <Tooltip title={iconTooltip}>
-                          <Box sx={{ mr: 2, display: 'flex', alignItems: 'center' }}>
-                            <IconComponent size={32} />
-                          </Box>
-                        </Tooltip>
-                        <Box sx={{ flex: 1, minWidth: 0 }}>
-                          <Typography
-                            variant="body1"
-                            sx={{
-                              fontWeight: 600,
-                              color: selected ? '#007AFF' : '#1E1E1E',
-                              mb: 0.5,
-                              fontSize: 16,
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                            }}
-                          >
-                            {meeting.summary || meeting.title || 'Untitled meeting'}
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            sx={{ color: '#666666', fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-                          >
-                            {meeting.start?.dateTime && meeting.end?.dateTime ? `${new Date(meeting.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to ${new Date(meeting.end.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
-                          </Typography>
-                          {/* Extra info row */}
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 0.5 }}>
-                            {location && (
-                              <Typography variant="caption" sx={{ color: '#888', fontSize: 13, mr: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {location}
-                              </Typography>
-                            )}
-                            {participantCount > 0 && (
-                              <Typography variant="caption" sx={{ color: '#888', fontSize: 13 }}>
-                                {participantCount} participant{participantCount > 1 ? 's' : ''}
-                              </Typography>
-                            )}
-                          </Box>
-                        </Box>
-                      </Card>
-                      {/* Divider between cards, except after last */}
-                      {idx < dateMeetings.length - 1 && <Box sx={{ height: 8 }} />}
-                    </React.Fragment>
-                  );
-                })}
-              </Stack>
-            </Box>
-          ))
-        )}
-      </Stack>
-    );
-  };
-
-  const [uploadedFiles, setUploadedFiles] = useState([]);
-
-  // Handler for file selection
-  const handleNotesFileUpload = (e) => {
-    const files = Array.from(e.target.files);
-    setUploadedFiles(prev => [...prev, ...files]);
-  };
-
-  const [showTemplateModal, setShowTemplateModal] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [templates] = useState(loadTemplates());
-  
-  // Dropdown menu state
-  const [summaryMenuAnchor, setSummaryMenuAnchor] = useState(null);
-  const [summaryMenuOpen, setSummaryMenuOpen] = useState(false);
-
-  // Copy to clipboard functionality
   const handleCopyToClipboard = async () => {
+    if (!summaryContent) return;
+    
     try {
       await navigator.clipboard.writeText(summaryContent);
       setShowSnackbar(true);
-      setSnackbarMessage('Summary copied to clipboard!');
+      setSnackbarMessage('Summary copied to clipboard');
       setSnackbarSeverity('success');
-    } catch (err) {
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to copy to clipboard');
       setSnackbarSeverity('error');
     }
   };
 
-  // Dropdown menu handlers
-  const handleSummaryMenuOpen = (event) => {
-    setSummaryMenuAnchor(event.currentTarget);
-    setSummaryMenuOpen(true);
+  const renderGroupedMeetings = (meetings, title, isPast = false) => {
+    if (!meetings || meetings.length === 0) return null;
+    
+    const grouped = groupMeetingsByDate(meetings);
+    
+    return (
+      <div className="space-y-6">
+        <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+        {Object.entries(grouped).map(([date, dayMeetings]) => (
+          <div key={date} className="space-y-3">
+            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+              {date}
+            </h3>
+            <div className="space-y-2">
+              {dayMeetings.map((meeting) => (
+                <Card
+                  key={meeting.id}
+                  className={cn(
+                    "cursor-pointer transition-all duration-200 hover:shadow-md",
+                    selectedMeetingId === meeting.id && "ring-2 ring-blue-500 bg-blue-50"
+                  )}
+                  onClick={() => handleMeetingSelect(meeting)}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Calendar className="w-4 h-4 text-gray-400" />
+                          <span className="text-sm text-gray-500">
+                            {formatMeetingTime(meeting)}
+                          </span>
+                        </div>
+                        <h4 className="font-semibold text-gray-900 mb-1 truncate">
+                          {meeting.summary || meeting.title || 'Untitled Meeting'}
+                        </h4>
+                        <div className="flex items-center gap-4 text-sm text-gray-500">
+                          {meeting.attendees && meeting.attendees.length > 0 && (
+                            <div className="flex items-center gap-1">
+                              <Users className="w-4 h-4" />
+                              <span>{meeting.attendees.length} attendees</span>
+                            </div>
+                          )}
+                          {getMeetingSource(meeting) === 'google' && (
+                            <GoogleIcon size={16} />
+                          )}
+                          {getMeetingSource(meeting) === 'outlook' && (
+                            <OutlookIcon size={16} />
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {renderParticipants(meeting)}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={handleCopyToClipboard}>
+                              <Copy className="w-4 h-4 mr-2" />
+                              Copy Summary
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Share className="w-4 h-4 mr-2" />
+                              Share
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   };
 
-  const handleSummaryMenuClose = () => {
-    setSummaryMenuAnchor(null);
-    setSummaryMenuOpen(false);
-  };
-
-  const handleEditSummary = () => {
-    handleSummaryMenuClose();
-    setShowAIDialog(true);
-  };
-
-  const handleRegenerateSummary = () => {
-    handleSummaryMenuClose();
-    setShowAIDialog(true);
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
-    <>
-      <Box sx={{ height: 'calc(100vh - 128px)', display: 'flex', gap: 3 }}>
-        {/* Left Sidebar */}
-        <Card 
-          sx={{ 
-            width: 380, 
-            p: 3,
-            borderRadius: '12px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            backgroundColor: '#FFFFFF',
-            border: '1px solid #E5E5E5',
-            overflow: 'auto'
-          }}
-        >
-          <Typography variant="h2" sx={{ fontWeight: 700, color: '#1E1E1E', mb: 4 }}>
-            Meetings
-          </Typography>
-
-          {/* Toggle Buttons for Future/Past */}
-          <Box sx={{ display: 'flex', gap: 2, mb: 3 }}>
+    <div className="h-full flex">
+      {/* Left Panel - Meeting List */}
+      <div className="w-1/3 border-r border-gray-200 overflow-y-auto">
+        <div className="p-6">
+          {/* View Toggle */}
+          <div className="flex gap-2 mb-6">
             <Button
-              variant={meetingView === 'future' ? 'contained' : 'outlined'}
+              variant={meetingView === 'future' ? 'default' : 'outline'}
+              size="sm"
               onClick={() => setMeetingView('future')}
-              sx={{ flex: 1, fontWeight: 600, borderRadius: '8px', textTransform: 'none' }}
             >
-              Future
+              Upcoming
             </Button>
             <Button
-              variant={meetingView === 'past' ? 'contained' : 'outlined'}
+              variant={meetingView === 'past' ? 'default' : 'outline'}
+              size="sm"
               onClick={() => setMeetingView('past')}
-              sx={{ flex: 1, fontWeight: 600, borderRadius: '8px', textTransform: 'none' }}
             >
               Past
             </Button>
-          </Box>
+          </div>
 
-          {loading ? (
-            <Box display="flex" justifyContent="center" py={4}>
-              <CircularProgress size={24} />
-            </Box>
-          ) : (
-            <>
-              {/* Show only the selected meeting type */}
-              {meetingView === 'future'
-                ? renderGroupedMeetings(meetings.future, 'Upcoming Meetings')
-                : renderGroupedMeetings(meetings.past, 'Past Meetings', true)}
-            </>
-          )}
-        </Card>
+          {/* Meeting List */}
+          {meetingView === 'future' 
+            ? renderGroupedMeetings(meetings.future, 'Upcoming Meetings')
+            : renderGroupedMeetings(meetings.past, 'Past Meetings', true)
+          }
+        </div>
+      </div>
 
-        {/* Main Content */}
-        <Card 
-          sx={{ 
-            flex: 1, 
-            p: 0,
-            borderRadius: '12px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            backgroundColor: '#FFFFFF',
-            border: '1px solid #E5E5E5',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column'
-          }}
-        >
-          {selectedMeetingId ? (
-            <>
-              {/* Meeting Header (for both past and future meetings) */}
-              <Box sx={{ px: 4, pt: 4, pb: 2, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-                <Box>
-                  <Typography variant="h3" sx={{ fontWeight: 700, color: '#1E1E1E', mb: 1, textAlign: 'left' }}>
-                    {selectedMeeting?.summary || selectedMeeting?.title || 'Untitled Meeting'}
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
-                    {/* Platform Icon */}
-                    {(() => {
-                      const source = getMeetingSource(selectedMeeting);
-                      if (source === 'google') return <GoogleIcon size={24} />;
-                      if (source === 'outlook') return <OutlookIcon size={24} />;
-                      return <EventIcon sx={{ color: '#888' }} />;
-                    })()}
-                    {/* Meeting Time */}
-                    <Typography variant="body1" sx={{ color: '#666', fontWeight: 500 }}>
-                      {formatMeetingTime(selectedMeeting)}
-                    </Typography>
-                    {/* Participants */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', ml: 2 }}>
-                      {renderParticipants(selectedMeeting)}
-                    </Box>
-                    {/* Share Icon */}
-                    <Box sx={{ display: 'flex', alignItems: 'center', ml: 2 }}>
-                      <ShareIcon sx={{ color: '#888', fontSize: 22, cursor: 'pointer', ml: 1 }} />
-                      <Typography variant="body2" sx={{ color: '#888', ml: 0.5 }}>Share</Typography>
-                    </Box>
-                  </Box>
-                </Box>
-                {/* Delete Button */}
-                {/* (Removed for now) */}
-              </Box>
-              {/* Tab Switcher (unchanged) */}
-              {(isPastMeeting || !isPastMeeting) && (
-                <Box sx={{ display: 'flex', gap: 2, px: 4, pb: 2 }}>
-                  <Button variant={activeTab === 'summary' ? 'contained' : 'outlined'} onClick={() => setActiveTab('summary')}>Summary</Button>
-                  <Button variant={activeTab === 'transcript' ? 'contained' : 'outlined'} onClick={() => setActiveTab('transcript')}>Transcript</Button>
-                  <Button variant={activeTab === 'notes' ? 'contained' : 'outlined'} onClick={() => setActiveTab('notes')}>Notes</Button>
-                </Box>
-              )}
-              {/* Transcript Tab Logic */}
-              {activeTab === 'transcript' && isPastMeeting && (() => {
-                const transcript = selectedMeeting?.transcript;
-                if (!transcript || transcript.trim() === '' || transcript.toLowerCase() === 'null') {
-                  return (
-                    <Box sx={{ textAlign: 'center', mt: 6 }}>
-                      <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Transcript</Typography>
-                      <Typography variant="h6" sx={{ color: '#888', mb: 2 }}>Add a transcript</Typography>
-                      <Typography variant="body2" sx={{ color: '#888', mb: 2 }}>
-                        Marloo creates transcripts from audio or text
-                      </Typography>
-                      <Stack direction="row" spacing={2} justifyContent="center">
-                        <Button startIcon={<MicIcon />} variant="outlined" onClick={handleStartRecording}>Start recording</Button>
-                        <Button startIcon={<UploadFileIcon />} variant="outlined" onClick={() => setOpenUploadDialog(true)}>Upload audio</Button>
-                        <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setOpenPasteDialog(true)}>Paste transcript</Button>
-                      </Stack>
-                    </Box>
-                  );
-                }
-                // Transcript is present: show transcript only
-                return (
-                  <Box sx={{ textAlign: 'center', mt: 6, position: 'relative' }}>
-                    <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Transcript</Typography>
-                    <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', mb: 3, position: 'relative' }}>
-                      {/* Delete (X) button */}
-                      <Button
-                        size="small"
-                        onClick={async () => {
-                          const token = localStorage.getItem('jwt');
-                          await fetch(`${process.env.REACT_APP_API_URL}/calendar/meetings/${selectedMeetingId}/transcript`, {
-                            method: 'DELETE',
-                            headers: { 'Authorization': `Bearer ${token}` }
-                          });
-                          await fetchMeetings();
-                          setSelectedMeetingId(selectedMeetingId); // force UI update
-                          setActiveTab('transcript'); // ensure upload options are shown
-                        }}
-                        sx={{
-                          position: 'absolute',
-                          top: 8,
-                          right: 8,
-                          minWidth: 0,
-                          width: 28,
-                          height: 28,
-                          borderRadius: '50%',
-                          color: '#888',
-                          background: 'transparent',
-                          fontWeight: 700,
-                          fontSize: 18,
-                          '&:hover': { background: '#eee', color: '#b00' }
-                        }}
-                      >
-                        ×
-                      </Button>
-                      <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{transcript}</Typography>
-                    </Card>
-                  </Box>
-                );
-              })()}
-              {/* Summary Tab Logic */}
-              {activeTab === 'summary' && (() => {
-                // Use improved logic to determine if a real summary exists
-                const hasRealSummary = isRealSummary(summaryContent, selectedMeeting);
-                const hasTranscript = selectedMeeting?.transcript && selectedMeeting.transcript.trim() !== '' && selectedMeeting.transcript.toLowerCase() !== 'null';
-                if (hasRealSummary) {
-                  return (
-                    <Box sx={{ mt: 6, textAlign: 'center' }}>
-                      <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Summary</Typography>
-                      <Card sx={{ p: 3, backgroundColor: '#F8F9FA', border: '1px solid #E5E5E5', mb: 3, position: 'relative' }}>
-                        {/* Action buttons in top-right corner */}
-                        <Box sx={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 1 }}>
-                          {/* Copy button */}
-                          <Tooltip title="Copy to clipboard">
-                            <IconButton
-                              size="small"
-                              onClick={handleCopyToClipboard}
-                              sx={{
-                                width: 32,
-                                height: 32,
-                                color: '#888',
-                                background: 'transparent',
-                                '&:hover': { background: '#eee', color: '#007AFF' }
-                              }}
-                            >
-                              <ContentCopyIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          {/* Dropdown menu button */}
-                          <Tooltip title="More options">
-                            <IconButton
-                              size="small"
-                              onClick={handleSummaryMenuOpen}
-                              sx={{
-                                width: 32,
-                                height: 32,
-                                color: '#888',
-                                background: 'transparent',
-                                '&:hover': { background: '#eee', color: '#007AFF' }
-                              }}
-                            >
-                              <MoreVertIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                          {/* Delete (X) button */}
-                          <Button
-                            size="small"
-                            onClick={async () => {
-                              const token = localStorage.getItem('jwt');
-                              await fetch(`${process.env.REACT_APP_API_URL}/calendar/meetings/${selectedMeetingId}/summary`, {
-                                method: 'DELETE',
-                                headers: { 'Authorization': `Bearer ${token}` }
-                              });
-                              await fetchMeetings();
-                              setSelectedMeetingId(selectedMeetingId); // force UI update
-                              setActiveTab('summary'); // ensure summary options are shown
-                              setSummaryContent(null); // immediately update UI to show create summary options
-                            }}
-                            sx={{
-                              minWidth: 0,
-                              width: 32,
-                              height: 32,
-                              borderRadius: '50%',
-                              color: '#888',
-                              background: 'transparent',
-                              fontWeight: 700,
-                              fontSize: 18,
-                              '&:hover': { background: '#eee', color: '#b00' }
-                            }}
-                          >
-                            ×
-                          </Button>
-                        </Box>
-                        <Typography variant="body1" sx={{ color: '#1E1E1E', lineHeight: 1.6, whiteSpace: 'pre-wrap', pr: 8 }}>{summaryContent}</Typography>
-                      </Card>
-                    </Box>
-                  );
-                } else if (hasTranscript) {
-                  return (
-                    <Box sx={{ mt: 6, textAlign: 'center' }}>
-                      <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Summary</Typography>
-                      <Typography variant="h6" sx={{ color: '#888', mb: 2 }}>No summary available. Generate one?</Typography>
-                      <Stack direction="row" spacing={2} justifyContent="center">
-                        <Button startIcon={<EditIcon />} variant="outlined" onClick={handleAutoGenerateSummary}>✍️ Auto Generate with Advicly AI</Button>
-                        <Button startIcon={<EditIcon />} variant="outlined" onClick={() => setShowTemplateModal(true)}>📄 Use a Template</Button>
-                      </Stack>
-                    </Box>
-                  );
-                } else {
-                  return (
-                    <Box sx={{ mt: 6, textAlign: 'center' }}>
-                      <Typography variant="h4" sx={{ color: '#007AFF', mb: 2 }}>Summary</Typography>
-                      <Typography variant="h6" sx={{ color: '#888', mb: 2 }}>No transcript available. Add a transcript to generate a summary.</Typography>
-                    </Box>
-                  );
-                }
-              })()}
-              {activeTab === 'notes' && (
-                <Box sx={{ mt: 6, textAlign: 'center' }}>
-                  <Typography sx={{ fontSize: 32, color: '#007AFF', fontWeight: 700, mb: 3 }}>Notes</Typography>
-                  <Button
-                    variant="outlined"
-                    startIcon={<AttachFileIcon />}
-                    component="label"
-                    sx={{ mb: 2 }}
-                  >
-                    Upload Files
-                    <input
-                      type="file"
-                      multiple
-                      hidden
-                      onChange={handleNotesFileUpload}
-                    />
+      {/* Right Panel - Meeting Details */}
+      <div className="flex-1 flex flex-col">
+        {selectedMeeting ? (
+          <>
+            {/* Meeting Header */}
+            <div className="border-b border-gray-200 p-6">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h1 className="text-2xl font-bold text-gray-900 mb-2">
+                    {selectedMeeting.summary || selectedMeeting.title || 'Untitled Meeting'}
+                  </h1>
+                  <div className="flex items-center gap-4 text-sm text-gray-500">
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-4 h-4" />
+                      <span>{formatMeetingTime(selectedMeeting)}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-4 h-4" />
+                      <span>{formatDate(selectedMeeting.start?.dateTime)}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={handleCopyToClipboard}>
+                    <Copy className="w-4 h-4 mr-2" />
+                    Copy
                   </Button>
-                  {/* List of uploaded files */}
-                  <Box sx={{ mt: 2, maxWidth: 400, mx: 'auto', textAlign: 'left' }}>
-                    {uploadedFiles.length > 0 && (
-                      <>
-                        <Typography variant="subtitle2" sx={{ color: '#888', mb: 1 }}>Uploaded Files:</Typography>
-                        <ul style={{ paddingLeft: 16 }}>
-                          {uploadedFiles.map((file, idx) => (
-                            <li key={file.name + file.size + idx} style={{ marginBottom: 4 }}>
-                              <span style={{ fontWeight: 500 }}>{file.name}</span> <span style={{ color: '#888', fontSize: 13 }}>({(file.size/1024).toFixed(1)} KB)</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </>
+                  <Button variant="outline" size="sm">
+                    <Share className="w-4 h-4 mr-2" />
+                    Share
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Meeting Content */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="p-6">
+                {/* Tabs */}
+                <div className="flex gap-4 mb-6 border-b border-gray-200">
+                  <button
+                    className={cn(
+                      "pb-2 px-1 border-b-2 font-medium text-sm transition-colors",
+                      activeTab === 'summary'
+                        ? "border-blue-500 text-blue-600"
+                        : "border-transparent text-gray-500 hover:text-gray-700"
                     )}
-                  </Box>
-                </Box>
-              )}
-            </>
-          ) : (
-            <Box 
-              sx={{ 
-                display: 'flex', 
-                flexDirection: 'column',
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                minHeight: '400px',
-                textAlign: 'center',
-                p: 4
-              }}
-            >
-              <EventIcon sx={{ fontSize: 64, color: '#E5E5E5', mb: 2 }} />
-              <Typography variant="h3" sx={{ fontWeight: 600, color: '#3C3C3C', mb: 1 }}>
-                Click on a meeting to view more.
-              </Typography>
-            </Box>
-          )}
-        </Card>
+                    onClick={() => setActiveTab('summary')}
+                  >
+                    Summary
+                  </button>
+                  <button
+                    className={cn(
+                      "pb-2 px-1 border-b-2 font-medium text-sm transition-colors",
+                      activeTab === 'transcript'
+                        ? "border-blue-500 text-blue-600"
+                        : "border-transparent text-gray-500 hover:text-gray-700"
+                    )}
+                    onClick={() => setActiveTab('transcript')}
+                  >
+                    Transcript
+                  </button>
+                </div>
 
-        {/* AI Adjustment Dialog */}
-        <AIAdjustmentDialog
-          open={showAIDialog}
-          onClose={() => setShowAIDialog(false)}
-          onSubmit={handleAIAdjustment}
-          isLoading={loading}
-        />
+                {/* Content */}
+                <div className="space-y-4">
+                  {activeTab === 'summary' && (
+                    <div className="prose max-w-none">
+                      <div className="bg-white border border-gray-200 rounded-lg p-4">
+                        {summaryContent ? (
+                          <div className="whitespace-pre-wrap text-gray-700">
+                            {summaryContent}
+                          </div>
+                        ) : (
+                          <div className="text-gray-500 italic">
+                            No summary available for this meeting.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
-        {/* Snackbar for notifications */}
-        <Snackbar
-          open={showSnackbar}
-          autoHideDuration={6000}
-          onClose={() => setShowSnackbar(false)}
-        >
-          <Alert 
-            onClose={() => setShowSnackbar(false)} 
-            severity={snackbarSeverity}
-            sx={{ width: '100%' }}
-          >
+                  {activeTab === 'transcript' && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-4">
+                      <div className="text-gray-500 italic">
+                        Transcript view coming soon...
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No meeting selected</h3>
+              <p className="text-gray-500">Select a meeting from the list to view its details.</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* AI Adjustment Dialog */}
+      <AIAdjustmentDialog
+        open={showAIDialog}
+        onClose={() => setShowAIDialog(false)}
+        onAdjust={handleAIAdjustment}
+      />
+
+      {/* Snackbar */}
+      {showSnackbar && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <div className={cn(
+            "px-4 py-3 rounded-lg shadow-lg text-white",
+            snackbarSeverity === 'success' && "bg-green-600",
+            snackbarSeverity === 'error' && "bg-red-600",
+            snackbarSeverity === 'warning' && "bg-yellow-600"
+          )}>
             {snackbarMessage}
-          </Alert>
-        </Snackbar>
-
-        {/* Paste Transcript Dialog */}
-        <Dialog open={openPasteDialog} onClose={() => setOpenPasteDialog(false)}>
-          <DialogTitle sx={{ fontWeight: 700, fontSize: 22, color: '#007AFF', pb: 1 }}>Paste Transcript</DialogTitle>
-          <DialogContent sx={{ minWidth: 400, minHeight: 200, pt: 1 }}>
-            <TextField
-              multiline
-              minRows={10}
-              value={pastedTranscript}
-              onChange={e => setPastedTranscript(e.target.value)}
-              fullWidth
-              placeholder="Paste or type transcript here..."
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  borderRadius: '10px',
-                  background: '#f9fafb',
-                  fontSize: 15,
-                  fontFamily: 'monospace',
-                  p: 1
-                }
-              }}
-            />
-          </DialogContent>
-          <DialogActions sx={{ pr: 3, pb: 2 }}>
-            <Button onClick={() => setOpenPasteDialog(false)} sx={{ color: '#888', fontWeight: 600 }}>Cancel</Button>
-            <Button onClick={() => { console.log('Save button clicked'); handlePasteTranscriptSubmit(); }} variant="contained" sx={{ background: '#007AFF', fontWeight: 600, px: 4 }}>Save</Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Upload Audio Dialog */}
-        <Dialog open={openUploadDialog} onClose={() => setOpenUploadDialog(false)}>
-          <DialogTitle>Upload Audio File</DialogTitle>
-          <DialogContent>
-            <input type="file" accept="audio/*" onChange={handleAudioFileChange} />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setOpenUploadDialog(false)}>Cancel</Button>
-            <Button onClick={handleUploadAudioSubmit} variant="contained">Upload</Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Template Selection Modal */}
-        <Dialog open={showTemplateModal} onClose={() => setShowTemplateModal(false)}>
-          <DialogTitle>Select a Template</DialogTitle>
-          <DialogContent>
-            {templates.map((template) => (
-              <Box key={template.id} sx={{ mb: 2, p: 2, border: '1px solid #eee', borderRadius: 2, cursor: 'pointer', bgcolor: selectedTemplate?.id === template.id ? '#F0F8FF' : '#fff' }}
-                onClick={() => setSelectedTemplate(template)}
-              >
-                <Typography fontWeight={600}>{template.title}</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1, whiteSpace: 'pre-line' }}>{template.content.slice(0, 120)}...</Typography>
-              </Box>
-            ))}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setShowTemplateModal(false)}>Cancel</Button>
-            <Button
-              variant="contained"
-              disabled={!selectedTemplate}
-              onClick={() => {
-                // Placeholder: generate summary with selectedTemplate
-                setShowTemplateModal(false);
-              }}
-            >
-              Generate with Template
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Summary Actions Dropdown Menu */}
-        <Menu
-          anchorEl={summaryMenuAnchor}
-          open={summaryMenuOpen}
-          onClose={handleSummaryMenuClose}
-          anchorOrigin={{
-            vertical: 'bottom',
-            horizontal: 'right',
-          }}
-          transformOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-          }}
-        >
-          <MenuItem onClick={handleEditSummary}>
-            <EditIcon sx={{ mr: 1, fontSize: 20 }} />
-            Edit Summary
-          </MenuItem>
-          <MenuItem onClick={handleRegenerateSummary}>
-            <EditIcon sx={{ mr: 1, fontSize: 20 }} />
-            Regenerate Summary
-          </MenuItem>
-        </Menu>
-      </Box>
-    </>
+          </div>
+        </div>
+      )}
+    </div>
   );
 } 

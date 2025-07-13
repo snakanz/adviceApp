@@ -1,9 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
-import { ThemeProvider } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import theme from './theme';
 import Layout from './Layout';
 import Clients from './pages/Clients';
 import ViewClient from './pages/ViewClient';
@@ -19,7 +16,7 @@ function PrivateRoute() {
   const { isAuthenticated, isLoading } = useAuth();
   console.log('PrivateRoute: isAuthenticated:', isAuthenticated, 'isLoading:', isLoading);
   if (isLoading) {
-    return <div>Loading...</div>;
+    return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
   }
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" />;
 }
@@ -27,28 +24,25 @@ function PrivateRoute() {
 function App() {
   return (
     <AuthProvider>
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-    <Router>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route element={<PrivateRoute />}>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Navigate to="/meetings" replace />} />
-            <Route path="meetings" element={<Meetings />} />
-            <Route path="clients" element={<Clients />} />
-            <Route path="clients/:clientId" element={<ViewClient />} />
-            <Route path="pipeline" element={<Pipeline />} />
-            <Route path="templates" element={<Templates />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="ask-advicly" element={<AskAdvicly />} />
+      <Router>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route element={<PrivateRoute />}>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Navigate to="/meetings" replace />} />
+              <Route path="meetings" element={<Meetings />} />
+              <Route path="clients" element={<Clients />} />
+              <Route path="clients/:clientId" element={<ViewClient />} />
+              <Route path="pipeline" element={<Pipeline />} />
+              <Route path="templates" element={<Templates />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="ask-advicly" element={<AskAdvicly />} />
+            </Route>
           </Route>
-        </Route>
-        <Route path="*" element={<Navigate to="/meetings" />} />
-      </Routes>
-    </Router>
-      </ThemeProvider>
+          <Route path="*" element={<Navigate to="/meetings" />} />
+        </Routes>
+      </Router>
     </AuthProvider>
   );
 }

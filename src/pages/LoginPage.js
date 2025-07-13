@@ -1,8 +1,9 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Box, Button, Container, Typography, Card, Stack } from '@mui/material';
-import GoogleIcon from '@mui/icons-material/Google';
+import { Button } from '../components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import GoogleIcon from '../components/GoogleIcon';
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -21,94 +22,34 @@ const LoginPage = () => {
     };
 
     return (
-        <Box
-            sx={{
-                minHeight: '100vh',
-                backgroundColor: '#FFFFFF',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                p: 3
-            }}
-        >
-            <Container maxWidth="sm">
-                <Card
-                    sx={{
-                        p: 6,
-                        borderRadius: '12px',
-                        boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-                        backgroundColor: '#FFFFFF',
-                        border: '1px solid #E5E5E5'
-                    }}
-                >
-                    <Stack spacing={4} alignItems="center">
-                        <Box textAlign="center">
-                            <Typography 
-                                variant="h1" 
-                                sx={{ 
-                                    fontSize: '32px',
-                                    fontWeight: 700,
-                                    color: '#1E1E1E',
-                                    mb: 2
-                                }}
-                            >
-                                Welcome to Dashboard
-                            </Typography>
-                            
-                            <Typography 
-                                variant="body1" 
-                                sx={{ 
-                                    color: '#3C3C3C',
-                                    fontSize: '16px',
-                                    lineHeight: 1.6,
-                                    maxWidth: '400px',
-                                    mx: 'auto'
-                                }}
-                            >
-                                Your AI-powered dashboard for managing meetings, clients, and insights. 
-                                Sign in with your Google account to get started.
-                            </Typography>
-                        </Box>
-
+        <div className="min-h-screen bg-background flex items-center justify-center p-6">
+            <div className="w-full max-w-md">
+                <Card className="shadow-lg border-0">
+                    <CardHeader className="text-center space-y-4">
+                        <CardTitle className="text-3xl font-bold text-foreground">
+                            Welcome to Advicly
+                        </CardTitle>
+                        <CardDescription className="text-base text-muted-foreground max-w-sm mx-auto">
+                            Your AI-powered dashboard for managing meetings, clients, and insights. 
+                            Sign in with your Google account to get started.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
                         <Button
-                            variant="contained"
-                            startIcon={<GoogleIcon />}
                             onClick={handleGoogleLogin}
-                            sx={{
-                                backgroundColor: '#007AFF',
-                                color: '#FFFFFF',
-                                fontWeight: 500,
-                                fontSize: '16px',
-                                py: 2,
-                                px: 4,
-                                borderRadius: '8px',
-                                textTransform: 'none',
-                                boxShadow: 'none',
-                                minWidth: '240px',
-                                '&:hover': {
-                                    backgroundColor: '#0056CC',
-                                    boxShadow: '0 4px 16px rgba(0, 122, 255, 0.3)',
-                                }
-                            }}
+                            className="w-full h-12 text-base font-medium bg-blue-600 hover:bg-blue-700 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200"
                         >
+                            <GoogleIcon size={20} className="mr-2" />
                             Sign in with Google
                         </Button>
-
-                        <Typography 
-                            variant="caption" 
-                            sx={{ 
-                                color: '#999999',
-                                fontSize: '12px',
-                                textAlign: 'center',
-                                mt: 3
-                            }}
-                        >
+                        
+                        <p className="text-xs text-muted-foreground text-center">
                             By signing in, you agree to our Terms of Service and Privacy Policy
-                        </Typography>
-                    </Stack>
+                        </p>
+                    </CardContent>
                 </Card>
-            </Container>
-        </Box>
+            </div>
+        </div>
     );
 };
 
