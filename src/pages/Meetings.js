@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box, Typography, Button, Snackbar, Alert, CircularProgress, Card, Stack,
   TextField, Dialog, DialogTitle, DialogContent, DialogActions
@@ -99,6 +99,10 @@ export default function Meetings() {
   // const [showEmailSummaryUI, setShowEmailSummaryUI] = useState(false);
   const [emailBody, setEmailBody] = useState('');
   const [loadingEmailSummary, setLoadingEmailSummary] = useState(false);
+  
+  // Use ref to access current selectedMeetingId without triggering dependencies
+  const selectedMeetingIdRef = useRef(null);
+  selectedMeetingIdRef.current = selectedMeetingId;
 
   // Add a single handler for generating the AI summary
   const handleGenerateAISummary = async () => {
@@ -174,7 +178,7 @@ export default function Meetings() {
       }
       setMeetings(meetingsData);
       // Only set selectedMeetingId if it is null (initial load)
-      if (selectedMeetingId === null) {
+      if (selectedMeetingIdRef.current === null) {
         if (meetingsData.past.length > 0) {
           setSelectedMeetingId(meetingsData.past[0].id);
           setSummaryContent(meetingsData.past[0].meetingSummary);
