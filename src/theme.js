@@ -1,64 +1,55 @@
 import { createTheme } from '@mui/material/styles';
 
+const adviclyPalette = {
+  black: '#000000',
+  green: '#228b22',
+  greenLight: '#4CAF50',
+  greenDark: '#1a6e1a',
+  greyDark: '#1f2937',
+  grey: '#4b5563',
+  greyLight: '#d1d5db',
+  bg: '#f8f9fa',
+  card: '#ffffff',
+  blue: '#3b82f6',
+};
+
 const theme = createTheme({
   palette: {
     primary: {
-      main: '#007AFF',
-      contrastText: '#FFFFFF'
+      main: adviclyPalette.green,
+      contrastText: '#FFFFFF',
     },
     secondary: {
-      main: '#3C3C3C'
+      main: adviclyPalette.blue,
+      contrastText: '#FFFFFF',
     },
     background: {
-      default: '#F8F9FA', // soft background
-      paper: '#FFFFFF'
+      default: adviclyPalette.bg,
+      paper: adviclyPalette.card,
     },
     text: {
-      primary: '#1E1E1E',
-      secondary: '#3C3C3C',
-      disabled: '#999999'
+      primary: adviclyPalette.black,
+      secondary: adviclyPalette.grey,
+      disabled: adviclyPalette.greyLight,
     },
-    divider: '#E5E5E5',
+    divider: adviclyPalette.greyLight,
+    advicly: adviclyPalette,
     grey: {
-      50: '#F8F9FA',
-      100: '#F1F3F4',
-      200: '#E8EAED',
-      300: '#DADCE0',
-      400: '#BDC1C6',
-      500: '#9AA0A6',
-      600: '#80868B',
-      700: '#5F6368',
-      800: '#3C4043',
-      900: '#202124'
+      900: adviclyPalette.greyDark,
+      800: adviclyPalette.grey,
+      400: adviclyPalette.greyLight,
     },
     success: {
-      lighter: '#E9FCD4',
-      light: '#AAF27F',
-      main: '#16a34a',
-      dark: '#229A16',
-      darker: '#08660D',
-    },
-    warning: {
-      lighter: '#FFF7CD',
-      light: '#FFE16A',
-      main: '#d97706',
-      dark: '#B78103',
-      darker: '#7A4F01',
+      main: adviclyPalette.green,
+      light: adviclyPalette.greenLight,
+      dark: adviclyPalette.greenDark,
+      contrastText: '#fff',
     },
     info: {
-      lighter: '#D0F2FF',
-      light: '#74CAFF',
-      main: '#2563eb',
-      dark: '#0C53B7',
-      darker: '#04297A',
+      main: adviclyPalette.blue,
+      contrastText: '#fff',
     },
-    error: {
-      lighter: '#FFE7D9',
-      light: '#FFA48D',
-      main: '#FF4842',
-      dark: '#B72136',
-      darker: '#7A0C2E',
-    },
+    // Remove all red/yellow
   },
   typography: {
     fontFamily: 'Inter, DM Sans, sans-serif',
@@ -67,63 +58,43 @@ const theme = createTheme({
       fontSize: '32px',
       fontWeight: 700,
       lineHeight: 1.3,
-      color: '#1E1E1E'
+      color: adviclyPalette.black,
     },
     h2: {
       fontSize: '24px',
       fontWeight: 700,
       lineHeight: 1.3,
-      color: '#1E1E1E'
+      color: adviclyPalette.black,
     },
     h3: {
       fontSize: '20px',
       fontWeight: 600,
       lineHeight: 1.3,
-      color: '#1E1E1E'
+      color: adviclyPalette.black,
     },
     h4: {
       fontSize: '18px',
       fontWeight: 600,
       lineHeight: 1.3,
-      color: '#1E1E1E'
+      color: adviclyPalette.black,
     },
     body1: {
       fontSize: '16px',
       fontWeight: 400,
       lineHeight: 1.6,
-      color: '#1E1E1E'
+      color: adviclyPalette.greyDark,
     },
     body2: {
       fontSize: '15px',
       fontWeight: 400,
       lineHeight: 1.6,
-      color: '#3C3C3C'
+      color: adviclyPalette.grey,
     },
     caption: {
       fontSize: '13px',
       fontWeight: 400,
       lineHeight: 1.5,
-      color: '#999999'
-    },
-    h5: {
-      fontWeight: 700,
-      fontSize: '1.25rem',
-      lineHeight: 1.5,
-    },
-    h6: {
-      fontWeight: 700,
-      fontSize: '1.125rem',
-      lineHeight: 1.5,
-    },
-    subtitle1: {
-      fontWeight: 600,
-      fontSize: '1rem',
-      lineHeight: 1.5,
-    },
-    subtitle2: {
-      fontWeight: 600,
-      fontSize: '0.875rem',
-      lineHeight: 1.5,
+      color: adviclyPalette.grey,
     },
     button: {
       fontWeight: 600,
@@ -132,9 +103,9 @@ const theme = createTheme({
     },
     code: { fontFamily: 'IBM Plex Mono, monospace' },
   },
-  spacing: 4, // Base spacing unit
+  spacing: 4,
   shape: {
-    borderRadius: 16
+    borderRadius: 16,
   },
   shadows: [
     'none',
@@ -156,11 +127,11 @@ const theme = createTheme({
           padding: '24px',
           boxShadow: '0 4px 16px rgba(0,0,0,0.10)',
           borderRadius: '16px',
-          backgroundColor: '#FFFFFF',
+          backgroundColor: adviclyPalette.card,
           border: 'none',
           marginBottom: '24px',
-        }
-      }
+        },
+      },
     },
     MuiButton: {
       styleOverrides: {
@@ -173,18 +144,20 @@ const theme = createTheme({
           lineHeight: 1.5,
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
           transition: 'all 0.2s',
+          backgroundColor: adviclyPalette.green,
+          color: '#fff',
           '&:hover': {
-            filter: 'brightness(0.97)',
+            backgroundColor: adviclyPalette.greenLight,
             boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
-          }
+          },
         },
         contained: {
           boxShadow: 'none',
           '&:hover': {
-            boxShadow: 'none'
-          }
-        }
-      }
+            boxShadow: 'none',
+          },
+        },
+      },
     },
     MuiTextField: {
       styleOverrides: {
@@ -194,22 +167,22 @@ const theme = createTheme({
             borderRadius: '16px',
             '& input': {
               padding: '12px 16px',
-              fontSize: '16px'
+              fontSize: '16px',
             },
             '& fieldset': {
-              borderColor: '#CCCCCC',
-              borderRadius: '16px'
+              borderColor: adviclyPalette.greyLight,
+              borderRadius: '16px',
             },
             '&:hover fieldset': {
-              borderColor: '#007AFF'
+              borderColor: adviclyPalette.green,
             },
             '&.Mui-focused fieldset': {
-              borderColor: '#007AFF',
-              borderWidth: '2px'
-            }
-          }
-        }
-      }
+              borderColor: adviclyPalette.greenDark,
+              borderWidth: '2px',
+            },
+          },
+        },
+      },
     },
     MuiInputBase: {
       styleOverrides: {
@@ -217,29 +190,29 @@ const theme = createTheme({
           fontSize: '16px',
           fontFamily: 'Inter, DM Sans, sans-serif',
           borderRadius: '16px',
-        }
-      }
+        },
+      },
     },
     MuiAppBar: {
       styleOverrides: {
         root: {
-          backgroundColor: '#FFFFFF',
-          color: '#1E1E1E',
+          backgroundColor: adviclyPalette.card,
+          color: adviclyPalette.black,
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          borderBottom: '1px solid #E5E5E5',
-          borderRadius: 0
-        }
-      }
+          borderBottom: `1px solid ${adviclyPalette.greyLight}`,
+          borderRadius: 0,
+        },
+      },
     },
     MuiDrawer: {
       styleOverrides: {
         paper: {
-          backgroundColor: '#FFFFFF',
-          borderRight: '1px solid #E5E5E5',
+          backgroundColor: adviclyPalette.card,
+          borderRight: `1px solid ${adviclyPalette.greyLight}`,
           boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
           borderRadius: '0 16px 16px 0',
-        }
-      }
+        },
+      },
     },
     MuiListItem: {
       styleOverrides: {
@@ -248,34 +221,34 @@ const theme = createTheme({
           margin: '2px 8px',
           transition: 'all 0.2s',
           '&.Mui-selected': {
-            backgroundColor: '#F0F8FF',
-            color: '#007AFF',
+            backgroundColor: adviclyPalette.blue + '20',
+            color: adviclyPalette.blue,
             '& .MuiListItemIcon-root': {
-              color: '#007AFF',
+              color: adviclyPalette.blue,
             },
             '& .MuiListItemText-primary': {
-              color: '#007AFF',
+              color: adviclyPalette.blue,
               fontWeight: 600,
             },
             '&:hover': {
-              backgroundColor: '#E6F3FF',
-            }
+              backgroundColor: adviclyPalette.blue + '30',
+            },
           },
           '&:hover': {
-            backgroundColor: '#F8F9FA',
+            backgroundColor: adviclyPalette.bg,
             boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-          }
-        }
-      }
+          },
+        },
+      },
     },
     MuiAvatar: {
       styleOverrides: {
         root: {
           borderRadius: '12px',
-        }
-      }
-    }
-  }
+        },
+      },
+    },
+  },
 });
 
 export default theme; 

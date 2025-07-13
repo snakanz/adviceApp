@@ -91,14 +91,6 @@ export default function Layout() {
           </Box>
           {/* Remove static Dashboard heading. Optionally, add a dynamic heading here. */}
           <Box sx={{ flexGrow: 1 }} />
-          {/* Notification bell placeholder */}
-          <IconButton sx={{ mr: 2 }}>
-            <span style={{ fontSize: 22, color: '#888' }}>🔔</span>
-          </IconButton>
-          {/* Theme toggle placeholder */}
-          <IconButton sx={{ mr: 2 }}>
-            <span style={{ fontSize: 22, color: '#888' }}>🌓</span>
-          </IconButton>
           {/* User Profile Menu */}
           <Button
             onClick={handleUserMenuOpen}
