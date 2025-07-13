@@ -36,7 +36,7 @@ function App() {
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route element={<PrivateRoute />}>
           <Route path="/" element={<Layout />}>
-            <Route index element={<Dashboard />} />
+            <Route index element={<Navigate to="/meetings" replace />} />
             <Route path="meetings" element={<Meetings />} />
             <Route path="clients" element={<Clients />} />
             <Route path="clients/:clientId" element={<ViewClient />} />
