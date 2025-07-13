@@ -135,4 +135,45 @@ router.post('/:clientEmail/ai-summary', async (req, res) => {
   }
 });
 
+// PATCH /api/clients/:clientId - update client details
+router.patch('/:clientId', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const advisorId = decoded.id;
+    const clientId = req.params.clientId;
+    const { name, emails, likely_value, business_type, likely_close_month } = req.body;
+
+    // Build dynamic update query
+    const fields = [];
+    const values = [];
+    if (name !== undefined) { fields.push('name'); values.push(name); }
+    if (emails !== undefined) { fields.push('emails'); values.push(emails); }
+    if (likely_value !== undefined) { fields.push('likely_value'); values.push(likely_value); }
+    if (business_type !== undefined) { fields.push('business_type'); values.push(business_type); }
+    if (likely_close_month !== undefined) { fields.push('likely_close_month'); values.push(likely_close_month); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+
+    // Add updated_at
+    fields.push('updated_at');
+    values.push(new Date());
+
+    // Build SET clause
+    const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
+    values.push(clientId, advisorId);
+
+    const result = await pool.query(
+      `UPDATE clients SET ${setClause} WHERE id = $${fields.length + 1} AND advisor_id = $${fields.length + 2} RETURNING *`,
+      values
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Client not found' });
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating client:', error);
+    res.status(500).json({ error: 'Failed to update client' });
+  }
+});
+
 module.exports = router; 

@@ -63,6 +63,27 @@ CREATE TABLE "ActionItem" (
     CONSTRAINT "ActionItem_meetingId_fkey" FOREIGN KEY ("meetingId") REFERENCES "Meeting" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
+-- CreateTable
+CREATE TABLE "Client" (
+    "id" SERIAL PRIMARY KEY,
+    "advisor_id" TEXT NOT NULL,
+    "name" TEXT,
+    "emails" TEXT[],
+    "likely_value" NUMERIC,
+    "business_type" TEXT,
+    "likely_close_month" DATE,
+    "created_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Client_advisor_id_fkey" FOREIGN KEY ("advisor_id") REFERENCES "User" ("id") ON DELETE CASCADE
+);
+
+-- AlterTable: Add new fields to clients
+ALTER TABLE clients
+  ADD COLUMN IF NOT EXISTS emails TEXT[],
+  ADD COLUMN IF NOT EXISTS likely_value NUMERIC,
+  ADD COLUMN IF NOT EXISTS business_type TEXT,
+  ADD COLUMN IF NOT EXISTS likely_close_month DATE;
+
 -- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
@@ -80,4 +101,7 @@ CREATE UNIQUE INDEX "Recording_meetingId_key" ON "Recording"("meetingId");
 
 -- CreateIndex
 CREATE INDEX "ActionItem_meetingId_idx" ON "ActionItem"("meetingId");
+
+-- CreateIndex
+CREATE INDEX "Client_advisor_id_idx" ON "Client"("advisor_id");
 

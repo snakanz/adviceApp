@@ -15,6 +15,7 @@ import {
   Building2
 } from 'lucide-react';
 import { api } from '../services/api';
+import { Drawer } from '../components/ui/drawer';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -26,6 +27,9 @@ export default function Clients() {
   const [clientAISummary, setClientAISummary] = useState('');
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editForm, setEditForm] = useState({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     async function fetchClients() {
@@ -62,6 +66,54 @@ export default function Clients() {
   const getUserInitials = (name) => {
     if (!name) return 'C';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  // Add this function to open the drawer and populate the form
+  const openEditDrawer = () => {
+    if (!selectedClient) return;
+    setEditForm({
+      name: selectedClient.name || '',
+      emails: selectedClient.emails || (selectedClient.email ? [selectedClient.email] : ['']),
+      likely_value: selectedClient.likely_value || '',
+      business_type: selectedClient.business_type || '',
+      likely_close_month: selectedClient.likely_close_month || ''
+    });
+    setDrawerOpen(true);
+  };
+
+  // Add this function to handle form changes
+  const handleEditChange = (field, value) => {
+    setEditForm(f => ({ ...f, [field]: value }));
+  };
+
+  // Add/remove email fields
+  const addEmailField = () => setEditForm(f => ({ ...f, emails: [...(f.emails || ['']), ''] }));
+  const removeEmailField = idx => setEditForm(f => ({ ...f, emails: f.emails.filter((_, i) => i !== idx) }));
+  const handleEmailChange = (idx, value) => setEditForm(f => ({ ...f, emails: f.emails.map((e, i) => i === idx ? value : e) }));
+
+  // Save handler
+  const handleSaveClient = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('jwt');
+      const res = await fetch(`/api/clients/${selectedClient.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(editForm)
+      });
+      if (!res.ok) throw new Error('Failed to update client');
+      setDrawerOpen(false);
+      // Refresh clients
+      const data = await api.request('/clients');
+      setClients(data);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) {
@@ -168,6 +220,9 @@ export default function Clients() {
                     )}
                   </div>
                 </div>
+                <Button variant="outline" size="sm" onClick={openEditDrawer}>
+                  Edit
+                </Button>
               </div>
             </div>
 
@@ -377,6 +432,79 @@ export default function Clients() {
           </div>
         )}
       </div>
+      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title="Edit Client Details">
+        <form className="space-y-4" onSubmit={e => { e.preventDefault(); handleSaveClient(); }}>
+          <div>
+            <label className="block text-sm font-medium mb-1">Client Name</label>
+            <Input
+              value={editForm.name || ''}
+              onChange={e => handleEditChange('name', e.target.value)}
+              placeholder="Enter client name"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Email Addresses</label>
+            {(editForm.emails || ['']).map((email, idx) => (
+              <div key={idx} className="flex items-center gap-2 mb-2">
+                <Input
+                  value={email}
+                  onChange={e => handleEmailChange(idx, e.target.value)}
+                  placeholder="Enter email address"
+                  type="email"
+                />
+                {editForm.emails.length > 1 && (
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeEmailField(idx)}>
+                    &times;
+                  </Button>
+                )}
+              </div>
+            ))}
+            <Button type="button" variant="outline" size="sm" onClick={addEmailField}>
+              + Add Email
+            </Button>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Likely Value of Transaction</label>
+            <Input
+              value={editForm.likely_value || ''}
+              onChange={e => handleEditChange('likely_value', e.target.value)}
+              placeholder="e.g. 10000"
+              type="number"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Type of Business</label>
+            <select
+              className="w-full border border-border rounded-lg p-2 bg-background text-foreground"
+              value={editForm.business_type || ''}
+              onChange={e => handleEditChange('business_type', e.target.value)}
+            >
+              <option value="">Select type</option>
+              <option value="Pension">Pension</option>
+              <option value="Pension Regular">Pension Regular</option>
+              <option value="ISA">ISA</option>
+              <option value="Mortgage">Mortgage</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Likely Close Month</label>
+            <Input
+              value={editForm.likely_close_month || ''}
+              onChange={e => handleEditChange('likely_close_month', e.target.value)}
+              type="month"
+            />
+          </div>
+          <div className="flex gap-2 pt-4">
+            <Button type="submit" disabled={saving} className="w-full">
+              {saving ? 'Saving...' : 'Save'}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => setDrawerOpen(false)} className="w-full">
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </Drawer>
     </div>
   );
 } 
