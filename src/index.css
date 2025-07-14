@@ -6,26 +6,25 @@
 
 @layer base {
   :root {
-    /* Dark mode colors - these are the default now */
-    --background: 217 33% 17%; /* #1F2937 */
-    --foreground: 249 6% 98%; /* #F9FAFB */
-    --card: 217 33% 25%; /* #2D3748 */
-    --card-foreground: 249 6% 98%;
-    --popover: 217 33% 25%;
-    --popover-foreground: 249 6% 98%;
-    --primary: 142 76% 36%; /* #4ADE80 */
-    --primary-foreground: 217 33% 17%;
-    --secondary: 217 33% 25%;
-    --secondary-foreground: 249 6% 98%;
-    --muted: 217 33% 25%;
-    --muted-foreground: 156 16% 56%; /* #9CA3AF */
-    --accent: 217 33% 25%;
-    --accent-foreground: 249 6% 98%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 249 6% 98%;
-    --border: 217 33% 30%;
-    --input: 217 33% 30%;
-    --ring: 142 76% 36%;
+    --background: 120 30% 98%;      /* #f6fbf7 - very subtle light green */
+    --foreground: 222.2 84% 4.9%;   /* #22223b - dark, not black */
+    --card: 0 0% 100%;              /* #fff - white cards */
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 265 90% 65%;         /* #8f5fff - modern purple */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 120 30% 96%;       /* #eaf7ef - sidebar/secondary bg, subtle green */
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 265 90% 65%;          /* same as primary for now */
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 120 30% 90%;          /* #e3f5e8 - light green border */
+    --input: 120 30% 90%;
+    --ring: 265 90% 65%;
     --radius: 0.75rem;
   }
 

@@ -172,12 +172,14 @@ export default function Layout() {
             </div>
           </nav>
 
-          {/* Sticky Footer with Plan Badge */}
+          {/* Sticky Footer with Advicly Logo */}
           <div className="p-4 border-t border-border/50">
             <div className="flex items-center justify-center">
-              <div className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground text-xs font-bold px-3 py-1 rounded-full tracking-wider shadow-soft">
-                PRO PLAN
-              </div>
+              <img 
+                src={process.env.PUBLIC_URL + '/logo-advicly.png'} 
+                alt="Advicly Logo" 
+                className="h-8 w-auto mx-auto" 
+              />
             </div>
           </div>
         </div>
