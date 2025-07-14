@@ -434,12 +434,12 @@ export default function Meetings() {
   }
 
   return (
-    <div className="h-full flex bg-background">
+    <div className="h-full flex bg-background pt-6">
       {/* Left Panel - Meeting List */}
       <div className="w-1/3 border-r border-border/50 overflow-y-auto bg-card/30">
         <div className="p-6">
           {/* View Toggle */}
-          <div className="flex gap-2 mb-8">
+          <div className="flex gap-1 mb-8">
             <Button
               variant={meetingView === 'future' ? 'default' : 'outline'}
               size="sm"
