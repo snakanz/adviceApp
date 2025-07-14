@@ -110,7 +110,7 @@ export default function Layout() {
       </header>
 
       {/* Sidebar Drawer */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-card/80 border-r border-border/50 shadow-soft z-40">
+      <aside className="fixed left-0 top-0 h-full w-64 bg-card/80 border-r border-border/50 shadow-soft z-40 pt-20">
         <div className="flex flex-col h-full">
           {/* Logo */}
           
