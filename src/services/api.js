@@ -52,11 +52,11 @@ class ApiService {
 
     // Auth endpoints
     async getGoogleAuthUrl() {
-        return this.request('/api/calendar/auth/google');
+        return this.request('/calendar/auth/google');
     }
 
     async verifyToken() {
-        return this.request('/api/auth/verify');
+        return this.request('/auth/verify');
     }
 
     // Meetings endpoints

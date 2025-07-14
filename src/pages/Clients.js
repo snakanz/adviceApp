@@ -94,7 +94,7 @@ export default function Clients() {
     setSaving(true);
     try {
       const token = localStorage.getItem('jwt');
-      const res = await fetch(`/api/clients/upsert`, {
+      const res = await fetch(`/clients/upsert`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
