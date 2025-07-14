@@ -11,6 +11,7 @@ module.exports = {
         card: "#ffffff",
         border: "#e5e7eb",
         muted: "#9ca3af",
+        'muted-foreground': "#6b7280", // slightly darker muted for text
         primary: {
           DEFAULT: "#3B82F6", // Light blue accent like Concentro
           dark: "#1e3a8a"
@@ -18,7 +19,9 @@ module.exports = {
         brand: {
           green: "#4ade80",
           navy: "#1e293b",
-        }
+        },
+        foreground: "#1e293b", // Navy for text-foreground
+        'card-foreground': "#1e293b", // Navy for card text
       },
       borderRadius: {
         xl: "20px"
