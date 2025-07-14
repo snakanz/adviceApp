@@ -51,9 +51,9 @@ export default function Layout() {
   };
 
   return (
-    <div className="flex h-screen font-sans bg-background">
+    <div className="flex h-screen font-sans layout-bg">
       {/* AppBar */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 backdrop-blur-sm border-b border-border/50 shadow-soft">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 border-b border-border/50 shadow-soft">
         <div className="flex items-center justify-between px-6 py-4 h-18">
           {/* Hamburger for mobile */}
           <div className="block sm:hidden">
@@ -110,7 +110,7 @@ export default function Layout() {
       </header>
 
       {/* Sidebar Drawer */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-card/80 backdrop-blur-sm border-r border-border/50 shadow-soft z-40">
+      <aside className="fixed left-0 top-0 h-full w-64 bg-card/80 border-r border-border/50 shadow-soft z-40">
         <div className="flex flex-col h-full">
           {/* Logo */}
           <div className="flex items-center justify-center p-6 border-b border-border/50">
@@ -122,16 +122,16 @@ export default function Layout() {
           </div>
 
           {/* Navigation Items */}
-          <nav className="flex-1 overflow-y-auto py-4">
-            <div className="px-4 space-y-1">
+          <nav className="flex-1 overflow-y-auto py-6">
+            <div className="px-4 flex flex-col gap-3">
               {navItems.map((item) => (
                 <NavLink
                   key={item.label}
                   to={item.path}
                   className={({ isActive }) =>
                     cn(
-                      "sidebar-item",
-                      isActive && "active"
+                      "sidebar-item text-base px-4 py-3 font-medium",
+                      isActive && "active text-base"
                     )
                   }
                 >
