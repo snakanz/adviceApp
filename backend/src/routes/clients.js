@@ -137,7 +137,9 @@ router.post('/:clientEmail/ai-summary', async (req, res) => {
 
 // POST /api/clients/upsert - upsert a client by email for the advisor
 router.post('/upsert', async (req, res) => {
-  console.log('Upsert client request body:', req.body); // Debug log
+  console.log('--- CLIENT UPSERT DEBUG ---');
+  console.log('Request headers:', req.headers);
+  console.log('Request body:', req.body);
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
   try {
@@ -147,28 +149,33 @@ router.post('/upsert', async (req, res) => {
     const { email, name, likely_value, business_type } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
     // Check if client exists
+    console.log('Checking for existing client with advisorId and email:', advisorId, email);
     const existing = await pool.query('SELECT * FROM clients WHERE advisor_id = $1 AND email = $2', [advisorId, email]);
     let client;
     if (existing.rows.length > 0) {
       // Update name, likely_value, business_type
+      console.log('Updating client with:', [name, likely_value, business_type, advisorId, email]);
       const result = await pool.query(
         'UPDATE clients SET name = $1, likely_value = $2, business_type = $3, updated_at = NOW() WHERE advisor_id = $4 AND email = $5 RETURNING *',
         [name, likely_value, business_type, advisorId, email]
       );
+      console.log('Update result:', result.rows);
       client = result.rows[0];
     } else {
       // Insert new client
+      console.log('Inserting client with:', [advisorId, email, name, likely_value, business_type]);
       const result = await pool.query(
         'INSERT INTO clients (advisor_id, email, name, likely_value, business_type, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) RETURNING *',
         [advisorId, email, name, likely_value, business_type]
       );
+      console.log('Insert result:', result.rows);
       client = result.rows[0];
     }
     console.log('Upserted client:', client); // Debug log
     res.json(client);
   } catch (error) {
     console.error('Error upserting client:', error);
-    res.status(500).json({ error: 'Failed to upsert client' });
+    res.status(500).json({ error: 'Failed to upsert client', details: error.message });
   }
 });
 
