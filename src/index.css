@@ -140,16 +140,16 @@ button, a, [role="button"] {
 
 /* Button hover animations */
 .btn-primary {
-  @apply bg-primary text-primary-foreground hover:bg-primary/90 shadow-md hover:shadow-lg transition-all duration-150;
+  @apply bg-primary text-primary-foreground hover:bg-primary/20 hover:text-foreground shadow-md hover:shadow-lg transition-all duration-150;
 }
 
 /* Sidebar styling */
 .sidebar-item {
-  @apply flex items-center gap-3 px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-all duration-150;
+  @apply flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary/20 transition-all duration-150;
 }
 
 .sidebar-item.active {
-  @apply bg-primary/10 text-primary border border-primary/20;
+  @apply bg-primary/10 text-foreground border border-primary/10;
 }
 
 /* Prose styles for dark mode */
