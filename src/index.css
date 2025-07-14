@@ -12,19 +12,19 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 90 32% 71%;          /* #b3cf99 - custom green */
-    --primary-foreground: 90 32% 30%; /* readable green text on light green */
+    --primary: 218 69% 29%;         /* #15397a - custom blue */
+    --primary-foreground: 0 0% 100%; /* white text on blue */
     --secondary: 220 20% 97%;       /* #f3f4f6 - sidebar/secondary bg, very light grey */
     --secondary-foreground: 222.2 84% 4.9%;
     --muted: 220 14% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 90 32% 71%;           /* same as primary for now */
-    --accent-foreground: 90 32% 30%;
+    --accent: 218 69% 29%;          /* same as primary for now */
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
     --border: 220 20% 93%;          /* #e5e7eb - light grey border */
     --input: 220 20% 93%;
-    --ring: 90 32% 71%;
+    --ring: 218 69% 29%;
     --radius: 0.375rem; /* 6px, for a modern, slightly squary look */
   }
 
