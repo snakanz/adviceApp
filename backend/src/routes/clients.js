@@ -143,18 +143,24 @@ router.post('/upsert', async (req, res) => {
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const advisorId = decoded.id;
-    const { email, name } = req.body;
+    const { email, name, likely_value, business_type } = req.body;
     if (!email) return res.status(400).json({ error: 'Email is required' });
     // Check if client exists
     const existing = await pool.query('SELECT * FROM clients WHERE advisor_id = $1 AND email = $2', [advisorId, email]);
     let client;
     if (existing.rows.length > 0) {
-      // Update name
-      const result = await pool.query('UPDATE clients SET name = $1, updated_at = NOW() WHERE advisor_id = $2 AND email = $3 RETURNING *', [name, advisorId, email]);
+      // Update name, likely_value, business_type
+      const result = await pool.query(
+        'UPDATE clients SET name = $1, likely_value = $2, business_type = $3, updated_at = NOW() WHERE advisor_id = $4 AND email = $5 RETURNING *',
+        [name, likely_value, business_type, advisorId, email]
+      );
       client = result.rows[0];
     } else {
       // Insert new client
-      const result = await pool.query('INSERT INTO clients (advisor_id, email, name, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW()) RETURNING *', [advisorId, email, name]);
+      const result = await pool.query(
+        'INSERT INTO clients (advisor_id, email, name, likely_value, business_type, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, NOW(), NOW()) RETURNING *',
+        [advisorId, email, name, likely_value, business_type]
+      );
       client = result.rows[0];
     }
     res.json(client);
