@@ -14,7 +14,16 @@ module.exports = {
         'muted-foreground': "#6b7280", // slightly darker muted for text
         primary: {
           DEFAULT: "#3B82F6", // Light blue accent like Concentro
-          dark: "#1e3a8a"
+          dark: "#1e3a8a",
+          foreground: "#fff", // For text-primary-foreground
+        },
+        secondary: {
+          DEFAULT: "#f3f4f6",
+          foreground: "#1e293b", // For text-secondary-foreground
+        },
+        accent: {
+          DEFAULT: "#e5e7eb",
+          foreground: "#1e293b", // For text-accent-foreground
         },
         brand: {
           green: "#4ade80",
