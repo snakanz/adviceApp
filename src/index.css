@@ -6,25 +6,25 @@
 
 @layer base {
   :root {
-    --background: 120 30% 98%;      /* #f6fbf7 - very subtle light green */
+    --background: 120 20% 99%;      /* #f9fcfa - even subtler light green */
     --foreground: 222.2 84% 4.9%;   /* #22223b - dark, not black */
     --card: 0 0% 100%;              /* #fff - white cards */
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 265 90% 65%;         /* #8f5fff - modern purple */
+    --primary: 142 76% 36%;         /* #4ADE80 - modern green */
     --primary-foreground: 0 0% 100%;
-    --secondary: 120 30% 96%;       /* #eaf7ef - sidebar/secondary bg, subtle green */
+    --secondary: 120 20% 97%;       /* #f3f9f5 - sidebar/secondary bg, even subtler green */
     --secondary-foreground: 222.2 84% 4.9%;
     --muted: 220 14% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 265 90% 65%;          /* same as primary for now */
+    --accent: 142 76% 36%;          /* same as primary for now */
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 120 30% 90%;          /* #e3f5e8 - light green border */
-    --input: 120 30% 90%;
-    --ring: 265 90% 65%;
+    --border: 120 20% 93%;          /* #eaf6f0 - lighter green border */
+    --input: 120 20% 93%;
+    --ring: 142 76% 36%;
     --radius: 0.75rem;
   }
 
