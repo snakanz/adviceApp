@@ -22,6 +22,7 @@ module.exports = {
         },
         foreground: "#1e293b", // Navy for text-foreground
         'card-foreground': "#1e293b", // Navy for card text
+        ring: "#3B82F6", // Blue for ring-ring utility
       },
       borderRadius: {
         xl: "20px"
