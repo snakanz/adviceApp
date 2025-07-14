@@ -180,7 +180,7 @@ export default function Layout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 ml-0 sm:ml-64 bg-background min-h-screen pt-18">
+      <main className="flex-1 ml-0 sm:ml-64 bg-background min-h-screen pt-20">
         <div className="h-full">
           <Outlet />
         </div>
