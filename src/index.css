@@ -153,7 +153,7 @@ button, a, [role="button"] {
 }
 
 .sidebar-item.active {
-  @apply bg-primary/10 text-foreground border border-primary/10;
+  @apply bg-primary/10 text-primary font-semibold border border-primary/20 pointer-events-auto;
 }
 
 /* Prose styles for dark mode */
