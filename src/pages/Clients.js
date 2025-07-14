@@ -90,6 +90,7 @@ export default function Clients() {
 
   // Save handler
   const handleSaveClient = async () => {
+    console.log('Saving client:', editForm); // Debug log
     setSaving(true);
     try {
       const token = localStorage.getItem('jwt');

@@ -137,6 +137,7 @@ router.post('/:clientEmail/ai-summary', async (req, res) => {
 
 // POST /api/clients/upsert - upsert a client by email for the advisor
 router.post('/upsert', async (req, res) => {
+  console.log('Upsert client request body:', req.body); // Debug log
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
   try {
@@ -163,6 +164,7 @@ router.post('/upsert', async (req, res) => {
       );
       client = result.rows[0];
     }
+    console.log('Upserted client:', client); // Debug log
     res.json(client);
   } catch (error) {
     console.error('Error upserting client:', error);
