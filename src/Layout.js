@@ -53,7 +53,7 @@ export default function Layout() {
   return (
     <div className="flex h-screen font-sans layout-bg">
       {/* AppBar */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-card/80 border-b border-border/50 shadow-soft">
+      <header className="fixed top-0 left-64 right-0 z-50 bg-card/80 border-b border-border/50 shadow-soft">
         <div className="flex items-center justify-between px-6 py-4 h-18">
           {/* Hamburger for mobile */}
           <div className="block sm:hidden">
