@@ -11,8 +11,10 @@ const routes = require('./routes');
 
 const app = express();
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://adviceapp.pages.dev'],
-  credentials: true
+  origin: ['https://adviceapp.pages.dev', 'http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 
