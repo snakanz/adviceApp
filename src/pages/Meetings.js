@@ -523,13 +523,11 @@ export default function Meetings() {
             <div className="flex-1 overflow-y-auto">
               <div className="p-6">
                 {/* Tabs */}
-                <div className="flex gap-6 mb-8 border-b border-border/50">
+                <div className="flex gap-4 justify-between mb-8">
                   <button
                     className={cn(
-                      "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
-                      activeTab === 'summary'
-                        ? "border-primary text-primary"
-                        : "border-transparent text-muted-foreground hover:text-foreground"
+                      "tab-btn",
+                      activeTab === 'summary' && "active"
                     )}
                     onClick={() => setActiveTab('summary')}
                   >
@@ -538,10 +536,8 @@ export default function Meetings() {
                   </button>
                   <button
                     className={cn(
-                      "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
-                      activeTab === 'transcript'
-                        ? "border-primary text-primary"
-                        : "border-transparent text-muted-foreground hover:text-foreground"
+                      "tab-btn",
+                      activeTab === 'transcript' && "active"
                     )}
                     onClick={() => setActiveTab('transcript')}
                   >

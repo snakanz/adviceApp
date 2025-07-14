@@ -138,14 +138,12 @@ const ViewClient = () => {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-border/50 px-6">
-        <div className="flex gap-6">
+      <div className="px-6 pt-2 pb-0">
+        <div className="flex gap-4 justify-between">
           <button
             className={cn(
-              "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
-              activeTab === 'aiSummary'
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+              "tab-btn",
+              activeTab === 'aiSummary' && "active"
             )}
             onClick={() => setActiveTab('aiSummary')}
           >
@@ -154,10 +152,8 @@ const ViewClient = () => {
           </button>
           <button
             className={cn(
-              "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
-              activeTab === 'allMeetings'
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+              "tab-btn",
+              activeTab === 'allMeetings' && "active"
             )}
             onClick={() => setActiveTab('allMeetings')}
           >
@@ -166,10 +162,8 @@ const ViewClient = () => {
           </button>
           <button
             className={cn(
-              "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
-              activeTab === 'pipeline'
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
+              "tab-btn",
+              activeTab === 'pipeline' && "active"
             )}
             onClick={() => setActiveTab('pipeline')}
           >

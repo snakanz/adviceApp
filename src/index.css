@@ -25,7 +25,7 @@
     --border: 220 20% 93%;          /* #e5e7eb - light grey border */
     --input: 220 20% 93%;
     --ring: 142 60% 85%;
-    --radius: 0.75rem;
+    --radius: 0.375rem; /* 6px, for a modern, slightly squary look */
   }
 
   /* Light mode - kept for potential future toggle */
@@ -176,4 +176,20 @@ button, a, [role="button"] {
 
 .prose-invert em {
   @apply text-muted-foreground;
+}
+
+.btn-primary, .btn, button, .sidebar-item, .sidebar-item.active {
+  border-radius: var(--radius) !important;
+}
+
+/* Tab buttons (Summary, Transcript, etc.) */
+.tab-btn {
+  @apply bg-transparent text-muted-foreground font-medium px-4 py-2 transition-all duration-150;
+  border-radius: var(--radius);
+}
+.tab-btn.active {
+  @apply bg-primary/10 text-foreground;
+}
+.tab-btn:hover {
+  @apply bg-primary/20 text-foreground;
 }

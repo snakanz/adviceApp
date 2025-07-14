@@ -224,14 +224,12 @@ export default function Clients() {
             </div>
 
             {/* Tabs */}
-            <div className="border-b border-border/50 px-6">
-              <div className="flex gap-6">
+            <div className="px-6 pt-2 pb-0">
+              <div className="flex gap-4 justify-between">
                 <button
                   className={cn(
-                    "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
-                    tab === 0
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
+                    "tab-btn",
+                    tab === 0 && "active"
                   )}
                   onClick={() => setTab(0)}
                 >
@@ -240,10 +238,8 @@ export default function Clients() {
                 </button>
                 <button
                   className={cn(
-                    "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
-                    tab === 1
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
+                    "tab-btn",
+                    tab === 1 && "active"
                   )}
                   onClick={() => setTab(1)}
                 >
@@ -252,10 +248,8 @@ export default function Clients() {
                 </button>
                 <button
                   className={cn(
-                    "pb-3 px-1 border-b-2 font-medium text-sm transition-all duration-150",
-                    tab === 2
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground"
+                    "tab-btn",
+                    tab === 2 && "active"
                   )}
                   onClick={() => setTab(2)}
                 >
