@@ -528,24 +528,6 @@ export default function Meetings() {
                     <span>{formatMeetingTime(selectedMeeting)}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleCopyToClipboard}
-                  >
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copy
-                  </Button>
-                  <Button
-                    variant="default" 
-                    size="sm"
-                    onClick={() => setShowAIDialog(true)}
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    AI Adjust
-                  </Button>
-                </div>
               </div>
             </div>
 
