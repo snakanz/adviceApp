@@ -22,14 +22,19 @@ router.get('/', async (req, res) => {
     console.log('Pipeline request for userId:', userId);
 
     // Get all clients with pipeline data, grouped by likely_close_month
-    // Improved filtering to handle empty strings and null values properly
+    // Use a more robust approach with explicit type handling
     const result = await pool.query(`
       SELECT 
         c.id,
         c.name,
         c.email,
         c.business_type,
-        c.likely_value,
+        CASE 
+          WHEN c.likely_value IS NULL THEN NULL
+          WHEN c.likely_value::text = '' THEN NULL
+          WHEN c.likely_value <= 0 THEN NULL
+          ELSE c.likely_value
+        END as likely_value,
         c.likely_close_month,
         c.created_at,
         c.updated_at,
@@ -39,9 +44,8 @@ router.get('/', async (req, res) => {
       WHERE c.advisor_id = $1
         AND c.likely_close_month IS NOT NULL
         AND c.likely_value IS NOT NULL
-        AND c.likely_value > 0
-        AND c.likely_value != ''
         AND c.likely_value::text != ''
+        AND c.likely_value > 0
       GROUP BY c.id, c.name, c.email, c.business_type, c.likely_value, c.likely_close_month, c.created_at, c.updated_at
       ORDER BY c.likely_close_month, c.name
     `, [userId]);
@@ -52,44 +56,51 @@ router.get('/', async (req, res) => {
     let totalClients = 0;
 
     result.rows.forEach(client => {
-      if (client.likely_close_month && client.likely_value) {
-        const monthKey = client.likely_close_month.toISOString().slice(0, 7); // YYYY-MM format
-        const monthName = client.likely_close_month.toLocaleDateString('en-GB', { 
-          month: 'long', 
-          year: 'numeric' 
-        });
-
-        if (!pipelineByMonth[monthKey]) {
-          pipelineByMonth[monthKey] = {
-            month: monthName,
-            monthKey: monthKey,
-            clients: [],
-            totalValue: 0,
-            clientCount: 0
-          };
-        }
-
-        // Additional validation to ensure likely_value is a valid number
-        const clientValue = parseFloat(client.likely_value);
-        if (isNaN(clientValue) || clientValue <= 0) {
-          console.warn('Invalid likely_value for client:', client.id, client.likely_value);
-          return; // Skip this client
-        }
-
-        pipelineByMonth[monthKey].clients.push({
-          id: client.id,
-          name: client.name,
-          email: client.email,
-          business_type: client.business_type,
-          likely_value: client.likely_value,
+      // Additional validation to ensure we have valid data
+      if (!client.likely_close_month || !client.likely_value) {
+        console.warn('Skipping client with invalid data:', client.id, {
           likely_close_month: client.likely_close_month,
-          meeting_count: parseInt(client.meeting_count) || 0
+          likely_value: client.likely_value
         });
-        pipelineByMonth[monthKey].totalValue += clientValue;
-        pipelineByMonth[monthKey].clientCount += 1;
-        totalValue += clientValue;
-        totalClients += 1;
+        return;
       }
+
+      const monthKey = client.likely_close_month.toISOString().slice(0, 7); // YYYY-MM format
+      const monthName = client.likely_close_month.toLocaleDateString('en-GB', { 
+        month: 'long', 
+        year: 'numeric' 
+      });
+
+      if (!pipelineByMonth[monthKey]) {
+        pipelineByMonth[monthKey] = {
+          month: monthName,
+          monthKey: monthKey,
+          clients: [],
+          totalValue: 0,
+          clientCount: 0
+        };
+      }
+
+      // Additional validation to ensure likely_value is a valid number
+      const clientValue = parseFloat(client.likely_value);
+      if (isNaN(clientValue) || clientValue <= 0) {
+        console.warn('Invalid likely_value for client:', client.id, client.likely_value);
+        return; // Skip this client
+      }
+
+      pipelineByMonth[monthKey].clients.push({
+        id: client.id,
+        name: client.name,
+        email: client.email,
+        business_type: client.business_type,
+        likely_value: client.likely_value,
+        likely_close_month: client.likely_close_month,
+        meeting_count: parseInt(client.meeting_count) || 0
+      });
+      pipelineByMonth[monthKey].totalValue += clientValue;
+      pipelineByMonth[monthKey].clientCount += 1;
+      totalValue += clientValue;
+      totalClients += 1;
     });
 
     // Convert to array and sort by month
