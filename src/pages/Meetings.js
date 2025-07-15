@@ -122,6 +122,7 @@ export default function Meetings() {
   // Add template selection state
   const [templates, setTemplates] = useState(loadTemplates());
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [currentSummaryTemplate, setCurrentSummaryTemplate] = useState(null);
 
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
@@ -207,6 +208,17 @@ export default function Meetings() {
     setSelectedMeetingId(meeting.id);
     setSummaryContent(meeting.meetingSummary || meeting.transcript || '');
     setActiveTab('summary');
+    
+    // Set the current template based on the meeting's summary
+    if (meeting.meetingSummary) {
+      // For now, assume it was generated with the default template
+      // In the future, this could be stored in the backend
+      setCurrentSummaryTemplate(null); // Default template
+      setSelectedTemplate(null); // Default template
+    } else {
+      setCurrentSummaryTemplate(null);
+      setSelectedTemplate(null);
+    }
   };
 
   const handleAIAdjustment = async (adjustmentPrompt) => {
@@ -339,9 +351,11 @@ export default function Meetings() {
         // Use the selected template's prompt
         const prompt = selectedTemplate.content.replace('{transcript}', selectedMeeting.transcript);
         summary = await generateAISummaryWithTemplate(selectedMeeting.transcript, prompt);
+        setCurrentSummaryTemplate(selectedTemplate);
       } else {
         // Use default generation
         summary = await generateAISummary(selectedMeeting.transcript);
+        setCurrentSummaryTemplate(null);
       }
       
       setSummaryContent(summary);
@@ -573,7 +587,7 @@ export default function Meetings() {
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                       <Button variant="ghost" size="sm" className="h-6 px-2 text-foreground font-medium">
-                                        {selectedTemplate?.title || 'Advicly Summary'}
+                                        {currentSummaryTemplate?.title || selectedTemplate?.title || 'Advicly Summary'}
                                         <ChevronDown className="w-3 h-3 ml-1" />
                                       </Button>
                                     </DropdownMenuTrigger>
@@ -592,11 +606,20 @@ export default function Meetings() {
                                     </DropdownMenuContent>
                                   </DropdownMenu>
                                 ) : (
-                                  <span className="text-sm font-medium text-foreground">Advicly Summary</span>
+                                  <span className="text-sm font-medium text-foreground">
+                                    {currentSummaryTemplate?.title || 'Advicly Summary'}
+                                  </span>
+                                )}
+                                
+                                {/* Current template indicator */}
+                                {currentSummaryTemplate && (
+                                  <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                                    Current
+                                  </span>
                                 )}
                                 
                                 {/* Apply Button - only show when template changed */}
-                                {selectedTemplate && (
+                                {selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && (
                                   <Button
                                     onClick={handleGenerateAISummary}
                                     disabled={generatingSummary}
