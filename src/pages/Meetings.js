@@ -21,7 +21,8 @@ import {
   Sparkles,
   Play,
   Pause,
-  X
+  X,
+  ChevronDown
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary, generateAISummary } from '../services/api';
@@ -45,42 +46,59 @@ const formatDate = (dateTimeStr) => {
 const groupMeetingsByDate = (meetings) => {
   const grouped = {};
   meetings.forEach(meeting => {
-    const dateKey = formatDate(meeting.start?.dateTime);
-    if (!grouped[dateKey]) {
-      grouped[dateKey] = [];
+    const date = formatDate(meeting.start?.dateTime || meeting.startTime);
+    if (!grouped[date]) {
+      grouped[date] = [];
     }
-    grouped[dateKey].push(meeting);
+    grouped[date].push(meeting);
   });
   return grouped;
 };
 
 function getMeetingSource(meeting) {
-  if (meeting.hangoutLink || meeting.conferenceData) return 'google';
-  if (meeting.outlookEventId) return 'outlook';
-  return 'default';
+  if (meeting.attendees?.some(a => a.email?.includes('google'))) return 'google';
+  if (meeting.attendees?.some(a => a.email?.includes('outlook'))) return 'outlook';
+  return 'google'; // default
 }
 
 function formatMeetingTime(meeting) {
-  if (!meeting?.start?.dateTime || !meeting?.end?.dateTime) return '';
-  const start = new Date(meeting.start.dateTime);
-  const end = new Date(meeting.end.dateTime);
-  return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  const start = new Date(meeting.start?.dateTime || meeting.startTime);
+  return start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
 function renderParticipants(meeting) {
-  if (!meeting?.attendees || !Array.isArray(meeting.attendees)) return null;
-  return meeting.attendees.slice(0, 3).map((att, idx) => (
-    <div key={att.email || idx} className="relative" title={att.displayName || att.email}>
-      <Avatar className={cn(
-        "w-7 h-7 text-xs font-medium bg-accent text-accent-foreground border-2 border-card",
-        idx > 0 && "-ml-2"
-      )}>
-        <AvatarFallback className="bg-accent text-accent-foreground text-xs font-medium">
-          {att.displayName ? att.displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2) : (att.email ? att.email[0].toUpperCase() : '?')}
-        </AvatarFallback>
-      </Avatar>
+  const attendees = meeting.attendees || [];
+  if (attendees.length === 0) return null;
+  
+  return (
+    <div className="flex -space-x-2">
+      {attendees.slice(0, 3).map((attendee, index) => (
+        <Avatar key={index} className="w-6 h-6 border-2 border-background">
+          <AvatarFallback className="text-xs bg-primary/10 text-primary">
+            {attendee.displayName ? attendee.displayName.charAt(0).toUpperCase() : '?'}
+          </AvatarFallback>
+        </Avatar>
+      ))}
+      {attendees.length > 3 && (
+        <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground border-2 border-background">
+          +{attendees.length - 3}
+        </div>
+      )}
     </div>
-  ));
+  );
+}
+
+// Load templates from localStorage
+function loadTemplates() {
+  const saved = localStorage.getItem('advicly_templates');
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 export default function Meetings() {
@@ -105,6 +123,10 @@ export default function Meetings() {
   const [showPasteTranscript, setShowPasteTranscript] = useState(false);
   const [deletingTranscript, setDeletingTranscript] = useState(false);
   const [generatingSummary, setGeneratingSummary] = useState(false);
+  
+  // Add template selection state
+  const [templates, setTemplates] = useState(loadTemplates());
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
 
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
@@ -115,6 +137,15 @@ export default function Meetings() {
       null
     );
   }, [meetings, selectedMeetingId]);
+
+  // Load templates on component mount
+  useEffect(() => {
+    const loadedTemplates = loadTemplates();
+    setTemplates(loadedTemplates);
+    if (loadedTemplates.length > 0) {
+      setSelectedTemplate(loadedTemplates[0]);
+    }
+  }, []);
 
   const fetchMeetings = useCallback(async () => {
     setLoading(true);
@@ -217,24 +248,45 @@ export default function Meetings() {
   };
 
   const handleTranscriptUpload = async () => {
-    if (!selectedMeeting || !transcriptUpload.trim()) return;
+    if (!transcriptUpload?.trim() || !selectedMeeting) return;
+    
     setUploadingTranscript(true);
     try {
-      await api.uploadMeetingTranscript(selectedMeeting.id, transcriptUpload.trim());
+      const token = localStorage.getItem('jwt');
+      const res = await fetch(`${API_URL}/calendar/meetings/${selectedMeeting.id}/transcript`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ transcript: transcriptUpload.trim() })
+      });
+      
+      if (!res.ok) throw new Error('Failed to upload transcript');
+      
+      // Update local state
+      const updatedMeetings = {
+        ...meetings,
+        past: meetings.past.map(m => 
+          m.id === selectedMeeting.id 
+            ? { ...m, transcript: transcriptUpload.trim() }
+            : m
+        ),
+        future: meetings.future.map(m => 
+          m.id === selectedMeeting.id 
+            ? { ...m, transcript: transcriptUpload.trim() }
+            : m
+        )
+      };
+      setMeetings(updatedMeetings);
+      
+      setTranscriptUpload('');
+      setShowPasteTranscript(false);
       setShowSnackbar(true);
       setSnackbarMessage('Transcript uploaded successfully');
       setSnackbarSeverity('success');
-      // Update the selected meeting's transcript in state
-      setMeetings(prev => {
-        const update = m => m.id === selectedMeeting.id ? { ...m, transcript: transcriptUpload.trim() } : m;
-        return {
-          ...prev,
-          past: prev.past.map(update),
-          future: prev.future.map(update)
-        };
-      });
-      setTranscriptUpload('');
-    } catch (err) {
+    } catch (error) {
+      console.error('Error uploading transcript:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to upload transcript');
       setSnackbarSeverity('error');
@@ -246,16 +298,11 @@ export default function Meetings() {
   const handleAudioFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    setUploadingTranscript(true);
-    try {
-      // Backend currently only supports text, so show a warning
-      setShowSnackbar(true);
-      setSnackbarMessage('Audio upload is not yet supported.');
-      setSnackbarSeverity('warning');
-    } finally {
-      setUploadingTranscript(false);
-      e.target.value = '';
-    }
+    
+    // For now, just show a message that audio upload is not implemented
+    setShowSnackbar(true);
+    setSnackbarMessage('Audio upload is not yet implemented');
+    setSnackbarSeverity('warning');
   };
 
   const handleDeleteTranscript = async () => {
@@ -264,36 +311,30 @@ export default function Meetings() {
     setDeletingTranscript(true);
     try {
       const token = localStorage.getItem('jwt');
-      let url;
-      if (window.location.hostname === 'localhost') {
-        url = `${API_URL}/api/dev/meetings/${selectedMeeting.id}/transcript`;
-      } else {
-        url = `${API_URL}/calendar/meetings/${selectedMeeting.id}/transcript`;
-      }
-      
-      const response = await fetch(url, {
+      const res = await fetch(`${API_URL}/calendar/meetings/${selectedMeeting.id}/transcript`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
       });
       
-      if (!response.ok) {
-        throw new Error('Failed to delete transcript');
-      }
+      if (!res.ok) throw new Error('Failed to delete transcript');
       
       // Update local state
-      setMeetings(prev => ({
-        ...prev,
-        past: prev.past.map(m => 
+      const updatedMeetings = {
+        ...meetings,
+        past: meetings.past.map(m => 
           m.id === selectedMeeting.id 
             ? { ...m, transcript: null }
             : m
         ),
-        future: prev.future.map(m => 
+        future: meetings.future.map(m => 
           m.id === selectedMeeting.id 
             ? { ...m, transcript: null }
             : m
         )
-      }));
+      };
+      setMeetings(updatedMeetings);
       
       setShowSnackbar(true);
       setSnackbarMessage('Transcript deleted successfully');
@@ -313,10 +354,20 @@ export default function Meetings() {
     
     setGeneratingSummary(true);
     try {
-      const summary = await generateAISummary(selectedMeeting.transcript);
+      // Use selected template if available, otherwise use default
+      let summary;
+      if (selectedTemplate) {
+        // Use the selected template's prompt
+        const prompt = selectedTemplate.content.replace('{transcript}', selectedMeeting.transcript);
+        summary = await generateAISummaryWithTemplate(selectedMeeting.transcript, prompt);
+      } else {
+        // Use default generation
+        summary = await generateAISummary(selectedMeeting.transcript);
+      }
+      
       setSummaryContent(summary);
       setShowSnackbar(true);
-      setSnackbarMessage('AI summary generated successfully');
+      setSnackbarMessage(`AI summary generated using ${selectedTemplate?.title || 'default template'}`);
       setSnackbarSeverity('success');
     } catch (error) {
       console.error('Error generating AI summary:', error);
@@ -328,6 +379,34 @@ export default function Meetings() {
     }
   };
 
+  // New function to generate summary with custom template
+  const generateAISummaryWithTemplate = async (transcript, prompt) => {
+    try {
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/calendar/generate-summary`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          transcript,
+          prompt
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate AI summary with template');
+      }
+
+      const data = await response.json();
+      return data.summary;
+    } catch (error) {
+      console.error('Error generating AI summary with template:', error);
+      throw error;
+    }
+  };
+
   const renderGroupedMeetings = (meetings, title, isPast = false) => {
     if (!meetings || meetings.length === 0) return null;
     
@@ -335,86 +414,63 @@ export default function Meetings() {
     
     return (
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-foreground">{title}</h2>
-          <span className="text-sm text-muted-foreground bg-accent px-2 py-1 rounded-full">
-            {meetings.length}
-          </span>
-        </div>
+        <h3 className="text-lg font-semibold text-foreground">{title}</h3>
         {Object.entries(grouped).map(([date, dayMeetings]) => (
-          <div key={date} className="space-y-4">
-            <h3 className="label text-xs font-medium tracking-wider uppercase text-muted-foreground">
-              {date}
-            </h3>
-            <div className="space-y-3">
-              {dayMeetings.map((meeting) => (
-                <Card
-                  key={meeting.id}
-                  className={cn(
-                    "cursor-pointer card-hover border-border/50",
-                    selectedMeetingId === meeting.id && "ring-2 ring-primary/20 bg-primary/5 border-primary/30"
-                  )}
-                  onClick={() => handleMeetingSelect(meeting)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock className="w-3 h-3" />
-                            <span>{formatMeetingTime(meeting)}</span>
+          <div key={date} className="space-y-3">
+            <h4 className="text-sm font-medium text-muted-foreground">{date}</h4>
+            <div className="space-y-2">
+              {dayMeetings.map((meeting) => {
+                const isSelected = meeting.id === selectedMeetingId;
+                const source = getMeetingSource(meeting);
+                
+                return (
+                  <Card
+                    key={meeting.id}
+                    className={cn(
+                      "cursor-pointer card-hover border-border/50",
+                      isSelected && "ring-2 ring-primary/20 bg-primary/5 border-primary/30"
+                    )}
+                    onClick={() => handleMeetingSelect(meeting)}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            {source === 'google' ? <GoogleIcon className="w-4 h-4" /> : <OutlookIcon className="w-4 h-4" />}
+                            <h5 className="font-semibold text-foreground truncate">
+                              {meeting.summary || meeting.title || 'Untitled Meeting'}
+                            </h5>
                           </div>
-                          {getMeetingSource(meeting) === 'google' && (
-                            <GoogleIcon size={14} className="text-muted-foreground" />
-                          )}
-                          {getMeetingSource(meeting) === 'outlook' && (
-                            <OutlookIcon size={14} className="text-muted-foreground" />
-                          )}
-                        </div>
-                        <h4 className="font-semibold text-foreground mb-2 line-clamp-2">
-                          {meeting.summary || meeting.title || 'Untitled Meeting'}
-                        </h4>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            {meeting.attendees && meeting.attendees.length > 0 && (
-                              <div className="flex items-center gap-1">
-                                <Users className="w-3 h-3" />
-                                <span>{meeting.attendees.length}</span>
-                              </div>
-                            )}
-                            {meeting.meetingSummary && (
-                              <div className="flex items-center gap-1">
-                                <MessageSquare className="w-3 h-3" />
-                                <span>Summary</span>
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-4 h-4" />
+                              <span>{formatMeetingTime(meeting)}</span>
+                            </div>
                             {renderParticipants(meeting)}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-7 w-7">
-                                  <MoreVertical className="w-3 h-3" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={handleCopyToClipboard}>
-                                  <Copy className="w-4 h-4 mr-2" />
-                                  Copy Summary
-                                </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                  <Share className="w-4 h-4 mr-2" />
-                                  Share
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
                           </div>
                         </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={handleCopyToClipboard}>
+                              <Copy className="w-4 h-4 mr-2" />
+                              Copy Summary
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Share className="w-4 h-4 mr-2" />
+                              Share
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           </div>
         ))}
@@ -434,80 +490,75 @@ export default function Meetings() {
   }
 
   return (
-    <div className="h-full flex bg-background pt-6">
-      {/* Left Panel - Meeting List */}
-      <div className="w-1/3 border-r border-border/50 overflow-y-auto bg-card/30">
+    <div className="h-full flex bg-background">
+      {/* Left Sidebar */}
+      <div className="w-80 border-r border-border/50 overflow-y-auto bg-card/30">
         <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-foreground">Meetings</h2>
+          </div>
+          
           {/* View Toggle */}
-          <div className="flex gap-1 mb-8">
+          <div className="flex gap-2 mb-6">
             <Button
               variant={meetingView === 'future' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setMeetingView('future')}
-              className="flex-1"
             >
-              <Play className="w-3 h-3 mr-2" />
               Upcoming
             </Button>
             <Button
               variant={meetingView === 'past' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setMeetingView('past')}
-              className="flex-1"
             >
-              <Pause className="w-3 h-3 mr-2" />
               Past
             </Button>
           </div>
-
-          {/* Meeting List */}
-          {meetingView === 'future' 
-            ? renderGroupedMeetings(meetings.future, 'Upcoming Meetings')
-            : renderGroupedMeetings(meetings.past, 'Past Meetings', true)
-          }
+          
+          {/* Meetings List */}
+          <div className="space-y-6">
+            {meetingView === 'future' && renderGroupedMeetings(meetings.future, 'Upcoming Meetings')}
+            {meetingView === 'past' && renderGroupedMeetings(meetings.past, 'Past Meetings', true)}
+          </div>
         </div>
       </div>
 
-      {/* Right Panel - Meeting Details */}
+      {/* Main Content */}
       <div className="flex-1 flex flex-col bg-background">
         {selectedMeeting ? (
           <>
-            {/* Meeting Header */}
+            {/* Header */}
             <div className="border-b border-border/50 p-6 bg-card/50">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Calendar className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">
-                      {formatDate(selectedMeeting.start?.dateTime)}
-                    </span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    {getMeetingSource(selectedMeeting) === 'google' ? 
+                      <GoogleIcon className="w-5 h-5" /> : 
+                      <OutlookIcon className="w-5 h-5" />
+                    }
+                    <h1 className="text-2xl font-bold text-foreground">
+                      {selectedMeeting.summary || selectedMeeting.title || 'Untitled Meeting'}
+                    </h1>
                   </div>
-                  <h1 className="text-2xl font-bold text-foreground mb-3">
-                    {selectedMeeting.summary || selectedMeeting.title || 'Untitled Meeting'}
-                  </h1>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      <span>{formatMeetingTime(selectedMeeting)}</span>
-                    </div>
-                    {selectedMeeting.attendees && selectedMeeting.attendees.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        <Users className="w-4 h-4" />
-                        <span>{selectedMeeting.attendees.length} attendees</span>
-                      </div>
-                    )}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="w-4 h-4" />
+                    <span>{formatDate(selectedMeeting.start?.dateTime || selectedMeeting.startTime)}</span>
+                    <span>•</span>
+                    <Clock className="w-4 h-4" />
+                    <span>{formatMeetingTime(selectedMeeting)}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <Button variant="outline" size="sm" onClick={handleCopyToClipboard}>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleCopyToClipboard}
+                  >
                     <Copy className="w-4 h-4 mr-2" />
                     Copy
                   </Button>
-                  <Button variant="outline" size="sm">
-                    <Share className="w-4 h-4 mr-2" />
-                    Share
-                  </Button>
-                  <Button 
+                  <Button
                     variant="default" 
                     size="sm"
                     onClick={() => setShowAIDialog(true)}
@@ -583,14 +634,43 @@ export default function Meetings() {
                             <h3 className="text-lg font-medium text-foreground mb-2">No summary available</h3>
                             <p className="text-muted-foreground mb-4">This meeting doesn't have a summary yet.</p>
                             {selectedMeeting?.transcript && (
-                              <Button
-                                onClick={handleGenerateAISummary}
-                                disabled={generatingSummary}
-                                className="flex items-center gap-2"
-                              >
-                                <Sparkles className="w-4 h-4" />
-                                {generatingSummary ? 'Generating...' : 'Generate AI Summary'}
-                              </Button>
+                              <div className="space-y-4">
+                                {/* Template Selection */}
+                                {templates.length > 0 && (
+                                  <div className="flex items-center gap-3 justify-center">
+                                    <span className="text-sm text-muted-foreground">Template:</span>
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" size="sm" className="min-w-[200px] justify-between">
+                                          {selectedTemplate?.title || 'Default Template'}
+                                          <ChevronDown className="w-4 h-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="center">
+                                        <DropdownMenuItem onClick={() => setSelectedTemplate(null)}>
+                                          Default Template
+                                        </DropdownMenuItem>
+                                        {templates.map((template) => (
+                                          <DropdownMenuItem 
+                                            key={template.id}
+                                            onClick={() => setSelectedTemplate(template)}
+                                          >
+                                            {template.title}
+                                          </DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                  </div>
+                                )}
+                                <Button
+                                  onClick={handleGenerateAISummary}
+                                  disabled={generatingSummary}
+                                  className="flex items-center gap-2"
+                                >
+                                  <Sparkles className="w-4 h-4" />
+                                  {generatingSummary ? 'Generating...' : 'Generate AI Summary'}
+                                </Button>
+                              </div>
                             )}
                           </div>
                         )}
