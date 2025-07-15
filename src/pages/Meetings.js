@@ -108,7 +108,6 @@ export default function Meetings() {
   const [summaryContent, setSummaryContent] = useState(null);
   const [activeTab, setActiveTab] = useState('summary');
   const { isAuthenticated } = useAuth();
-  const [meetingView, setMeetingView] = useState('future');
   
   const selectedMeetingIdRef = useRef(null);
   selectedMeetingIdRef.current = selectedMeetingId;
@@ -476,28 +475,126 @@ export default function Meetings() {
             <h2 className="text-xl font-semibold text-foreground">Meetings</h2>
           </div>
           
-          {/* View Toggle */}
-          <div className="flex gap-2 mb-6">
-            <Button
-              variant={meetingView === 'future' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMeetingView('future')}
-            >
-              Upcoming
-            </Button>
-            <Button
-              variant={meetingView === 'past' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMeetingView('past')}
-            >
-              Past
-            </Button>
-          </div>
-          
-          {/* Meetings List */}
-          <div className="space-y-6">
-            {meetingView === 'future' && renderGroupedMeetings(meetings.future, 'Upcoming Meetings')}
-            {meetingView === 'past' && renderGroupedMeetings(meetings.past, 'Past Meetings', true)}
+          {/* Three Column Layout */}
+          <div className="grid grid-cols-3 gap-4 w-full">
+            {/* Past Column */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground">Past</h3>
+              {meetings.past.slice(0, 5).map((meeting) => {
+                const isSelected = meeting.id === selectedMeetingId;
+                const source = getMeetingSource(meeting);
+                
+                return (
+                  <Card
+                    key={meeting.id}
+                    className={cn(
+                      "cursor-pointer card-hover border-border/50 rounded-md",
+                      isSelected && "ring-2 ring-primary/20 bg-primary/5 border-primary/30"
+                    )}
+                    onClick={() => handleMeetingSelect(meeting)}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            {source === 'google' ? <GoogleIcon className="w-3 h-3" /> : <OutlookIcon className="w-3 h-3" />}
+                            <h5 className="font-semibold text-foreground truncate text-xs">
+                              {meeting.summary || meeting.title || 'Untitled Meeting'}
+                            </h5>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Clock className="w-3 h-3" />
+                            <span>{formatMeetingTime(meeting)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+
+            {/* Today Column */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground">Today</h3>
+              {(() => {
+                const today = new Date();
+                const todayMeetings = meetings.future.filter(meeting => {
+                  const meetingDate = new Date(meeting.start?.dateTime || meeting.startTime);
+                  return meetingDate.toDateString() === today.toDateString();
+                });
+                
+                return todayMeetings.slice(0, 5).map((meeting) => {
+                  const isSelected = meeting.id === selectedMeetingId;
+                  const source = getMeetingSource(meeting);
+                  
+                  return (
+                    <Card
+                      key={meeting.id}
+                      className={cn(
+                        "cursor-pointer card-hover border-border/50 rounded-md",
+                        isSelected && "ring-2 ring-primary/20 bg-primary/5 border-primary/30"
+                      )}
+                      onClick={() => handleMeetingSelect(meeting)}
+                    >
+                      <CardContent className="p-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              {source === 'google' ? <GoogleIcon className="w-3 h-3" /> : <OutlookIcon className="w-3 h-3" />}
+                              <h5 className="font-semibold text-foreground truncate text-xs">
+                                {meeting.summary || meeting.title || 'Untitled Meeting'}
+                              </h5>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Clock className="w-3 h-3" />
+                              <span>{formatMeetingTime(meeting)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                });
+              })()}
+            </div>
+
+            {/* Upcoming Column */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-medium text-muted-foreground">Upcoming</h3>
+              {meetings.future.slice(0, 5).map((meeting) => {
+                const isSelected = meeting.id === selectedMeetingId;
+                const source = getMeetingSource(meeting);
+                
+                return (
+                  <Card
+                    key={meeting.id}
+                    className={cn(
+                      "cursor-pointer card-hover border-border/50 rounded-md",
+                      isSelected && "ring-2 ring-primary/20 bg-primary/5 border-primary/30"
+                    )}
+                    onClick={() => handleMeetingSelect(meeting)}
+                  >
+                    <CardContent className="p-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            {source === 'google' ? <GoogleIcon className="w-3 h-3" /> : <OutlookIcon className="w-3 h-3" />}
+                            <h5 className="font-semibold text-foreground truncate text-xs">
+                              {meeting.summary || meeting.title || 'Untitled Meeting'}
+                            </h5>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Clock className="w-3 h-3" />
+                            <span>{formatMeetingTime(meeting)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
