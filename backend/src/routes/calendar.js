@@ -306,34 +306,14 @@ const OpenAI = require('openai');
 router.post('/generate-summary', async (req, res) => {
   const { transcript, prompt } = req.body;
   if (!transcript) return res.status(400).json({ error: 'Transcript is required' });
+  if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-  // Use custom prompt if provided, otherwise use default
-  const defaultPrompt = `You are an assistant to a financial advisor.
-
-Based strictly on the following client meeting transcript, generate a professional follow-up email. Do **not** make up any facts. Only include points that were clearly stated by either the advisor or the client during the meeting.
-
-Instructions:
-- Begin with a polite greeting (e.g., "Hi [Client], it was great speaking with you today.")
-- Recap the **exact** points discussed in the meeting (e.g., pension value, contribution levels, mortgage, expenses)
-- Clearly outline the agreed next steps (e.g., sending a Letter of Authority, requesting pension statements)
-- Maintain a confident and helpful tone suitable for a financial advisor
-- End with a friendly and professional sign-off
-
-⚠️ If a topic (e.g., expenses, ISA, debt) is not mentioned in the transcript, do **not** include it in the email. Do not guess or assume anything that wasn't said.
-
-Transcript:
-{transcript}
-
-Respond with the **email body only** — no headers or subject lines.`;
-
-  const finalPrompt = prompt || defaultPrompt;
 
   try {
     const completion = await openai.chat.completions.create({
       model: 'gpt-3.5-turbo-16k',
-      messages: [{ role: 'user', content: finalPrompt }],
+      messages: [{ role: 'user', content: prompt }],
       max_tokens: 800,
       temperature: 0.7,
     });

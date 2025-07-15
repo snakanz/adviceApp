@@ -22,7 +22,7 @@ import {
   Edit3
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
-import { adjustMeetingSummary, generateAISummary } from '../services/api';
+import { adjustMeetingSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
