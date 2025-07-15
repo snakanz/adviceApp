@@ -7,7 +7,8 @@ import {
   ArrowRight, 
   TrendingUp, 
   DollarSign,
-  Users
+  Users,
+  Calendar
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -33,6 +34,11 @@ export default function Pipeline() {
         }
         const data = await response.json();
         setPipelineData(data);
+        
+        // Set current month to the most recent month with data
+        if (data.months && data.months.length > 0) {
+          setCurrentMonthIndex(data.months.length - 1);
+        }
       } catch (err) {
         setError(err.message);
         setPipelineData(null);
@@ -50,6 +56,25 @@ export default function Pipeline() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not specified';
+    try {
+      // Handle both YYYY-MM and full date formats
+      const date = dateString.includes('-01') ? 
+        new Date(dateString) : 
+        new Date(dateString + '-01');
+      
+      if (isNaN(date.getTime())) return 'Invalid Date';
+      
+      return date.toLocaleDateString('en-GB', { 
+        month: 'long', 
+        year: 'numeric' 
+      });
+    } catch (error) {
+      return 'Invalid Date';
+    }
   };
 
   if (loading) {
@@ -79,7 +104,7 @@ export default function Pipeline() {
     );
   }
 
-  if (!pipelineData) {
+  if (!pipelineData || !pipelineData.months || pipelineData.months.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Card className="w-full max-w-md border-border/50">
@@ -96,6 +121,11 @@ export default function Pipeline() {
   const currentMonth = pipelineData.months[currentMonthIndex];
   const currentClients = currentMonth?.clients || [];
 
+  // Calculate month-specific KPIs
+  const monthValue = currentMonth?.totalValue || 0;
+  const monthClientCount = currentMonth?.clientCount || 0;
+  const monthAverageValue = monthClientCount > 0 ? monthValue / monthClientCount : 0;
+
   return (
     <div className="h-full flex flex-col bg-background">
       {/* Header */}
@@ -111,9 +141,14 @@ export default function Pipeline() {
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <h2 className="text-xl font-semibold text-foreground min-w-32 text-center">
-              {currentMonth?.month || 'No Data'}
-            </h2>
+            <div className="text-center">
+              <h2 className="text-xl font-semibold text-foreground min-w-32">
+                {currentMonth?.month || 'No Data'}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {pipelineData.months.length} month{pipelineData.months.length !== 1 ? 's' : ''} total
+              </p>
+            </div>
             <Button
               variant="outline"
               size="icon"
@@ -126,7 +161,7 @@ export default function Pipeline() {
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* Month-specific KPI Cards */}
       <div className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card className="border-border/50">
@@ -135,10 +170,13 @@ export default function Pipeline() {
                 <div className="p-2 bg-primary/10 rounded-lg">
                   <DollarSign className="w-5 h-5 text-primary" />
                 </div>
-                <h3 className="text-sm font-medium text-muted-foreground">Total Pipeline Value</h3>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground">Month Value</h3>
+                  <p className="text-xs text-muted-foreground">Total: {formatCurrency(pipelineData.totalValue)}</p>
+                </div>
               </div>
               <p className="text-3xl font-bold text-foreground">
-                {formatCurrency(pipelineData.totalValue)}
+                {formatCurrency(monthValue)}
               </p>
             </CardContent>
           </Card>
@@ -149,10 +187,13 @@ export default function Pipeline() {
                 <div className="p-2 bg-primary/10 rounded-lg">
                   <Users className="w-5 h-5 text-primary" />
                 </div>
-                <h3 className="text-sm font-medium text-muted-foreground">Total Clients</h3>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground">Month Clients</h3>
+                  <p className="text-xs text-muted-foreground">Total: {pipelineData.totalClients}</p>
+                </div>
               </div>
               <p className="text-3xl font-bold text-foreground">
-                {pipelineData.totalClients}
+                {monthClientCount}
               </p>
             </CardContent>
           </Card>
@@ -163,13 +204,37 @@ export default function Pipeline() {
                 <div className="p-2 bg-primary/10 rounded-lg">
                   <TrendingUp className="w-5 h-5 text-primary" />
                 </div>
-                <h3 className="text-sm font-medium text-muted-foreground">Average Value</h3>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground">Month Average</h3>
+                  <p className="text-xs text-muted-foreground">Overall: {formatCurrency(pipelineData.averageValue)}</p>
+                </div>
               </div>
               <p className="text-3xl font-bold text-foreground">
-                {formatCurrency(pipelineData.averageValue)}
+                {formatCurrency(monthAverageValue)}
               </p>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Month Navigation Pills */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2">
+            {pipelineData.months.map((month, index) => (
+              <Button
+                key={month.monthKey}
+                variant={index === currentMonthIndex ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCurrentMonthIndex(index)}
+                className="whitespace-nowrap"
+              >
+                <Calendar className="w-4 h-4 mr-2" />
+                {month.month}
+                <span className="ml-2 text-xs opacity-75">
+                  ({month.clientCount})
+                </span>
+              </Button>
+            ))}
+          </div>
         </div>
 
         {/* Clients Table */}
@@ -177,7 +242,7 @@ export default function Pipeline() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5 text-primary" />
-              Pipeline Clients
+              Pipeline Clients - {currentMonth?.month}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -223,12 +288,7 @@ export default function Pipeline() {
                         </td>
                         <td className="p-4">
                           <p className="text-sm text-muted-foreground">
-                            {client.likely_close_month ? 
-                              new Date(client.likely_close_month + '-01').toLocaleDateString('en-GB', { 
-                                month: 'long', 
-                                year: 'numeric' 
-                              }) : 'Not specified'
-                            }
+                            {formatDate(client.likely_close_month)}
                           </p>
                         </td>
                         <td className="p-4">
