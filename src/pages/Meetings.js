@@ -11,9 +11,7 @@ import {
 import { cn } from '../lib/utils';
 import { 
   Calendar, 
-  MoreVertical, 
   Copy, 
-  Share, 
   Clock,
   FileText,
   MessageSquare,
