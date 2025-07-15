@@ -77,6 +77,7 @@ export default function Meetings() {
   const [summaryContent, setSummaryContent] = useState(null);
   const [activeTab, setActiveTab] = useState('summary');
   const { isAuthenticated } = useAuth();
+  const [meetingView, setMeetingView] = useState('today');
   
   const selectedMeetingIdRef = useRef(null);
   selectedMeetingIdRef.current = selectedMeetingId;
@@ -370,6 +371,41 @@ export default function Meetings() {
     }
   };
 
+  const renderMeetingsList = (meetings, title) => (
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold text-foreground">{title}</h2>
+      {meetings.map((meeting) => (
+        <Card
+          key={meeting.id}
+          onClick={() => handleMeetingSelect(meeting)}
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {getMeetingSource(meeting) === 'google' ? 
+                  <GoogleIcon className="w-5 h-5" /> : 
+                  <OutlookIcon className="w-5 h-5" />
+                }
+                <h3 className="text-lg font-medium text-foreground">
+                  {meeting.summary || meeting.title || 'Untitled Meeting'}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Calendar className="w-4 h-4" />
+                <span>{formatDate(meeting.start?.dateTime || meeting.startTime)}</span>
+                <span>•</span>
+                <Clock className="w-4 h-4" />
+                <span>
+                  {formatMeetingTime(meeting)}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
 
 
   if (loading) {
@@ -384,56 +420,82 @@ export default function Meetings() {
   }
 
   return (
-    <div className="h-full flex bg-background">
-      {/* Left Sidebar */}
-      <div className="w-80 border-r border-border/50 overflow-y-auto bg-card/30">
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-foreground">Meetings</h2>
+    <div className="h-full flex flex-col bg-background">
+      {/* Header */}
+      <div className="border-b border-border/50 p-6 bg-card/50">
+        <h1 className="text-2xl font-bold text-foreground mb-4">Meetings</h1>
+        
+        {/* Search Bar */}
+        <div className="relative mb-4">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <svg className="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
           </div>
-          
-          {/* Three Column Layout */}
-          <div className="grid grid-cols-3 gap-4 w-full">
-            {/* Past Column */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground">Past</h3>
-              {meetings.past.slice(0, 5).map((meeting) => {
-                const isSelected = meeting.id === selectedMeetingId;
-                const source = getMeetingSource(meeting);
-                
-                return (
-                  <Card
-                    key={meeting.id}
-                    className={cn(
-                      "cursor-pointer card-hover border-border/50 rounded-md",
-                      isSelected && "ring-2 ring-primary/20 bg-primary/5 border-primary/30"
-                    )}
-                    onClick={() => handleMeetingSelect(meeting)}
-                  >
-                    <CardContent className="p-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            {source === 'google' ? <GoogleIcon className="w-3 h-3" /> : <OutlookIcon className="w-3 h-3" />}
-                            <h5 className="font-semibold text-foreground truncate text-xs">
-                              {meeting.summary || meeting.title || 'Untitled Meeting'}
-                            </h5>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Clock className="w-3 h-3" />
-                            <span>{formatMeetingTime(meeting)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+          <input
+            type="text"
+            placeholder="Search"
+            className="w-full pl-10 pr-4 py-2 border border-border/50 rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30"
+          />
+        </div>
 
-            {/* Today Column */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground">Today</h3>
+        {/* Segmented Control */}
+        <div className="flex bg-muted/30 rounded-lg p-1">
+          <button
+            onClick={() => setMeetingView('past')}
+            className={cn(
+              "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
+              meetingView === 'past' 
+                ? "bg-background text-foreground shadow-sm" 
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Past
+          </button>
+          <button
+            onClick={() => setMeetingView('today')}
+            className={cn(
+              "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
+              meetingView === 'today' 
+                ? "bg-background text-foreground shadow-sm" 
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Today
+          </button>
+          <button
+            onClick={() => setMeetingView('upcoming')}
+            className={cn(
+              "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
+              meetingView === 'upcoming' 
+                ? "bg-background text-foreground shadow-sm" 
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Upcoming
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-6">
+          {meetingView === 'past' && (
+            <div className="space-y-6">
+              {meetings.past.length === 0 ? (
+                <div className="text-center py-12">
+                  <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-foreground mb-2">No past meetings</h3>
+                  <p className="text-muted-foreground">You don't have any past meetings.</p>
+                </div>
+              ) : (
+                renderMeetingsList(meetings.past, 'Past Meetings')
+              )}
+            </div>
+          )}
+
+          {meetingView === 'today' && (
+            <div className="space-y-6">
               {(() => {
                 const today = new Date();
                 const todayMeetings = meetings.future.filter(meeting => {
@@ -441,385 +503,296 @@ export default function Meetings() {
                   return meetingDate.toDateString() === today.toDateString();
                 });
                 
-                return todayMeetings.slice(0, 5).map((meeting) => {
-                  const isSelected = meeting.id === selectedMeetingId;
-                  const source = getMeetingSource(meeting);
-                  
+                if (todayMeetings.length === 0) {
                   return (
-                    <Card
-                      key={meeting.id}
-                      className={cn(
-                        "cursor-pointer card-hover border-border/50 rounded-md",
-                        isSelected && "ring-2 ring-primary/20 bg-primary/5 border-primary/30"
-                      )}
-                      onClick={() => handleMeetingSelect(meeting)}
-                    >
-                      <CardContent className="p-3">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              {source === 'google' ? <GoogleIcon className="w-3 h-3" /> : <OutlookIcon className="w-3 h-3" />}
-                              <h5 className="font-semibold text-foreground truncate text-xs">
-                                {meeting.summary || meeting.title || 'Untitled Meeting'}
-                              </h5>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              <Clock className="w-3 h-3" />
-                              <span>{formatMeetingTime(meeting)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <div className="text-center py-12">
+                      <Calendar className="w-16 h-16 text-primary mx-auto mb-4" />
+                      <h3 className="text-lg font-medium text-foreground mb-2">Looks like you don't have any meetings today!</h3>
+                      <p className="text-muted-foreground">Check the <strong>Upcoming</strong> tab to see future meetings, or click <strong>New</strong> to create one.</p>
+                    </div>
                   );
-                });
+                }
+                
+                return renderMeetingsList(todayMeetings, 'Today');
               })()}
             </div>
+          )}
 
-            {/* Upcoming Column */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-medium text-muted-foreground">Upcoming</h3>
-              {meetings.future.slice(0, 5).map((meeting) => {
-                const isSelected = meeting.id === selectedMeetingId;
-                const source = getMeetingSource(meeting);
-                
-                return (
-                  <Card
-                    key={meeting.id}
-                    className={cn(
-                      "cursor-pointer card-hover border-border/50 rounded-md",
-                      isSelected && "ring-2 ring-primary/20 bg-primary/5 border-primary/30"
-                    )}
-                    onClick={() => handleMeetingSelect(meeting)}
-                  >
-                    <CardContent className="p-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            {source === 'google' ? <GoogleIcon className="w-3 h-3" /> : <OutlookIcon className="w-3 h-3" />}
-                            <h5 className="font-semibold text-foreground truncate text-xs">
-                              {meeting.summary || meeting.title || 'Untitled Meeting'}
-                            </h5>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Clock className="w-3 h-3" />
-                            <span>{formatMeetingTime(meeting)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
+          {meetingView === 'upcoming' && (
+            <div className="space-y-6">
+              {meetings.future.length === 0 ? (
+                <div className="text-center py-12">
+                  <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-foreground mb-2">No upcoming meetings</h3>
+                  <p className="text-muted-foreground">You don't have any upcoming meetings.</p>
+                </div>
+              ) : (
+                renderMeetingsList(meetings.future, 'Upcoming Meetings')
+              )}
             </div>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col bg-background">
-        {selectedMeeting ? (
-          <>
-            {/* Header */}
-            <div className="border-b border-border/50 p-6 bg-card/50">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    {getMeetingSource(selectedMeeting) === 'google' ? 
-                      <GoogleIcon className="w-5 h-5" /> : 
-                      <OutlookIcon className="w-5 h-5" />
-                    }
-                    <h1 className="text-2xl font-bold text-foreground">
-                      {selectedMeeting.summary || selectedMeeting.title || 'Untitled Meeting'}
-                    </h1>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Calendar className="w-4 h-4" />
-                    <span>{formatDate(selectedMeeting.start?.dateTime || selectedMeeting.startTime)}</span>
-                    <span>•</span>
-                    <Clock className="w-4 h-4" />
-                    <span>{formatMeetingTime(selectedMeeting)}</span>
-                  </div>
+      {/* Meeting Detail Panel */}
+      {selectedMeeting && (
+        <div className="fixed inset-y-0 right-0 w-96 bg-card border-l border-border/50 shadow-xl">
+          {/* Header */}
+          <div className="border-b border-border/50 p-6 bg-card/50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  {getMeetingSource(selectedMeeting) === 'google' ? 
+                    <GoogleIcon className="w-5 h-5" /> : 
+                    <OutlookIcon className="w-5 h-5" />
+                  }
+                  <h1 className="text-xl font-bold text-foreground">
+                    {selectedMeeting.summary || selectedMeeting.title || 'Untitled Meeting'}
+                  </h1>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Calendar className="w-4 h-4" />
+                  <span>{formatDate(selectedMeeting.start?.dateTime || selectedMeeting.startTime)}</span>
+                  <span>•</span>
+                  <Clock className="w-4 h-4" />
+                  <span>
+                    {formatMeetingTime(selectedMeeting)}
+                  </span>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Meeting Content */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="p-6">
-                {/* Tabs */}
-                <div className="flex gap-4 justify-between mb-8">
-                  <button
-                    className={cn(
-                      "tab-btn",
-                      activeTab === 'summary' && "active"
-                    )}
-                    onClick={() => setActiveTab('summary')}
-                  >
-                    <MessageSquare className="w-4 h-4 inline mr-2" />
-                    Summary
-                  </button>
-                  <button
-                    className={cn(
-                      "tab-btn",
-                      activeTab === 'transcript' && "active"
-                    )}
-                    onClick={() => setActiveTab('transcript')}
-                  >
-                    <FileText className="w-4 h-4 inline mr-2" />
-                    Transcript
-                  </button>
-                </div>
+          {/* Meeting Content */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-6">
+              {/* Tabs */}
+              <div className="flex gap-4 justify-between mb-8">
+                <button
+                  className={cn(
+                    "tab-btn",
+                    activeTab === 'summary' && "active"
+                  )}
+                  onClick={() => setActiveTab('summary')}
+                >
+                  <MessageSquare className="w-4 h-4 inline mr-2" />
+                  Summary
+                </button>
+                <button
+                  className={cn(
+                    "tab-btn",
+                    activeTab === 'transcript' && "active"
+                  )}
+                  onClick={() => setActiveTab('transcript')}
+                >
+                  <FileText className="w-4 h-4 inline mr-2" />
+                  Transcript
+                </button>
+              </div>
 
-                {/* Content */}
-                <div className="space-y-6">
-                  {activeTab === 'summary' && (
-                    <div className="space-y-6">
-                      {/* Summary Actions */}
-                      <div className="flex items-center justify-between">
-                        <h2 className="text-xl font-semibold text-foreground">AI Summary</h2>
-                        {selectedMeeting?.transcript && (
+              {/* Content */}
+              <div className="space-y-6">
+                {activeTab === 'summary' && (
+                  <div className="space-y-6">
+                    {/* Summary Actions */}
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-xl font-semibold text-foreground">AI Summary</h2>
+                      {selectedMeeting?.transcript && (
+                        <Button
+                          onClick={handleGenerateAISummary}
+                          disabled={generatingSummary}
+                          className="flex items-center gap-2"
+                        >
+                          <Sparkles className="w-4 h-4" />
+                          {generatingSummary ? 'Generating...' : 'Generate Summary'}
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Template Selection */}
+                    {templates.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-medium text-foreground">Template</h3>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" size="sm" className="h-8">
+                                {selectedTemplate ? selectedTemplate.name : 'Select Template'}
+                                <ChevronDown className="w-3 h-3 ml-1" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                              {templates.map((template) => (
+                                <DropdownMenuItem
+                                  key={template.id}
+                                  onClick={() => setSelectedTemplate(template)}
+                                >
+                                  {template.name}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                        
+                        {/* Apply Button - only show when template changed */}
+                        {selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && (
                           <Button
                             onClick={handleGenerateAISummary}
                             disabled={generatingSummary}
-                            className="flex items-center gap-2"
+                            size="sm"
+                            variant="default"
+                            className="h-6 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white"
                           >
-                            <Sparkles className="w-4 h-4" />
-                            {generatingSummary ? 'Generating...' : summaryContent ? 'Regenerate Summary' : 'Generate Summary'}
+                            {generatingSummary ? 'Applying...' : 'Apply Template'}
                           </Button>
                         )}
                       </div>
+                    )}
 
-                      {/* Summary Content */}
-                      {summaryContent ? (
-                        <Card className="border-border/50 bg-card/50 overflow-visible">
-                          <CardContent className="p-6">
-                            {/* Integrated Template Selection Header */}
-                            <div className="flex items-center justify-between mb-6 pb-4 border-b border-border/50 overflow-visible">
-                              <div className="flex items-center gap-3">
-                                <MessageSquare className="w-4 h-4 text-muted-foreground" />
-                                <span className="text-sm text-muted-foreground">Template:</span>
-                                {templates.length > 0 ? (
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="sm" className="h-6 px-2 text-foreground font-medium">
-                                        {currentSummaryTemplate?.title || selectedTemplate?.title || 'Advicly Summary'}
-                                        <ChevronDown className="w-3 h-3 ml-1" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="start" className="!z-[9999] !relative" forceMount>
-                                      <DropdownMenuItem onClick={() => setSelectedTemplate(null)}>
-                                        Advicly Summary
-                                      </DropdownMenuItem>
-                                      {templates.map((template) => (
-                                        <DropdownMenuItem 
-                                          key={template.id}
-                                          onClick={() => setSelectedTemplate(template)}
-                                        >
-                                          {template.title}
-                                        </DropdownMenuItem>
-                                      ))}
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                ) : (
-                                  <span className="text-sm font-medium text-foreground">
-                                    {currentSummaryTemplate?.title || 'Advicly Summary'}
-                                  </span>
-                                )}
-                                
-                                {/* Current template indicator */}
-                                {currentSummaryTemplate && (
-                                  <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                                    Current
-                                  </span>
-                                )}
-                                
-                                {/* Apply Button - only show when template changed */}
-                                {selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && (
-                                  <Button
-                                    onClick={handleGenerateAISummary}
-                                    disabled={generatingSummary}
-                                    size="sm"
-                                    variant="default"
-                                    className="h-6 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                                  >
-                                    {generatingSummary ? 'Applying...' : 'Apply Template'}
-                                  </Button>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">Want a different style?</span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => {
-                                    if (templates.length > 0) {
-                                      const currentIndex = templates.findIndex(t => t.id === selectedTemplate?.id);
-                                      const nextTemplate = templates[(currentIndex + 1) % templates.length];
-                                      setSelectedTemplate(nextTemplate);
-                                    }
-                                  }}
-                                  className="text-xs h-6 px-2"
-                                  disabled={templates.length === 0}
-                                >
-                                  Try different template
-                                </Button>
-                              </div>
-                            </div>
-                            
-                            {/* Summary Content */}
-                            <div className="prose prose-invert max-w-none mt-4">
-                              <div className="whitespace-pre-wrap text-foreground leading-relaxed">
-                                {summaryContent}
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ) : (
-                        <Card className="border-border/50 bg-card/50">
-                          <CardContent className="p-12">
-                            <div className="text-center">
-                              <MessageSquare className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                              <h3 className="text-lg font-medium text-foreground mb-2">No summary yet</h3>
-                              <p className="text-muted-foreground mb-6">
-                                {selectedMeeting?.transcript 
-                                  ? "Generate an AI summary using your selected template."
-                                  : "Add a transcript first to generate an AI summary."
-                                }
-                              </p>
-                              {!selectedMeeting?.transcript && (
-                                <Button
-                                  onClick={() => setActiveTab('transcript')}
-                                  className="flex items-center gap-2"
-                                >
-                                  <Plus className="w-4 h-4" />
-                                  Add Transcript
-                                </Button>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
+                    {/* Summary Content */}
+                    {summaryContent ? (
+                      <Card className="border-border/50">
+                        <CardContent className="p-6">
+                          <div className="prose prose-sm max-w-none text-foreground">
+                            <div className="whitespace-pre-line">{summaryContent}</div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <Card className="border-border/50">
+                        <CardContent className="p-6 text-center">
+                          <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="text-lg font-medium text-foreground mb-2">No summary available</h3>
+                          <p className="text-muted-foreground mb-4">
+                            {selectedMeeting?.transcript 
+                              ? 'Generate an AI summary from the transcript.' 
+                              : 'Upload a transcript to generate an AI summary.'
+                            }
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'transcript' && (
+                  <div className="space-y-6">
+                    {/* Transcript Actions */}
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-xl font-semibold text-foreground">Transcript</h2>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowPasteTranscript(!showPasteTranscript)}
+                        >
+                          <Edit3 className="w-4 h-4 mr-2" />
+                          Paste
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => document.getElementById('fileInput')?.click()}
+                        >
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload
+                        </Button>
+                      </div>
                     </div>
-                  )}
 
-                  {activeTab === 'transcript' && (
-                    <div className="space-y-6">
-                      {/* Transcript Actions */}
-                      <div className="flex items-center justify-between">
-                        <h2 className="text-xl font-semibold text-foreground">Transcript</h2>
-                        {selectedMeeting.transcript && (
+                    {/* File Upload Input */}
+                    <input
+                      id="fileInput"
+                      type="file"
+                      accept=".txt,.doc,.docx,.pdf"
+                      onChange={handleAudioFileChange}
+                      className="hidden"
+                    />
+
+                    {/* Paste Transcript */}
+                    {showPasteTranscript && (
+                      <div className="space-y-3">
+                        <textarea
+                          value={transcriptUpload}
+                          onChange={(e) => setTranscriptUpload(e.target.value)}
+                          placeholder="Paste your transcript here..."
+                          className="w-full h-32 p-3 border border-border/50 rounded-lg bg-background text-foreground placeholder-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={handleTranscriptUpload}
+                            disabled={!transcriptUpload.trim() || uploadingTranscript}
+                            size="sm"
+                          >
+                            {uploadingTranscript ? 'Uploading...' : 'Upload Transcript'}
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={handleDeleteTranscript}
-                            disabled={deletingTranscript}
-                            className="text-destructive hover:text-destructive"
+                            onClick={() => {
+                              setShowPasteTranscript(false);
+                              setTranscriptUpload('');
+                            }}
                           >
-                            <X className="w-4 h-4 mr-2" />
-                            {deletingTranscript ? 'Deleting...' : 'Delete'}
+                            Cancel
                           </Button>
-                        )}
+                        </div>
                       </div>
+                    )}
 
-                      {/* Transcript Content */}
-                      {selectedMeeting.transcript ? (
-                        <Card className="border-border/50 bg-card/50">
-                          <CardContent className="p-6">
-                            <div className="whitespace-pre-wrap text-foreground leading-relaxed">
-                              {selectedMeeting.transcript}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ) : (
-                        <Card className="border-border/50 bg-card/50">
-                          <CardContent className="p-12">
-                            <div className="text-center">
-                              <Upload className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                              <h3 className="text-lg font-medium text-foreground mb-2">Add a transcript</h3>
-                              <p className="text-muted-foreground mb-6">
-                                Upload audio or paste transcript text to get started.
-                              </p>
-                              
-                              <div className="flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
-                                <Button variant="outline" className="flex-1" disabled>
-                                  <span className="mr-2">🎤</span> Record
-                                </Button>
-                                <label className="flex-1">
-                                  <input
-                                    type="file"
-                                    accept="audio/*"
-                                    className="hidden"
-                                    onChange={handleAudioFileChange}
-                                    disabled={uploadingTranscript}
-                                  />
-                                  <Button asChild variant="outline" className="w-full">
-                                    <span><span className="mr-2">📁</span> Upload</span>
-                                  </Button>
-                                </label>
-                                <Button
-                                  variant={showPasteTranscript ? "default" : "outline"}
-                                  className="flex-1"
-                                  onClick={() => setShowPasteTranscript(v => !v)}
-                                >
-                                  <Edit3 className="w-4 h-4 mr-2" />
-                                  Paste
-                                </Button>
-                              </div>
-                              
-                              {showPasteTranscript && (
-                                <div className="mt-6 max-w-md mx-auto">
-                                  <textarea
-                                    className="w-full min-h-[120px] p-3 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary mb-3"
-                                    placeholder="Paste your transcript here..."
-                                    value={transcriptUpload || ''}
-                                    onChange={e => setTranscriptUpload(e.target.value)}
-                                    disabled={uploadingTranscript}
-                                  />
-                                  <Button
-                                    onClick={handleTranscriptUpload}
-                                    disabled={!transcriptUpload?.trim() || uploadingTranscript}
-                                    className="w-full"
-                                  >
-                                    {uploadingTranscript ? 'Uploading...' : 'Upload Transcript'}
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-                    </div>
-                  )}
-                </div>
+                    {/* Transcript Content */}
+                    {selectedMeeting?.transcript ? (
+                      <Card className="border-border/50">
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-medium text-foreground">Uploaded Transcript</h3>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={handleDeleteTranscript}
+                              disabled={deletingTranscript}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              {deletingTranscript ? 'Deleting...' : 'Delete'}
+                            </Button>
+                          </div>
+                          <div className="prose prose-sm max-w-none text-foreground">
+                            <div className="whitespace-pre-line">{selectedMeeting.transcript}</div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <Card className="border-border/50">
+                        <CardContent className="p-6 text-center">
+                          <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="text-lg font-medium text-foreground mb-2">No transcript available</h3>
+                          <p className="text-muted-foreground">Upload a transcript to generate AI summaries.</p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-foreground mb-2">No meeting selected</h3>
-              <p className="text-muted-foreground">Choose a meeting from the list to view details and generate summaries.</p>
-            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* AI Adjustment Dialog */}
       <AIAdjustmentDialog
-        open={showAIDialog}
+        isOpen={showAIDialog}
         onClose={() => setShowAIDialog(false)}
         onAdjust={handleAIAdjustment}
+        currentSummary={summaryContent}
       />
 
       {/* Snackbar */}
       {showSnackbar && (
-        <div className="fixed bottom-4 right-4 z-50 animate-fade-in">
+        <div className="fixed bottom-4 right-4 z-50">
           <div className={cn(
-            "px-4 py-3 rounded-lg shadow-large text-white",
-            snackbarSeverity === 'success' && "bg-primary",
-            snackbarSeverity === 'error' && "bg-destructive",
+            "px-4 py-3 rounded-lg shadow-lg text-white",
+            snackbarSeverity === 'success' && "bg-green-600",
+            snackbarSeverity === 'error' && "bg-red-600",
             snackbarSeverity === 'warning' && "bg-yellow-600"
           )}>
             {snackbarMessage}
