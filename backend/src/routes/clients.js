@@ -8,7 +8,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Get all clients for an advisor
+// Get all clients for an advisor with their meetings
 router.get('/', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
@@ -18,7 +18,7 @@ router.get('/', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
 
-    // Get all clients for this advisor with their pipeline data
+    // Get all clients for this advisor with their pipeline data and meeting counts
     const result = await pool.query(`
       SELECT 
         c.id,
@@ -29,7 +29,19 @@ router.get('/', async (req, res) => {
         c.likely_close_month,
         c.created_at,
         c.updated_at,
-        COUNT(m.id) as meeting_count
+        COUNT(m.id) as meeting_count,
+        ARRAY_AGG(
+          CASE WHEN m.id IS NOT NULL THEN 
+            json_build_object(
+              'id', m.id,
+              'title', m.title,
+              'starttime', m.starttime,
+              'endtime', m.endtime,
+              'summary', m.summary,
+              'transcript', m.transcript
+            )
+          END
+        ) FILTER (WHERE m.id IS NOT NULL) as meetings
       FROM clients c
       LEFT JOIN meetings m ON c.id = m.client_id
       WHERE c.advisor_id = $1
@@ -45,6 +57,7 @@ router.get('/', async (req, res) => {
       likely_value: client.likely_value || '',
       likely_close_month: client.likely_close_month || '',
       meeting_count: parseInt(client.meeting_count) || 0,
+      meetings: client.meetings || [],
       created_at: client.created_at,
       updated_at: client.updated_at
     }));
