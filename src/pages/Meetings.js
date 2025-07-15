@@ -600,7 +600,7 @@ export default function Meetings() {
                                 )}
                                 
                                 {/* Apply Button - only show when template changed */}
-                                {selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && (
+                                {selectedTemplate && (
                                   <Button
                                     onClick={handleGenerateAISummary}
                                     disabled={generatingSummary}
@@ -631,26 +631,6 @@ export default function Meetings() {
                                 </Button>
                               </div>
                             </div>
-                            
-                            {/* Template Change Notice - only show when template changed and no apply button */}
-                            {selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && (
-                              <div className="mb-4 p-3 bg-blue-50/10 border border-blue-200/50 rounded-lg">
-                                <div className="flex items-center gap-2">
-                                  <Sparkles className="w-4 h-4 text-blue-600" />
-                                  <span className="text-sm text-blue-800 dark:text-blue-200">
-                                    <strong>New template selected:</strong> {selectedTemplate.title}
-                                  </span>
-                                  <Button
-                                    onClick={handleGenerateAISummary}
-                                    disabled={generatingSummary}
-                                    size="sm"
-                                    className="ml-auto h-6 px-2 text-xs"
-                                  >
-                                    {generatingSummary ? 'Generating...' : 'Apply'}
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
                             
                             {/* Summary Content */}
                             <div className="prose prose-invert max-w-none">
