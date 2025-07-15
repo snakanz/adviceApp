@@ -562,10 +562,10 @@ export default function Meetings() {
 
                       {/* Summary Content */}
                       {summaryContent ? (
-                        <Card className="border-border/50 bg-card/50">
+                        <Card className="border-border/50 bg-card/50 overflow-visible">
                           <CardContent className="p-6">
                             {/* Integrated Template Selection Header */}
-                            <div className="flex items-center justify-between mb-6 pb-4 border-b border-border/50">
+                            <div className="flex items-center justify-between mb-6 pb-4 border-b border-border/50 overflow-visible">
                               <div className="flex items-center gap-3">
                                 <MessageSquare className="w-4 h-4 text-muted-foreground" />
                                 <span className="text-sm text-muted-foreground">Template:</span>
@@ -577,7 +577,7 @@ export default function Meetings() {
                                         <ChevronDown className="w-3 h-3 ml-1" />
                                       </Button>
                                     </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="start" className="z-50">
+                                    <DropdownMenuContent align="start" className="!z-[9999] !relative" forceMount>
                                       <DropdownMenuItem onClick={() => setSelectedTemplate(null)}>
                                         Advicly Summary
                                       </DropdownMenuItem>
