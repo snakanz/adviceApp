@@ -424,11 +424,15 @@ export default function Clients() {
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-lg">
                           <TrendingUp className="w-5 h-5 text-primary" />
-                          Business Expected
+                          Business Type
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-muted-foreground">Coming soon...</p>
+                        {selectedClient.business_type ? (
+                          <p className="text-2xl font-bold text-foreground">{selectedClient.business_type}</p>
+                        ) : (
+                          <p className="text-muted-foreground">Not specified</p>
+                        )}
                       </CardContent>
                     </Card>
                     
@@ -440,7 +444,11 @@ export default function Clients() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-muted-foreground">Coming soon...</p>
+                        {selectedClient.likely_value ? (
+                          <p className="text-2xl font-bold text-foreground">£{parseFloat(selectedClient.likely_value).toLocaleString()}</p>
+                        ) : (
+                          <p className="text-muted-foreground">Not specified</p>
+                        )}
                       </CardContent>
                     </Card>
                     
@@ -452,7 +460,16 @@ export default function Clients() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-muted-foreground">Coming soon...</p>
+                        {selectedClient.likely_close_month ? (
+                          <p className="text-2xl font-bold text-foreground">
+                            {new Date(selectedClient.likely_close_month + '-01').toLocaleDateString('en-GB', { 
+                              month: 'long', 
+                              year: 'numeric' 
+                            })}
+                          </p>
+                        ) : (
+                          <p className="text-muted-foreground">Not specified</p>
+                        )}
                       </CardContent>
                     </Card>
                   </div>

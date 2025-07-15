@@ -5,6 +5,7 @@ const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const { google } = require('googleapis');
 const clientsRouter = require('./routes/clients');
+const pipelineRouter = require('./routes/pipeline');
 const routes = require('./routes');
 // const { Configuration, OpenAIApi } = require('openai');
 // const openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
@@ -355,6 +356,7 @@ app.post('/api/meetings/:meetingId/summary', async (req, res) => {
 });
 
 app.use('/api/clients', clientsRouter);
+app.use('/api/pipeline', pipelineRouter);
 app.use('/api', routes);
 
 const port = process.env.PORT || 8787;

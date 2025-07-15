@@ -24,7 +24,12 @@ export default function Pipeline() {
     async function fetchPipelineData() {
       setLoading(true);
       try {
-        const response = await fetch('/api/pipeline');
+        const token = localStorage.getItem('jwt');
+        const response = await fetch('https://adviceapp-9rgw.onrender.com/api/pipeline', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         if (!response.ok) {
           throw new Error('Failed to fetch pipeline data');
         }
@@ -91,10 +96,7 @@ export default function Pipeline() {
   }
 
   const currentMonth = pipelineData.months[currentMonthIndex];
-  const currentKpis = pipelineData.kpis[currentMonthIndex];
-  const currentClients = pipelineData.clients.filter(client => 
-    client.monthIndex === currentMonthIndex
-  );
+  const currentClients = currentMonth?.clients || [];
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -112,7 +114,7 @@ export default function Pipeline() {
               <ChevronLeft className="w-4 h-4" />
             </Button>
             <h2 className="text-xl font-semibold text-foreground min-w-32 text-center">
-              {currentMonth}
+              {currentMonth?.month || 'No Data'}
             </h2>
             <Button
               variant="outline"
@@ -135,10 +137,24 @@ export default function Pipeline() {
                 <div className="p-2 bg-primary/10 rounded-lg">
                   <DollarSign className="w-5 h-5 text-primary" />
                 </div>
-                <h3 className="text-sm font-medium text-muted-foreground">Expected FUM</h3>
+                <h3 className="text-sm font-medium text-muted-foreground">Total Pipeline Value</h3>
               </div>
               <p className="text-3xl font-bold text-foreground">
-                {formatCurrency(currentKpis.expectedFUM)}
+                {formatCurrency(pipelineData.totalValue)}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Users className="w-5 h-5 text-primary" />
+                </div>
+                <h3 className="text-sm font-medium text-muted-foreground">Total Clients</h3>
+              </div>
+              <p className="text-3xl font-bold text-foreground">
+                {pipelineData.totalClients}
               </p>
             </CardContent>
           </Card>
@@ -149,24 +165,10 @@ export default function Pipeline() {
                 <div className="p-2 bg-primary/10 rounded-lg">
                   <TrendingUp className="w-5 h-5 text-primary" />
                 </div>
-                <h3 className="text-sm font-medium text-muted-foreground">Expected IAF</h3>
+                <h3 className="text-sm font-medium text-muted-foreground">Average Value</h3>
               </div>
               <p className="text-3xl font-bold text-foreground">
-                {formatCurrency(currentKpis.expectedIAF)}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/50">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Repeat className="w-5 h-5 text-primary" />
-                </div>
-                <h3 className="text-sm font-medium text-muted-foreground">Expected Recurring Revenue</h3>
-              </div>
-              <p className="text-3xl font-bold text-foreground">
-                {formatCurrency(currentKpis.expectedRecurringRevenue)}
+                {formatCurrency(pipelineData.averageValue)}
               </p>
             </CardContent>
           </Card>
@@ -185,7 +187,7 @@ export default function Pipeline() {
               <div className="p-12 text-center">
                 <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-foreground mb-2">No clients in pipeline</h3>
-                <p className="text-muted-foreground">No clients in pipeline for {currentMonth}</p>
+                <p className="text-muted-foreground">No clients in pipeline for {currentMonth?.month || 'this month'}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -193,11 +195,11 @@ export default function Pipeline() {
                   <thead>
                     <tr className="border-b border-border/50">
                       <th className="text-left p-4 font-semibold text-foreground">Client</th>
-                      <th className="text-left p-4 font-semibold text-foreground">Stage</th>
-                      <th className="text-left p-4 font-semibold text-foreground">Expected FUM</th>
-                      <th className="text-left p-4 font-semibold text-foreground">IAF</th>
-                      <th className="text-left p-4 font-semibold text-foreground">Waiting On</th>
-                      <th className="text-left p-4 font-semibold text-foreground">Notes</th>
+                      <th className="text-left p-4 font-semibold text-foreground">Business Type</th>
+                      <th className="text-left p-4 font-semibold text-foreground">Value</th>
+                      <th className="text-left p-4 font-semibold text-foreground">Close Month</th>
+                      <th className="text-left p-4 font-semibold text-foreground">Meetings</th>
+                      <th className="text-left p-4 font-semibold text-foreground">Email</th>
                       <th className="text-left p-4 font-semibold text-foreground">Next Meeting</th>
                       <th className="text-left p-4 font-semibold text-foreground"></th>
                     </tr>
@@ -212,41 +214,38 @@ export default function Pipeline() {
                           <p className="font-semibold text-foreground">{client.name}</p>
                         </td>
                         <td className="p-4">
-                          <div className="flex items-center gap-2">
-                            <div className={cn(
-                              "w-3 h-3 rounded-full",
-                              client.stage === 'Prospect' && "bg-yellow-500",
-                              client.stage === 'Qualified' && "bg-blue-500",
-                              client.stage === 'Proposal' && "bg-purple-500",
-                              client.stage === 'Negotiation' && "bg-orange-500",
-                              client.stage === 'Closed' && "bg-green-500"
-                            )} />
-                            <span className="text-sm text-muted-foreground">{client.stage}</span>
-                          </div>
+                          <span className="text-sm text-muted-foreground">
+                            {client.business_type || 'Not specified'}
+                          </span>
                         </td>
                         <td className="p-4">
                           <p className="font-semibold text-foreground">
-                            {formatCurrency(client.expectedFUM)}
-                          </p>
-                        </td>
-                        <td className="p-4">
-                          <p className="text-muted-foreground">
-                            {formatCurrency(client.iaf)}
+                            {client.likely_value ? formatCurrency(client.likely_value) : 'Not specified'}
                           </p>
                         </td>
                         <td className="p-4">
                           <p className="text-sm text-muted-foreground">
-                            {client.waitingOn}
+                            {client.likely_close_month ? 
+                              new Date(client.likely_close_month + '-01').toLocaleDateString('en-GB', { 
+                                month: 'long', 
+                                year: 'numeric' 
+                              }) : 'Not specified'
+                            }
                           </p>
                         </td>
                         <td className="p-4">
                           <p className="text-sm text-muted-foreground">
-                            {client.notes}
+                            {client.meeting_count} meetings
                           </p>
                         </td>
                         <td className="p-4">
                           <p className="text-sm text-muted-foreground">
-                            {client.nextMeeting}
+                            {client.email}
+                          </p>
+                        </td>
+                        <td className="p-4">
+                          <p className="text-sm text-muted-foreground">
+                            -
                           </p>
                         </td>
                         <td className="p-4">
