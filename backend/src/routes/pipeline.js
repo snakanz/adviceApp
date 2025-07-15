@@ -22,6 +22,7 @@ router.get('/', async (req, res) => {
     console.log('Pipeline request for userId:', userId);
 
     // Get all clients with pipeline data, grouped by likely_close_month
+    // Improved filtering to handle empty strings and null values properly
     const result = await pool.query(`
       SELECT 
         c.id,
@@ -38,7 +39,9 @@ router.get('/', async (req, res) => {
       WHERE c.advisor_id = $1
         AND c.likely_close_month IS NOT NULL
         AND c.likely_value IS NOT NULL
+        AND c.likely_value > 0
         AND c.likely_value != ''
+        AND c.likely_value::text != ''
       GROUP BY c.id, c.name, c.email, c.business_type, c.likely_value, c.likely_close_month, c.created_at, c.updated_at
       ORDER BY c.likely_close_month, c.name
     `, [userId]);
@@ -49,7 +52,7 @@ router.get('/', async (req, res) => {
     let totalClients = 0;
 
     result.rows.forEach(client => {
-      if (client.likely_close_month) {
+      if (client.likely_close_month && client.likely_value) {
         const monthKey = client.likely_close_month.toISOString().slice(0, 7); // YYYY-MM format
         const monthName = client.likely_close_month.toLocaleDateString('en-GB', { 
           month: 'long', 
@@ -66,7 +69,13 @@ router.get('/', async (req, res) => {
           };
         }
 
-        const clientValue = parseFloat(client.likely_value) || 0;
+        // Additional validation to ensure likely_value is a valid number
+        const clientValue = parseFloat(client.likely_value);
+        if (isNaN(clientValue) || clientValue <= 0) {
+          console.warn('Invalid likely_value for client:', client.id, client.likely_value);
+          return; // Skip this client
+        }
+
         pipelineByMonth[monthKey].clients.push({
           id: client.id,
           name: client.name,
