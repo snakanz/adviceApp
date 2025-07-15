@@ -401,59 +401,7 @@ export default function Meetings() {
     }
   };
 
-  const renderGroupedMeetings = (meetings, title, isPast = false) => {
-    if (!meetings || meetings.length === 0) return null;
-    
-    const grouped = groupMeetingsByDate(meetings);
-    
-    return (
-      <div className="space-y-6">
-        <h3 className="text-lg font-semibold text-foreground">{title}</h3>
-        {Object.entries(grouped).map(([date, dayMeetings]) => (
-          <div key={date} className="space-y-3">
-            <h4 className="text-sm font-medium text-muted-foreground">{date}</h4>
-            <div className="space-y-2">
-              {dayMeetings.map((meeting) => {
-                const isSelected = meeting.id === selectedMeetingId;
-                const source = getMeetingSource(meeting);
-                
-                return (
-                  <Card
-                    key={meeting.id}
-                    className={cn(
-                      "cursor-pointer card-hover border-border/50",
-                      isSelected && "ring-2 ring-primary/20 bg-primary/5 border-primary/30"
-                    )}
-                    onClick={() => handleMeetingSelect(meeting)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            {source === 'google' ? <GoogleIcon className="w-4 h-4" /> : <OutlookIcon className="w-4 h-4" />}
-                            <h5 className="font-semibold text-foreground truncate">
-                              {meeting.summary || meeting.title || 'Untitled Meeting'}
-                            </h5>
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <Clock className="w-4 h-4" />
-                              <span>{formatMeetingTime(meeting)}</span>
-                            </div>
-                            {renderParticipants(meeting)}
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
+
 
   if (loading) {
     return (
