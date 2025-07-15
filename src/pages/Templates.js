@@ -190,12 +190,13 @@ function loadTemplates() {
       );
       
       if (reviewTemplate) {
-        // Update the template to new format
+        // Update the template to new format with the comprehensive prompt
         const migratedTemplate = {
           ...reviewTemplate,
           id: 'review-template',
           title: 'Review',
-          type: 'review-summary'
+          type: 'review-summary',
+          content: defaultTemplates[0].content // Force the new comprehensive content
         };
         return [migratedTemplate];
       }
@@ -220,6 +221,22 @@ export default function Templates() {
   const [showSnackbar, setShowSnackbar] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+
+  // Force update to new template content on component mount
+  useEffect(() => {
+    const currentTemplates = loadTemplates();
+    if (currentTemplates.length > 0 && currentTemplates[0].content !== defaultTemplates[0].content) {
+      // Force update to new content
+      const updatedTemplates = [{
+        ...currentTemplates[0],
+        content: defaultTemplates[0].content
+      }];
+      setTemplates(updatedTemplates);
+      setSelectedTemplate(updatedTemplates[0]);
+      setEditedContent(defaultTemplates[0].content);
+      saveTemplates(updatedTemplates);
+    }
+  }, []);
 
   // Save templates to localStorage whenever they change
   useEffect(() => {
