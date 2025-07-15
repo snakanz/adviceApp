@@ -15,12 +15,9 @@ import {
   Copy, 
   Share, 
   Clock,
-  Users,
   FileText,
   MessageSquare,
   Sparkles,
-  Play,
-  Pause,
   X,
   ChevronDown
 } from 'lucide-react';
@@ -29,7 +26,6 @@ import { adjustMeetingSummary, generateAISummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
-import { api } from '../services/api';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
