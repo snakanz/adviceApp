@@ -257,7 +257,7 @@ router.get('/:clientId/meetings', async (req, res) => {
       return res.status(404).json({ error: 'Client not found' });
     }
 
-    // Get meetings for this client
+    // Get meetings for this client - using only existing columns
     const result = await pool.query(`
       SELECT 
         m.id,
@@ -266,7 +266,7 @@ router.get('/:clientId/meetings', async (req, res) => {
         m.transcript,
         m.starttime,
         m.endtime,
-        m.status,
+        m.attendees,
         m.created_at
       FROM meetings m
       WHERE m.client_id = $1
@@ -280,7 +280,7 @@ router.get('/:clientId/meetings', async (req, res) => {
       transcript: meeting.transcript,
       starttime: meeting.starttime,
       endtime: meeting.endtime,
-      status: meeting.status,
+      attendees: meeting.attendees ? JSON.parse(meeting.attendees) : [],
       created_at: meeting.created_at
     }));
 
