@@ -12,6 +12,89 @@ import {
 
 const defaultTemplates = [
   {
+    id: 'auto-template',
+    title: 'Advicly Summary',
+    description: 'AI prompt for generating professional auto email summaries from meeting transcripts',
+    content: `# SYSTEM PROMPT: Advicly Auto Email Generator
+You are an expert financial advisor drafting a professional email for a client immediately after a meeting. Your role is to generate a **clear, accurate summary email based ONLY on the provided transcript**.  
+
+---
+
+## OBJECTIVES:
+- Summarize the discussion from the meeting in a client-friendly email.
+- Include **only factual details explicitly mentioned in the transcript**.
+- Do NOT invent or infer any information.
+- Be concise but comprehensive—cover all key points without unnecessary wording.
+- Maintain a professional tone aligned with UK financial advice compliance.
+- End the email with:  
+"Kind regards,  
+[Advisor Name]"
+
+---
+
+## RULES:
+- **Never fabricate details** about goals, investments, or personal information.
+- If a key section (e.g., next steps) was not discussed, omit it or clearly note:  
+  "We did not cover this topic in our discussion today."
+- No financial projections or assumptions unless explicitly stated in the transcript.
+- Avoid jargon; keep it simple and client-focused.
+- Maximum clarity, no fluff.
+
+---
+
+## EMAIL STRUCTURE:
+- Greeting: "Dear [Client Name],"
+- Opening line: Thank the client for their time and confirm purpose of the call.
+- Body:  
+    - Key discussion points (summarize clearly).
+    - Any decisions or agreements made during the call.
+    - Next steps (if mentioned).
+- Closing:  
+"Kind regards,  
+[Advisor Name]"
+
+---
+
+## EXAMPLE INPUT:
+Transcript:  
+"Hi John, great to catch up. We talked about increasing your pension contribution to £800 monthly starting August. You confirmed your attitude to risk remains medium. You also want to explore an ISA for your son. We agreed to review protection next quarter."
+
+---
+
+## EXAMPLE OUTPUT:
+Subject: Summary of Our Discussion  
+
+Dear John,  
+
+Thank you for taking the time to meet today. Here is a summary of what we discussed:  
+
+- You confirmed that your attitude to risk remains **medium**.  
+- We agreed to **increase your pension contribution to £800 per month starting August**.  
+- You expressed an interest in exploring **an ISA for your son**.  
+- We agreed to **review your protection needs in the next quarter**.  
+
+Please let me know if you would like to schedule a follow-up or if you have any further questions.  
+
+Kind regards,  
+[Advisor Name]  
+
+---
+
+## FALLBACK:
+If the transcript does not include enough information for an email, respond with:  
+"Not enough information in the transcript to generate an accurate summary. Please provide additional details or confirm the main discussion points."
+
+---
+
+When complete, return the **final email text ready for sending**.
+
+Transcript:
+{transcript}
+
+Respond with the **email body only** — no headers or subject lines.`,
+    type: 'auto-summary'
+  },
+  {
     id: 'review-template',
     title: 'Review',
     description: 'AI prompt for generating structured review meeting email summaries',
@@ -182,27 +265,56 @@ function loadTemplates() {
   if (saved) {
     try {
       const parsedTemplates = JSON.parse(saved);
-      // Migrate old templates to new format - keep only Review template
-      const reviewTemplate = parsedTemplates.find(t => 
+      
+      // Check if we have both templates
+      const hasAutoTemplate = parsedTemplates.some(t => 
+        t.id === 'auto-template' || 
+        t.title === 'Advicly Summary'
+      );
+      const hasReviewTemplate = parsedTemplates.some(t => 
         t.id === 'review-template' || 
         t.id === 'review-email-summary' || 
         t.title.toLowerCase().includes('review')
       );
       
-      if (reviewTemplate) {
-        // Update the template to new format with the comprehensive prompt
-        const migratedTemplate = {
+      const templates = [];
+      
+      // Add Auto template
+      if (hasAutoTemplate) {
+        const autoTemplate = parsedTemplates.find(t => 
+          t.id === 'auto-template' || 
+          t.title === 'Advicly Summary'
+        );
+        templates.push({
+          ...autoTemplate,
+          id: 'auto-template',
+          title: 'Advicly Summary',
+          type: 'auto-summary',
+          content: defaultTemplates[0].content // Force the new comprehensive content
+        });
+      } else {
+        templates.push(defaultTemplates[0]);
+      }
+      
+      // Add Review template
+      if (hasReviewTemplate) {
+        const reviewTemplate = parsedTemplates.find(t => 
+          t.id === 'review-template' || 
+          t.id === 'review-email-summary' || 
+          t.title.toLowerCase().includes('review')
+        );
+        templates.push({
           ...reviewTemplate,
           id: 'review-template',
           title: 'Review',
           type: 'review-summary',
-          content: defaultTemplates[0].content // Force the new comprehensive content
-        };
-        return [migratedTemplate];
+          content: defaultTemplates[1].content // Force the new comprehensive content
+        });
+      } else {
+        templates.push(defaultTemplates[1]);
       }
       
-      // If no review template found, return default
-      return defaultTemplates;
+      return templates;
     } catch {
       return defaultTemplates;
     }
@@ -225,15 +337,25 @@ export default function Templates() {
   // Force update to new template content on component mount
   useEffect(() => {
     const currentTemplates = loadTemplates();
-    if (currentTemplates.length > 0 && currentTemplates[0].content !== defaultTemplates[0].content) {
-      // Force update to new content
-      const updatedTemplates = [{
-        ...currentTemplates[0],
-        content: defaultTemplates[0].content
-      }];
+    let needsUpdate = false;
+    
+    // Check if any templates need updating
+    const updatedTemplates = currentTemplates.map((template, index) => {
+      const defaultTemplate = defaultTemplates[index];
+      if (template.content !== defaultTemplate.content) {
+        needsUpdate = true;
+        return {
+          ...template,
+          content: defaultTemplate.content
+        };
+      }
+      return template;
+    });
+    
+    if (needsUpdate) {
       setTemplates(updatedTemplates);
       setSelectedTemplate(updatedTemplates[0]);
-      setEditedContent(defaultTemplates[0].content);
+      setEditedContent(updatedTemplates[0].content);
       saveTemplates(updatedTemplates);
     }
   }, []);
