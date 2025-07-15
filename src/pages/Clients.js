@@ -221,7 +221,7 @@ export default function Clients() {
                     </Avatar>
                     <div className="flex-1 min-w-0">
                       <h4 className="font-semibold text-foreground truncate">
-                        {client.name || 'Unnamed Client'}
+                        {client.name && client.name !== client.email ? client.name : 'Unnamed Client'}
                       </h4>
                       <p className="text-sm text-muted-foreground truncate">
                         {client.email}
@@ -249,7 +249,7 @@ export default function Clients() {
                 </Avatar>
                 <div className="flex-1">
                   <h1 className="text-2xl font-bold text-foreground mb-1">
-                    {selectedClient.name || 'Unnamed Client'}
+                    {selectedClient.name && selectedClient.name !== selectedClient.email ? selectedClient.name : 'Unnamed Client'}
                   </h1>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
