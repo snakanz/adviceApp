@@ -11,7 +11,6 @@ import {
 import { cn } from '../lib/utils';
 import { 
   Calendar, 
-  Copy, 
   Clock,
   FileText,
   MessageSquare,
@@ -223,22 +222,6 @@ export default function Meetings() {
       console.error('Error adjusting summary:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to adjust summary');
-      setSnackbarSeverity('error');
-    }
-  };
-
-  const handleCopyToClipboard = async () => {
-    if (!summaryContent) return;
-    
-    try {
-      await navigator.clipboard.writeText(summaryContent);
-      setShowSnackbar(true);
-      setSnackbarMessage('Summary copied to clipboard');
-      setSnackbarSeverity('success');
-    } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
-      setShowSnackbar(true);
-      setSnackbarMessage('Failed to copy to clipboard');
       setSnackbarSeverity('error');
     }
   };
