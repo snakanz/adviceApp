@@ -185,6 +185,42 @@ router.post('/upsert', async (req, res) => {
   }
 });
 
+// POST /api/clients/update-name - update client name in meetings table
+router.post('/update-name', async (req, res) => {
+  console.log('Update client name request:', req.body);
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const advisorId = decoded.id;
+    const { email, name } = req.body;
+    
+    if (!email || !name) {
+      return res.status(400).json({ error: 'Email and name are required' });
+    }
+
+    // Update client_name in meetings table for all meetings with this client
+    const result = await pool.query(
+      `UPDATE meetings 
+       SET client_name = $1, updated_at = NOW() 
+       WHERE userid = $2 AND attendees LIKE $3`,
+      [name, advisorId, `%${email}%`]
+    );
+
+    console.log(`Updated ${result.rowCount} meetings for client ${email} with name ${name}`);
+    
+    res.json({ 
+      success: true, 
+      message: `Updated client name to "${name}" for ${result.rowCount} meetings`,
+      updatedCount: result.rowCount 
+    });
+  } catch (error) {
+    console.error('Error updating client name:', error);
+    res.status(500).json({ error: 'Failed to update client name', details: error.message });
+  }
+});
+
 // PATCH /api/clients/:clientId - update client details
 router.patch('/:clientId', async (req, res) => {
   const auth = req.headers.authorization;

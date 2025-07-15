@@ -30,6 +30,7 @@ export default function Clients() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [editingClient, setEditingClient] = useState(null);
 
   useEffect(() => {
     async function fetchClients() {
@@ -94,7 +95,7 @@ export default function Clients() {
     setSaving(true);
     try {
       const token = localStorage.getItem('jwt');
-      const res = await fetch(`/clients/upsert`, {
+      const res = await fetch('https://adviceapp-9rgw.onrender.com/api/clients/upsert', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -103,15 +104,58 @@ export default function Clients() {
         body: JSON.stringify(editForm)
       });
       if (!res.ok) throw new Error('Failed to update client');
-      setDrawerOpen(false);
       // Refresh clients
       const data = await api.request('/clients');
       setClients(data);
+      setSaving(false);
     } catch (err) {
-      alert(err.message);
-    } finally {
+      console.error('Error saving client:', err);
       setSaving(false);
     }
+  };
+
+  const handleEditClient = (client) => {
+    setEditingClient(client);
+    setEditForm({
+      name: client.name || '',
+      email: client.email || ''
+    });
+  };
+
+  const handleSaveClientName = async () => {
+    if (!editingClient || !editForm.name.trim()) return;
+    
+    setSaving(true);
+    try {
+      const token = localStorage.getItem('jwt');
+      const res = await fetch('https://adviceapp-9rgw.onrender.com/api/clients/update-name', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          email: editingClient.email,
+          name: editForm.name.trim()
+        })
+      });
+      
+      if (!res.ok) throw new Error('Failed to update client name');
+      
+      // Refresh clients
+      const data = await api.request('/clients');
+      setClients(data);
+      setEditingClient(null);
+      setSaving(false);
+    } catch (err) {
+      console.error('Error updating client name:', err);
+      setSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingClient(null);
+    setEditForm({ name: '', email: '' });
   };
 
   if (loading) {
@@ -218,7 +262,7 @@ export default function Clients() {
                     )}
                   </div>
                 </div>
-                <Button variant="outline" size="sm" onClick={openEditDrawer}>
+                <Button onClick={() => handleEditClient(selectedClient)}>
                   Edit
                 </Button>
               </div>
@@ -451,6 +495,44 @@ export default function Clients() {
           </div>
         </form>
       </Drawer>
+
+      {/* Edit Client Modal */}
+      {editingClient && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-4">Edit Client Name</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Client Name</label>
+                <input
+                  type="text"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
+                  placeholder="Enter client name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Email</label>
+                <input
+                  type="email"
+                  value={editForm.email}
+                  disabled
+                  className="w-full p-2 border border-border rounded-md bg-muted text-muted-foreground"
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={handleCancelEdit}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveClientName} disabled={saving}>
+                  {saving ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 } 
