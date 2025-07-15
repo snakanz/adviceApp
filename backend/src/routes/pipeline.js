@@ -1,7 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
-const { pool } = require('../index');
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 
 // Get pipeline data grouped by month
 router.get('/', async (req, res) => {
@@ -12,6 +17,8 @@ router.get('/', async (req, res) => {
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
+    
+    console.log('Pipeline request for userId:', userId);
 
     // Get all clients with pipeline data, grouped by likely_close_month
     const result = await pool.query(`
@@ -30,6 +37,7 @@ router.get('/', async (req, res) => {
       WHERE c.advisor_id = $1
         AND c.likely_close_month IS NOT NULL
         AND c.likely_value IS NOT NULL
+        AND c.likely_value != ''
       GROUP BY c.id, c.name, c.email, c.business_type, c.likely_value, c.likely_close_month, c.created_at, c.updated_at
       ORDER BY c.likely_close_month, c.name
     `, [userId]);
