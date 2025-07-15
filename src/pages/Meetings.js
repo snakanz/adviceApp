@@ -566,7 +566,7 @@ export default function Meetings() {
 
                       {/* Summary Content */}
                       {summaryContent ? (
-                        <Card className="border-border/50">
+                        <Card className="border-border/50 bg-card/50">
                           <CardContent className="p-6">
                             {/* Integrated Template Selection Header */}
                             <div className="flex items-center justify-between mb-4 pb-4 border-b border-border/50">
@@ -598,6 +598,19 @@ export default function Meetings() {
                                 ) : (
                                   <span className="text-sm font-medium text-foreground">Advicly Summary</span>
                                 )}
+                                
+                                {/* Apply Button - only show when template changed */}
+                                {selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && (
+                                  <Button
+                                    onClick={handleGenerateAISummary}
+                                    disabled={generatingSummary}
+                                    size="sm"
+                                    variant="default"
+                                    className="h-6 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                                  >
+                                    {generatingSummary ? 'Applying...' : 'Apply Template'}
+                                  </Button>
+                                )}
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-muted-foreground">Want a different style?</span>
@@ -619,7 +632,7 @@ export default function Meetings() {
                               </div>
                             </div>
                             
-                            {/* Template Change Notice */}
+                            {/* Template Change Notice - only show when template changed and no apply button */}
                             {selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && (
                               <div className="mb-4 p-3 bg-blue-50/10 border border-blue-200/50 rounded-lg">
                                 <div className="flex items-center gap-2">
@@ -648,7 +661,7 @@ export default function Meetings() {
                           </CardContent>
                         </Card>
                       ) : (
-                        <Card className="border-border/50">
+                        <Card className="border-border/50 bg-card/50">
                           <CardContent className="p-12">
                             <div className="text-center">
                               <MessageSquare className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
@@ -696,7 +709,7 @@ export default function Meetings() {
 
                       {/* Transcript Content */}
                       {selectedMeeting.transcript ? (
-                        <Card className="border-border/50">
+                        <Card className="border-border/50 bg-card/50">
                           <CardContent className="p-6">
                             <div className="whitespace-pre-wrap text-foreground leading-relaxed">
                               {selectedMeeting.transcript}
@@ -704,7 +717,7 @@ export default function Meetings() {
                           </CardContent>
                         </Card>
                       ) : (
-                        <Card className="border-border/50">
+                        <Card className="border-border/50 bg-card/50">
                           <CardContent className="p-12">
                             <div className="text-center">
                               <Upload className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
