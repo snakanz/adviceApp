@@ -365,7 +365,7 @@ export default function Meetings() {
       
       setSummaryContent(summary);
       setShowSnackbar(true);
-      setSnackbarMessage(`AI summary generated using ${selectedTemplate?.title || 'default template'}`);
+      setSnackbarMessage(`AI summary generated using ${selectedTemplate?.title || 'Advicly Summary'}`);
       setSnackbarSeverity('success');
     } catch (error) {
       console.error('Error generating AI summary:', error);
@@ -447,23 +447,6 @@ export default function Meetings() {
                             {renderParticipants(meeting)}
                           </div>
                         </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={handleCopyToClipboard}>
-                              <Copy className="w-4 h-4 mr-2" />
-                              Copy Summary
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Share className="w-4 h-4 mr-2" />
-                              Share
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
                       </div>
                     </CardContent>
                   </Card>
@@ -607,13 +590,13 @@ export default function Meetings() {
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="outline" size="sm" className="min-w-[200px] justify-between">
-                                  {selectedTemplate?.title || 'Default Template'}
+                                  {selectedTemplate?.title || 'Advicly Summary'}
                                   <ChevronDown className="w-4 h-4" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="start">
                                 <DropdownMenuItem onClick={() => setSelectedTemplate(null)}>
-                                  Default Template
+                                  Advicly Summary
                                 </DropdownMenuItem>
                                 {templates.map((template) => (
                                   <DropdownMenuItem 
