@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
     const userEmail = decoded.email;
 
     // Get all meetings for this advisor
-    const result = await pool.query('SELECT id, title, starttime, endtime, attendees FROM meetings WHERE userid = $1', [userId]);
+    const result = await pool.query('SELECT id, title, starttime, endtime, attendees, client_name FROM meetings WHERE userid = $1', [userId]);
     const meetings = result.rows;
 
     // Map: email -> { email, meetings: [] }
@@ -38,7 +38,13 @@ router.get('/', async (req, res) => {
         // Use email as unique key, skip advisor's own email
         if (att && att.email && att.email !== userEmail) {
           if (!clientsMap[att.email]) {
-            clientsMap[att.email] = { email: att.email, name: att.displayName || '', meetings: [] };
+            clientsMap[att.email] = { email: att.email, name: '', meetings: [] };
+          }
+          // Use client_name from meetings table if available, otherwise use displayName from attendees
+          if (meeting.client_name && !clientsMap[att.email].name) {
+            clientsMap[att.email].name = meeting.client_name;
+          } else if (att.displayName && !clientsMap[att.email].name) {
+            clientsMap[att.email].name = att.displayName;
           }
           clientsMap[att.email].meetings.push({
             id: meeting.id,
