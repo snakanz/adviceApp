@@ -122,7 +122,6 @@ export default function Meetings() {
   // Add template selection state
   const [templates, setTemplates] = useState(loadTemplates());
   const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [currentSummaryTemplate, setCurrentSummaryTemplate] = useState(null);
 
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
@@ -208,7 +207,6 @@ export default function Meetings() {
     setSelectedMeetingId(meeting.id);
     setSummaryContent(meeting.meetingSummary || meeting.transcript || '');
     setActiveTab('summary');
-    setCurrentSummaryTemplate(null); // Reset template tracking for new meeting
   };
 
   const handleAIAdjustment = async (adjustmentPrompt) => {
@@ -341,11 +339,9 @@ export default function Meetings() {
         // Use the selected template's prompt
         const prompt = selectedTemplate.content.replace('{transcript}', selectedMeeting.transcript);
         summary = await generateAISummaryWithTemplate(selectedMeeting.transcript, prompt);
-        setCurrentSummaryTemplate(selectedTemplate);
       } else {
         // Use default generation
         summary = await generateAISummary(selectedMeeting.transcript);
-        setCurrentSummaryTemplate(null);
       }
       
       setSummaryContent(summary);
