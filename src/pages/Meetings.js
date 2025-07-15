@@ -39,17 +39,7 @@ const formatDate = (dateTimeStr) => {
   });
 };
 
-const groupMeetingsByDate = (meetings) => {
-  const grouped = {};
-  meetings.forEach(meeting => {
-    const date = formatDate(meeting.start?.dateTime || meeting.startTime);
-    if (!grouped[date]) {
-      grouped[date] = [];
-    }
-    grouped[date].push(meeting);
-  });
-  return grouped;
-};
+
 
 function getMeetingSource(meeting) {
   if (meeting.attendees?.some(a => a.email?.includes('google'))) return 'google';
@@ -62,27 +52,7 @@ function formatMeetingTime(meeting) {
   return start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
-function renderParticipants(meeting) {
-  const attendees = meeting.attendees || [];
-  if (attendees.length === 0) return null;
-  
-  return (
-    <div className="flex -space-x-2">
-      {attendees.slice(0, 3).map((attendee, index) => (
-        <Avatar key={index} className="w-6 h-6 border-2 border-background">
-          <AvatarFallback className="text-xs bg-primary/10 text-primary">
-            {attendee.displayName ? attendee.displayName.charAt(0).toUpperCase() : '?'}
-          </AvatarFallback>
-        </Avatar>
-      ))}
-      {attendees.length > 3 && (
-        <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground border-2 border-background">
-          +{attendees.length - 3}
-        </div>
-      )}
-    </div>
-  );
-}
+
 
 // Load templates from localStorage
 function loadTemplates() {
