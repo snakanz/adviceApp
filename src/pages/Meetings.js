@@ -551,32 +551,7 @@ export default function Meetings() {
                     <div className="space-y-6">
                       {/* Summary Actions */}
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <h2 className="text-xl font-semibold text-foreground">AI Summary</h2>
-                          {templates.length > 0 && (
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="outline" size="sm" className="min-w-[200px] justify-between">
-                                  {selectedTemplate?.title || 'Advicly Summary'}
-                                  <ChevronDown className="w-4 h-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="start">
-                                <DropdownMenuItem onClick={() => setSelectedTemplate(null)}>
-                                  Advicly Summary
-                                </DropdownMenuItem>
-                                {templates.map((template) => (
-                                  <DropdownMenuItem 
-                                    key={template.id}
-                                    onClick={() => setSelectedTemplate(template)}
-                                  >
-                                    {template.title}
-                                  </DropdownMenuItem>
-                                ))}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          )}
-                        </div>
+                        <h2 className="text-xl font-semibold text-foreground">AI Summary</h2>
                         {selectedMeeting?.transcript && (
                           <Button
                             onClick={handleGenerateAISummary}
@@ -589,63 +564,76 @@ export default function Meetings() {
                         )}
                       </div>
 
-                      {/* Template Change Notice */}
-                      {summaryContent && selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && (
-                        <Card className="border-blue-200 bg-blue-50/10">
-                          <CardContent className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-blue-100 rounded-lg">
-                                <Sparkles className="w-4 h-4 text-blue-600" />
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm text-blue-800 dark:text-blue-200">
-                                  <strong>New template selected:</strong> {selectedTemplate.title}
-                                </p>
-                                <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
-                                  Click "Regenerate Summary" to create a new summary using this template.
-                                </p>
-                              </div>
-                              <Button
-                                onClick={handleGenerateAISummary}
-                                disabled={generatingSummary}
-                                size="sm"
-                                className="flex items-center gap-2"
-                              >
-                                <Sparkles className="w-4 h-4" />
-                                {generatingSummary ? 'Generating...' : 'Apply Template'}
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      )}
-
                       {/* Summary Content */}
                       {summaryContent ? (
                         <Card className="border-border/50">
                           <CardContent className="p-6">
-                            {/* Template Info Header */}
-                            {currentSummaryTemplate && (
-                              <div className="flex items-center justify-between mb-4 pb-4 border-b border-border/50">
-                                <div className="flex items-center gap-2">
-                                  <MessageSquare className="w-4 h-4 text-muted-foreground" />
-                                  <span className="text-sm text-muted-foreground">
-                                    Generated with: <strong className="text-foreground">{currentSummaryTemplate.title}</strong>
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-muted-foreground">Want a different style?</span>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      // Cycle through templates or show template selection
+                            {/* Integrated Template Selection Header */}
+                            <div className="flex items-center justify-between mb-4 pb-4 border-b border-border/50">
+                              <div className="flex items-center gap-3">
+                                <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                                <span className="text-sm text-muted-foreground">Template:</span>
+                                {templates.length > 0 ? (
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="sm" className="h-6 px-2 text-foreground font-medium">
+                                        {selectedTemplate?.title || 'Advicly Summary'}
+                                        <ChevronDown className="w-3 h-3 ml-1" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start">
+                                      <DropdownMenuItem onClick={() => setSelectedTemplate(null)}>
+                                        Advicly Summary
+                                      </DropdownMenuItem>
+                                      {templates.map((template) => (
+                                        <DropdownMenuItem 
+                                          key={template.id}
+                                          onClick={() => setSelectedTemplate(template)}
+                                        >
+                                          {template.title}
+                                        </DropdownMenuItem>
+                                      ))}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                ) : (
+                                  <span className="text-sm font-medium text-foreground">Advicly Summary</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">Want a different style?</span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (templates.length > 0) {
                                       const currentIndex = templates.findIndex(t => t.id === selectedTemplate?.id);
                                       const nextTemplate = templates[(currentIndex + 1) % templates.length];
                                       setSelectedTemplate(nextTemplate);
-                                    }}
-                                    className="text-xs h-6 px-2"
+                                    }
+                                  }}
+                                  className="text-xs h-6 px-2"
+                                  disabled={templates.length === 0}
+                                >
+                                  Try different template
+                                </Button>
+                              </div>
+                            </div>
+                            
+                            {/* Template Change Notice */}
+                            {selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && (
+                              <div className="mb-4 p-3 bg-blue-50/10 border border-blue-200/50 rounded-lg">
+                                <div className="flex items-center gap-2">
+                                  <Sparkles className="w-4 h-4 text-blue-600" />
+                                  <span className="text-sm text-blue-800 dark:text-blue-200">
+                                    <strong>New template selected:</strong> {selectedTemplate.title}
+                                  </span>
+                                  <Button
+                                    onClick={handleGenerateAISummary}
+                                    disabled={generatingSummary}
+                                    size="sm"
+                                    className="ml-auto h-6 px-2 text-xs"
                                   >
-                                    Try different template
+                                    {generatingSummary ? 'Generating...' : 'Apply'}
                                   </Button>
                                 </div>
                               </div>
