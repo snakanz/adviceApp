@@ -55,7 +55,8 @@ router.get('/', async (req, res) => {
       name: client.name || client.email,
       business_type: client.business_type || '',
       likely_value: client.likely_value || '',
-      likely_close_month: client.likely_close_month || '',
+      likely_close_month: client.likely_close_month ? 
+        client.likely_close_month.toISOString().slice(0, 7) : '', // Convert DATE to YYYY-MM format
       meeting_count: parseInt(client.meeting_count) || 0,
       meetings: client.meetings || [],
       created_at: client.created_at,
@@ -82,6 +83,12 @@ router.post('/upsert', async (req, res) => {
     
     if (!email) return res.status(400).json({ error: 'Email is required' });
 
+    // Convert likely_close_month from YYYY-MM to YYYY-MM-01 format for database
+    let formattedCloseMonth = likely_close_month;
+    if (likely_close_month && likely_close_month.match(/^\d{4}-\d{2}$/)) {
+      formattedCloseMonth = `${likely_close_month}-01`;
+    }
+
     // Check if client exists
     const existing = await pool.query('SELECT * FROM clients WHERE advisor_id = $1 AND email = $2', [advisorId, email]);
     let client;
@@ -93,7 +100,7 @@ router.post('/upsert', async (req, res) => {
          SET name = $1, business_type = $2, likely_value = $3, likely_close_month = $4, updated_at = NOW() 
          WHERE advisor_id = $5 AND email = $6 
          RETURNING *`,
-        [name, business_type, likely_value, likely_close_month, advisorId, email]
+        [name, business_type, likely_value, formattedCloseMonth, advisorId, email]
       );
       client = result.rows[0];
     } else {
@@ -102,12 +109,18 @@ router.post('/upsert', async (req, res) => {
         `INSERT INTO clients (advisor_id, email, name, business_type, likely_value, likely_close_month, created_at, updated_at) 
          VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) 
          RETURNING *`,
-        [advisorId, email, name, business_type, likely_value, likely_close_month]
+        [advisorId, email, name, business_type, likely_value, formattedCloseMonth]
       );
       client = result.rows[0];
     }
 
-    res.json(client);
+    // Format the response to include properly formatted likely_close_month
+    const formattedClient = {
+      ...client,
+      likely_close_month: client.likely_close_month ? 
+        client.likely_close_month.toISOString().slice(0, 7) : ''
+    };
+    res.json(formattedClient);
   } catch (error) {
     console.error('Error upserting client:', error);
     res.status(500).json({ error: 'Failed to upsert client', details: error.message });
@@ -129,13 +142,19 @@ router.post('/update-name', async (req, res) => {
       return res.status(400).json({ error: 'Email and name are required' });
     }
 
+    // Convert likely_close_month from YYYY-MM to YYYY-MM-01 format for database
+    let formattedCloseMonth = likely_close_month;
+    if (likely_close_month && likely_close_month.match(/^\d{4}-\d{2}$/)) {
+      formattedCloseMonth = `${likely_close_month}-01`;
+    }
+
     // Update client in clients table
     const result = await pool.query(
       `UPDATE clients 
        SET name = $1, business_type = $2, likely_value = $3, likely_close_month = $4, updated_at = NOW() 
        WHERE advisor_id = $5 AND email = $6 
        RETURNING *`,
-      [name, business_type, likely_value, likely_close_month, advisorId, email]
+      [name, business_type, likely_value, formattedCloseMonth, advisorId, email]
     );
 
     if (result.rowCount === 0) {
@@ -144,12 +163,19 @@ router.post('/update-name', async (req, res) => {
         `INSERT INTO clients (advisor_id, email, name, business_type, likely_value, likely_close_month, created_at, updated_at) 
          VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) 
          RETURNING *`,
-        [advisorId, email, name, business_type, likely_value, likely_close_month]
+        [advisorId, email, name, business_type, likely_value, formattedCloseMonth]
       );
       return res.json(insertResult.rows[0]);
     }
 
-    res.json(result.rows[0]);
+    // Format the response to include properly formatted likely_close_month
+    const client = result.rows[0];
+    const formattedClient = {
+      ...client,
+      likely_close_month: client.likely_close_month ? 
+        client.likely_close_month.toISOString().slice(0, 7) : ''
+    };
+    res.json(formattedClient);
   } catch (error) {
     console.error('Error updating client:', error);
     res.status(500).json({ error: 'Failed to update client', details: error.message });
@@ -177,7 +203,16 @@ router.put('/:clientId', async (req, res) => {
     if (emails !== undefined) { fields.push('emails'); values.push(emails); paramIndex++; }
     if (business_type !== undefined) { fields.push('business_type'); values.push(business_type); paramIndex++; }
     if (likely_value !== undefined) { fields.push('likely_value'); values.push(likely_value); paramIndex++; }
-    if (likely_close_month !== undefined) { fields.push('likely_close_month'); values.push(likely_close_month); paramIndex++; }
+    if (likely_close_month !== undefined) { 
+      // Convert likely_close_month from YYYY-MM to YYYY-MM-01 format for database
+      let formattedCloseMonth = likely_close_month;
+      if (likely_close_month && likely_close_month.match(/^\d{4}-\d{2}$/)) {
+        formattedCloseMonth = `${likely_close_month}-01`;
+      }
+      fields.push('likely_close_month'); 
+      values.push(formattedCloseMonth); 
+      paramIndex++; 
+    }
     
     if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
 
@@ -202,7 +237,14 @@ router.put('/:clientId', async (req, res) => {
       return res.status(404).json({ error: 'Client not found' });
     }
 
-    res.json(result.rows[0]);
+    // Format the response to include properly formatted likely_close_month
+    const client = result.rows[0];
+    const formattedClient = {
+      ...client,
+      likely_close_month: client.likely_close_month ? 
+        client.likely_close_month.toISOString().slice(0, 7) : ''
+    };
+    res.json(formattedClient);
   } catch (error) {
     console.error('Error updating client:', error);
     res.status(500).json({ error: 'Failed to update client', details: error.message });
