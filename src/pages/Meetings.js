@@ -19,7 +19,10 @@ import {
   MessageSquare,
   Sparkles,
   X,
-  ChevronDown
+  ChevronDown,
+  Plus,
+  Upload,
+  Edit3
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary, generateAISummary } from '../services/api';
@@ -115,7 +118,6 @@ export default function Meetings() {
   
   const [transcriptUpload, setTranscriptUpload] = useState('');
   const [uploadingTranscript, setUploadingTranscript] = useState(false);
-  // Add state for UI mode
   const [showPasteTranscript, setShowPasteTranscript] = useState(false);
   const [deletingTranscript, setDeletingTranscript] = useState(false);
   const [generatingSummary, setGeneratingSummary] = useState(false);
@@ -596,155 +598,173 @@ export default function Meetings() {
                 {/* Content */}
                 <div className="space-y-6">
                   {activeTab === 'summary' && (
-                    <Card className="border-border/50">
-                      <CardHeader>
-                        <div className="flex items-center justify-between">
-                          <CardTitle className="flex items-center gap-2">
-                            <Sparkles className="w-5 h-5 text-primary" />
-                            AI-Generated Summary
-                          </CardTitle>
-                          {summaryContent && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setSummaryContent(null)}
-                              className="text-muted-foreground hover:text-foreground"
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
+                    <div className="space-y-6">
+                      {/* Summary Actions */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <h2 className="text-xl font-semibold text-foreground">AI Summary</h2>
+                          {templates.length > 0 && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" className="min-w-[200px] justify-between">
+                                  {selectedTemplate?.title || 'Default Template'}
+                                  <ChevronDown className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="start">
+                                <DropdownMenuItem onClick={() => setSelectedTemplate(null)}>
+                                  Default Template
+                                </DropdownMenuItem>
+                                {templates.map((template) => (
+                                  <DropdownMenuItem 
+                                    key={template.id}
+                                    onClick={() => setSelectedTemplate(template)}
+                                  >
+                                    {template.title}
+                                  </DropdownMenuItem>
+                                ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           )}
                         </div>
-                      </CardHeader>
-                      <CardContent>
-                        {summaryContent ? (
-                          <div className="prose prose-invert max-w-none">
-                            <div className="bg-card/50 border border-border/50 rounded-lg p-6">
+                        {selectedMeeting?.transcript && !summaryContent && (
+                          <Button
+                            onClick={handleGenerateAISummary}
+                            disabled={generatingSummary}
+                            className="flex items-center gap-2"
+                          >
+                            <Sparkles className="w-4 h-4" />
+                            {generatingSummary ? 'Generating...' : 'Generate Summary'}
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Summary Content */}
+                      {summaryContent ? (
+                        <Card className="border-border/50">
+                          <CardContent className="p-6">
+                            <div className="prose prose-invert max-w-none">
                               <div className="whitespace-pre-wrap text-foreground leading-relaxed">
                                 {summaryContent}
                               </div>
                             </div>
-                          </div>
-                        ) : (
-                          <div className="text-center py-12">
-                            <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                            <h3 className="text-lg font-medium text-foreground mb-2">No summary available</h3>
-                            <p className="text-muted-foreground mb-4">This meeting doesn't have a summary yet.</p>
-                            {selectedMeeting?.transcript && (
-                              <div className="space-y-4">
-                                {/* Template Selection */}
-                                {templates.length > 0 && (
-                                  <div className="flex items-center gap-3 justify-center">
-                                    <span className="text-sm text-muted-foreground">Template:</span>
-                                    <DropdownMenu>
-                                      <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" size="sm" className="min-w-[200px] justify-between">
-                                          {selectedTemplate?.title || 'Default Template'}
-                                          <ChevronDown className="w-4 h-4" />
-                                        </Button>
-                                      </DropdownMenuTrigger>
-                                      <DropdownMenuContent align="center">
-                                        <DropdownMenuItem onClick={() => setSelectedTemplate(null)}>
-                                          Default Template
-                                        </DropdownMenuItem>
-                                        {templates.map((template) => (
-                                          <DropdownMenuItem 
-                                            key={template.id}
-                                            onClick={() => setSelectedTemplate(template)}
-                                          >
-                                            {template.title}
-                                          </DropdownMenuItem>
-                                        ))}
-                                      </DropdownMenuContent>
-                                    </DropdownMenu>
-                                  </div>
-                                )}
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        <Card className="border-border/50">
+                          <CardContent className="p-12">
+                            <div className="text-center">
+                              <MessageSquare className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                              <h3 className="text-lg font-medium text-foreground mb-2">No summary yet</h3>
+                              <p className="text-muted-foreground mb-6">
+                                {selectedMeeting?.transcript 
+                                  ? "Generate an AI summary using your selected template."
+                                  : "Add a transcript first to generate an AI summary."
+                                }
+                              </p>
+                              {!selectedMeeting?.transcript && (
                                 <Button
-                                  onClick={handleGenerateAISummary}
-                                  disabled={generatingSummary}
+                                  onClick={() => setActiveTab('transcript')}
                                   className="flex items-center gap-2"
                                 >
-                                  <Sparkles className="w-4 h-4" />
-                                  {generatingSummary ? 'Generating...' : 'Generate AI Summary'}
+                                  <Plus className="w-4 h-4" />
+                                  Add Transcript
                                 </Button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
                   )}
 
                   {activeTab === 'transcript' && (
-                    <Card className="border-border/50">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <FileText className="w-5 h-5 text-primary" />
-                          Transcript
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        {selectedMeeting.transcript ? (
-                          <div className="relative bg-card/50 border border-border/50 rounded-lg p-6 whitespace-pre-wrap text-foreground leading-relaxed">
-                            <button
-                              className="absolute top-2 right-2 text-muted-foreground hover:text-destructive rounded-full p-1"
-                              onClick={handleDeleteTranscript}
-                              disabled={deletingTranscript}
-                              aria-label="Delete transcript"
-                            >
-                              ×
-                            </button>
-                            {selectedMeeting.transcript}
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center justify-center py-8">
-                            <h3 className="text-lg font-medium text-foreground mb-2">Add a transcript</h3>
-                            <p className="text-muted-foreground mb-4">Advicly creates transcripts from audio or text</p>
-                            <div className="flex flex-col sm:flex-row gap-3 mb-4 w-full max-w-lg">
-                              <Button variant="outline" className="flex-1" disabled>
-                                <span className="mr-2">🎤</span> Start recording
-                              </Button>
-                              <label className="flex-1">
-                                <input
-                                  type="file"
-                                  accept="audio/*"
-                                  className="hidden"
-                                  onChange={handleAudioFileChange}
-                                  disabled={uploadingTranscript}
-                                />
-                                <Button asChild variant="outline" className="w-full">
-                                  <span><span className="mr-2">📁</span> Upload audio</span>
-                                </Button>
-                              </label>
-                              <Button
-                                variant={showPasteTranscript ? "default" : "outline"}
-                                className="flex-1"
-                                onClick={() => setShowPasteTranscript(v => !v)}
-                              >
-                                <span className="mr-2">✏️</span> Paste transcript
-                              </Button>
+                    <div className="space-y-6">
+                      {/* Transcript Actions */}
+                      <div className="flex items-center justify-between">
+                        <h2 className="text-xl font-semibold text-foreground">Transcript</h2>
+                        {selectedMeeting.transcript && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleDeleteTranscript}
+                            disabled={deletingTranscript}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <X className="w-4 h-4 mr-2" />
+                            {deletingTranscript ? 'Deleting...' : 'Delete'}
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Transcript Content */}
+                      {selectedMeeting.transcript ? (
+                        <Card className="border-border/50">
+                          <CardContent className="p-6">
+                            <div className="whitespace-pre-wrap text-foreground leading-relaxed">
+                              {selectedMeeting.transcript}
                             </div>
-                            {showPasteTranscript && (
-                              <div className="w-full max-w-lg flex flex-col gap-2">
-                                <textarea
-                                  className="w-full min-h-[120px] p-3 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary mb-3"
-                                  placeholder="Paste transcript here..."
-                                  value={transcriptUpload || ''}
-                                  onChange={e => setTranscriptUpload(e.target.value)}
-                                  disabled={uploadingTranscript}
-                                />
+                          </CardContent>
+                        </Card>
+                      ) : (
+                        <Card className="border-border/50">
+                          <CardContent className="p-12">
+                            <div className="text-center">
+                              <Upload className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+                              <h3 className="text-lg font-medium text-foreground mb-2">Add a transcript</h3>
+                              <p className="text-muted-foreground mb-6">
+                                Upload audio or paste transcript text to get started.
+                              </p>
+                              
+                              <div className="flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
+                                <Button variant="outline" className="flex-1" disabled>
+                                  <span className="mr-2">🎤</span> Record
+                                </Button>
+                                <label className="flex-1">
+                                  <input
+                                    type="file"
+                                    accept="audio/*"
+                                    className="hidden"
+                                    onChange={handleAudioFileChange}
+                                    disabled={uploadingTranscript}
+                                  />
+                                  <Button asChild variant="outline" className="w-full">
+                                    <span><span className="mr-2">📁</span> Upload</span>
+                                  </Button>
+                                </label>
                                 <Button
-                                  onClick={handleTranscriptUpload}
-                                  disabled={!transcriptUpload?.trim() || uploadingTranscript}
-                                  className="w-full"
+                                  variant={showPasteTranscript ? "default" : "outline"}
+                                  className="flex-1"
+                                  onClick={() => setShowPasteTranscript(v => !v)}
                                 >
-                                  {uploadingTranscript ? 'Uploading...' : 'Upload Transcript'}
+                                  <Edit3 className="w-4 h-4 mr-2" />
+                                  Paste
                                 </Button>
                               </div>
-                            )}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
+                              
+                              {showPasteTranscript && (
+                                <div className="mt-6 max-w-md mx-auto">
+                                  <textarea
+                                    className="w-full min-h-[120px] p-3 border border-border rounded-lg bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary mb-3"
+                                    placeholder="Paste your transcript here..."
+                                    value={transcriptUpload || ''}
+                                    onChange={e => setTranscriptUpload(e.target.value)}
+                                    disabled={uploadingTranscript}
+                                  />
+                                  <Button
+                                    onClick={handleTranscriptUpload}
+                                    disabled={!transcriptUpload?.trim() || uploadingTranscript}
+                                    className="w-full"
+                                  >
+                                    {uploadingTranscript ? 'Uploading...' : 'Upload Transcript'}
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -753,9 +773,9 @@ export default function Meetings() {
         ) : (
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
-              <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
+              <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-foreground mb-2">No meeting selected</h3>
-              <p className="text-muted-foreground">Select a meeting from the list to view its details.</p>
+              <p className="text-muted-foreground">Choose a meeting from the list to view details and generate summaries.</p>
             </div>
           </div>
         )}
