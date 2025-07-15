@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { cn } from '../lib/utils';
 import { 
   ChevronLeft, 
   ChevronRight, 
   ArrowRight, 
   TrendingUp, 
   DollarSign,
-  Repeat,
   Users
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
