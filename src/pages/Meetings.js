@@ -345,7 +345,7 @@ export default function Meetings() {
     
     setGeneratingSummary(true);
     try {
-      // Use selected template if available, otherwise use default
+      // Always use template system - if no template selected, use Advicly Summary template
       let summary;
       if (selectedTemplate) {
         // Use the selected template's prompt
@@ -353,9 +353,11 @@ export default function Meetings() {
         summary = await generateAISummaryWithTemplate(selectedMeeting.transcript, prompt);
         setCurrentSummaryTemplate(selectedTemplate);
       } else {
-        // Use default generation
-        summary = await generateAISummary(selectedMeeting.transcript);
-        setCurrentSummaryTemplate(null);
+        // Use Advicly Summary template (auto template) as default
+        const autoTemplate = templates.find(t => t.id === 'auto-template') || templates[0];
+        const prompt = autoTemplate.content.replace('{transcript}', selectedMeeting.transcript);
+        summary = await generateAISummaryWithTemplate(selectedMeeting.transcript, prompt);
+        setCurrentSummaryTemplate(autoTemplate);
       }
       
       setSummaryContent(summary);
