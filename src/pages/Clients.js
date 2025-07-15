@@ -28,7 +28,10 @@ export default function Clients() {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [summaryError, setSummaryError] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editForm, setEditForm] = useState({});
+  const [editForm, setEditForm] = useState({
+    name: '',
+    email: ''
+  });
   const [saving, setSaving] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
 
@@ -66,16 +69,6 @@ export default function Clients() {
   const getUserInitials = (name) => {
     if (!name) return 'C';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  };
-
-  // Add this function to open the drawer and populate the form
-  const openEditDrawer = () => {
-    if (!selectedClient) return;
-    setEditForm({
-      name: selectedClient.name || '',
-      email: selectedClient.email || '',
-    });
-    setDrawerOpen(true);
   };
 
   // Add this function to handle form changes
