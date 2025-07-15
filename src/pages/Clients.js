@@ -30,7 +30,10 @@ export default function Clients() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '',
-    email: ''
+    email: '',
+    business_type: '',
+    likely_value: '',
+    likely_close_month: ''
   });
   const [saving, setSaving] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
@@ -111,7 +114,10 @@ export default function Clients() {
     setEditingClient(client);
     setEditForm({
       name: client.name || '',
-      email: client.email || ''
+      email: client.email || '',
+      business_type: client.business_type || '',
+      likely_value: client.likely_value || '',
+      likely_close_month: client.likely_close_month || ''
     });
   };
 
@@ -129,11 +135,14 @@ export default function Clients() {
         },
         body: JSON.stringify({
           email: editingClient.email,
-          name: editForm.name.trim()
+          name: editForm.name.trim(),
+          business_type: editForm.business_type,
+          likely_value: editForm.likely_value,
+          likely_close_month: editForm.likely_close_month
         })
       });
       
-      if (!res.ok) throw new Error('Failed to update client name');
+      if (!res.ok) throw new Error('Failed to update client');
       
       // Refresh clients
       const data = await api.request('/clients');
@@ -141,14 +150,14 @@ export default function Clients() {
       setEditingClient(null);
       setSaving(false);
     } catch (err) {
-      console.error('Error updating client name:', err);
+      console.error('Error updating client:', err);
       setSaving(false);
     }
   };
 
   const handleCancelEdit = () => {
     setEditingClient(null);
-    setEditForm({ name: '', email: '' });
+    setEditForm({ name: '', email: '', business_type: '', likely_value: '', likely_close_month: '' });
   };
 
   if (loading) {
@@ -478,6 +487,30 @@ export default function Clients() {
               disabled
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Business Type</label>
+            <Input
+              value={editForm.business_type || ''}
+              onChange={e => handleEditChange('business_type', e.target.value)}
+              placeholder="Enter business type"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Likely Value</label>
+            <Input
+              value={editForm.likely_value || ''}
+              onChange={e => handleEditChange('likely_value', e.target.value)}
+              placeholder="Enter likely value"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Likely Close Month</label>
+            <Input
+              value={editForm.likely_close_month || ''}
+              onChange={e => handleEditChange('likely_close_month', e.target.value)}
+              placeholder="Enter likely close month"
+            />
+          </div>
           <div className="flex gap-2 pt-4">
             <Button type="submit" disabled={saving} className="w-full">
               {saving ? 'Saving...' : 'Save'}
@@ -512,6 +545,39 @@ export default function Clients() {
                   value={editForm.email}
                   disabled
                   className="w-full p-2 border border-border rounded-md bg-muted text-muted-foreground"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Business Type</label>
+                <select
+                  value={editForm.business_type}
+                  onChange={(e) => setEditForm({ ...editForm, business_type: e.target.value })}
+                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
+                >
+                  <option value="">Select business type</option>
+                  <option value="Pension">Pension</option>
+                  <option value="ISA">ISA</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Likely Value (£)</label>
+                <input
+                  type="number"
+                  value={editForm.likely_value}
+                  onChange={(e) => setEditForm({ ...editForm, likely_value: e.target.value })}
+                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
+                  placeholder="Enter value in pounds"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Likely Close Month</label>
+                <input
+                  type="month"
+                  value={editForm.likely_close_month}
+                  onChange={(e) => setEditForm({ ...editForm, likely_close_month: e.target.value })}
+                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
                 />
               </div>
               <div className="flex gap-2 justify-end">

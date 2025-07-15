@@ -22,7 +22,7 @@ router.get('/', async (req, res) => {
     const userEmail = decoded.email;
 
     // Get all meetings for this advisor
-    const result = await pool.query('SELECT id, title, starttime, endtime, attendees, client_name FROM meetings WHERE userid = $1', [userId]);
+    const result = await pool.query('SELECT id, title, starttime, endtime, attendees, client_name, business_type, likely_value, likely_close_month FROM meetings WHERE userid = $1', [userId]);
     const meetings = result.rows;
 
     // Map: email -> { email, meetings: [] }
@@ -38,13 +38,30 @@ router.get('/', async (req, res) => {
         // Use email as unique key, skip advisor's own email
         if (att && att.email && att.email !== userEmail) {
           if (!clientsMap[att.email]) {
-            clientsMap[att.email] = { email: att.email, name: '', meetings: [] };
+            clientsMap[att.email] = { 
+              email: att.email, 
+              name: '', 
+              business_type: '',
+              likely_value: '',
+              likely_close_month: '',
+              meetings: [] 
+            };
           }
           // Use client_name from meetings table if available, otherwise use displayName from attendees
           if (meeting.client_name && !clientsMap[att.email].name) {
             clientsMap[att.email].name = meeting.client_name;
           } else if (att.displayName && !clientsMap[att.email].name) {
             clientsMap[att.email].name = att.displayName;
+          }
+          // Set pipeline fields from the first meeting that has them
+          if (meeting.business_type && !clientsMap[att.email].business_type) {
+            clientsMap[att.email].business_type = meeting.business_type;
+          }
+          if (meeting.likely_value && !clientsMap[att.email].likely_value) {
+            clientsMap[att.email].likely_value = meeting.likely_value;
+          }
+          if (meeting.likely_close_month && !clientsMap[att.email].likely_close_month) {
+            clientsMap[att.email].likely_close_month = meeting.likely_close_month;
           }
           clientsMap[att.email].meetings.push({
             id: meeting.id,
@@ -187,37 +204,41 @@ router.post('/upsert', async (req, res) => {
 
 // POST /api/clients/update-name - update client name in meetings table
 router.post('/update-name', async (req, res) => {
-  console.log('Update client name request:', req.body);
+  console.log('Update client request:', req.body);
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
   try {
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const advisorId = decoded.id;
-    const { email, name } = req.body;
+    const { email, name, business_type, likely_value, likely_close_month } = req.body;
     
     if (!email || !name) {
       return res.status(400).json({ error: 'Email and name are required' });
     }
 
-    // Update client_name in meetings table for all meetings with this client
+    // Update client information in meetings table for all meetings with this client
     const result = await pool.query(
       `UPDATE meetings 
-       SET client_name = $1, updated_at = NOW() 
-       WHERE userid = $2 AND attendees LIKE $3`,
-      [name, advisorId, `%${email}%`]
+       SET client_name = $1, 
+           business_type = $2, 
+           likely_value = $3, 
+           likely_close_month = $4, 
+           updated_at = NOW() 
+       WHERE userid = $5 AND attendees LIKE $6`,
+      [name, business_type, likely_value, likely_close_month, advisorId, `%${email}%`]
     );
 
     console.log(`Updated ${result.rowCount} meetings for client ${email} with name ${name}`);
     
     res.json({ 
       success: true, 
-      message: `Updated client name to "${name}" for ${result.rowCount} meetings`,
+      message: `Updated client information for ${result.rowCount} meetings`,
       updatedCount: result.rowCount 
     });
   } catch (error) {
-    console.error('Error updating client name:', error);
-    res.status(500).json({ error: 'Failed to update client name', details: error.message });
+    console.error('Error updating client:', error);
+    res.status(500).json({ error: 'Failed to update client', details: error.message });
   }
 });
 
