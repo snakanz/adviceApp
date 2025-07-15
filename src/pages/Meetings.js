@@ -589,6 +589,27 @@ export default function Meetings() {
                         )}
                       </div>
 
+                      {/* Current Template Info */}
+                      {summaryContent && currentSummaryTemplate && (
+                        <Card className="border-green-200 bg-green-50/10">
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-green-100 rounded-lg">
+                                <MessageSquare className="w-4 h-4 text-green-600" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm text-green-800 dark:text-green-200">
+                                  <strong>Current summary generated with:</strong> {currentSummaryTemplate.title}
+                                </p>
+                                <p className="text-xs text-green-600 dark:text-green-300 mt-1">
+                                  Select a different template above to create a new version.
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
                       {/* Template Change Notice */}
                       {summaryContent && selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && (
                         <Card className="border-blue-200 bg-blue-50/10">
@@ -605,6 +626,15 @@ export default function Meetings() {
                                   Click "Regenerate Summary" to create a new summary using this template.
                                 </p>
                               </div>
+                              <Button
+                                onClick={handleGenerateAISummary}
+                                disabled={generatingSummary}
+                                size="sm"
+                                className="flex items-center gap-2"
+                              >
+                                <Sparkles className="w-4 h-4" />
+                                {generatingSummary ? 'Generating...' : 'Apply Template'}
+                              </Button>
                             </div>
                           </CardContent>
                         </Card>
