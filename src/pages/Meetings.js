@@ -122,6 +122,7 @@ export default function Meetings() {
   // Add template selection state
   const [templates, setTemplates] = useState(loadTemplates());
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [currentSummaryTemplate, setCurrentSummaryTemplate] = useState(null);
 
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
@@ -207,6 +208,7 @@ export default function Meetings() {
     setSelectedMeetingId(meeting.id);
     setSummaryContent(meeting.meetingSummary || meeting.transcript || '');
     setActiveTab('summary');
+    setCurrentSummaryTemplate(null); // Reset template tracking for new meeting
   };
 
   const handleAIAdjustment = async (adjustmentPrompt) => {
@@ -339,9 +341,11 @@ export default function Meetings() {
         // Use the selected template's prompt
         const prompt = selectedTemplate.content.replace('{transcript}', selectedMeeting.transcript);
         summary = await generateAISummaryWithTemplate(selectedMeeting.transcript, prompt);
+        setCurrentSummaryTemplate(selectedTemplate);
       } else {
         // Use default generation
         summary = await generateAISummary(selectedMeeting.transcript);
+        setCurrentSummaryTemplate(null);
       }
       
       setSummaryContent(summary);
@@ -573,17 +577,38 @@ export default function Meetings() {
                             </DropdownMenu>
                           )}
                         </div>
-                        {selectedMeeting?.transcript && !summaryContent && (
+                        {selectedMeeting?.transcript && (
                           <Button
                             onClick={handleGenerateAISummary}
                             disabled={generatingSummary}
                             className="flex items-center gap-2"
                           >
                             <Sparkles className="w-4 h-4" />
-                            {generatingSummary ? 'Generating...' : 'Generate Summary'}
+                            {generatingSummary ? 'Generating...' : summaryContent ? 'Regenerate Summary' : 'Generate Summary'}
                           </Button>
                         )}
                       </div>
+
+                      {/* Template Change Notice */}
+                      {summaryContent && selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && (
+                        <Card className="border-blue-200 bg-blue-50/10">
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-blue-100 rounded-lg">
+                                <Sparkles className="w-4 h-4 text-blue-600" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-sm text-blue-800 dark:text-blue-200">
+                                  <strong>New template selected:</strong> {selectedTemplate.title}
+                                </p>
+                                <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
+                                  Click "Regenerate Summary" to create a new summary using this template.
+                                </p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
 
                       {/* Summary Content */}
                       {summaryContent ? (
