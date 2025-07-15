@@ -182,6 +182,115 @@ router.post('/update-name', async (req, res) => {
   }
 });
 
+// Get specific client by ID
+router.get('/:clientId', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+  
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    const clientId = req.params.clientId;
+
+    // Get client details
+    const result = await pool.query(`
+      SELECT 
+        c.id,
+        c.email,
+        c.name,
+        c.business_type,
+        c.likely_value,
+        c.likely_close_month,
+        c.created_at,
+        c.updated_at,
+        COUNT(m.id) as meeting_count
+      FROM clients c
+      LEFT JOIN meetings m ON c.id = m.client_id
+      WHERE c.id = $1 AND c.advisor_id = $2
+      GROUP BY c.id, c.email, c.name, c.business_type, c.likely_value, c.likely_close_month, c.created_at, c.updated_at
+    `, [clientId, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    const client = result.rows[0];
+    const formattedClient = {
+      id: client.id,
+      email: client.email,
+      name: client.name || client.email,
+      business_type: client.business_type || '',
+      likely_value: client.likely_value || '',
+      likely_close_month: client.likely_close_month ? 
+        client.likely_close_month.toISOString().slice(0, 7) : '',
+      meeting_count: parseInt(client.meeting_count) || 0,
+      created_at: client.created_at,
+      updated_at: client.updated_at
+    };
+
+    res.json(formattedClient);
+  } catch (error) {
+    console.error('Error fetching client:', error);
+    res.status(500).json({ error: 'Failed to fetch client', details: error.message });
+  }
+});
+
+// Get meetings for a specific client
+router.get('/:clientId/meetings', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+  
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    const clientId = req.params.clientId;
+
+    // Verify client belongs to this advisor
+    const clientCheck = await pool.query(
+      'SELECT id FROM clients WHERE id = $1 AND advisor_id = $2',
+      [clientId, userId]
+    );
+
+    if (clientCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Get meetings for this client
+    const result = await pool.query(`
+      SELECT 
+        m.id,
+        m.title,
+        m.summary,
+        m.transcript,
+        m.starttime,
+        m.endtime,
+        m.status,
+        m.created_at
+      FROM meetings m
+      WHERE m.client_id = $1
+      ORDER BY m.starttime DESC
+    `, [clientId]);
+
+    const meetings = result.rows.map(meeting => ({
+      id: meeting.id,
+      title: meeting.title,
+      summary: meeting.summary,
+      transcript: meeting.transcript,
+      starttime: meeting.starttime,
+      endtime: meeting.endtime,
+      status: meeting.status,
+      created_at: meeting.created_at
+    }));
+
+    res.json(meetings);
+  } catch (error) {
+    console.error('Error fetching client meetings:', error);
+    res.status(500).json({ error: 'Failed to fetch client meetings', details: error.message });
+  }
+});
+
 // Update specific client by ID
 router.put('/:clientId', async (req, res) => {
   const auth = req.headers.authorization;
