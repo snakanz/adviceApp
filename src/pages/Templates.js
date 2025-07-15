@@ -12,31 +12,8 @@ import {
 
 const defaultTemplates = [
   {
-    id: 'auto-email-ai-summary',
-    title: 'Auto Email Generate AI Summary',
-    description: 'AI prompt for automatically generating email summaries from meeting transcripts',
-    content: `You are an assistant to a financial advisor.
-
-Based strictly on the following client meeting transcript, generate a professional follow-up email. Do **not** make up any facts. Only include points that were clearly stated by either the advisor or the client during the meeting.
-
-Instructions:
-- Begin with a polite greeting (e.g., "Hi [Client], it was great speaking with you today.")
-- Recap the **exact** points discussed in the meeting (e.g., pension value, contribution levels, mortgage, expenses)
-- Clearly outline the agreed next steps (e.g., sending a Letter of Authority, requesting pension statements)
-- Maintain a confident and helpful tone suitable for a financial advisor
-- End with a friendly and professional sign-off
-
-⚠️ If a topic (e.g., expenses, ISA, debt) is not mentioned in the transcript, do **not** include it in the email. Do not guess or assume anything that wasn't said.
-
-Transcript:
-{transcript}
-
-Respond with the **email body only** — no headers or subject lines.`,
-    type: 'ai-summary'
-  },
-  {
-    id: 'review-email-summary',
-    title: 'Review Email Summary',
+    id: 'review-template',
+    title: 'Review',
     description: 'AI prompt for generating review meeting email summaries',
     content: `You are an assistant to a financial advisor.
 
@@ -67,7 +44,27 @@ function loadTemplates() {
   const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
   if (saved) {
     try {
-      return JSON.parse(saved);
+      const parsedTemplates = JSON.parse(saved);
+      // Migrate old templates to new format - keep only Review template
+      const reviewTemplate = parsedTemplates.find(t => 
+        t.id === 'review-template' || 
+        t.id === 'review-email-summary' || 
+        t.title.toLowerCase().includes('review')
+      );
+      
+      if (reviewTemplate) {
+        // Update the template to new format
+        const migratedTemplate = {
+          ...reviewTemplate,
+          id: 'review-template',
+          title: 'Review',
+          type: 'review-summary'
+        };
+        return [migratedTemplate];
+      }
+      
+      // If no review template found, return default
+      return defaultTemplates;
     } catch {
       return defaultTemplates;
     }
