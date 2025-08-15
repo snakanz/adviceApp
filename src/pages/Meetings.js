@@ -798,7 +798,6 @@ export default function Meetings() {
           </div>
         </div>
       )}
-    </div>
 
       {/* AI Adjustment Dialog */}
       <AIAdjustmentDialog
