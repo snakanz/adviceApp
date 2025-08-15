@@ -39,11 +39,20 @@ OPENAI_API_KEY=sk-proj-your-openai-key
 
 ## Current Status
 
-✅ **Backend now starts without errors** - Missing environment variables are handled gracefully
+✅ **Backend starts without errors** - Missing environment variables are handled gracefully
 ✅ **Health endpoint works** - Returns status even without database connection
+✅ **All endpoints handle missing services** - Return proper 503 errors when services unavailable
+✅ **Smoke tests passing** - All basic functionality verified
 ⚠️ **Database features disabled** - Until Supabase variables are added
 ⚠️ **AI features disabled** - Until OpenAI API key is added
 ⚠️ **Authentication disabled** - Until Google OAuth is configured
+
+## Recent Fixes (Latest Deployment)
+
+✅ **Fixed Google OAuth callback** - No longer crashes when Supabase unavailable
+✅ **Fixed all calendar endpoints** - Graceful handling of missing database
+✅ **Fixed meeting endpoints** - Proper error responses for missing services
+✅ **All Supabase calls protected** - No more null reference errors
 
 ## Priority Order
 
