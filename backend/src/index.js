@@ -24,7 +24,7 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_REDIRECT_URI
 );
 
-// Health check with database connectivity
+// Health check with database connectivity - Updated for deployment
 app.get('/api/health', async (req, res) => {
   try {
     let dbStatus = false;
