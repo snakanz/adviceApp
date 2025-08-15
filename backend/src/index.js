@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { google } = require('googleapis');
-const { supabase, isSupabaseAvailable } = require('./lib/supabase');
+const { supabase, isSupabaseAvailable, getSupabase } = require('./lib/supabase');
 const clientsRouter = require('./routes/clients');
 const pipelineRouter = require('./routes/pipeline');
 const routes = require('./routes');
@@ -94,18 +94,26 @@ app.get('/api/auth/google', (req, res) => {
 app.get('/api/auth/google/callback', async (req, res) => {
   try {
     const { code } = req.query;
+
+    // Check if Supabase is available
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please configure Supabase environment variables.'
+      });
+    }
+
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const userInfo = await oauth2.userinfo.get();
     console.log('Google user info:', userInfo.data);
-    
+
     // Upsert user in Supabase
     const { email, name, id: googleId } = userInfo.data;
     let user;
 
     // Check if user exists
-    const { data: existingUser } = await supabase
+    const { data: existingUser } = await getSupabase()
       .from('users')
       .select('*')
       .eq('email', email)
@@ -113,7 +121,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
 
     if (existingUser) {
       // Update existing user
-      const { data: updatedUser } = await supabase
+      const { data: updatedUser } = await getSupabase()
         .from('users')
         .update({ name, providerid: googleId })
         .eq('email', email)
@@ -122,7 +130,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
       user = updatedUser;
     } else {
       // Create new user
-      const { data: newUser } = await supabase
+      const { data: newUser } = await getSupabase()
         .from('users')
         .insert({
           id: googleId,
@@ -135,7 +143,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
         .single();
       user = newUser;
     }
-    
+
     // Store/update calendar tokens
     let expiresAt;
     if (tokens.expiry_date) {
@@ -147,7 +155,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
       expiresAt = new Date(Date.now() + 3600 * 1000);
     }
     // Upsert calendar tokens
-    await supabase
+    await getSupabase()
       .from('calendartoken')
       .upsert({
         id: `token_${user.id}`,
@@ -158,7 +166,7 @@ app.get('/api/auth/google/callback', async (req, res) => {
         provider: 'google',
         updatedat: new Date().toISOString()
       });
-    
+
     // Issue JWT
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, process.env.JWT_SECRET, { expiresIn: '24h' });
     console.log('Issued JWT:', token);
@@ -223,8 +231,15 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
 
+    // Check if Supabase is available
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please configure Supabase environment variables.'
+      });
+    }
+
     // Get user's Google tokens from database
-    const { data: tokenData } = await supabase
+    const { data: tokenData } = await getSupabase()
       .from('calendartoken')
       .select('accesstoken, refreshtoken, expiresat')
       .eq('userid', userId)
@@ -259,7 +274,7 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
           
           // Update the token in database
           const newExpiresAt = new Date(Date.now() + (newTokens.expires_in * 1000));
-          await supabase
+          await getSupabase()
             .from('calendartoken')
             .update({
               accesstoken: accessToken,
@@ -307,7 +322,7 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
     // Upsert each meeting into the database
     for (const event of events) {
       if (!event.start || !event.start.dateTime) continue; // skip all-day events
-      await supabase
+      await getSupabase()
         .from('meetings')
         .upsert({
           googleeventid: event.id,
@@ -329,7 +344,7 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
     for (const event of events) {
       if (!event.start || !event.start.dateTime) continue;
       // Fetch transcript from DB
-      const { data: meetingData } = await supabase
+      const { data: meetingData } = await getSupabase()
         .from('meetings')
         .select('transcript')
         .eq('googleeventid', event.id)
@@ -371,8 +386,15 @@ app.post('/api/calendar/meetings/:id/transcript', async (req, res) => {
     const meetingId = req.params.id;
     const { transcript } = req.body;
 
+    // Check if Supabase is available
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please configure Supabase environment variables.'
+      });
+    }
+
     // Update the transcript for the meeting
-    await supabase
+    await getSupabase()
       .from('meetings')
       .update({
         transcript: transcript,
@@ -398,7 +420,14 @@ app.delete('/api/calendar/meetings/:id/transcript', async (req, res) => {
     const userId = decoded.id;
     const meetingId = req.params.id;
 
-    await supabase
+    // Check if Supabase is available
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please configure Supabase environment variables.'
+      });
+    }
+
+    await getSupabase()
       .from('meetings')
       .update({
         transcript: null,
