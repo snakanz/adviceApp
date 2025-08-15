@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext(null);
 
-const API_URL = process.env.REACT_APP_API_URL;
+const API_URL = process.env.REACT_APP_API_BASE_URL;
 
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }) => {
   const verifyTokenAndGetUser = async (token) => {
     try {
       console.log('Verifying token with backend...');
-      const response = await fetch(`${API_URL}/auth/verify`, {
+      const response = await fetch(`${API_URL}/api/auth/verify`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

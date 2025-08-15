@@ -5,7 +5,7 @@ echo "🚀 Setting up local development environment for AdviceApp..."
 # Create .env.local file for frontend
 echo "📝 Creating .env.local file..."
 cat > .env.local << EOF
-REACT_APP_API_URL=http://localhost:8787
+REACT_APP_API_BASE_URL=http://localhost:8787
 EOF
 
 echo "✅ .env.local created with local backend URL"

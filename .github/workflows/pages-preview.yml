@@ -1,0 +1,69 @@
+name: Pages Preview Build
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+
+jobs:
+  preview-build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Use Node.js 18.x
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Build frontend with mock environment
+      run: npm run build
+      env:
+        REACT_APP_SUPABASE_URL: https://mock.supabase.co
+        REACT_APP_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.mock-anon-key
+        REACT_APP_API_BASE_URL: https://mock-backend.onrender.com
+    
+    - name: Check build output
+      run: |
+        echo "✅ Build completed successfully"
+        echo "📁 Build directory contents:"
+        ls -la build/
+        echo "📊 Build size:"
+        du -sh build/
+        
+    - name: Validate critical files exist
+      run: |
+        if [ ! -f "build/index.html" ]; then
+          echo "❌ Missing index.html"
+          exit 1
+        fi
+        
+        if [ ! -d "build/static" ]; then
+          echo "❌ Missing static directory"
+          exit 1
+        fi
+        
+        echo "✅ All critical build files present"
+    
+    - name: Check for environment variable usage
+      run: |
+        echo "🔍 Checking for proper environment variable usage..."
+        
+        # Check if build contains the mock values (they should be replaced)
+        if grep -r "mock.supabase.co" build/ > /dev/null; then
+          echo "✅ Environment variables are being processed correctly"
+        else
+          echo "⚠️  Environment variables might not be processed correctly"
+        fi
+        
+        echo "✅ Environment variable check completed"

@@ -7,6 +7,7 @@ const { authenticateUser, authenticateToken } = require('../middleware/auth');
 const openai = require('../services/openai');
 const { google } = require('googleapis');
 const { getGoogleAuthClient, refreshAccessToken } = require('../services/calendar');
+const { supabase } = require('../lib/supabase');
 
 // Get Google Calendar auth URL
 router.get('/auth/google', async (req, res) => {

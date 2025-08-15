@@ -1,12 +1,8 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const { Pool } = require('pg');
+const { supabase } = require('../lib/supabase');
 
 const router = express.Router();
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
 
 // Get all clients for an advisor with their meetings
 router.get('/', async (req, res) => {
@@ -18,51 +14,47 @@ router.get('/', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
 
-    // Get all clients for this advisor with their pipeline data and meeting counts
-    const result = await pool.query(`
-      SELECT 
-        c.id,
-        c.email,
-        c.name,
-        c.business_type,
-        c.likely_value,
-        c.likely_close_month,
-        c.created_at,
-        c.updated_at,
-        COUNT(m.id) as meeting_count,
-        ARRAY_AGG(
-          CASE WHEN m.id IS NOT NULL THEN 
-            json_build_object(
-              'id', m.id,
-              'title', m.title,
-              'starttime', m.starttime,
-              'endtime', m.endtime,
-              'summary', m.summary,
-              'transcript', m.transcript
-            )
-          END
-        ) FILTER (WHERE m.id IS NOT NULL) as meetings
-      FROM clients c
-      LEFT JOIN meetings m ON c.id = m.client_id
-      WHERE c.advisor_id = $1
-      GROUP BY c.id, c.email, c.name, c.business_type, c.likely_value, c.likely_close_month, c.created_at, c.updated_at
-      ORDER BY c.name
-    `, [userId]);
+    // Get all clients for this advisor
+    const { data: clients, error: clientsError } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('advisor_id', userId)
+      .order('name');
 
-    const clients = result.rows.map(client => ({
+    if (clientsError) {
+      throw clientsError;
+    }
+
+    // Get meetings for each client
+    const clientsWithMeetings = await Promise.all(
+      clients.map(async (client) => {
+        const { data: meetings } = await supabase
+          .from('meetings')
+          .select('id, title, starttime, endtime, summary, transcript')
+          .eq('client_id', client.id);
+
+        return {
+          ...client,
+          meeting_count: meetings?.length || 0,
+          meetings: meetings || []
+        };
+      })
+    );
+
+    const formattedClients = clientsWithMeetings.map(client => ({
       id: client.id,
       email: client.email,
       name: client.name || client.email,
       business_type: client.business_type || '',
       likely_value: client.likely_value || '',
       likely_close_month: client.likely_close_month || '',
-      meeting_count: parseInt(client.meeting_count) || 0,
-      meetings: client.meetings || [],
+      meeting_count: client.meeting_count,
+      meetings: client.meetings,
       created_at: client.created_at,
       updated_at: client.updated_at
     }));
 
-    res.json(clients);
+    res.json(formattedClients);
   } catch (error) {
     console.error('Error fetching clients:', error);
     res.status(500).json({ error: 'Failed to fetch clients', details: error.message });
@@ -82,29 +74,25 @@ router.post('/upsert', async (req, res) => {
     
     if (!email) return res.status(400).json({ error: 'Email is required' });
 
-    // Check if client exists
-    const existing = await pool.query('SELECT * FROM clients WHERE advisor_id = $1 AND email = $2', [advisorId, email]);
-    let client;
-    
-    if (existing.rows.length > 0) {
-      // Update existing client
-      const result = await pool.query(
-        `UPDATE clients 
-         SET name = $1, business_type = $2, likely_value = $3, likely_close_month = $4, updated_at = NOW() 
-         WHERE advisor_id = $5 AND email = $6 
-         RETURNING *`,
-        [name, business_type, likely_value, likely_close_month, advisorId, email]
-      );
-      client = result.rows[0];
-    } else {
-      // Insert new client
-      const result = await pool.query(
-        `INSERT INTO clients (advisor_id, email, name, business_type, likely_value, likely_close_month, created_at, updated_at) 
-         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) 
-         RETURNING *`,
-        [advisorId, email, name, business_type, likely_value, likely_close_month]
-      );
-      client = result.rows[0];
+    // Upsert client using Supabase
+    const { data: client, error } = await supabase
+      .from('clients')
+      .upsert({
+        advisor_id: advisorId,
+        email: email,
+        name: name,
+        business_type: business_type,
+        likely_value: likely_value,
+        likely_close_month: likely_close_month,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'advisor_id,email'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
     }
 
     res.json(client);
@@ -129,27 +117,28 @@ router.post('/update-name', async (req, res) => {
       return res.status(400).json({ error: 'Email and name are required' });
     }
 
-    // Update client in clients table
-    const result = await pool.query(
-      `UPDATE clients 
-       SET name = $1, business_type = $2, likely_value = $3, likely_close_month = $4, updated_at = NOW() 
-       WHERE advisor_id = $5 AND email = $6 
-       RETURNING *`,
-      [name, business_type, likely_value, likely_close_month, advisorId, email]
-    );
+    // Update or create client using Supabase
+    const { data: client, error } = await supabase
+      .from('clients')
+      .upsert({
+        advisor_id: advisorId,
+        email: email,
+        name: name,
+        business_type: business_type,
+        likely_value: likely_value,
+        likely_close_month: likely_close_month,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'advisor_id,email'
+      })
+      .select()
+      .single();
 
-    if (result.rowCount === 0) {
-      // Client doesn't exist, create it
-      const insertResult = await pool.query(
-        `INSERT INTO clients (advisor_id, email, name, business_type, likely_value, likely_close_month, created_at, updated_at) 
-         VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW()) 
-         RETURNING *`,
-        [advisorId, email, name, business_type, likely_value, likely_close_month]
-      );
-      return res.json(insertResult.rows[0]);
+    if (error) {
+      throw error;
     }
 
-    res.json(result.rows[0]);
+    res.json(client);
   } catch (error) {
     console.error('Error updating client:', error);
     res.status(500).json({ error: 'Failed to update client', details: error.message });
@@ -168,41 +157,36 @@ router.put('/:clientId', async (req, res) => {
     const clientId = req.params.clientId;
     const { name, emails, business_type, likely_value, likely_close_month } = req.body;
 
-    // Build dynamic update query
-    const fields = [];
-    const values = [];
-    let paramIndex = 1;
+    // Build update object dynamically
+    const updateData = { updated_at: new Date().toISOString() };
 
-    if (name !== undefined) { fields.push('name'); values.push(name); paramIndex++; }
-    if (emails !== undefined) { fields.push('emails'); values.push(emails); paramIndex++; }
-    if (business_type !== undefined) { fields.push('business_type'); values.push(business_type); paramIndex++; }
-    if (likely_value !== undefined) { fields.push('likely_value'); values.push(likely_value); paramIndex++; }
-    if (likely_close_month !== undefined) { fields.push('likely_close_month'); values.push(likely_close_month); paramIndex++; }
-    
-    if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+    if (name !== undefined) updateData.name = name;
+    if (emails !== undefined) updateData.emails = emails;
+    if (business_type !== undefined) updateData.business_type = business_type;
+    if (likely_value !== undefined) updateData.likely_value = likely_value;
+    if (likely_close_month !== undefined) updateData.likely_close_month = likely_close_month;
 
-    // Add updated_at
-    fields.push('updated_at');
-    values.push(new Date());
-
-    // Build SET clause
-    const setClause = fields.map((f, i) => `${f} = $${i + 1}`).join(', ');
-    values.push(clientId, advisorId);
-
-    const query = `
-      UPDATE clients 
-      SET ${setClause} 
-      WHERE id = $${paramIndex} AND advisor_id = $${paramIndex + 1} 
-      RETURNING *
-    `;
-
-    const result = await pool.query(query, values);
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Client not found' });
+    if (Object.keys(updateData).length === 1) {
+      return res.status(400).json({ error: 'No fields to update' });
     }
 
-    res.json(result.rows[0]);
+    // Update client using Supabase
+    const { data: client, error } = await supabase
+      .from('clients')
+      .update(updateData)
+      .eq('id', clientId)
+      .eq('advisor_id', advisorId)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Client not found' });
+      }
+      throw error;
+    }
+
+    res.json(client);
   } catch (error) {
     console.error('Error updating client:', error);
     res.status(500).json({ error: 'Failed to update client', details: error.message });

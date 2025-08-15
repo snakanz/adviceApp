@@ -53,7 +53,7 @@ export default function Layout() {
   return (
     <div className="flex h-screen font-sans layout-bg">
       {/* AppBar */}
-      <header className="fixed top-0 left-64 right-0 z-50 bg-card/80 border-b border-border/50 shadow-soft">
+      <header className="fixed top-0 left-0 sm:left-64 right-0 z-50 bg-card/80 border-b border-border/50 shadow-soft">
         <div className="flex items-center justify-between px-6 py-4 h-18">
           {/* Hamburger for mobile */}
           <div className="block sm:hidden">
@@ -110,7 +110,7 @@ export default function Layout() {
       </header>
 
       {/* Sidebar Drawer */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-card/80 border-r border-border/50 shadow-soft z-40 pt-20">
+      <aside className="fixed left-0 top-0 h-full w-64 bg-card/80 border-r border-border/50 shadow-soft z-40 pt-20 hidden sm:block">
         <div className="flex flex-col h-full">
           {/* Logo */}
           
@@ -181,7 +181,7 @@ export default function Layout() {
 
       {/* Main Content */}
       <main className="flex-1 ml-0 sm:ml-64 bg-background min-h-screen pt-20">
-        <div className="h-full">
+        <div className="h-full w-full overflow-hidden">
           <Outlet />
         </div>
       </main>

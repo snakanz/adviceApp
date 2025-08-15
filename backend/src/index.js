@@ -1,13 +1,11 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const { google } = require('googleapis');
+const { supabase } = require('./lib/supabase');
 const clientsRouter = require('./routes/clients');
 const routes = require('./routes');
-// const { Configuration, OpenAIApi } = require('openai');
-// const openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
 
 const app = express();
 app.use(cors({
@@ -18,11 +16,6 @@ app.use(cors({
 }));
 app.use(express.json());
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
-
 // Google OAuth2 setup
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -30,9 +23,33 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_REDIRECT_URI
 );
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
+// Health check with database connectivity
+app.get('/api/health', async (req, res) => {
+  try {
+    // Test Supabase connection with a simple query
+    const { data, error } = await supabase
+      .from('users')
+      .select('count')
+      .limit(1);
+
+    const dbStatus = error ? false : true;
+
+    res.json({
+      status: 'ok',
+      db: dbStatus,
+      version: process.env.npm_package_version || '1.0.0',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Health check failed:', error);
+    res.status(500).json({
+      status: 'error',
+      db: false,
+      version: process.env.npm_package_version || '1.0.0',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Google OAuth URL
@@ -61,23 +78,40 @@ app.get('/api/auth/google/callback', async (req, res) => {
     const userInfo = await oauth2.userinfo.get();
     console.log('Google user info:', userInfo.data);
     
-    // Upsert user in Postgres
+    // Upsert user in Supabase
     const { email, name, id: googleId } = userInfo.data;
     let user;
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    if (result.rows.length > 0) {
-      user = result.rows[0];
-      // Update user info
-      await pool.query(
-        'UPDATE users SET name = $1, providerid = $2 WHERE email = $3',
-        [name, googleId, email]
-      );
+
+    // Check if user exists
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (existingUser) {
+      // Update existing user
+      const { data: updatedUser } = await supabase
+        .from('users')
+        .update({ name, providerid: googleId })
+        .eq('email', email)
+        .select()
+        .single();
+      user = updatedUser;
     } else {
-      const insert = await pool.query(
-        'INSERT INTO users (id, email, name, provider, providerid) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-        [googleId, email, name, 'google', googleId]
-      );
-      user = insert.rows[0];
+      // Create new user
+      const { data: newUser } = await supabase
+        .from('users')
+        .insert({
+          id: googleId,
+          email,
+          name,
+          provider: 'google',
+          providerid: googleId
+        })
+        .select()
+        .single();
+      user = newUser;
     }
     
     // Store/update calendar tokens
@@ -90,21 +124,18 @@ app.get('/api/auth/google/callback', async (req, res) => {
       // Fallback: set to 1 hour from now
       expiresAt = new Date(Date.now() + 3600 * 1000);
     }
-    await pool.query(
-      `INSERT INTO calendartoken (id, userid, accesstoken, refreshtoken, expiresat, provider, updatedat)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (userid) DO UPDATE
-       SET accesstoken = $3, refreshtoken = $4, expiresat = $5, updatedat = $7`,
-      [
-        `token_${user.id}`,
-        user.id,
-        tokens.access_token,
-        tokens.refresh_token || null,
-        expiresAt,
-        'google',
-        new Date()
-      ]
-    );
+    // Upsert calendar tokens
+    await supabase
+      .from('calendartoken')
+      .upsert({
+        id: `token_${user.id}`,
+        userid: user.id,
+        accesstoken: tokens.access_token,
+        refreshtoken: tokens.refresh_token || null,
+        expiresat: expiresAt.toISOString(),
+        provider: 'google',
+        updatedat: new Date().toISOString()
+      });
     
     // Issue JWT
     const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, process.env.JWT_SECRET, { expiresIn: '24h' });
@@ -171,19 +202,20 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
     const userId = decoded.id;
 
     // Get user's Google tokens from database
-    const tokenResult = await pool.query(
-      'SELECT accesstoken, refreshtoken, expiresat FROM calendartoken WHERE userid = $1',
-      [userId]
-    );
-    
-    if (!tokenResult.rows[0]?.accesstoken) {
+    const { data: tokenData } = await supabase
+      .from('calendartoken')
+      .select('accesstoken, refreshtoken, expiresat')
+      .eq('userid', userId)
+      .single();
+
+    if (!tokenData?.accesstoken) {
       return res.status(401).json({ error: 'User not connected to Google Calendar. Please reconnect your Google account.' });
     }
-    
+
     // Check if token is expired and refresh if needed
-    let accessToken = tokenResult.rows[0].accesstoken;
-    const refreshToken = tokenResult.rows[0].refreshtoken;
-    const expiresAt = new Date(tokenResult.rows[0].expiresat);
+    let accessToken = tokenData.accesstoken;
+    const refreshToken = tokenData.refreshtoken;
+    const expiresAt = new Date(tokenData.expiresat);
     
     if (expiresAt < new Date()) {
       // Token is expired, refresh it
@@ -205,10 +237,14 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
           
           // Update the token in database
           const newExpiresAt = new Date(Date.now() + (newTokens.expires_in * 1000));
-          await pool.query(
-            'UPDATE calendartoken SET accesstoken = $1, expiresat = $2, updatedat = $3 WHERE userid = $4',
-            [accessToken, newExpiresAt, new Date(), userId]
-          );
+          await supabase
+            .from('calendartoken')
+            .update({
+              accesstoken: accessToken,
+              expiresat: newExpiresAt.toISOString(),
+              updatedat: new Date().toISOString()
+            })
+            .eq('userid', userId);
         } else {
           return res.status(401).json({ error: 'Failed to refresh Google token. Please reconnect your Google account.' });
         }
@@ -249,22 +285,20 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
     // Upsert each meeting into the database
     for (const event of events) {
       if (!event.start || !event.start.dateTime) continue; // skip all-day events
-      await pool.query(
-        `INSERT INTO meetings (googleeventid, userid, title, starttime, endtime, summary, updatedat, attendees)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         ON CONFLICT (googleeventid, userid) DO UPDATE
-         SET title = $3, starttime = $4, endtime = $5, summary = $6, updatedat = $7, attendees = $8`,
-        [
-          event.id,
-          userId,
-          event.summary || 'Untitled Meeting',
-          event.start.dateTime,
-          event.end && event.end.dateTime ? event.end.dateTime : null,
-          event.description || '',
-          new Date(),
-          JSON.stringify(event.attendees || [])
-        ]
-      );
+      await supabase
+        .from('meetings')
+        .upsert({
+          googleeventid: event.id,
+          userid: userId,
+          title: event.summary || 'Untitled Meeting',
+          starttime: event.start.dateTime,
+          endtime: event.end && event.end.dateTime ? event.end.dateTime : null,
+          summary: event.description || '',
+          updatedat: new Date().toISOString(),
+          attendees: JSON.stringify(event.attendees || [])
+        }, {
+          onConflict: 'googleeventid,userid'
+        });
     }
 
     // Group into past and future
@@ -273,11 +307,13 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
     for (const event of events) {
       if (!event.start || !event.start.dateTime) continue;
       // Fetch transcript from DB
-      const transcriptResult = await pool.query(
-        'SELECT transcript FROM meetings WHERE googleeventid = $1 AND userid = $2',
-        [event.id, userId]
-      );
-      const transcript = transcriptResult.rows[0]?.transcript || null;
+      const { data: meetingData } = await supabase
+        .from('meetings')
+        .select('transcript')
+        .eq('googleeventid', event.id)
+        .eq('userid', userId)
+        .single();
+      const transcript = meetingData?.transcript || null;
       const eventStart = new Date(event.start.dateTime);
       const processedEvent = {
         id: event.id,
@@ -313,12 +349,15 @@ app.post('/api/calendar/meetings/:id/transcript', async (req, res) => {
     const meetingId = req.params.id;
     const { transcript } = req.body;
 
-    // Ensure transcript column exists in meetings table
     // Update the transcript for the meeting
-    await pool.query(
-      'UPDATE meetings SET transcript = $1, updatedat = NOW() WHERE googleeventid = $2 AND userid = $3',
-      [transcript, meetingId, userId]
-    );
+    await supabase
+      .from('meetings')
+      .update({
+        transcript: transcript,
+        updatedat: new Date().toISOString()
+      })
+      .eq('googleeventid', meetingId)
+      .eq('userid', userId);
 
     res.json({ success: true, transcript });
   } catch (error) {
@@ -337,10 +376,14 @@ app.delete('/api/calendar/meetings/:id/transcript', async (req, res) => {
     const userId = decoded.id;
     const meetingId = req.params.id;
 
-    await pool.query(
-      'UPDATE meetings SET transcript = NULL, updatedat = NOW() WHERE googleeventid = $1 AND userid = $2',
-      [meetingId, userId]
-    );
+    await supabase
+      .from('meetings')
+      .update({
+        transcript: null,
+        updatedat: new Date().toISOString()
+      })
+      .eq('googleeventid', meetingId)
+      .eq('userid', userId);
 
     res.json({ success: true });
   } catch (error) {

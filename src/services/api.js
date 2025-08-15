@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL;
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL;
 
 class ApiService {
     constructor() {
@@ -16,7 +16,7 @@ class ApiService {
     }
 
     async request(endpoint, options = {}) {
-        const url = `${this.baseUrl}${endpoint}`;
+        const url = `${this.baseUrl}/api${endpoint}`;
         const headers = {
     'Content-Type': 'application/json',
             ...options.headers

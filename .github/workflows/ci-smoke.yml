@@ -1,0 +1,137 @@
+name: CI Smoke Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+    
+    - name: Install frontend dependencies
+      run: npm ci
+    
+    - name: Install backend dependencies
+      run: cd backend && npm ci
+    
+    - name: Build frontend
+      run: npm run build
+      env:
+        REACT_APP_SUPABASE_URL: https://mock.supabase.co
+        REACT_APP_SUPABASE_ANON_KEY: mock-anon-key
+        REACT_APP_API_BASE_URL: http://localhost:8787
+    
+    - name: Create smoke test script
+      run: |
+        cat > scripts/smoke.js << 'EOF'
+        const http = require('http');
+        const { spawn } = require('child_process');
+        
+        // Mock environment variables for backend
+        process.env.SUPABASE_URL = 'https://mock.supabase.co';
+        process.env.SUPABASE_SERVICE_ROLE_KEY = 'mock-service-role-key';
+        process.env.JWT_SECRET = 'mock-jwt-secret-for-testing-only';
+        process.env.OPENAI_API_KEY = 'mock-openai-key';
+        process.env.FRONTEND_URL = 'http://localhost:3000';
+        process.env.NODE_ENV = 'test';
+        process.env.PORT = '8787';
+        
+        console.log('🚀 Starting smoke tests...');
+        
+        // Start backend server
+        const backend = spawn('node', ['backend/src/index.js'], {
+          stdio: 'pipe',
+          env: { ...process.env }
+        });
+        
+        let backendReady = false;
+        
+        backend.stdout.on('data', (data) => {
+          const output = data.toString();
+          console.log('Backend:', output.trim());
+          if (output.includes('Server running on port') || output.includes('listening')) {
+            backendReady = true;
+          }
+        });
+        
+        backend.stderr.on('data', (data) => {
+          console.error('Backend Error:', data.toString());
+        });
+        
+        // Wait for backend to start, then run tests
+        setTimeout(async () => {
+          try {
+            console.log('🔍 Testing health endpoint...');
+            
+            // Test health endpoint
+            const healthResponse = await makeRequest('/api/health');
+            console.log('✅ Health check:', healthResponse);
+            
+            if (!healthResponse.status || healthResponse.status !== 'ok') {
+              throw new Error('Health check failed');
+            }
+            
+            console.log('🎉 All smoke tests passed!');
+            process.exit(0);
+            
+          } catch (error) {
+            console.error('❌ Smoke tests failed:', error.message);
+            process.exit(1);
+          } finally {
+            backend.kill();
+          }
+        }, 3000);
+        
+        function makeRequest(path) {
+          return new Promise((resolve, reject) => {
+            const options = {
+              hostname: 'localhost',
+              port: 8787,
+              path: path,
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            };
+            
+            const req = http.request(options, (res) => {
+              let data = '';
+              res.on('data', (chunk) => data += chunk);
+              res.on('end', () => {
+                try {
+                  resolve(JSON.parse(data));
+                } catch (e) {
+                  resolve(data);
+                }
+              });
+            });
+            
+            req.on('error', reject);
+            req.setTimeout(5000, () => reject(new Error('Request timeout')));
+            req.end();
+          });
+        }
+        EOF
+    
+    - name: Create scripts directory
+      run: mkdir -p scripts
+    
+    - name: Run smoke tests
+      run: node scripts/smoke.js
+      timeout-minutes: 2

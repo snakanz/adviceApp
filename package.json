@@ -8,6 +8,7 @@
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dropdown-menu": "^2.1.15",
     "@radix-ui/react-slot": "^1.2.3",
+    "@supabase/supabase-js": "^2.55.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
@@ -30,8 +31,9 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "dev": "react-scripts start",
-    "backend": "cd backend && wrangler dev",
-    "setup": "chmod +x setup-local-dev.sh && ./setup-local-dev.sh"
+    "backend": "cd backend && npm run dev",
+    "setup": "chmod +x setup-local-dev.sh && ./setup-local-dev.sh",
+    "smoke": "node scripts/smoke.js"
   },
   "eslintConfig": {
     "extends": [

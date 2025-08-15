@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { google } = require('googleapis');
 const jwt = require('jsonwebtoken');
+const { supabase } = require('../lib/supabase');
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -41,33 +42,44 @@ router.get('/google/callback', async (req, res) => {
         const userInfo = await oauth2.userinfo.get();
 
         // Find or create user
-        let user = await prisma.user.findUnique({
-            where: { email: userInfo.data.email }
-        });
+        const { data: existingUser } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', userInfo.data.email)
+            .single();
 
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
+        let user;
+        if (!existingUser) {
+            // Create new user
+            const { data: newUser } = await supabase
+                .from('users')
+                .insert({
                     email: userInfo.data.email,
                     name: userInfo.data.name,
-                    googleId: userInfo.data.id,
-                    googleAccessToken: tokens.access_token,
-                    googleRefreshToken: tokens.refresh_token,
-                    profilePicture: userInfo.data.picture
-                }
-            });
+                    provider: 'google',
+                    providerid: userInfo.data.id,
+                    googleaccesstoken: tokens.access_token,
+                    googlerefreshtoken: tokens.refresh_token,
+                    profilepicture: userInfo.data.picture
+                })
+                .select()
+                .single();
+            user = newUser;
         } else {
             // Update existing user's tokens
-            user = await prisma.user.update({
-                where: { email: userInfo.data.email },
-                data: {
-                    googleAccessToken: tokens.access_token,
-                    googleRefreshToken: tokens.refresh_token || user.googleRefreshToken,
-                    profilePicture: userInfo.data.picture,
+            const { data: updatedUser } = await supabase
+                .from('users')
+                .update({
+                    googleaccesstoken: tokens.access_token,
+                    googlerefreshtoken: tokens.refresh_token || existingUser.googlerefreshtoken,
+                    profilepicture: userInfo.data.picture,
                     name: userInfo.data.name
+                })
+                .eq('email', userInfo.data.email)
+                .select()
+                .single();
+            user = updatedUser;
         }
-      });
-    }
 
         // Generate JWT
         const jwtToken = jwt.sign(
@@ -97,15 +109,11 @@ router.get('/verify', async (req, res) => {
         }
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const user = await prisma.user.findUnique({
-            where: { id: decoded.id },
-            select: {
-                id: true,
-                email: true,
-                name: true,
-                profilePicture: true
-            }
-        });
+        const { data: user } = await supabase
+            .from('users')
+            .select('id, email, name, profilepicture')
+            .eq('id', decoded.id)
+            .single();
 
         if (!user) {
             return res.status(401).json({ error: 'User not found' });

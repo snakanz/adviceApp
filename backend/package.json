@@ -5,29 +5,23 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "seed": "node prisma/seed.js",
-    "build": "CI='' react-scripts build"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@supabase/supabase-js": "^2.55.0",
     "axios": "^1.10.0",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "googleapis": "^150.0.1",
-    "hono": "^4.8.2",
-    "jose": "^5.2.4",
     "jsonwebtoken": "^9.0.2",
-    "openai": "^4.104.0",
-    "pg": "^8.16.3"
+    "openai": "^4.104.0"
   },
   "devDependencies": {
-    "@prisma/client": "^6.10.0",
-    "nodemon": "^3.0.1",
-    "prisma": "^6.10.0"
+    "nodemon": "^3.0.1"
   }
 }
