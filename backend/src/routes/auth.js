@@ -79,8 +79,7 @@ router.get('/google/callback', async (req, res) => {
           email: userInfo.data.email,
           name: userInfo.data.name,
           provider: 'google',
-          providerid: userInfo.data.id,
-          profilepicture: userInfo.data.picture
+          providerid: userInfo.data.id
         })
         .select()
         .single();
@@ -95,7 +94,6 @@ router.get('/google/callback', async (req, res) => {
       const { data: updatedUser, error: updateError } = await getSupabase()
         .from('users')
         .update({
-          profilepicture: userInfo.data.picture,
           name: userInfo.data.name
         })
         .eq('email', userInfo.data.email)
