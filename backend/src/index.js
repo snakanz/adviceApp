@@ -74,112 +74,9 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// Google OAuth URL
-app.get('/api/auth/google', (req, res) => {
-  const scopes = [
-    'https://www.googleapis.com/auth/userinfo.profile',
-    'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/calendar',
-    'https://www.googleapis.com/auth/calendar.events'
-  ];
-  const url = oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    scope: scopes,
-    prompt: 'consent'
-  });
-  res.json({ url });
-});
+// Google OAuth routes moved to /routes/auth.js
 
-// Google OAuth callback
-app.get('/api/auth/google/callback', async (req, res) => {
-  try {
-    const { code } = req.query;
-
-    // Check if Supabase is available
-    if (!isSupabaseAvailable()) {
-      return res.status(503).json({
-        error: 'Database service unavailable. Please configure Supabase environment variables.'
-      });
-    }
-
-    const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
-    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-    const userInfo = await oauth2.userinfo.get();
-    console.log('Google user info:', userInfo.data);
-
-    // Upsert user in Supabase
-    const { email, name, id: googleId } = userInfo.data;
-    let user;
-
-    // Check if user exists
-    const { data: existingUser } = await getSupabase()
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
-
-    if (existingUser) {
-      // Update existing user
-      const { data: updatedUser } = await getSupabase()
-        .from('users')
-        .update({ name, providerid: googleId })
-        .eq('email', email)
-        .select()
-        .single();
-      user = updatedUser;
-    } else {
-      // Create new user
-      const { data: newUser } = await getSupabase()
-        .from('users')
-        .insert({
-          id: googleId,
-          email,
-          name,
-          provider: 'google',
-          providerid: googleId
-        })
-        .select()
-        .single();
-      user = newUser;
-    }
-
-    // Store/update calendar tokens
-    let expiresAt;
-    if (tokens.expiry_date) {
-      expiresAt = new Date(tokens.expiry_date);
-    } else if (tokens.expires_in) {
-      expiresAt = new Date(Date.now() + (tokens.expires_in * 1000));
-    } else {
-      // Fallback: set to 1 hour from now
-      expiresAt = new Date(Date.now() + 3600 * 1000);
-    }
-    // Upsert calendar tokens
-    await getSupabase()
-      .from('calendartoken')
-      .upsert({
-        id: `token_${user.id}`,
-        userid: user.id,
-        accesstoken: tokens.access_token,
-        refreshtoken: tokens.refresh_token || null,
-        expiresat: expiresAt.toISOString(),
-        provider: 'google',
-        updatedat: new Date().toISOString()
-      });
-
-    // Issue JWT
-    const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, process.env.JWT_SECRET, { expiresIn: '24h' });
-    console.log('Issued JWT:', token);
-    // Redirect to frontend with token
-    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}`);
-  } catch (err) {
-    console.error('Google OAuth error:', err);
-    if (err.response) {
-      console.error('Google OAuth error response data:', err.response.data);
-    }
-    res.status(500).json({ error: 'OAuth failed', details: err.response ? err.response.data : err.message });
-  }
-});
+// Google OAuth callback moved to /routes/auth.js
 
 // JWT-protected route example
 app.get('/api/protected', (req, res) => {
@@ -195,17 +92,7 @@ app.get('/api/protected', (req, res) => {
   }
 });
 
-app.get('/api/auth/verify', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    res.json(decoded);
-  } catch (e) {
-    res.status(401).json({ error: 'Invalid token' });
-  }
-});
+// Auth verify endpoint moved to /routes/auth.js
 
 // Reconnect Google endpoint - forces re-authentication
 app.get('/api/auth/reconnect-google', (req, res) => {

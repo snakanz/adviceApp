@@ -16,7 +16,7 @@ const LoginPage = () => {
     }, [isAuthenticated, navigate]);
 
     const handleGoogleLogin = async () => {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/google`);
+        const response = await fetch(`${process.env.REACT_APP_API_BASE_URL}/api/auth/google`);
         const data = await response.json();
         window.location.href = data.url;
     };

@@ -11,7 +11,7 @@ const oauth2Client = new google.auth.OAuth2(
 );
 
 // Get Google OAuth URL
-router.get('/google/url', (req, res) => {
+router.get('/google', (req, res) => {
   const scopes = [
         'https://www.googleapis.com/auth/userinfo.profile',
     'https://www.googleapis.com/auth/userinfo.email',
@@ -61,6 +61,7 @@ router.get('/google/callback', async (req, res) => {
       const { data: newUser } = await getSupabase()
         .from('users')
         .insert({
+          id: userInfo.data.id,
           email: userInfo.data.email,
           name: userInfo.data.name,
           provider: 'google',
@@ -88,11 +89,36 @@ router.get('/google/callback', async (req, res) => {
       user = updatedUser;
     }
 
+    // Store/update calendar tokens
+    let expiresAt;
+    if (tokens.expiry_date) {
+      expiresAt = new Date(tokens.expiry_date);
+    } else if (tokens.expires_in) {
+      expiresAt = new Date(Date.now() + (tokens.expires_in * 1000));
+    } else {
+      // Fallback: set to 1 hour from now
+      expiresAt = new Date(Date.now() + 3600 * 1000);
+    }
+
+    // Upsert calendar tokens
+    await getSupabase()
+      .from('calendartoken')
+      .upsert({
+        id: `token_${user.id}`,
+        userid: user.id,
+        accesstoken: tokens.access_token,
+        refreshtoken: tokens.refresh_token || null,
+        expiresat: expiresAt.toISOString(),
+        provider: 'google',
+        updatedat: new Date().toISOString()
+      });
+
         // Generate JWT
         const jwtToken = jwt.sign(
-            { 
+            {
                 id: user.id,
-                email: user.email
+                email: user.email,
+                name: user.name
             },
             process.env.JWT_SECRET,
             { expiresIn: '24h' }
