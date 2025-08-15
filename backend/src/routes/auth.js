@@ -49,16 +49,30 @@ router.get('/google/callback', async (req, res) => {
     const userInfo = await oauth2.userinfo.get();
 
     // Find or create user
-    const { data: existingUser } = await getSupabase()
+    const { data: existingUser, error: findError } = await getSupabase()
       .from('users')
       .select('*')
       .eq('email', userInfo.data.email)
       .single();
 
+    if (findError && findError.code !== 'PGRST116') {
+      // PGRST116 is "not found" error, which is expected for new users
+      console.error('Error finding user:', findError);
+      throw new Error('Database error while finding user');
+    }
+
     let user;
     if (!existingUser) {
       // Create new user
-      const { data: newUser } = await getSupabase()
+      console.log('Creating new user with data:', {
+        id: userInfo.data.id,
+        email: userInfo.data.email,
+        name: userInfo.data.name,
+        provider: 'google',
+        providerid: userInfo.data.id
+      });
+
+      const { data: newUser, error: createError } = await getSupabase()
         .from('users')
         .insert({
           id: userInfo.data.id,
@@ -72,10 +86,15 @@ router.get('/google/callback', async (req, res) => {
         })
         .select()
         .single();
+
+      if (createError) {
+        console.error('Error creating user:', createError);
+        throw new Error('Database error while creating user');
+      }
       user = newUser;
     } else {
       // Update existing user's tokens
-      const { data: updatedUser } = await getSupabase()
+      const { data: updatedUser, error: updateError } = await getSupabase()
         .from('users')
         .update({
           googleaccesstoken: tokens.access_token,
@@ -86,6 +105,11 @@ router.get('/google/callback', async (req, res) => {
         .eq('email', userInfo.data.email)
         .select()
         .single();
+
+      if (updateError) {
+        console.error('Error updating user:', updateError);
+        throw new Error('Database error while updating user');
+      }
       user = updatedUser;
     }
 
@@ -101,7 +125,7 @@ router.get('/google/callback', async (req, res) => {
     }
 
     // Upsert calendar tokens
-    await getSupabase()
+    const { error: tokenError } = await getSupabase()
       .from('calendartoken')
       .upsert({
         id: `token_${user.id}`,
@@ -112,6 +136,11 @@ router.get('/google/callback', async (req, res) => {
         provider: 'google',
         updatedat: new Date().toISOString()
       });
+
+    if (tokenError) {
+      console.error('Error upserting calendar token:', tokenError);
+      // Don't throw here as this is not critical for login
+    }
 
         // Generate JWT
         const jwtToken = jwt.sign(
