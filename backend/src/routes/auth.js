@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { google } = require('googleapis');
 const jwt = require('jsonwebtoken');
-const { supabase } = require('../lib/supabase');
+const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -33,53 +33,60 @@ router.get('/google/callback', async (req, res) => {
   try {
     const { code } = req.query;
 
-        // Exchange code for tokens
+    // Check if Supabase is available
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    // Exchange code for tokens
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
 
     // Get user info from Google
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-        const userInfo = await oauth2.userinfo.get();
+    const userInfo = await oauth2.userinfo.get();
 
-        // Find or create user
-        const { data: existingUser } = await supabase
-            .from('users')
-            .select('*')
-            .eq('email', userInfo.data.email)
-            .single();
+    // Find or create user
+    const { data: existingUser } = await getSupabase()
+      .from('users')
+      .select('*')
+      .eq('email', userInfo.data.email)
+      .single();
 
-        let user;
-        if (!existingUser) {
-            // Create new user
-            const { data: newUser } = await supabase
-                .from('users')
-                .insert({
-                    email: userInfo.data.email,
-                    name: userInfo.data.name,
-                    provider: 'google',
-                    providerid: userInfo.data.id,
-                    googleaccesstoken: tokens.access_token,
-                    googlerefreshtoken: tokens.refresh_token,
-                    profilepicture: userInfo.data.picture
-                })
-                .select()
-                .single();
-            user = newUser;
-        } else {
-            // Update existing user's tokens
-            const { data: updatedUser } = await supabase
-                .from('users')
-                .update({
-                    googleaccesstoken: tokens.access_token,
-                    googlerefreshtoken: tokens.refresh_token || existingUser.googlerefreshtoken,
-                    profilepicture: userInfo.data.picture,
-                    name: userInfo.data.name
-                })
-                .eq('email', userInfo.data.email)
-                .select()
-                .single();
-            user = updatedUser;
-        }
+    let user;
+    if (!existingUser) {
+      // Create new user
+      const { data: newUser } = await getSupabase()
+        .from('users')
+        .insert({
+          email: userInfo.data.email,
+          name: userInfo.data.name,
+          provider: 'google',
+          providerid: userInfo.data.id,
+          googleaccesstoken: tokens.access_token,
+          googlerefreshtoken: tokens.refresh_token,
+          profilepicture: userInfo.data.picture
+        })
+        .select()
+        .single();
+      user = newUser;
+    } else {
+      // Update existing user's tokens
+      const { data: updatedUser } = await getSupabase()
+        .from('users')
+        .update({
+          googleaccesstoken: tokens.access_token,
+          googlerefreshtoken: tokens.refresh_token || existingUser.googlerefreshtoken,
+          profilepicture: userInfo.data.picture,
+          name: userInfo.data.name
+        })
+        .eq('email', userInfo.data.email)
+        .select()
+        .single();
+      user = updatedUser;
+    }
 
         // Generate JWT
         const jwtToken = jwt.sign(
@@ -103,13 +110,20 @@ router.get('/google/callback', async (req, res) => {
 router.get('/verify', async (req, res) => {
     try {
         const token = req.headers.authorization?.split(' ')[1];
-        
+
         if (!token) {
             return res.status(401).json({ error: 'No token provided' });
         }
 
+        // Check if Supabase is available
+        if (!isSupabaseAvailable()) {
+            return res.status(503).json({
+                error: 'Database service unavailable. Please contact support.'
+            });
+        }
+
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const { data: user } = await supabase
+        const { data: user } = await getSupabase()
             .from('users')
             .select('id, email, name, profilepicture')
             .eq('id', decoded.id)
@@ -120,10 +134,10 @@ router.get('/verify', async (req, res) => {
         }
 
         res.json(user);
-  } catch (error) {
+    } catch (error) {
         console.error('Token verification error:', error);
         res.status(401).json({ error: 'Invalid token' });
-  }
+    }
 });
 
 module.exports = router; 

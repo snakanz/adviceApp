@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { google } = require('googleapis');
-const { supabase } = require('./lib/supabase');
+const { supabase, isSupabaseAvailable } = require('./lib/supabase');
 const clientsRouter = require('./routes/clients');
 const pipelineRouter = require('./routes/pipeline');
 const routes = require('./routes');
@@ -27,25 +27,46 @@ const oauth2Client = new google.auth.OAuth2(
 // Health check with database connectivity
 app.get('/api/health', async (req, res) => {
   try {
-    // Test Supabase connection with a simple query
-    const { data, error } = await supabase
-      .from('users')
-      .select('count')
-      .limit(1);
+    let dbStatus = false;
+    let dbError = null;
 
-    const dbStatus = error ? false : true;
+    if (isSupabaseAvailable()) {
+      try {
+        // Test Supabase connection with a simple query
+        const { data, error } = await supabase
+          .from('users')
+          .select('count')
+          .limit(1);
 
-    res.json({
+        dbStatus = !error;
+        if (error) {
+          dbError = error.message;
+        }
+      } catch (error) {
+        dbStatus = false;
+        dbError = error.message;
+      }
+    } else {
+      dbError = 'Supabase not configured';
+    }
+
+    const response = {
       status: 'ok',
-      db: dbStatus,
+      db: dbStatus ? 'connected' : 'disconnected',
       version: process.env.npm_package_version || '1.0.0',
       timestamp: new Date().toISOString()
-    });
+    };
+
+    if (dbError) {
+      response.dbError = dbError;
+    }
+
+    res.json(response);
   } catch (error) {
     console.error('Health check failed:', error);
     res.status(500).json({
       status: 'error',
-      db: false,
+      db: 'disconnected',
       version: process.env.npm_package_version || '1.0.0',
       error: error.message,
       timestamp: new Date().toISOString()
