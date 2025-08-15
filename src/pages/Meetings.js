@@ -418,66 +418,71 @@ export default function Meetings() {
   }
 
   return (
-    <div className="h-full flex flex-col bg-background">
-      {/* Header */}
-      <div className="border-b border-border/50 p-6 bg-card/50">
-        <h1 className="text-2xl font-bold text-foreground mb-4">Meetings</h1>
-        
-        {/* Search Bar */}
-        <div className="relative mb-4">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <svg className="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
+    <div className="h-full flex bg-background">
+      {/* Left Panel - Meetings List */}
+      <div className={cn(
+        "flex flex-col bg-background border-r border-border/50 transition-all duration-300",
+        selectedMeeting ? "w-1/2" : "w-full"
+      )}>
+        {/* Header */}
+        <div className="border-b border-border/50 p-6 bg-card/50">
+          <h1 className="text-2xl font-bold text-foreground mb-4">Meetings</h1>
+
+          {/* Search Bar */}
+          <div className="relative mb-4">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              placeholder="Search"
+              className="w-full pl-10 pr-4 py-2 border border-border/50 rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30"
+            />
           </div>
-          <input
-            type="text"
-            placeholder="Search"
-            className="w-full pl-10 pr-4 py-2 border border-border/50 rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30"
-          />
+
+          {/* Segmented Control */}
+          <div className="flex bg-muted/30 rounded-lg p-1">
+            <button
+              onClick={() => setMeetingView('past')}
+              className={cn(
+                "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
+                meetingView === 'past'
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Past
+            </button>
+            <button
+              onClick={() => setMeetingView('today')}
+              className={cn(
+                "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
+                meetingView === 'today'
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Today
+            </button>
+            <button
+              onClick={() => setMeetingView('upcoming')}
+              className={cn(
+                "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
+                meetingView === 'upcoming'
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Upcoming
+            </button>
+          </div>
         </div>
 
-        {/* Segmented Control */}
-        <div className="flex bg-muted/30 rounded-lg p-1">
-          <button
-            onClick={() => setMeetingView('past')}
-            className={cn(
-              "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
-              meetingView === 'past' 
-                ? "bg-background text-foreground shadow-sm" 
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Past
-          </button>
-          <button
-            onClick={() => setMeetingView('today')}
-            className={cn(
-              "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
-              meetingView === 'today' 
-                ? "bg-background text-foreground shadow-sm" 
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Today
-          </button>
-          <button
-            onClick={() => setMeetingView('upcoming')}
-            className={cn(
-              "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
-              meetingView === 'upcoming' 
-                ? "bg-background text-foreground shadow-sm" 
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Upcoming
-          </button>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-6">
+        {/* Meetings List */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-6">
           {meetingView === 'past' && (
             <div className="space-y-6">
               {meetings.past.length === 0 ? (
@@ -529,92 +534,106 @@ export default function Meetings() {
               )}
             </div>
           )}
+          </div>
         </div>
       </div>
 
-      {/* Meeting Detail Panel */}
+      {/* Right Panel - Meeting Details */}
       {selectedMeeting && (
-        <div className="fixed inset-y-0 right-0 w-96 bg-card border-l border-border/50 shadow-xl">
+        <div className="w-1/2 bg-card border-l border-border/50 flex flex-col">
           {/* Header */}
-          <div className="border-b border-border/50 p-6 bg-card/50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  {getMeetingSource(selectedMeeting) === 'google' ? 
-                    <GoogleIcon className="w-5 h-5" /> : 
-                    <OutlookIcon className="w-5 h-5" />
+          <div className="border-b border-border/50 p-4 bg-card/50">
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2">
+                  {getMeetingSource(selectedMeeting) === 'google' ?
+                    <GoogleIcon className="w-4 h-4" /> :
+                    <OutlookIcon className="w-4 h-4" />
                   }
-                  <h1 className="text-xl font-bold text-foreground">
+                  <h1 className="text-lg font-bold text-foreground truncate">
                     {selectedMeeting.summary || selectedMeeting.title || 'Untitled Meeting'}
                   </h1>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="w-4 h-4" />
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Calendar className="w-3 h-3" />
                   <span>{formatDate(selectedMeeting.start?.dateTime || selectedMeeting.startTime)}</span>
                   <span>•</span>
-                  <Clock className="w-4 h-4" />
+                  <Clock className="w-3 h-3" />
                   <span>
                     {formatMeetingTime(selectedMeeting)}
                   </span>
                 </div>
               </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedMeetingId(null)}
+                className="ml-2 h-8 w-8 p-0"
+              >
+                ×
+              </Button>
             </div>
           </div>
 
           {/* Meeting Content */}
           <div className="flex-1 overflow-y-auto">
-            <div className="p-6">
+            <div className="p-4">
               {/* Tabs */}
-              <div className="flex gap-4 justify-between mb-8">
+              <div className="flex border-b border-border/50 mb-4">
                 <button
                   className={cn(
-                    "tab-btn",
-                    activeTab === 'summary' && "active"
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                    activeTab === 'summary'
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
                   )}
                   onClick={() => setActiveTab('summary')}
                 >
-                  <MessageSquare className="w-4 h-4 inline mr-2" />
+                  <MessageSquare className="w-4 h-4" />
                   Summary
                 </button>
                 <button
                   className={cn(
-                    "tab-btn",
-                    activeTab === 'transcript' && "active"
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                    activeTab === 'transcript'
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
                   )}
                   onClick={() => setActiveTab('transcript')}
                 >
-                  <FileText className="w-4 h-4 inline mr-2" />
+                  <FileText className="w-4 h-4" />
                   Transcript
                 </button>
               </div>
 
               {/* Content */}
-              <div className="space-y-6">
+              <div className="space-y-4">
                 {activeTab === 'summary' && (
-                  <div className="space-y-6">
+                  <div className="space-y-4">
                     {/* Summary Actions */}
                     <div className="flex items-center justify-between">
-                      <h2 className="text-xl font-semibold text-foreground">AI Summary</h2>
+                      <h2 className="text-lg font-semibold text-foreground">AI Summary</h2>
                       {selectedMeeting?.transcript && (
                         <Button
                           onClick={handleGenerateAISummary}
                           disabled={generatingSummary}
+                          size="sm"
                           className="flex items-center gap-2"
                         >
-                          <Sparkles className="w-4 h-4" />
-                          {generatingSummary ? 'Generating...' : 'Generate Summary'}
+                          <Sparkles className="w-3 h-3" />
+                          {generatingSummary ? 'Generating...' : 'Generate'}
                         </Button>
                       )}
                     </div>
 
                     {/* Template Selection */}
                     {templates.length > 0 && (
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-medium text-foreground">Template</h3>
+                          <h3 className="text-xs font-medium text-muted-foreground">Template</h3>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="outline" size="sm" className="h-8">
+                              <Button variant="outline" size="sm" className="h-7 text-xs">
                                 {selectedTemplate ? selectedTemplate.name : 'Select Template'}
                                 <ChevronDown className="w-3 h-3 ml-1" />
                               </Button>
@@ -631,7 +650,7 @@ export default function Meetings() {
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
-                        
+
                         {/* Apply Button - only show when template changed */}
                         {selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && (
                           <Button
@@ -674,25 +693,27 @@ export default function Meetings() {
                 )}
 
                 {activeTab === 'transcript' && (
-                  <div className="space-y-6">
+                  <div className="space-y-4">
                     {/* Transcript Actions */}
                     <div className="flex items-center justify-between">
-                      <h2 className="text-xl font-semibold text-foreground">Transcript</h2>
-                      <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-semibold text-foreground">Transcript</h2>
+                      <div className="flex items-center gap-1">
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => setShowPasteTranscript(!showPasteTranscript)}
+                          className="h-7 px-2 text-xs"
                         >
-                          <Edit3 className="w-4 h-4 mr-2" />
+                          <Edit3 className="w-3 h-3 mr-1" />
                           Paste
                         </Button>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => document.getElementById('fileInput')?.click()}
+                          className="h-7 px-2 text-xs"
                         >
-                          <Upload className="w-4 h-4 mr-2" />
+                          <Upload className="w-3 h-3 mr-1" />
                           Upload
                         </Button>
                       </div>
@@ -709,20 +730,21 @@ export default function Meetings() {
 
                     {/* Paste Transcript */}
                     {showPasteTranscript && (
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         <textarea
                           value={transcriptUpload}
                           onChange={(e) => setTranscriptUpload(e.target.value)}
                           placeholder="Paste your transcript here..."
-                          className="w-full h-32 p-3 border border-border/50 rounded-lg bg-background text-foreground placeholder-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30"
+                          className="w-full h-24 p-2 text-sm border border-border/50 rounded-lg bg-background text-foreground placeholder-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30"
                         />
                         <div className="flex gap-2">
                           <Button
                             onClick={handleTranscriptUpload}
                             disabled={!transcriptUpload.trim() || uploadingTranscript}
                             size="sm"
+                            className="h-7 px-3 text-xs"
                           >
-                            {uploadingTranscript ? 'Uploading...' : 'Upload Transcript'}
+                            {uploadingTranscript ? 'Uploading...' : 'Upload'}
                           </Button>
                           <Button
                             variant="outline"
@@ -731,6 +753,7 @@ export default function Meetings() {
                               setShowPasteTranscript(false);
                               setTranscriptUpload('');
                             }}
+                            className="h-7 px-3 text-xs"
                           >
                             Cancel
                           </Button>
@@ -775,6 +798,7 @@ export default function Meetings() {
           </div>
         </div>
       )}
+    </div>
 
       {/* AI Adjustment Dialog */}
       <AIAdjustmentDialog
