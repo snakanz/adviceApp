@@ -80,8 +80,6 @@ router.get('/google/callback', async (req, res) => {
           name: userInfo.data.name,
           provider: 'google',
           providerid: userInfo.data.id,
-          googleaccesstoken: tokens.access_token,
-          googlerefreshtoken: tokens.refresh_token,
           profilepicture: userInfo.data.picture
         })
         .select()
@@ -93,12 +91,10 @@ router.get('/google/callback', async (req, res) => {
       }
       user = newUser;
     } else {
-      // Update existing user's tokens
+      // Update existing user's profile
       const { data: updatedUser, error: updateError } = await getSupabase()
         .from('users')
         .update({
-          googleaccesstoken: tokens.access_token,
-          googlerefreshtoken: tokens.refresh_token || existingUser.googlerefreshtoken,
           profilepicture: userInfo.data.picture,
           name: userInfo.data.name
         })
