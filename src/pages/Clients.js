@@ -224,7 +224,7 @@ export default function Clients() {
                         {client.name || 'Unnamed Client'}
                       </h4>
                       <p className="text-sm text-muted-foreground truncate">
-                        {client.email}
+                        {client.email && client.email.includes('@') ? client.email : 'No email address'}
                       </p>
                     </div>
                   </div>
@@ -251,11 +251,11 @@ export default function Clients() {
                   <h1 className="text-2xl font-bold text-foreground mb-1">
                     {selectedClient.name || 'Unnamed Client'}
                   </h1>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Mail className="w-4 h-4" />
-                      <span>{selectedClient.email}</span>
-                    </div>
+                                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Mail className="w-4 h-4" />
+                        <span>{selectedClient.email && selectedClient.email.includes('@') ? selectedClient.email : 'No email address'}</span>
+                      </div>
                     {selectedClient.meetings && (
                       <div className="flex items-center gap-1">
                         <Calendar className="w-4 h-4" />
@@ -424,11 +424,15 @@ export default function Clients() {
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2 text-lg">
                           <TrendingUp className="w-5 h-5 text-primary" />
-                          Business Expected
+                          Business Type
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-muted-foreground">Coming soon...</p>
+                        {selectedClient.business_type ? (
+                          <p className="text-2xl font-bold text-foreground">{selectedClient.business_type}</p>
+                        ) : (
+                          <p className="text-muted-foreground">Not specified</p>
+                        )}
                       </CardContent>
                     </Card>
                     
@@ -440,7 +444,11 @@ export default function Clients() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-muted-foreground">Coming soon...</p>
+                        {selectedClient.likely_value ? (
+                          <p className="text-2xl font-bold text-foreground">£{parseFloat(selectedClient.likely_value).toLocaleString()}</p>
+                        ) : (
+                          <p className="text-muted-foreground">Not specified</p>
+                        )}
                       </CardContent>
                     </Card>
                     
@@ -452,7 +460,16 @@ export default function Clients() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <p className="text-muted-foreground">Coming soon...</p>
+                        {selectedClient.likely_close_month ? (
+                          <p className="text-2xl font-bold text-foreground">
+                            {new Date(selectedClient.likely_close_month + '-01').toLocaleDateString('en-GB', { 
+                              month: 'long', 
+                              year: 'numeric' 
+                            })}
+                          </p>
+                        ) : (
+                          <p className="text-muted-foreground">Not specified</p>
+                        )}
                       </CardContent>
                     </Card>
                   </div>

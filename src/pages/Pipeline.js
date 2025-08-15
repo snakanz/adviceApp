@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { cn } from '../lib/utils';
 import { 
   ChevronLeft, 
   ChevronRight, 
   ArrowRight, 
   TrendingUp, 
   DollarSign,
-  Repeat,
-  Users
+  Users,
+  Calendar
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -24,12 +23,22 @@ export default function Pipeline() {
     async function fetchPipelineData() {
       setLoading(true);
       try {
-        const response = await fetch('/api/pipeline');
+        const token = localStorage.getItem('jwt');
+        const response = await fetch('https://adviceapp-9rgw.onrender.com/api/pipeline', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         if (!response.ok) {
           throw new Error('Failed to fetch pipeline data');
         }
         const data = await response.json();
         setPipelineData(data);
+        
+        // Set current month to the most recent month with data
+        if (data.months && data.months.length > 0) {
+          setCurrentMonthIndex(data.months.length - 1);
+        }
       } catch (err) {
         setError(err.message);
         setPipelineData(null);
@@ -47,6 +56,25 @@ export default function Pipeline() {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not specified';
+    try {
+      // Handle both YYYY-MM and full date formats
+      const date = dateString.includes('-01') ? 
+        new Date(dateString) : 
+        new Date(dateString + '-01');
+      
+      if (isNaN(date.getTime())) return 'Invalid Date';
+      
+      return date.toLocaleDateString('en-GB', { 
+        month: 'long', 
+        year: 'numeric' 
+      });
+    } catch (error) {
+      return 'Invalid Date';
+    }
   };
 
   if (loading) {
@@ -76,7 +104,7 @@ export default function Pipeline() {
     );
   }
 
-  if (!pipelineData) {
+  if (!pipelineData || !pipelineData.months || pipelineData.months.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Card className="w-full max-w-md border-border/50">
@@ -91,10 +119,12 @@ export default function Pipeline() {
   }
 
   const currentMonth = pipelineData.months[currentMonthIndex];
-  const currentKpis = pipelineData.kpis[currentMonthIndex];
-  const currentClients = pipelineData.clients.filter(client => 
-    client.monthIndex === currentMonthIndex
-  );
+  const currentClients = currentMonth?.clients || [];
+
+  // Calculate month-specific KPIs
+  const monthValue = currentMonth?.totalValue || 0;
+  const monthClientCount = currentMonth?.clientCount || 0;
+  const monthAverageValue = monthClientCount > 0 ? monthValue / monthClientCount : 0;
 
   return (
     <div className="h-full flex flex-col bg-background">
@@ -111,9 +141,14 @@ export default function Pipeline() {
             >
               <ChevronLeft className="w-4 h-4" />
             </Button>
-            <h2 className="text-xl font-semibold text-foreground min-w-32 text-center">
-              {currentMonth}
-            </h2>
+            <div className="text-center">
+              <h2 className="text-xl font-semibold text-foreground min-w-32">
+                {currentMonth?.month || 'No Data'}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {pipelineData.months.length} month{pipelineData.months.length !== 1 ? 's' : ''} total
+              </p>
+            </div>
             <Button
               variant="outline"
               size="icon"
@@ -126,7 +161,7 @@ export default function Pipeline() {
         </div>
       </div>
 
-      {/* KPI Cards */}
+      {/* Month-specific KPI Cards */}
       <div className="p-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card className="border-border/50">
@@ -135,10 +170,30 @@ export default function Pipeline() {
                 <div className="p-2 bg-primary/10 rounded-lg">
                   <DollarSign className="w-5 h-5 text-primary" />
                 </div>
-                <h3 className="text-sm font-medium text-muted-foreground">Expected FUM</h3>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground">Month Value</h3>
+                  <p className="text-xs text-muted-foreground">Total: {formatCurrency(pipelineData.totalValue)}</p>
+                </div>
               </div>
               <p className="text-3xl font-bold text-foreground">
-                {formatCurrency(currentKpis.expectedFUM)}
+                {formatCurrency(monthValue)}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/50">
+            <CardContent className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Users className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground">Month Clients</h3>
+                  <p className="text-xs text-muted-foreground">Total: {pipelineData.totalClients}</p>
+                </div>
+              </div>
+              <p className="text-3xl font-bold text-foreground">
+                {monthClientCount}
               </p>
             </CardContent>
           </Card>
@@ -149,27 +204,37 @@ export default function Pipeline() {
                 <div className="p-2 bg-primary/10 rounded-lg">
                   <TrendingUp className="w-5 h-5 text-primary" />
                 </div>
-                <h3 className="text-sm font-medium text-muted-foreground">Expected IAF</h3>
-              </div>
-              <p className="text-3xl font-bold text-foreground">
-                {formatCurrency(currentKpis.expectedIAF)}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-border/50">
-            <CardContent className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-primary/10 rounded-lg">
-                  <Repeat className="w-5 h-5 text-primary" />
+                <div>
+                  <h3 className="text-sm font-medium text-muted-foreground">Month Average</h3>
+                  <p className="text-xs text-muted-foreground">Overall: {formatCurrency(pipelineData.averageValue)}</p>
                 </div>
-                <h3 className="text-sm font-medium text-muted-foreground">Expected Recurring Revenue</h3>
               </div>
               <p className="text-3xl font-bold text-foreground">
-                {formatCurrency(currentKpis.expectedRecurringRevenue)}
+                {formatCurrency(monthAverageValue)}
               </p>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Month Navigation Pills */}
+        <div className="mb-6">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2">
+            {pipelineData.months.map((month, index) => (
+              <Button
+                key={month.monthKey}
+                variant={index === currentMonthIndex ? "default" : "outline"}
+                size="sm"
+                onClick={() => setCurrentMonthIndex(index)}
+                className="whitespace-nowrap"
+              >
+                <Calendar className="w-4 h-4 mr-2" />
+                {month.month}
+                <span className="ml-2 text-xs opacity-75">
+                  ({month.clientCount})
+                </span>
+              </Button>
+            ))}
+          </div>
         </div>
 
         {/* Clients Table */}
@@ -177,7 +242,7 @@ export default function Pipeline() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="w-5 h-5 text-primary" />
-              Pipeline Clients
+              Pipeline Clients - {currentMonth?.month}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -185,7 +250,7 @@ export default function Pipeline() {
               <div className="p-12 text-center">
                 <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-foreground mb-2">No clients in pipeline</h3>
-                <p className="text-muted-foreground">No clients in pipeline for {currentMonth}</p>
+                <p className="text-muted-foreground">No clients in pipeline for {currentMonth?.month || 'this month'}</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -193,11 +258,11 @@ export default function Pipeline() {
                   <thead>
                     <tr className="border-b border-border/50">
                       <th className="text-left p-4 font-semibold text-foreground">Client</th>
-                      <th className="text-left p-4 font-semibold text-foreground">Stage</th>
-                      <th className="text-left p-4 font-semibold text-foreground">Expected FUM</th>
-                      <th className="text-left p-4 font-semibold text-foreground">IAF</th>
-                      <th className="text-left p-4 font-semibold text-foreground">Waiting On</th>
-                      <th className="text-left p-4 font-semibold text-foreground">Notes</th>
+                      <th className="text-left p-4 font-semibold text-foreground">Business Type</th>
+                      <th className="text-left p-4 font-semibold text-foreground">Value</th>
+                      <th className="text-left p-4 font-semibold text-foreground">Close Month</th>
+                      <th className="text-left p-4 font-semibold text-foreground">Meetings</th>
+                      <th className="text-left p-4 font-semibold text-foreground">Email</th>
                       <th className="text-left p-4 font-semibold text-foreground">Next Meeting</th>
                       <th className="text-left p-4 font-semibold text-foreground"></th>
                     </tr>
@@ -212,41 +277,33 @@ export default function Pipeline() {
                           <p className="font-semibold text-foreground">{client.name}</p>
                         </td>
                         <td className="p-4">
-                          <div className="flex items-center gap-2">
-                            <div className={cn(
-                              "w-3 h-3 rounded-full",
-                              client.stage === 'Prospect' && "bg-yellow-500",
-                              client.stage === 'Qualified' && "bg-blue-500",
-                              client.stage === 'Proposal' && "bg-purple-500",
-                              client.stage === 'Negotiation' && "bg-orange-500",
-                              client.stage === 'Closed' && "bg-green-500"
-                            )} />
-                            <span className="text-sm text-muted-foreground">{client.stage}</span>
-                          </div>
+                          <span className="text-sm text-muted-foreground">
+                            {client.business_type || 'Not specified'}
+                          </span>
                         </td>
                         <td className="p-4">
                           <p className="font-semibold text-foreground">
-                            {formatCurrency(client.expectedFUM)}
-                          </p>
-                        </td>
-                        <td className="p-4">
-                          <p className="text-muted-foreground">
-                            {formatCurrency(client.iaf)}
+                            {client.likely_value ? formatCurrency(client.likely_value) : 'Not specified'}
                           </p>
                         </td>
                         <td className="p-4">
                           <p className="text-sm text-muted-foreground">
-                            {client.waitingOn}
+                            {formatDate(client.likely_close_month)}
                           </p>
                         </td>
                         <td className="p-4">
                           <p className="text-sm text-muted-foreground">
-                            {client.notes}
+                            {client.meeting_count} meetings
                           </p>
                         </td>
                         <td className="p-4">
                           <p className="text-sm text-muted-foreground">
-                            {client.nextMeeting}
+                            {client.email}
+                          </p>
+                        </td>
+                        <td className="p-4">
+                          <p className="text-sm text-muted-foreground">
+                            -
                           </p>
                         </td>
                         <td className="p-4">

@@ -5,6 +5,7 @@ const jwt = require('jsonwebtoken');
 const { google } = require('googleapis');
 const { supabase } = require('./lib/supabase');
 const clientsRouter = require('./routes/clients');
+const pipelineRouter = require('./routes/pipeline');
 const routes = require('./routes');
 
 const app = express();
@@ -398,6 +399,7 @@ app.post('/api/meetings/:meetingId/summary', async (req, res) => {
 });
 
 app.use('/api/clients', clientsRouter);
+app.use('/api/pipeline', pipelineRouter);
 app.use('/api', routes);
 
 const port = process.env.PORT || 8787;
