@@ -33,27 +33,6 @@ export default function EnhancedAskAdvicly({ clientId, clientName, className = "
   const [editingTitle, setEditingTitle] = useState('');
   const feedRef = useRef(null);
 
-  // Load threads on component mount
-  useEffect(() => {
-    loadThreads();
-  }, [loadThreads]);
-
-  // Load messages when active thread changes
-  useEffect(() => {
-    if (activeThreadId) {
-      loadMessages(activeThreadId);
-    } else {
-      setMessages([]);
-    }
-  }, [activeThreadId]);
-
-  // Auto-scroll to bottom when messages change
-  useEffect(() => {
-    if (feedRef.current) {
-      feedRef.current.scrollTop = feedRef.current.scrollHeight;
-    }
-  }, [messages]);
-
   const loadThreads = useCallback(async () => {
     try {
       setLoadingThreads(true);
@@ -78,6 +57,27 @@ export default function EnhancedAskAdvicly({ clientId, clientName, className = "
       setLoadingThreads(false);
     }
   }, [clientId, clientName]);
+
+  // Load threads on component mount
+  useEffect(() => {
+    loadThreads();
+  }, [loadThreads]);
+
+  // Load messages when active thread changes
+  useEffect(() => {
+    if (activeThreadId) {
+      loadMessages(activeThreadId);
+    } else {
+      setMessages([]);
+    }
+  }, [activeThreadId]);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (feedRef.current) {
+      feedRef.current.scrollTop = feedRef.current.scrollHeight;
+    }
+  }, [messages]);
 
   const loadMessages = async (threadId) => {
     try {
