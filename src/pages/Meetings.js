@@ -75,7 +75,7 @@ export default function Meetings() {
   const [summaryContent, setSummaryContent] = useState(null);
   const [activeTab, setActiveTab] = useState('summary');
   const { isAuthenticated } = useAuth();
-  const [meetingView, setMeetingView] = useState('today');
+  const [meetingView, setMeetingView] = useState('past');
   
   const selectedMeetingIdRef = useRef(null);
   selectedMeetingIdRef.current = selectedMeetingId;
@@ -97,7 +97,7 @@ export default function Meetings() {
   const [autoGenerating, setAutoGenerating] = useState(false);
 
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
-  
+
   const selectedMeeting = React.useMemo(() => {
     return (
       meetings.past.find(m => m.id === selectedMeetingId) ||
@@ -105,6 +105,28 @@ export default function Meetings() {
       null
     );
   }, [meetings, selectedMeetingId]);
+
+  // Helper function to check if meeting is complete (has all three: transcript, quick summary, email summary)
+  const isMeetingComplete = (meeting) => {
+    return !!(meeting?.transcript &&
+              meeting?.quickSummary &&
+              meeting?.emailSummary);
+  };
+
+  // Helper function to truncate quick summary to one sentence (~180 chars)
+  const truncateQuickSummary = (summary) => {
+    if (!summary) return '';
+
+    // First, try to find the first sentence ending
+    const firstSentence = summary.match(/^[^.!?]*[.!?]/);
+    if (firstSentence && firstSentence[0].length <= 180) {
+      return firstSentence[0].trim();
+    }
+
+    // If no sentence ending or too long, truncate at 180 chars
+    if (summary.length <= 180) return summary.trim();
+    return summary.substring(0, 177).trim() + '...';
+  };
 
   // Load templates on component mount
   useEffect(() => {
@@ -155,9 +177,14 @@ export default function Meetings() {
       }
       setMeetings(meetingsData);
       if (selectedMeetingIdRef.current === null) {
+        // Always prioritize past meetings and select the most recent one
         if (meetingsData.past.length > 0) {
-          setSelectedMeetingId(meetingsData.past[0].id);
-          setSummaryContent(meetingsData.past[0].meetingSummary);
+          // Sort past meetings by start time descending to get most recent first
+          const sortedPast = [...meetingsData.past].sort((a, b) =>
+            new Date(b.start?.dateTime || b.startTime) - new Date(a.start?.dateTime || a.startTime)
+          );
+          setSelectedMeetingId(sortedPast[0].id);
+          setSummaryContent(sortedPast[0].meetingSummary);
         } else if (meetingsData.future.length > 0) {
           setSelectedMeetingId(meetingsData.future[0].id);
           setSummaryContent(meetingsData.future[0].meetingSummary);
@@ -495,22 +522,41 @@ export default function Meetings() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {getMeetingSource(meeting) === 'google' ? 
-                  <GoogleIcon className="w-5 h-5" /> : 
+                {getMeetingSource(meeting) === 'google' ?
+                  <GoogleIcon className="w-5 h-5" /> :
                   <OutlookIcon className="w-5 h-5" />
                 }
+                {/* Completion indicator - light blue dot */}
+                {isMeetingComplete(meeting) && (
+                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                )}
                 <h3 className="text-lg font-medium text-foreground">
                   {meeting.summary || meeting.title || 'Untitled Meeting'}
                 </h3>
               </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calendar className="w-4 h-4" />
-                <span>{formatDate(meeting.start?.dateTime || meeting.startTime)}</span>
-                <span>•</span>
-                <Clock className="w-4 h-4" />
-                <span>
-                  {formatMeetingTime(meeting)}
-                </span>
+              <div className="flex items-center gap-3">
+                {/* Ask Advicly button */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent meeting selection
+                    // TODO: Navigate to Ask Advicly with client context
+                    console.log('Ask Advicly clicked for meeting:', meeting.id);
+                  }}
+                  className="h-8 px-2 text-xs"
+                >
+                  Ask Advicly
+                </Button>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Calendar className="w-4 h-4" />
+                  <span>{formatDate(meeting.start?.dateTime || meeting.startTime)}</span>
+                  <span>•</span>
+                  <Clock className="w-4 h-4" />
+                  <span>
+                    {formatMeetingTime(meeting)}
+                  </span>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -664,6 +710,10 @@ export default function Meetings() {
                     <GoogleIcon className="w-4 h-4" /> :
                     <OutlookIcon className="w-4 h-4" />
                   }
+                  {/* Completion indicator */}
+                  {isMeetingComplete(selectedMeeting) && (
+                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                  )}
                   <h1 className="text-lg font-bold text-foreground truncate">
                     {selectedMeeting.summary || selectedMeeting.title || 'Untitled Meeting'}
                   </h1>
@@ -678,14 +728,28 @@ export default function Meetings() {
                   </span>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedMeetingId(null)}
-                className="ml-2 h-8 w-8 p-0"
-              >
-                ×
-              </Button>
+              <div className="flex items-center gap-2">
+                {/* Ask Advicly button */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    // TODO: Navigate to Ask Advicly with client context
+                    console.log('Ask Advicly clicked for meeting:', selectedMeeting.id);
+                  }}
+                  className="h-8 px-3 text-xs"
+                >
+                  Ask Advicly
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedMeetingId(null)}
+                  className="ml-2 h-8 w-8 p-0"
+                >
+                  ×
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -747,7 +811,7 @@ export default function Meetings() {
                             <Card className="border-border/50">
                               <CardContent className="p-3">
                                 <div className="text-sm text-foreground whitespace-pre-line">
-                                  {quickSummary}
+                                  {truncateQuickSummary(quickSummary)}
                                 </div>
                               </CardContent>
                             </Card>
