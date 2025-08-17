@@ -97,14 +97,7 @@ export default function Clients() {
 
   const selectedClient = filteredClients[selectedClientIndex] || filteredClients[0];
 
-  useEffect(() => {
-    // When selectedClient changes, update summary
-    if (selectedClient && selectedClient.ai_summary) {
-      setClientAISummary(selectedClient.ai_summary);
-    } else {
-      setClientAISummary('');
-    }
-  }, [selectedClient]);
+
 
   const getUserInitials = (name) => {
     if (!name) return 'C';
