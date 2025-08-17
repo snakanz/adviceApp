@@ -3,7 +3,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
-import ClientChat from '../components/ClientChat';
+
 import EnhancedAskAdvicly from '../components/EnhancedAskAdvicly';
 import { ClientSkeleton } from '../components/ui/skeleton';
 import { useDebounce } from '../hooks/useDebounce';
@@ -95,14 +95,7 @@ export default function Clients() {
     }
   }, [searchParams, clients]);
 
-  // Get initial message for chat based on URL parameters
-  const getInitialChatMessage = () => {
-    const meetingParam = searchParams.get('meeting');
-    if (meetingParam) {
-      return `Tell me about the "${meetingParam}" meeting with ${selectedClient?.name || 'this client'}.`;
-    }
-    return '';
-  };
+
 
   const filteredClients = clients
     .filter(c => (`${c.name || c.email || ''}`).toLowerCase().includes(debouncedSearch.toLowerCase())); // Show all clients

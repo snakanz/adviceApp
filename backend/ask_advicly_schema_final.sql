@@ -1,5 +1,5 @@
 -- Ask Advicly database schema for persistent conversations
--- This creates tables for client-scoped chat threads and messages
+-- CORRECTED VERSION - Compatible with INTEGER user IDs
 
 -- Create ask_threads table for conversation threads
 CREATE TABLE IF NOT EXISTS ask_threads (
@@ -53,4 +53,4 @@ CREATE POLICY ask_messages_advisor_policy ON ask_messages
 
 -- Policy: Users can only update their own client avatars
 CREATE POLICY clients_avatar_policy ON clients
-    FOR UPDATE USING (advisor_id = auth.uid());
+    FOR UPDATE USING (advisor_id = (auth.jwt() ->> 'sub')::integer);

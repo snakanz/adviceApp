@@ -1,17 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { cn } from '../lib/utils';
-import { 
-  User, 
-  Bot, 
-  Send, 
-  MessageSquare, 
-  Plus, 
-  Edit3, 
-  Lightbulb,
-  Trash2
+import {
+  User,
+  Bot,
+  Send,
+  MessageSquare,
+  Plus,
+  Lightbulb
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -37,7 +35,7 @@ export default function EnhancedAskAdvicly({ clientId, clientName, className = "
   // Load threads on component mount
   useEffect(() => {
     loadThreads();
-  }, []);
+  }, [loadThreads]);
 
   // Load messages when active thread changes
   useEffect(() => {
@@ -55,7 +53,7 @@ export default function EnhancedAskAdvicly({ clientId, clientName, className = "
     }
   }, [messages]);
 
-  const loadThreads = async () => {
+  const loadThreads = useCallback(async () => {
     try {
       setLoadingThreads(true);
       const response = await api.request('/ask-advicly/threads');
@@ -78,7 +76,7 @@ export default function EnhancedAskAdvicly({ clientId, clientName, className = "
     } finally {
       setLoadingThreads(false);
     }
-  };
+  }, [clientId, clientName]);
 
   const loadMessages = async (threadId) => {
     try {

@@ -7,11 +7,7 @@ import {
   Sparkles,
   Send,
   User,
-  Bot,
-  MessageSquare,
-  Plus,
-  Edit3,
-  Lightbulb
+  Bot
 } from 'lucide-react';
 import { api } from '../services/api';
 
