@@ -3,12 +3,13 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
+import ClientChat from '../components/ClientChat';
 import { cn } from '../lib/utils';
-import { 
-  Search, 
-  Calendar, 
-  TrendingUp, 
-  Sparkles, 
+import {
+  Search,
+  Calendar,
+  TrendingUp,
+  Sparkles,
   Clock,
   Mail,
   Users,
@@ -16,6 +17,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Drawer } from '../components/ui/drawer';
+import { useNavigate } from 'react-router-dom';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -37,6 +39,19 @@ export default function Clients() {
   });
   const [saving, setSaving] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
+  const navigate = useNavigate();
+
+  // Helper function to check if meeting is complete (has all three: transcript, quick summary, email summary)
+  const isMeetingComplete = (meeting) => {
+    return !!(meeting?.transcript &&
+              meeting?.quickSummary &&
+              meeting?.emailSummary);
+  };
+
+  // Helper function to navigate to meetings page with specific meeting selected
+  const navigateToMeeting = (meetingId) => {
+    navigate(`/meetings?selected=${meetingId}`);
+  };
 
   useEffect(() => {
     async function fetchClients() {
@@ -264,9 +279,19 @@ export default function Clients() {
                     )}
                   </div>
                 </div>
-                <Button onClick={() => handleEditClient(selectedClient)}>
-                  Edit
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setTab(0)} // Focus the Ask Advicly tab
+                    className="flex items-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Ask Advicly
+                  </Button>
+                  <Button onClick={() => handleEditClient(selectedClient)}>
+                    Edit
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -281,7 +306,7 @@ export default function Clients() {
                   onClick={() => setTab(0)}
                 >
                   <Sparkles className="w-4 h-4 inline mr-2" />
-                  AI Summary
+                  Ask Advicly
                 </button>
                 <button
                   className={cn(
@@ -309,66 +334,12 @@ export default function Clients() {
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6">
               {tab === 0 && (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold text-foreground">AI Summary</h2>
-                    <Button
-                      onClick={async () => {
-                        setLoadingSummary(true);
-                        setSummaryError(null);
-                        try {
-                          const token = localStorage.getItem('token');
-                          const res = await fetch(
-                            `/api/clients/${encodeURIComponent(selectedClient.email)}/ai-summary`,
-                            {
-                              method: 'POST',
-                              headers: {
-                                Authorization: `Bearer ${token}`
-                              }
-                            }
-                          );
-                          if (!res.ok) throw new Error('Failed to generate summary');
-                          const data = await res.json();
-                          setClientAISummary(data.ai_summary);
-                        } catch (err) {
-                          setSummaryError(err.message);
-                        } finally {
-                          setLoadingSummary(false);
-                        }
-                      }}
-                      disabled={loadingSummary}
-                      className="flex items-center gap-2"
-                    >
-                      <Sparkles className="w-4 h-4" />
-                      {loadingSummary ? 'Generating...' : 'Generate AI Summary'}
-                    </Button>
-                  </div>
-                  
-                  {summaryError && (
-                    <Card className="border-destructive/50">
-                      <CardContent className="p-4">
-                        <p className="text-destructive">{summaryError}</p>
-                      </CardContent>
-                    </Card>
-                  )}
-                  
-                  <Card className="border-border/50">
-                    <CardContent className="p-6">
-                      {clientAISummary ? (
-                        <div className="prose prose-invert max-w-none">
-                          <div className="whitespace-pre-wrap text-foreground leading-relaxed">
-                            {clientAISummary}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-center py-12">
-                          <Sparkles className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                          <h3 className="text-lg font-medium text-foreground mb-2">No summary yet</h3>
-                          <p className="text-muted-foreground">Click "Generate AI Summary" to create one.</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                <div className="h-full">
+                  <ClientChat
+                    clientId={selectedClient?.email}
+                    clientName={selectedClient?.name || selectedClient?.email}
+                    className="h-full"
+                  />
                 </div>
               )}
 
@@ -378,12 +349,22 @@ export default function Clients() {
                   {selectedClient.meetings && selectedClient.meetings.length > 0 ? (
                     <div className="space-y-4">
                       {selectedClient.meetings.map(mtg => (
-                        <Card key={mtg.id} className="border-border/50">
+                        <Card
+                          key={mtg.id}
+                          className="border-border/50 cursor-pointer hover:bg-muted/50 transition-colors"
+                          onClick={() => navigateToMeeting(mtg.googleeventid || mtg.id)}
+                        >
                           <CardContent className="p-6">
                             <div className="flex flex-col lg:flex-row gap-6">
                               {/* Meeting Info */}
                               <div className="flex-1 min-w-0">
-                                <h4 className="font-semibold text-foreground mb-2">{mtg.title}</h4>
+                                <div className="flex items-center gap-2 mb-2">
+                                  {/* Completion indicator - light blue dot */}
+                                  {isMeetingComplete(mtg) && (
+                                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                                  )}
+                                  <h4 className="font-semibold text-foreground">{mtg.title}</h4>
+                                </div>
                                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                                   <div className="flex items-center gap-1">
                                     <Clock className="w-4 h-4" />
@@ -398,6 +379,11 @@ export default function Clients() {
                                 <div className="text-sm text-foreground whitespace-pre-line">
                                   {mtg.summary || 'No summary available.'}
                                 </div>
+                                {mtg.quickSummary && (
+                                  <div className="text-xs text-muted-foreground mt-2 italic">
+                                    Quick Summary: {mtg.quickSummary.substring(0, 100)}...
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </CardContent>

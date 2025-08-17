@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { adjustMeetingSummary, improveTemplate } = require('./services/openai');
+const { adjustMeetingSummary, improveTemplate, isOpenAIAvailable } = require('./services/openai');
 const calendarRoutes = require('./routes/calendar');
 const jwt = require('jsonwebtoken');
 const { authenticateUser } = require('./middleware/auth');
+const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
+const OpenAI = require('openai');
 
 // Helper function for error responses
 const handleError = (res, error) => {
@@ -81,6 +83,83 @@ router.post('/ai/improve-template', authenticateUser, async (req, res) => {
     res.json({ improvedTemplate });
   } catch (error) {
     handleError(res, error);
+  }
+});
+
+// AI Chat endpoint for client-scoped conversations
+router.post('/ai/chat', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    const { messages, clientId } = req.body;
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: 'Messages array is required' });
+    }
+
+    // Check if OpenAI is available
+    if (!isOpenAIAvailable()) {
+      return res.status(503).json({
+        error: 'OpenAI service is not available. Please check your API key configuration.'
+      });
+    }
+
+    // Initialize OpenAI client
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+
+    // Build context for client-scoped chat
+    let systemPrompt = 'You are Advicly AI, a helpful assistant for financial advisors. You have access to client meeting data and can help with financial advice questions.';
+
+    if (clientId && isSupabaseAvailable()) {
+      try {
+        // Get client meetings and data for context
+        const { data: meetings } = await getSupabase()
+          .from('meetings')
+          .select('title, starttime, transcript, quick_summary, email_summary_draft')
+          .eq('userid', userId)
+          .contains('attendees', `[{"email": "${clientId}"}]`)
+          .order('starttime', { ascending: false })
+          .limit(10);
+
+        if (meetings && meetings.length > 0) {
+          const clientContext = meetings.map(m =>
+            `Meeting: ${m.title} (${new Date(m.starttime).toLocaleDateString()})
+            ${m.quick_summary ? `Summary: ${m.quick_summary}` : ''}
+            ${m.transcript ? `Transcript: ${m.transcript.substring(0, 500)}...` : ''}`
+          ).join('\n\n');
+
+          systemPrompt += `\n\nClient Context (${clientId}):\n${clientContext}`;
+        }
+      } catch (error) {
+        console.error('Error fetching client context:', error);
+        // Continue without context if there's an error
+      }
+    }
+
+    // Prepare messages for OpenAI
+    const chatMessages = [
+      { role: 'system', content: systemPrompt },
+      ...messages.filter(m => m.role !== 'system')
+    ];
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: chatMessages,
+      temperature: 0.7,
+      max_tokens: 1000
+    });
+
+    res.json({ reply: response.choices[0].message.content });
+
+  } catch (error) {
+    console.error('Error in AI chat:', error);
+    res.status(500).json({ error: 'Failed to process chat request' });
   }
 });
 
