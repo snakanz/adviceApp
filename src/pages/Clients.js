@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Drawer } from '../components/ui/drawer';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -40,6 +40,7 @@ export default function Clients() {
   const [saving, setSaving] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // Helper function to check if meeting is complete (has all three: transcript, quick summary, email summary)
   const isMeetingComplete = (meeting) => {
@@ -69,6 +70,26 @@ export default function Clients() {
     }
     fetchClients();
   }, []);
+
+  // Handle URL parameters for client selection and tab switching
+  useEffect(() => {
+    const clientParam = searchParams.get('client');
+    const tabParam = searchParams.get('tab');
+
+    if (clientParam && clients.length > 0) {
+      const clientIndex = clients.findIndex(c => c.email === clientParam);
+      if (clientIndex !== -1) {
+        setSelectedClientIndex(clientIndex);
+      }
+    }
+
+    if (tabParam) {
+      const tabIndex = parseInt(tabParam, 10);
+      if (!isNaN(tabIndex) && tabIndex >= 0 && tabIndex <= 2) {
+        setTab(tabIndex);
+      }
+    }
+  }, [searchParams, clients]);
 
   const filteredClients = clients
     .filter(c => (`${c.name || c.email || ''}`).toLowerCase().includes(search.toLowerCase())); // Show all clients

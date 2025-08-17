@@ -23,6 +23,7 @@ import { adjustMeetingSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
+import { useNavigate } from 'react-router-dom';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -95,6 +96,7 @@ export default function Meetings() {
   const [quickSummary, setQuickSummary] = useState('');
   const [emailSummary, setEmailSummary] = useState('');
   const [autoGenerating, setAutoGenerating] = useState(false);
+  const navigate = useNavigate();
 
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
 
@@ -126,6 +128,32 @@ export default function Meetings() {
     // If no sentence ending or too long, truncate at 180 chars
     if (summary.length <= 180) return summary.trim();
     return summary.substring(0, 177).trim() + '...';
+  };
+
+  // Helper function to extract client email from meeting attendees
+  const getClientEmailFromMeeting = (meeting) => {
+    if (!meeting?.attendees || !Array.isArray(meeting.attendees)) return null;
+
+    // Find the first attendee that's not the current user
+    const clientAttendee = meeting.attendees.find(attendee =>
+      attendee.email &&
+      attendee.email !== 'snaka1003@gmail.com' && // Exclude the advisor's email
+      attendee.email.includes('@')
+    );
+
+    return clientAttendee?.email || null;
+  };
+
+  // Helper function to navigate to Ask Advicly with client context
+  const navigateToAskAdvicly = (meeting) => {
+    const clientEmail = getClientEmailFromMeeting(meeting);
+    if (clientEmail) {
+      // Navigate to clients page and select the client
+      navigate(`/clients?client=${encodeURIComponent(clientEmail)}&tab=0`);
+    } else {
+      // Navigate to general Ask Advicly page
+      navigate('/ask-advicly');
+    }
   };
 
   // Load templates on component mount
@@ -541,8 +569,7 @@ export default function Meetings() {
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation(); // Prevent meeting selection
-                    // TODO: Navigate to Ask Advicly with client context
-                    console.log('Ask Advicly clicked for meeting:', meeting.id);
+                    navigateToAskAdvicly(meeting);
                   }}
                   className="h-8 px-2 text-xs"
                 >
@@ -733,10 +760,7 @@ export default function Meetings() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    // TODO: Navigate to Ask Advicly with client context
-                    console.log('Ask Advicly clicked for meeting:', selectedMeeting.id);
-                  }}
+                  onClick={() => navigateToAskAdvicly(selectedMeeting)}
                   className="h-8 px-3 text-xs"
                 >
                   Ask Advicly
