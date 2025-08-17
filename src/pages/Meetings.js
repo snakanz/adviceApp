@@ -85,11 +85,16 @@ export default function Meetings() {
   const [showPasteTranscript, setShowPasteTranscript] = useState(false);
   const [deletingTranscript, setDeletingTranscript] = useState(false);
   const [generatingSummary, setGeneratingSummary] = useState(false);
-  
+
   // Add template selection state
   const [templates, setTemplates] = useState(loadTemplates());
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   const [currentSummaryTemplate, setCurrentSummaryTemplate] = useState(null);
+
+  // Add new state for auto-generated summaries
+  const [quickSummary, setQuickSummary] = useState('');
+  const [emailSummary, setEmailSummary] = useState('');
+  const [autoGenerating, setAutoGenerating] = useState(false);
 
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
@@ -171,26 +176,78 @@ export default function Meetings() {
     }
   }, [isAuthenticated, fetchMeetings]);
 
-  const handleMeetingSelect = (meeting) => {
+  const handleMeetingSelect = async (meeting) => {
     setSelectedMeetingId(meeting.id);
-    setSummaryContent(meeting.meetingSummary || meeting.transcript || '');
     setActiveTab('summary');
-    
-    // Set the current template based on the meeting's summary
-    if (meeting.meetingSummary) {
-      // For now, assume it was generated with the default template
-      // In the future, this could be stored in the backend
-      setCurrentSummaryTemplate(null); // Default template
-      setSelectedTemplate(null); // Default template
+
+    // Set existing summaries if available
+    setQuickSummary(meeting.quickSummary || '');
+    setEmailSummary(meeting.emailSummary || '');
+    setSummaryContent(meeting.emailSummary || meeting.meetingSummary || '');
+
+    // Set template info
+    if (meeting.templateId) {
+      const template = templates.find(t => t.id === meeting.templateId);
+      setCurrentSummaryTemplate(template);
+      setSelectedTemplate(template);
     } else {
       setCurrentSummaryTemplate(null);
       setSelectedTemplate(null);
+    }
+
+    // Auto-generate summaries if transcript exists but summaries don't
+    if (meeting.transcript && (!meeting.quickSummary || !meeting.emailSummary)) {
+      await autoGenerateSummaries(meeting.id);
+    }
+  };
+
+  const autoGenerateSummaries = async (meetingId, forceRegenerate = false) => {
+    setAutoGenerating(true);
+    try {
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/calendar/meetings/${meetingId}/auto-generate-summaries`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ forceRegenerate })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to auto-generate summaries');
+      }
+
+      const data = await response.json();
+
+      // Update state with generated summaries
+      setQuickSummary(data.quickSummary);
+      setEmailSummary(data.emailSummary);
+      setSummaryContent(data.emailSummary);
+
+      // Update template info
+      const template = templates.find(t => t.id === data.templateId);
+      setCurrentSummaryTemplate(template);
+      setSelectedTemplate(template);
+
+      if (data.generated) {
+        setShowSnackbar(true);
+        setSnackbarMessage('Summaries generated successfully');
+        setSnackbarSeverity('success');
+      }
+    } catch (error) {
+      console.error('Error auto-generating summaries:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to generate summaries');
+      setSnackbarSeverity('error');
+    } finally {
+      setAutoGenerating(false);
     }
   };
 
   const handleAIAdjustment = async (adjustmentPrompt) => {
     if (!selectedMeeting) return;
-    
+
     try {
       const result = await adjustMeetingSummary(selectedMeeting.id, adjustmentPrompt);
       setSummaryContent(result.summary);
@@ -610,81 +667,119 @@ export default function Meetings() {
               <div className="space-y-4">
                 {activeTab === 'summary' && (
                   <div className="space-y-4">
-                    {/* Summary Actions */}
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-semibold text-foreground">AI Summary</h2>
-                      {selectedMeeting?.transcript && (
-                        <Button
-                          onClick={handleGenerateAISummary}
-                          disabled={generatingSummary}
-                          size="sm"
-                          className="flex items-center gap-2"
-                        >
-                          <Sparkles className="w-3 h-3" />
-                          {generatingSummary ? 'Generating...' : 'Generate'}
-                        </Button>
-                      )}
-                    </div>
-
-                    {/* Template Selection */}
-                    {templates.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-xs font-medium text-muted-foreground">Template</h3>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="outline" size="sm" className="h-7 text-xs">
-                                {selectedTemplate ? selectedTemplate.name : 'Select Template'}
-                                <ChevronDown className="w-3 h-3 ml-1" />
+                    {selectedMeeting?.transcript ? (
+                      <>
+                        {/* Quick Summary Section */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold text-foreground">Quick Summary</h3>
+                            {(quickSummary || emailSummary) && (
+                              <Button
+                                onClick={() => autoGenerateSummaries(selectedMeeting.id, true)}
+                                disabled={autoGenerating}
+                                size="sm"
+                                variant="outline"
+                                className="h-6 px-2 text-xs"
+                              >
+                                <Sparkles className="w-3 h-3 mr-1" />
+                                {autoGenerating ? 'Regenerating...' : 'Regenerate'}
                               </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                              {templates.map((template) => (
-                                <DropdownMenuItem
-                                  key={template.id}
-                                  onClick={() => setSelectedTemplate(template)}
-                                >
-                                  {template.name}
-                                </DropdownMenuItem>
-                              ))}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                            )}
+                          </div>
+                          {quickSummary ? (
+                            <Card className="border-border/50">
+                              <CardContent className="p-3">
+                                <div className="text-sm text-foreground whitespace-pre-line">
+                                  {quickSummary}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ) : autoGenerating ? (
+                            <Card className="border-border/50">
+                              <CardContent className="p-3 text-center">
+                                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
+                                  Generating quick summary...
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ) : null}
                         </div>
 
-                        {/* Apply Button - only show when template changed */}
-                        {selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && (
-                          <Button
-                            onClick={handleGenerateAISummary}
-                            disabled={generatingSummary}
-                            size="sm"
-                            variant="default"
-                            className="h-6 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                          >
-                            {generatingSummary ? 'Applying...' : 'Apply Template'}
-                          </Button>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Summary Content */}
-                    {summaryContent ? (
-                      <Card className="border-border/50">
-                        <CardContent className="p-6">
-                          <div className="prose prose-sm max-w-none text-foreground">
-                            <div className="whitespace-pre-line">{summaryContent}</div>
+                        {/* Email Summary Section */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold text-foreground">Email Summary</h3>
                           </div>
-                        </CardContent>
-                      </Card>
+
+                          {/* Template Selection */}
+                          {templates.length > 0 && (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <h4 className="text-xs font-medium text-muted-foreground">Template</h4>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button variant="outline" size="sm" className="h-6 text-xs">
+                                      {selectedTemplate ? selectedTemplate.title : 'Auto'}
+                                      <ChevronDown className="w-3 h-3 ml-1" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent>
+                                    {templates.map((template) => (
+                                      <DropdownMenuItem
+                                        key={template.id}
+                                        onClick={() => setSelectedTemplate(template)}
+                                      >
+                                        {template.title}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
+
+                              {/* Apply Button - only show when template changed */}
+                              {selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && (
+                                <Button
+                                  onClick={handleGenerateAISummary}
+                                  disabled={generatingSummary}
+                                  size="sm"
+                                  variant="default"
+                                  className="h-6 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                                >
+                                  {generatingSummary ? 'Applying...' : 'Apply Template'}
+                                </Button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Email Summary Content */}
+                          {emailSummary ? (
+                            <Card className="border-border/50">
+                              <CardContent className="p-4">
+                                <div className="prose prose-sm max-w-none text-foreground">
+                                  <div className="whitespace-pre-line text-sm">{emailSummary}</div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ) : autoGenerating ? (
+                            <Card className="border-border/50">
+                              <CardContent className="p-4 text-center">
+                                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
+                                  Generating email summary...
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ) : null}
+                        </div>
+                      </>
                     ) : (
                       <Card className="border-border/50">
                         <CardContent className="p-6 text-center">
                           <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                          <h3 className="text-lg font-medium text-foreground mb-2">No summary available</h3>
+                          <h3 className="text-lg font-medium text-foreground mb-2">Upload transcript to generate summaries</h3>
                           <p className="text-muted-foreground mb-4">
-                            {selectedMeeting?.transcript 
-                              ? 'Generate an AI summary from the transcript.' 
-                              : 'Upload a transcript to generate an AI summary.'
-                            }
+                            Upload a transcript to automatically generate both quick and email summaries.
                           </p>
                         </CardContent>
                       </Card>

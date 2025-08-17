@@ -193,7 +193,7 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
 
     const calendar = google.calendar({ version: 'v3', auth: userOAuth2Client });
     const now = new Date();
-    const timeMin = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days ago
+    const timeMin = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString(); // 3 months ago
     const timeMax = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days ahead
 
     const response = await calendar.events.list({
@@ -230,14 +230,18 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
     const future = [];
     for (const event of events) {
       if (!event.start || !event.start.dateTime) continue;
-      // Fetch transcript from DB
+      // Fetch meeting data from DB
       const { data: meetingData } = await getSupabase()
         .from('meetings')
-        .select('transcript')
+        .select('transcript, quick_summary, email_summary_draft, email_template_id, last_summarized_at')
         .eq('googleeventid', event.id)
         .eq('userid', userId)
         .single();
       const transcript = meetingData?.transcript || null;
+      const quickSummary = meetingData?.quick_summary || null;
+      const emailSummary = meetingData?.email_summary_draft || null;
+      const templateId = meetingData?.email_template_id || null;
+      const lastSummarizedAt = meetingData?.last_summarized_at || null;
       const eventStart = new Date(event.start.dateTime);
       const processedEvent = {
         id: event.id,
@@ -247,7 +251,11 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
         description: event.description,
         location: event.location,
         attendees: event.attendees || [],
-        transcript // <-- add transcript to response
+        transcript,
+        quickSummary,
+        emailSummary,
+        templateId,
+        lastSummarizedAt
       };
       if (eventStart > now) {
         future.push(processedEvent);

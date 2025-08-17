@@ -7,7 +7,7 @@ const { authenticateUser, authenticateToken } = require('../middleware/auth');
 const openai = require('../services/openai');
 const { google } = require('googleapis');
 const { getGoogleAuthClient, refreshAccessToken } = require('../services/calendar');
-const { supabase } = require('../lib/supabase');
+const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
 
 // Get Google Calendar auth URL
 router.get('/auth/google', async (req, res) => {
@@ -322,6 +322,127 @@ router.post('/generate-summary', async (req, res) => {
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Failed to generate summary' });
+  }
+});
+
+// Auto-generate summaries for a meeting
+router.post('/meetings/:id/auto-generate-summaries', authenticateToken, async (req, res) => {
+  try {
+    const meetingId = req.params.id;
+    const userId = req.user.id;
+    const { forceRegenerate = false } = req.body;
+
+    // Check if Supabase is available
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please configure Supabase environment variables.'
+      });
+    }
+
+    // Get meeting from database
+    const { data: meeting, error: fetchError } = await getSupabase()
+      .from('meetings')
+      .select('*')
+      .eq('googleeventid', meetingId)
+      .eq('userid', userId)
+      .single();
+
+    if (fetchError || !meeting) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    if (!meeting.transcript) {
+      return res.status(400).json({ error: 'No transcript available for this meeting' });
+    }
+
+    // Check if summaries already exist and we're not forcing regeneration
+    if (!forceRegenerate && meeting.quick_summary && meeting.email_summary_draft) {
+      return res.json({
+        quickSummary: meeting.quick_summary,
+        emailSummary: meeting.email_summary_draft,
+        templateId: meeting.email_template_id,
+        lastSummarizedAt: meeting.last_summarized_at,
+        alreadyGenerated: true
+      });
+    }
+
+    // Generate Quick Summary (fixed bullet points)
+    const quickSummaryPrompt = `Please create a concise bullet-point summary of this meeting transcript. Focus on:
+• Key decisions made
+• Action items assigned
+• Important topics discussed
+• Next steps
+
+Keep it brief and professional. Use bullet points only.
+
+Transcript:
+${meeting.transcript}`;
+
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const quickSummaryResponse = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo-16k',
+      messages: [{ role: 'user', content: quickSummaryPrompt }],
+      max_tokens: 400,
+      temperature: 0.7,
+    });
+    const quickSummary = quickSummaryResponse.choices[0].message.content;
+
+    // Generate Email Summary using Auto template
+    const autoTemplate = `# SYSTEM PROMPT: Advicly Auto Email Generator
+You are an expert financial advisor drafting a professional email for a client immediately after a meeting. Your role is to generate a **clear, accurate summary email based ONLY on the provided transcript**.
+
+Create a professional email summary that includes:
+• Meeting overview
+• Key points discussed
+• Decisions made
+• Next steps
+• Action items
+
+Keep it professional and client-friendly.
+
+Transcript:
+${meeting.transcript}
+
+Respond with the **email body only** — no headers or subject lines.`;
+
+    const emailSummaryResponse = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo-16k',
+      messages: [{ role: 'user', content: autoTemplate }],
+      max_tokens: 800,
+      temperature: 0.7,
+    });
+    const emailSummary = emailSummaryResponse.choices[0].message.content;
+
+    // Save summaries to database
+    const { error: updateError } = await getSupabase()
+      .from('meetings')
+      .update({
+        quick_summary: quickSummary,
+        email_summary_draft: emailSummary,
+        email_template_id: 'auto-template',
+        last_summarized_at: new Date().toISOString(),
+        updatedat: new Date().toISOString()
+      })
+      .eq('googleeventid', meetingId)
+      .eq('userid', userId);
+
+    if (updateError) {
+      console.error('Error saving summaries:', updateError);
+      return res.status(500).json({ error: 'Failed to save summaries' });
+    }
+
+    res.json({
+      quickSummary,
+      emailSummary,
+      templateId: 'auto-template',
+      lastSummarizedAt: new Date().toISOString(),
+      generated: true
+    });
+
+  } catch (error) {
+    console.error('Error auto-generating summaries:', error);
+    res.status(500).json({ error: 'Failed to generate summaries' });
   }
 });
 
