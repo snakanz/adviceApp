@@ -23,7 +23,6 @@ import { adjustMeetingSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
-import { useNavigate } from 'react-router-dom';
 
 const API_URL = process.env.REACT_APP_API_URL;
 
@@ -37,8 +36,6 @@ const formatDate = (dateTimeStr) => {
   });
 };
 
-
-
 function getMeetingSource(meeting) {
   if (meeting.attendees?.some(a => a.email?.includes('google'))) return 'google';
   if (meeting.attendees?.some(a => a.email?.includes('outlook'))) return 'outlook';
@@ -49,8 +46,6 @@ function formatMeetingTime(meeting) {
   const start = new Date(meeting.start?.dateTime || meeting.startTime);
   return start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
-
-
 
 // Load templates from localStorage
 function loadTemplates() {
@@ -76,7 +71,7 @@ export default function Meetings() {
   const [summaryContent, setSummaryContent] = useState(null);
   const [activeTab, setActiveTab] = useState('summary');
   const { isAuthenticated } = useAuth();
-  const [meetingView, setMeetingView] = useState('past');
+  const [meetingView, setMeetingView] = useState('today');
   
   const selectedMeetingIdRef = useRef(null);
   selectedMeetingIdRef.current = selectedMeetingId;
@@ -96,10 +91,9 @@ export default function Meetings() {
   const [quickSummary, setQuickSummary] = useState('');
   const [emailSummary, setEmailSummary] = useState('');
   const [autoGenerating, setAutoGenerating] = useState(false);
-  const navigate = useNavigate();
 
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
-
+  
   const selectedMeeting = React.useMemo(() => {
     return (
       meetings.past.find(m => m.id === selectedMeetingId) ||
@@ -107,49 +101,6 @@ export default function Meetings() {
       null
     );
   }, [meetings, selectedMeetingId]);
-
-
-
-  // Helper function to truncate quick summary to one sentence (~180 chars)
-  const truncateQuickSummary = (summary) => {
-    if (!summary) return '';
-
-    // First, try to find the first sentence ending
-    const firstSentence = summary.match(/^[^.!?]*[.!?]/);
-    if (firstSentence && firstSentence[0].length <= 180) {
-      return firstSentence[0].trim();
-    }
-
-    // If no sentence ending or too long, truncate at 180 chars
-    if (summary.length <= 180) return summary.trim();
-    return summary.substring(0, 177).trim() + '...';
-  };
-
-  // Helper function to extract client email from meeting attendees
-  const getClientEmailFromMeeting = (meeting) => {
-    if (!meeting?.attendees || !Array.isArray(meeting.attendees)) return null;
-
-    // Find the first attendee that's not the current user
-    const clientAttendee = meeting.attendees.find(attendee =>
-      attendee.email &&
-      attendee.email !== 'snaka1003@gmail.com' && // Exclude the advisor's email
-      attendee.email.includes('@')
-    );
-
-    return clientAttendee?.email || null;
-  };
-
-  // Helper function to navigate to Ask Advicly with client context
-  const navigateToAskAdvicly = (meeting) => {
-    const clientEmail = getClientEmailFromMeeting(meeting);
-    if (clientEmail) {
-      // Navigate to clients page and select the client
-      navigate(`/clients?client=${encodeURIComponent(clientEmail)}&tab=0`);
-    } else {
-      // Navigate to general Ask Advicly page
-      navigate('/ask-advicly');
-    }
-  };
 
   // Load templates on component mount
   useEffect(() => {
@@ -200,14 +151,9 @@ export default function Meetings() {
       }
       setMeetings(meetingsData);
       if (selectedMeetingIdRef.current === null) {
-        // Always prioritize past meetings and select the most recent one
         if (meetingsData.past.length > 0) {
-          // Sort past meetings by start time descending to get most recent first
-          const sortedPast = [...meetingsData.past].sort((a, b) =>
-            new Date(b.start?.dateTime || b.startTime) - new Date(a.start?.dateTime || a.startTime)
-          );
-          setSelectedMeetingId(sortedPast[0].id);
-          setSummaryContent(sortedPast[0].meetingSummary);
+          setSelectedMeetingId(meetingsData.past[0].id);
+          setSummaryContent(meetingsData.past[0].meetingSummary);
         } else if (meetingsData.future.length > 0) {
           setSelectedMeetingId(meetingsData.future[0].id);
           setSummaryContent(meetingsData.future[0].meetingSummary);
@@ -349,62 +295,26 @@ export default function Meetings() {
 
       if (!res.ok) throw new Error('Failed to upload transcript');
 
-      const data = await res.json();
-
-      // Update local state with transcript
+      // Update local state
       const updatedMeetings = {
         ...meetings,
         past: meetings.past.map(m =>
           m.id === selectedMeeting.id
-            ? {
-                ...m,
-                transcript: transcriptUpload.trim(),
-                quickSummary: data.summaries?.quickSummary || m.quickSummary,
-                emailSummary: data.summaries?.emailSummary || m.emailSummary,
-                templateId: data.summaries?.templateId || m.templateId,
-                lastSummarizedAt: data.summaries?.lastSummarizedAt || m.lastSummarizedAt
-              }
+            ? { ...m, transcript: transcriptUpload.trim() }
             : m
         ),
         future: meetings.future.map(m =>
           m.id === selectedMeeting.id
-            ? {
-                ...m,
-                transcript: transcriptUpload.trim(),
-                quickSummary: data.summaries?.quickSummary || m.quickSummary,
-                emailSummary: data.summaries?.emailSummary || m.emailSummary,
-                templateId: data.summaries?.templateId || m.templateId,
-                lastSummarizedAt: data.summaries?.lastSummarizedAt || m.lastSummarizedAt
-              }
+            ? { ...m, transcript: transcriptUpload.trim() }
             : m
         )
       };
       setMeetings(updatedMeetings);
 
-      // If summaries were auto-generated, update the UI state
-      if (data.summaries && data.autoGenerated) {
-        setQuickSummary(data.summaries.quickSummary);
-        setEmailSummary(data.summaries.emailSummary);
-        setSummaryContent(data.summaries.emailSummary);
-
-        // Update template info
-        const template = templates.find(t => t.id === data.summaries.templateId);
-        setCurrentSummaryTemplate(template);
-        setSelectedTemplate(template);
-
-        // Switch to summary tab to show the generated summaries
-        setActiveTab('summary');
-      }
-
       setTranscriptUpload('');
       setShowPasteTranscript(false);
       setShowSnackbar(true);
-
-      if (data.autoGenerated) {
-        setSnackbarMessage('Transcript uploaded and summaries generated successfully');
-      } else {
-        setSnackbarMessage('Transcript uploaded successfully');
-      }
+      setSnackbarMessage('Transcript uploaded successfully');
       setSnackbarSeverity('success');
     } catch (error) {
       console.error('Error uploading transcript:', error);
@@ -419,7 +329,7 @@ export default function Meetings() {
   const handleAudioFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     // For now, just show a message that audio upload is not implemented
     setShowSnackbar(true);
     setSnackbarMessage('Audio upload is not yet implemented');
@@ -428,7 +338,7 @@ export default function Meetings() {
 
   const handleDeleteTranscript = async () => {
     if (!selectedMeeting) return;
-    
+
     setDeletingTranscript(true);
     try {
       const token = localStorage.getItem('jwt');
@@ -438,25 +348,25 @@ export default function Meetings() {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       if (!res.ok) throw new Error('Failed to delete transcript');
-      
+
       // Update local state
       const updatedMeetings = {
         ...meetings,
-        past: meetings.past.map(m => 
-          m.id === selectedMeeting.id 
+        past: meetings.past.map(m =>
+          m.id === selectedMeeting.id
             ? { ...m, transcript: null }
             : m
         ),
-        future: meetings.future.map(m => 
-          m.id === selectedMeeting.id 
+        future: meetings.future.map(m =>
+          m.id === selectedMeeting.id
             ? { ...m, transcript: null }
             : m
         )
       };
       setMeetings(updatedMeetings);
-      
+
       setShowSnackbar(true);
       setSnackbarMessage('Transcript deleted successfully');
       setSnackbarSeverity('success');
@@ -472,7 +382,7 @@ export default function Meetings() {
 
   const handleGenerateAISummary = async () => {
     if (!selectedMeeting?.transcript) return;
-    
+
     setGeneratingSummary(true);
     try {
       // Always use template system - if no template selected, use Advicly Summary template
@@ -489,7 +399,7 @@ export default function Meetings() {
         summary = await generateAISummaryWithTemplate(selectedMeeting.transcript, prompt);
         setCurrentSummaryTemplate(autoTemplate);
       }
-      
+
       setSummaryContent(summary);
       setShowSnackbar(true);
       setSnackbarMessage(`AI summary generated using ${selectedTemplate?.title || 'Advicly Summary'}`);
@@ -549,33 +459,18 @@ export default function Meetings() {
                   <GoogleIcon className="w-5 h-5" /> :
                   <OutlookIcon className="w-5 h-5" />
                 }
-
                 <h3 className="text-lg font-medium text-foreground">
                   {meeting.summary || meeting.title || 'Untitled Meeting'}
                 </h3>
               </div>
-              <div className="flex items-center gap-3">
-                {/* Ask Advicly button */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation(); // Prevent meeting selection
-                    navigateToAskAdvicly(meeting);
-                  }}
-                  className="h-8 px-2 text-xs"
-                >
-                  Ask Advicly
-                </Button>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="w-4 h-4" />
-                  <span>{formatDate(meeting.start?.dateTime || meeting.startTime)}</span>
-                  <span>•</span>
-                  <Clock className="w-4 h-4" />
-                  <span>
-                    {formatMeetingTime(meeting)}
-                  </span>
-                </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Calendar className="w-4 h-4" />
+                <span>{formatDate(meeting.start?.dateTime || meeting.startTime)}</span>
+                <span>•</span>
+                <Clock className="w-4 h-4" />
+                <span>
+                  {formatMeetingTime(meeting)}
+                </span>
               </div>
             </div>
           </CardContent>
@@ -583,7 +478,6 @@ export default function Meetings() {
       ))}
     </div>
   );
-
 
   if (loading) {
     return (
@@ -684,7 +578,7 @@ export default function Meetings() {
                   const meetingDate = new Date(meeting.start?.dateTime || meeting.startTime);
                   return meetingDate.toDateString() === today.toDateString();
                 });
-                
+
                 if (todayMeetings.length === 0) {
                   return (
                     <div className="text-center py-12">
@@ -694,7 +588,7 @@ export default function Meetings() {
                     </div>
                   );
                 }
-                
+
                 return renderMeetingsList(todayMeetings, 'Today');
               })()}
             </div>
@@ -729,7 +623,6 @@ export default function Meetings() {
                     <GoogleIcon className="w-4 h-4" /> :
                     <OutlookIcon className="w-4 h-4" />
                   }
-
                   <h1 className="text-lg font-bold text-foreground truncate">
                     {selectedMeeting.summary || selectedMeeting.title || 'Untitled Meeting'}
                   </h1>
@@ -744,25 +637,14 @@ export default function Meetings() {
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {/* Ask Advicly button */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigateToAskAdvicly(selectedMeeting)}
-                  className="h-8 px-3 text-xs"
-                >
-                  Ask Advicly
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedMeetingId(null)}
-                  className="ml-2 h-8 w-8 p-0"
-                >
-                  ×
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedMeetingId(null)}
+                className="ml-2 h-8 w-8 p-0"
+              >
+                ×
+              </Button>
             </div>
           </div>
 
@@ -802,29 +684,40 @@ export default function Meetings() {
                 {activeTab === 'summary' && (
                   <div className="space-y-4">
                     {selectedMeeting?.transcript ? (
-                      <>
+                      <div className="space-y-4">
                         {/* Quick Summary Section */}
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <h3 className="text-sm font-semibold text-foreground">Quick Summary</h3>
-                            {(quickSummary || emailSummary) && (
+                            <div className="flex items-center gap-2">
+                              {/* Ask Advicly button */}
                               <Button
-                                onClick={() => autoGenerateSummaries(selectedMeeting.id, true)}
-                                disabled={autoGenerating}
-                                size="sm"
                                 variant="outline"
-                                className="h-6 px-2 text-xs"
+                                size="sm"
+                                onClick={() => console.log('Navigate to Ask Advicly')}
+                                className="h-8 px-3 text-xs"
                               >
-                                <Sparkles className="w-3 h-3 mr-1" />
-                                {autoGenerating ? 'Regenerating...' : 'Regenerate'}
+                                Ask Advicly
                               </Button>
-                            )}
+                              {(quickSummary || emailSummary) && (
+                                <Button
+                                  onClick={() => autoGenerateSummaries(selectedMeeting.id, true)}
+                                  disabled={autoGenerating}
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-6 px-2 text-xs"
+                                >
+                                  <Sparkles className="w-3 h-3 mr-1" />
+                                  {autoGenerating ? 'Regenerating...' : 'Regenerate'}
+                                </Button>
+                              )}
+                            </div>
                           </div>
                           {quickSummary ? (
                             <Card className="border-border/50">
                               <CardContent className="p-3">
                                 <div className="text-sm text-foreground whitespace-pre-line">
-                                  {truncateQuickSummary(quickSummary)}
+                                  {quickSummary}
                                 </div>
                               </CardContent>
                             </Card>
@@ -906,7 +799,7 @@ export default function Meetings() {
                             </Card>
                           ) : null}
                         </div>
-                      </>
+                      </div>
                     ) : (
                       <Card className="border-border/50">
                         <CardContent className="p-6 text-center">
@@ -1051,4 +944,4 @@ export default function Meetings() {
       )}
     </div>
   );
-} 
+}

@@ -3,11 +3,15 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { cn } from '../lib/utils';
-import { 
-  Sparkles, 
-  Send, 
+import {
+  Sparkles,
+  Send,
   User,
-  Bot
+  Bot,
+  MessageSquare,
+  Plus,
+  Edit3,
+  Lightbulb
 } from 'lucide-react';
 import { api } from '../services/api';
 

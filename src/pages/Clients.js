@@ -4,6 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import ClientChat from '../components/ClientChat';
+import EnhancedAskAdvicly from '../components/EnhancedAskAdvicly';
+import { ClientSkeleton } from '../components/ui/skeleton';
+import { useDebounce } from '../hooks/useDebounce';
 import { cn } from '../lib/utils';
 import {
   Search,
@@ -13,7 +16,8 @@ import {
   Clock,
   Mail,
   Users,
-  Building2
+  Building2,
+  CheckCircle2
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Drawer } from '../components/ui/drawer';
@@ -25,6 +29,7 @@ export default function Clients() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const debouncedSearch = useDebounce(search, 300);
   const [tab, setTab] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -44,6 +49,13 @@ export default function Clients() {
   // Helper function to navigate to meetings page with specific meeting selected
   const navigateToMeeting = (meetingId) => {
     navigate(`/meetings?selected=${meetingId}`);
+  };
+
+  // Helper function to check if meeting is complete (has transcript + summaries)
+  const isMeetingComplete = (meeting) => {
+    return meeting.transcript &&
+           meeting.quick_summary &&
+           meeting.email_summary_draft;
   };
 
   useEffect(() => {
@@ -93,7 +105,7 @@ export default function Clients() {
   };
 
   const filteredClients = clients
-    .filter(c => (`${c.name || c.email || ''}`).toLowerCase().includes(search.toLowerCase())); // Show all clients
+    .filter(c => (`${c.name || c.email || ''}`).toLowerCase().includes(debouncedSearch.toLowerCase())); // Show all clients
 
   const selectedClient = filteredClients[selectedClientIndex] || filteredClients[0];
 
@@ -192,10 +204,20 @@ export default function Clients() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex items-center gap-3">
-          <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent"></div>
-          <span className="text-muted-foreground">Loading clients...</span>
+      <div className="h-full flex bg-background">
+        <div className="w-80 border-r border-border/50 p-4">
+          <h1 className="text-2xl font-bold text-foreground mb-6">Clients</h1>
+          <div className="mb-4">
+            <div className="h-10 bg-muted rounded animate-pulse"></div>
+          </div>
+          <ClientSkeleton />
+        </div>
+        <div className="flex-1 p-6">
+          <div className="h-8 bg-muted rounded animate-pulse mb-4"></div>
+          <div className="space-y-4">
+            <div className="h-32 bg-muted rounded animate-pulse"></div>
+            <div className="h-32 bg-muted rounded animate-pulse"></div>
+          </div>
         </div>
       </div>
     );
@@ -350,11 +372,10 @@ export default function Clients() {
             <div className="flex-1 overflow-y-auto p-6">
               {tab === 0 && (
                 <div className="h-full">
-                  <ClientChat
-                    clientId={selectedClient?.email}
+                  <EnhancedAskAdvicly
+                    clientId={selectedClient?.id}
                     clientName={selectedClient?.name || selectedClient?.email}
                     className="h-full"
-                    initialMessage={getInitialChatMessage()}
                   />
                 </div>
               )}
@@ -380,23 +401,15 @@ export default function Clients() {
                                   >
                                     {mtg.title}
                                   </h4>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => {
-                                      // Navigate to Ask Advicly with pre-populated text about this meeting
-                                      const clientEmail = selectedClient?.email;
-                                      if (clientEmail) {
-                                        navigate(`/clients?client=${encodeURIComponent(clientEmail)}&tab=0&meeting=${encodeURIComponent(mtg.title)}`);
-                                      } else {
-                                        navigate('/ask-advicly');
-                                      }
-                                    }}
-                                    className="h-8 px-3 text-xs"
-                                  >
-                                    <Sparkles className="w-3 h-3 mr-1" />
-                                    Ask Advicly
-                                  </Button>
+                                  <div className="flex items-center gap-2">
+                                    {/* Completion indicator */}
+                                    {isMeetingComplete(mtg) && (
+                                      <div className="flex items-center gap-1 text-blue-600">
+                                        <CheckCircle2 className="w-4 h-4" />
+                                        <span className="text-xs font-medium">Complete</span>
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                                   <div className="flex items-center gap-1">
@@ -409,12 +422,23 @@ export default function Clients() {
                               </div>
                               {/* Meeting Summary */}
                               <div className="flex-1 min-w-0">
-                                <div className="text-sm text-foreground whitespace-pre-line">
-                                  {mtg.summary || 'No summary available.'}
-                                </div>
-                                {mtg.quickSummary && (
-                                  <div className="text-xs text-muted-foreground mt-2 italic">
-                                    Quick Summary: {mtg.quickSummary.substring(0, 100)}...
+                                {mtg.quick_summary ? (
+                                  <div className="space-y-2">
+                                    <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Quick Summary</h5>
+                                    <div className="text-sm text-foreground">
+                                      {mtg.quick_summary}
+                                    </div>
+                                  </div>
+                                ) : mtg.summary ? (
+                                  <div className="space-y-2">
+                                    <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</h5>
+                                    <div className="text-sm text-foreground">
+                                      {mtg.summary}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="text-sm text-muted-foreground italic">
+                                    No summary available
                                   </div>
                                 )}
                               </div>

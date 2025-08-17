@@ -526,6 +526,18 @@ Respond with the **email body only** — no headers or subject lines.`;
   }
 });
 
+// Test route directly in main app
+app.get('/test-advicly', (req, res) => {
+  console.log('Direct test route hit!');
+  res.json({ message: 'Direct route working!' });
+});
+
+// Mount Ask Advicly routes FIRST (before general /api routes)
+console.log('Mounting Ask Advicly routes...');
+const askAdviclyRouter = require('./routes/ask-advicly');
+app.use('/advicly', askAdviclyRouter);  // Try different path
+console.log('Ask Advicly routes mounted successfully');
+
 app.use('/api/clients', clientsRouter);
 app.use('/api/pipeline', pipelineRouter);
 app.use('/api', routes);

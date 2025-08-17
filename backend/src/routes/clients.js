@@ -1,8 +1,24 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const multer = require('multer');
 const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
 
 const router = express.Router();
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed'), false);
+    }
+  }
+});
 
 // Get all clients for an advisor with their meetings
 router.get('/', async (req, res) => {
@@ -336,4 +352,93 @@ router.put('/:clientId', async (req, res) => {
   }
 });
 
-module.exports = router; 
+// Upload client avatar
+router.post('/:clientId/avatar', upload.single('avatar'), async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const advisorId = decoded.id;
+    const { clientId } = req.params;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    // Verify client belongs to advisor
+    const { data: client, error: clientError } = await getSupabase()
+      .from('clients')
+      .select('id, name')
+      .eq('id', clientId)
+      .eq('advisor_id', advisorId)
+      .single();
+
+    if (clientError || !client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Generate unique filename
+    const fileExt = req.file.originalname.split('.').pop();
+    const fileName = `${clientId}-${Date.now()}.${fileExt}`;
+    const filePath = `avatars/${fileName}`;
+
+    // Upload to Supabase Storage
+    const { data: uploadData, error: uploadError } = await getSupabase()
+      .storage
+      .from('avatars')
+      .upload(filePath, req.file.buffer, {
+        contentType: req.file.mimetype,
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error('Error uploading avatar:', uploadError);
+      return res.status(500).json({ error: 'Failed to upload avatar' });
+    }
+
+    // Get public URL
+    const { data: urlData } = getSupabase()
+      .storage
+      .from('avatars')
+      .getPublicUrl(filePath);
+
+    const avatarUrl = urlData.publicUrl;
+
+    // Update client record with avatar URL
+    const { data: updatedClient, error: updateError } = await getSupabase()
+      .from('clients')
+      .update({
+        avatar_url: avatarUrl,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', clientId)
+      .eq('advisor_id', advisorId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating client avatar:', updateError);
+      return res.status(500).json({ error: 'Failed to update client avatar' });
+    }
+
+    res.json({
+      message: 'Avatar uploaded successfully',
+      avatarUrl,
+      client: updatedClient
+    });
+
+  } catch (error) {
+    console.error('Error in avatar upload:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+module.exports = router;

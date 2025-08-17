@@ -30,13 +30,23 @@ async function generateMeetingSummary(content, template = 'standard', metadata =
     }
 
     let prompt = content;
+    let maxTokens = 1000;
+    let stream = false;
 
-    if (metadata && metadata.prompt) {
-      prompt = metadata.prompt;
+    if (metadata) {
+      if (metadata.prompt) {
+        prompt = metadata.prompt;
+      }
+      if (metadata.maxTokens) {
+        maxTokens = metadata.maxTokens;
+      }
+      if (metadata.stream) {
+        stream = metadata.stream;
+      }
     }
 
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "user",
@@ -44,8 +54,13 @@ async function generateMeetingSummary(content, template = 'standard', metadata =
         }
       ],
       temperature: 0.7,
-      max_tokens: 1000
+      max_tokens: maxTokens,
+      stream: stream
     });
+
+    if (stream) {
+      return response; // Return the stream directly for streaming responses
+    }
 
     return response.choices[0].message.content;
   } catch (error) {

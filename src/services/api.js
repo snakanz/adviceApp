@@ -107,6 +107,59 @@ class ApiService {
     async getMeetingTranscript(eventId) {
         return this.request(`/calendar/meetings/${eventId}/transcript`);
     }
+
+    async autoGenerateSummaries(eventId, forceRegenerate = false) {
+        return this.request(`/calendar/meetings/${eventId}/auto-generate-summaries`, {
+            method: 'POST',
+            body: JSON.stringify({ forceRegenerate })
+        });
+    }
+
+    // Ask Advicly endpoints
+    async getThreads() {
+        return this.request('/ask-advicly/threads');
+    }
+
+    async getThreadMessages(threadId) {
+        return this.request(`/ask-advicly/threads/${threadId}/messages`);
+    }
+
+    async createThread(clientId = null, title = 'New Conversation') {
+        return this.request('/ask-advicly/threads', {
+            method: 'POST',
+            body: JSON.stringify({ clientId, title })
+        });
+    }
+
+    async sendMessage(threadId, content) {
+        return this.request(`/ask-advicly/threads/${threadId}/messages`, {
+            method: 'POST',
+            body: JSON.stringify({ content })
+        });
+    }
+
+    async updateThreadTitle(threadId, title) {
+        return this.request(`/ask-advicly/threads/${threadId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ title })
+        });
+    }
+
+    async getClientsForMentions() {
+        return this.request('/ask-advicly/clients');
+    }
+
+    // Client avatar upload
+    async uploadClientAvatar(clientId, file) {
+        const formData = new FormData();
+        formData.append('avatar', file);
+
+        return this.request(`/clients/${clientId}/avatar`, {
+            method: 'POST',
+            body: formData,
+            headers: {} // Remove Content-Type to let browser set it for FormData
+        });
+    }
 }
 
 export const api = new ApiService();

@@ -201,4 +201,9 @@ router.post('/auth/login', async (req, res) => {
   }
 });
 
+// Ask Advicly test route
+router.get('/ask-advicly/test', (req, res) => {
+  res.json({ message: 'Ask Advicly routes working from main routes!' });
+});
+
 module.exports = router;
