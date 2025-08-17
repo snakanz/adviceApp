@@ -303,24 +303,22 @@ router.post('/meetings/:id/generate-summary', authenticateToken, async (req, res
 });
 
 // Improved AI summary email route for Advicly
-const OpenAI = require('openai');
 router.post('/generate-summary', async (req, res) => {
   const { transcript, prompt } = req.body;
   if (!transcript) return res.status(400).json({ error: 'Transcript is required' });
   if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo-16k',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 800,
-      temperature: 0.7,
-    });
-    return res.json({ summary: completion.choices[0].message.content });
+    if (!openai.isOpenAIAvailable()) {
+      return res.status(503).json({
+        error: 'OpenAI service is not available. Please check your API key configuration.'
+      });
+    }
+
+    const summary = await openai.generateMeetingSummary(transcript, 'standard', { prompt });
+    return res.json({ summary });
   } catch (err) {
-    console.error(err);
+    console.error('Error generating summary:', err);
     return res.status(500).json({ error: 'Failed to generate summary' });
   }
 });
@@ -366,6 +364,13 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateToken, async (r
       });
     }
 
+    // Check if OpenAI is available
+    if (!openai.isOpenAIAvailable()) {
+      return res.status(503).json({
+        error: 'OpenAI service is not available. Please check your API key configuration.'
+      });
+    }
+
     // Generate Quick Summary (fixed bullet points)
     const quickSummaryPrompt = `Please create a concise bullet-point summary of this meeting transcript. Focus on:
 • Key decisions made
@@ -378,15 +383,7 @@ Keep it brief and professional. Use bullet points only.
 Transcript:
 ${meeting.transcript}`;
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-    const quickSummaryResponse = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo-16k',
-      messages: [{ role: 'user', content: quickSummaryPrompt }],
-      max_tokens: 400,
-      temperature: 0.7,
-    });
-    const quickSummary = quickSummaryResponse.choices[0].message.content;
+    const quickSummary = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: quickSummaryPrompt });
 
     // Generate Email Summary using Auto template
     const autoTemplate = `# SYSTEM PROMPT: Advicly Auto Email Generator
@@ -406,13 +403,7 @@ ${meeting.transcript}
 
 Respond with the **email body only** — no headers or subject lines.`;
 
-    const emailSummaryResponse = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo-16k',
-      messages: [{ role: 'user', content: autoTemplate }],
-      max_tokens: 800,
-      temperature: 0.7,
-    });
-    const emailSummary = emailSummaryResponse.choices[0].message.content;
+    const emailSummary = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: autoTemplate });
 
     // Save summaries to database
     const { error: updateError } = await getSupabase()

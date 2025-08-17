@@ -111,7 +111,9 @@ export default function Meetings() {
     const loadedTemplates = loadTemplates();
     setTemplates(loadedTemplates);
     if (loadedTemplates.length > 0) {
-      setSelectedTemplate(loadedTemplates[0]);
+      // Default to Advicly Summary template (auto-template)
+      const adviclyTemplate = loadedTemplates.find(t => t.id === 'auto-template') || loadedTemplates[0];
+      setSelectedTemplate(adviclyTemplate);
     }
   }, []);
 
@@ -140,6 +142,7 @@ export default function Meetings() {
         throw new Error('Failed to fetch meetings');
       }
       const data = await res.json();
+      console.log('Raw meetings data from API:', data); // Debug log
       let meetingsData = data;
       if (window.location.hostname === 'localhost') {
         const now = new Date();
@@ -177,6 +180,7 @@ export default function Meetings() {
   }, [isAuthenticated, fetchMeetings]);
 
   const handleMeetingSelect = async (meeting) => {
+    console.log('Meeting selected:', meeting); // Debug log
     setSelectedMeetingId(meeting.id);
     setActiveTab('summary');
 
@@ -191,12 +195,27 @@ export default function Meetings() {
       setCurrentSummaryTemplate(template);
       setSelectedTemplate(template);
     } else {
+      // Default to Advicly Summary template when no template is set
+      const adviclyTemplate = templates.find(t => t.id === 'auto-template') || templates[0];
       setCurrentSummaryTemplate(null);
-      setSelectedTemplate(null);
+      setSelectedTemplate(adviclyTemplate);
     }
 
     // Auto-generate summaries if transcript exists but summaries don't
-    if (meeting.transcript && (!meeting.quickSummary || !meeting.emailSummary)) {
+    // Only generate if we don't have BOTH quick summary AND email summary
+    const hasQuickSummary = meeting.quickSummary && meeting.quickSummary.trim();
+    const hasEmailSummary = meeting.emailSummary && meeting.emailSummary.trim();
+
+    console.log('Summary check:', {
+      hasTranscript: !!meeting.transcript,
+      hasQuickSummary,
+      hasEmailSummary,
+      quickSummary: meeting.quickSummary,
+      emailSummary: meeting.emailSummary
+    }); // Debug log
+
+    if (meeting.transcript && (!hasQuickSummary || !hasEmailSummary)) {
+      console.log('Auto-generating summaries...'); // Debug log
       await autoGenerateSummaries(meeting.id);
     }
   };
@@ -215,7 +234,8 @@ export default function Meetings() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to auto-generate summaries');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to auto-generate summaries');
       }
 
       const data = await response.json();
@@ -238,7 +258,7 @@ export default function Meetings() {
     } catch (error) {
       console.error('Error auto-generating summaries:', error);
       setShowSnackbar(true);
-      setSnackbarMessage('Failed to generate summaries');
+      setSnackbarMessage(error.message || 'Failed to generate summaries');
       setSnackbarSeverity('error');
     } finally {
       setAutoGenerating(false);
@@ -391,7 +411,7 @@ export default function Meetings() {
     } catch (error) {
       console.error('Error generating AI summary:', error);
       setShowSnackbar(true);
-      setSnackbarMessage('Failed to generate AI summary');
+      setSnackbarMessage(error.message || 'Failed to generate AI summary');
       setSnackbarSeverity('error');
     } finally {
       setGeneratingSummary(false);
@@ -415,7 +435,8 @@ export default function Meetings() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate AI summary with template');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to generate AI summary with template');
       }
 
       const data = await response.json();
@@ -720,7 +741,7 @@ export default function Meetings() {
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
                                     <Button variant="outline" size="sm" className="h-6 text-xs">
-                                      {selectedTemplate ? selectedTemplate.title : 'Auto'}
+                                      {selectedTemplate ? selectedTemplate.title : 'Advicly Summary'}
                                       <ChevronDown className="w-3 h-3 ml-1" />
                                     </Button>
                                   </DropdownMenuTrigger>
