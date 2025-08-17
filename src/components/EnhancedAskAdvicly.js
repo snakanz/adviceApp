@@ -9,6 +9,7 @@ import {
   Send,
   MessageSquare,
   Plus,
+  Edit3,
   Lightbulb
 } from 'lucide-react';
 import { api } from '../services/api';
