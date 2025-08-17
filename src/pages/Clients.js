@@ -26,9 +26,6 @@ export default function Clients() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [tab, setTab] = useState(0);
-  const [clientAISummary, setClientAISummary] = useState('');
-  const [loadingSummary, setLoadingSummary] = useState(false);
-  const [summaryError, setSummaryError] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '',
@@ -42,12 +39,7 @@ export default function Clients() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // Helper function to check if meeting is complete (has all three: transcript, quick summary, email summary)
-  const isMeetingComplete = (meeting) => {
-    return !!(meeting?.transcript &&
-              meeting?.quickSummary &&
-              meeting?.emailSummary);
-  };
+
 
   // Helper function to navigate to meetings page with specific meeting selected
   const navigateToMeeting = (meetingId) => {
@@ -90,6 +82,15 @@ export default function Clients() {
       }
     }
   }, [searchParams, clients]);
+
+  // Get initial message for chat based on URL parameters
+  const getInitialChatMessage = () => {
+    const meetingParam = searchParams.get('meeting');
+    if (meetingParam) {
+      return `Tell me about the "${meetingParam}" meeting with ${selectedClient?.name || 'this client'}.`;
+    }
+    return '';
+  };
 
   const filteredClients = clients
     .filter(c => (`${c.name || c.email || ''}`).toLowerCase().includes(search.toLowerCase())); // Show all clients
@@ -360,6 +361,7 @@ export default function Clients() {
                     clientId={selectedClient?.email}
                     clientName={selectedClient?.name || selectedClient?.email}
                     className="h-full"
+                    initialMessage={getInitialChatMessage()}
                   />
                 </div>
               )}
@@ -372,19 +374,36 @@ export default function Clients() {
                       {selectedClient.meetings.map(mtg => (
                         <Card
                           key={mtg.id}
-                          className="border-border/50 cursor-pointer hover:bg-muted/50 transition-colors"
-                          onClick={() => navigateToMeeting(mtg.googleeventid || mtg.id)}
+                          className="border-border/50"
                         >
                           <CardContent className="p-6">
                             <div className="flex flex-col lg:flex-row gap-6">
                               {/* Meeting Info */}
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-2">
-                                  {/* Completion indicator - light blue dot */}
-                                  {isMeetingComplete(mtg) && (
-                                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                                  )}
-                                  <h4 className="font-semibold text-foreground">{mtg.title}</h4>
+                                <div className="flex items-center justify-between mb-2">
+                                  <h4
+                                    className="font-semibold text-foreground cursor-pointer hover:text-primary"
+                                    onClick={() => navigateToMeeting(mtg.googleeventid || mtg.id)}
+                                  >
+                                    {mtg.title}
+                                  </h4>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => {
+                                      // Navigate to Ask Advicly with pre-populated text about this meeting
+                                      const clientEmail = selectedClient?.email;
+                                      if (clientEmail) {
+                                        navigate(`/clients?client=${encodeURIComponent(clientEmail)}&tab=0&meeting=${encodeURIComponent(mtg.title)}`);
+                                      } else {
+                                        navigate('/ask-advicly');
+                                      }
+                                    }}
+                                    className="h-8 px-3 text-xs"
+                                  >
+                                    <Sparkles className="w-3 h-3 mr-1" />
+                                    Ask Advicly
+                                  </Button>
                                 </div>
                                 <div className="flex items-center gap-4 text-sm text-muted-foreground">
                                   <div className="flex items-center gap-1">

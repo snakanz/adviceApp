@@ -108,12 +108,7 @@ export default function Meetings() {
     );
   }, [meetings, selectedMeetingId]);
 
-  // Helper function to check if meeting is complete (has all three: transcript, quick summary, email summary)
-  const isMeetingComplete = (meeting) => {
-    return !!(meeting?.transcript &&
-              meeting?.quickSummary &&
-              meeting?.emailSummary);
-  };
+
 
   // Helper function to truncate quick summary to one sentence (~180 chars)
   const truncateQuickSummary = (summary) => {
@@ -554,10 +549,7 @@ export default function Meetings() {
                   <GoogleIcon className="w-5 h-5" /> :
                   <OutlookIcon className="w-5 h-5" />
                 }
-                {/* Completion indicator - light blue dot */}
-                {isMeetingComplete(meeting) && (
-                  <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                )}
+
                 <h3 className="text-lg font-medium text-foreground">
                   {meeting.summary || meeting.title || 'Untitled Meeting'}
                 </h3>
@@ -737,10 +729,7 @@ export default function Meetings() {
                     <GoogleIcon className="w-4 h-4" /> :
                     <OutlookIcon className="w-4 h-4" />
                   }
-                  {/* Completion indicator */}
-                  {isMeetingComplete(selectedMeeting) && (
-                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                  )}
+
                   <h1 className="text-lg font-bold text-foreground truncate">
                     {selectedMeeting.summary || selectedMeeting.title || 'Untitled Meeting'}
                   </h1>

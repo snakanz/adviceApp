@@ -19,14 +19,14 @@ const EXAMPLE_PROMPTS = [
   "What were the key decisions made?"
 ];
 
-export default function ClientChat({ clientId, clientName, className = "" }) {
+export default function ClientChat({ clientId, clientName, className = "", initialMessage = "" }) {
   const [messages, setMessages] = useState([
-    { 
-      role: 'assistant', 
-      content: `I am Advicly AI. Ask me anything about ${clientName || 'this client'}, their meetings, or financial advice.` 
+    {
+      role: 'assistant',
+      content: `I am Advicly AI. Ask me anything about ${clientName || 'this client'}, their meetings, or financial advice.`
     }
   ]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(initialMessage);
   const [loading, setLoading] = useState(false);
   const feedRef = useRef(null);
 
