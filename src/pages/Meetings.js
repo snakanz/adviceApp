@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { 
@@ -8,15 +9,16 @@ import {
   DropdownMenuTrigger 
 } from '../components/ui/dropdown-menu';
 import { cn } from '../lib/utils';
-import { 
-  Calendar, 
+import {
+  Calendar,
   Clock,
   FileText,
   MessageSquare,
   Sparkles,
   ChevronDown,
   Upload,
-  Edit3
+  Edit3,
+  Check
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -71,7 +73,8 @@ export default function Meetings() {
   const [summaryContent, setSummaryContent] = useState(null);
   const [activeTab, setActiveTab] = useState('summary');
   const { isAuthenticated } = useAuth();
-  const [meetingView, setMeetingView] = useState('today');
+  const navigate = useNavigate();
+  const [meetingView, setMeetingView] = useState('past');
   
   const selectedMeetingIdRef = useRef(null);
   selectedMeetingIdRef.current = selectedMeetingId;
@@ -401,6 +404,27 @@ export default function Meetings() {
       }
 
       setSummaryContent(summary);
+      setEmailSummary(summary);
+
+      // Save the new template version to database
+      try {
+        const token = localStorage.getItem('jwt');
+        const templateId = selectedTemplate?.id || 'auto-template';
+        await fetch(`${API_URL}/calendar/meetings/${selectedMeeting.id}/update-summary`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            emailSummary: summary,
+            templateId: templateId
+          })
+        });
+      } catch (saveError) {
+        console.error('Error saving template summary:', saveError);
+      }
+
       setShowSnackbar(true);
       setSnackbarMessage(`AI summary generated using ${selectedTemplate?.title || 'Advicly Summary'}`);
       setSnackbarSeverity('success');
@@ -462,6 +486,24 @@ export default function Meetings() {
                 <h3 className="text-lg font-medium text-foreground">
                   {meeting.summary || meeting.title || 'Untitled Meeting'}
                 </h3>
+                {/* Completion Indicators */}
+                <div className="flex items-center gap-1 ml-2">
+                  {meeting.transcript && (
+                    <div className="flex items-center justify-center w-5 h-5 bg-blue-100 rounded-full" title="Transcript available">
+                      <Check className="w-3 h-3 text-blue-600" />
+                    </div>
+                  )}
+                  {meeting.quick_summary && (
+                    <div className="flex items-center justify-center w-5 h-5 bg-green-100 rounded-full" title="Summary available">
+                      <Check className="w-3 h-3 text-green-600" />
+                    </div>
+                  )}
+                  {meeting.email_summary_draft && (
+                    <div className="flex items-center justify-center w-5 h-5 bg-purple-100 rounded-full" title="Email summary available">
+                      <Check className="w-3 h-3 text-purple-600" />
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="w-4 h-4" />
@@ -694,7 +736,7 @@ export default function Meetings() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => console.log('Navigate to Ask Advicly')}
+                                onClick={() => navigate(`/ask-advicly?meeting=${encodeURIComponent(selectedMeeting.summary || selectedMeeting.title || 'meeting')}`)}
                                 className="h-8 px-3 text-xs"
                               >
                                 Ask Advicly

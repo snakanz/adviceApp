@@ -22,7 +22,7 @@ const PROMPT_SUGGESTIONS = [
   "Show me this client's meeting history"
 ];
 
-export default function EnhancedAskAdvicly({ clientId, clientName, className = "" }) {
+export default function EnhancedAskAdvicly({ clientId, clientName, initialMessage = "", className = "" }) {
   const [threads, setThreads] = useState([]);
   const [activeThreadId, setActiveThreadId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -78,6 +78,13 @@ export default function EnhancedAskAdvicly({ clientId, clientName, className = "
       feedRef.current.scrollTop = feedRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Set initial message if provided
+  useEffect(() => {
+    if (initialMessage && !input) {
+      setInput(initialMessage);
+    }
+  }, [initialMessage, input]);
 
   const loadMessages = async (threadId) => {
     try {

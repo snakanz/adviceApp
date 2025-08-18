@@ -53,4 +53,4 @@ CREATE POLICY ask_messages_advisor_policy ON ask_messages
 
 -- Policy: Users can only update their own client avatars
 CREATE POLICY clients_avatar_policy ON clients
-    FOR UPDATE USING (advisor_id = auth.uid());
+    FOR UPDATE USING (advisor_id = (auth.jwt() ->> 'sub')::integer);

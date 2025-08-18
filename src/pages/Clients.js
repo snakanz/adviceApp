@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Input } from '../components/ui/input';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 
-import EnhancedAskAdvicly from '../components/EnhancedAskAdvicly';
+
 import { ClientSkeleton } from '../components/ui/skeleton';
 import { useDebounce } from '../hooks/useDebounce';
 import { cn } from '../lib/utils';
@@ -310,14 +310,6 @@ export default function Clients() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => setTab(0)} // Focus the Ask Advicly tab
-                    className="flex items-center gap-2"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    Ask Advicly
-                  </Button>
                   <Button onClick={() => handleEditClient(selectedClient)}>
                     Edit
                   </Button>
@@ -329,11 +321,8 @@ export default function Clients() {
             <div className="px-6 pt-2 pb-0">
               <div className="flex gap-4 justify-between">
                 <button
-                  className={cn(
-                    "tab-btn",
-                    tab === 0 && "active"
-                  )}
-                  onClick={() => setTab(0)}
+                  className="tab-btn"
+                  onClick={() => navigate(`/ask-advicly?client=${selectedClient?.id}&clientName=${encodeURIComponent(selectedClient?.name || selectedClient?.email)}`)}
                 >
                   <Sparkles className="w-4 h-4 inline mr-2" />
                   Ask Advicly
@@ -341,9 +330,9 @@ export default function Clients() {
                 <button
                   className={cn(
                     "tab-btn",
-                    tab === 1 && "active"
+                    tab === 0 && "active"
                   )}
-                  onClick={() => setTab(1)}
+                  onClick={() => setTab(0)}
                 >
                   <Calendar className="w-4 h-4 inline mr-2" />
                   All Meetings
@@ -351,9 +340,9 @@ export default function Clients() {
                 <button
                   className={cn(
                     "tab-btn",
-                    tab === 2 && "active"
+                    tab === 1 && "active"
                   )}
-                  onClick={() => setTab(2)}
+                  onClick={() => setTab(1)}
                 >
                   <TrendingUp className="w-4 h-4 inline mr-2" />
                   Pipeline
@@ -364,16 +353,6 @@ export default function Clients() {
             {/* Content */}
             <div className="flex-1 overflow-y-auto p-6">
               {tab === 0 && (
-                <div className="h-full">
-                  <EnhancedAskAdvicly
-                    clientId={selectedClient?.id}
-                    clientName={selectedClient?.name || selectedClient?.email}
-                    className="h-full"
-                  />
-                </div>
-              )}
-
-              {tab === 1 && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-foreground">All Meetings</h2>
                   {selectedClient.meetings && selectedClient.meetings.length > 0 ? (
@@ -452,7 +431,7 @@ export default function Clients() {
                 </div>
               )}
 
-              {tab === 2 && (
+              {tab === 1 && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-foreground">Client Pipeline</h2>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

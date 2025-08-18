@@ -522,9 +522,52 @@ router.delete('/meetings', authenticateToken, async (req, res) => {
   }
 });
 
+// Update meeting summary with new template
+router.post('/meetings/:id/update-summary', authenticateToken, async (req, res) => {
+  try {
+    const meetingId = req.params.id;
+    const userId = req.user.id;
+    const { emailSummary, templateId } = req.body;
+
+    // Verify meeting belongs to user
+    const { data: meeting, error: fetchError } = await getSupabase()
+      .from('meetings')
+      .select('*')
+      .eq('id', meetingId)
+      .eq('userid', userId)
+      .single();
+
+    if (fetchError || !meeting) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    // Update the meeting with new summary
+    const { error: updateError } = await getSupabase()
+      .from('meetings')
+      .update({
+        email_summary_draft: emailSummary,
+        email_template_id: templateId,
+        last_summarized_at: new Date().toISOString(),
+        updatedat: new Date().toISOString()
+      })
+      .eq('id', meetingId)
+      .eq('userid', userId);
+
+    if (updateError) {
+      console.error('Error updating meeting summary:', updateError);
+      return res.status(500).json({ error: 'Failed to update summary' });
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating meeting summary:', error);
+    res.status(500).json({ error: 'Failed to update summary' });
+  }
+});
+
 // Debug route to confirm calendar.js is loaded
 router.get('/debug-alive', (req, res) => {
   res.json({ status: 'calendar routes alive' });
 });
 
-module.exports = router; 
+module.exports = router;
