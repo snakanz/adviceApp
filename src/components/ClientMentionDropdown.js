@@ -51,6 +51,9 @@ export default function ClientMentionDropdown({
           e.preventDefault();
           onSelect(null);
           break;
+        default:
+          // Do nothing for other keys
+          break;
       }
     };
 
