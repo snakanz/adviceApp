@@ -72,7 +72,7 @@ export default function Meetings() {
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
   const [summaryContent, setSummaryContent] = useState(null);
   const [activeTab, setActiveTab] = useState('summary');
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [meetingView, setMeetingView] = useState('past');
   
@@ -746,7 +746,7 @@ export default function Meetings() {
                                         : selectedMeeting.attendees;
 
                                       // Find first attendee that's not the current user
-                                      const currentUserEmail = localStorage.getItem('userEmail') || '';
+                                      const currentUserEmail = user?.email || '';
                                       const clientAttendee = attendees.find(a => a.email !== currentUserEmail);
                                       if (clientAttendee) {
                                         clientName = clientAttendee.name || clientAttendee.email;

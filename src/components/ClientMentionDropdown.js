@@ -68,11 +68,12 @@ export default function ClientMentionDropdown({
   return (
     <div
       ref={dropdownRef}
-      className="absolute z-50 w-80 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl animate-in slide-in-from-bottom-2 duration-200"
+      data-mention-dropdown
+      className="fixed z-50 w-80 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl animate-in slide-in-from-top-2 duration-200"
       style={{
-        bottom: position?.bottom || 'auto',
-        left: position?.left || 0,
         top: position?.top || 'auto',
+        left: position?.left || 0,
+        bottom: position?.bottom || 'auto',
         boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05)'
       }}
     >

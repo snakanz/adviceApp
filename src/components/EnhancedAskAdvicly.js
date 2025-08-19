@@ -57,12 +57,28 @@ export default function EnhancedAskAdvicly({
   // Load clients for @ mentions
   const loadClients = useCallback(async () => {
     try {
-      const response = await api.request('/ask-advicly/clients');
+      const response = await api.request('/clients');
       setClients(response);
     } catch (error) {
       console.error('Error loading clients:', error);
     }
   }, []);
+
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showMentionDropdown && textareaRef.current && !textareaRef.current.contains(event.target)) {
+        // Check if click is not on the dropdown itself
+        const dropdown = document.querySelector('[data-mention-dropdown]');
+        if (!dropdown || !dropdown.contains(event.target)) {
+          setShowMentionDropdown(false);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMentionDropdown]);
 
   const loadThreads = useCallback(async () => {
     try {
@@ -155,11 +171,11 @@ export default function EnhancedAskAdvicly({
       setMentionSearchTerm(mentionMatch[1]);
       setShowMentionDropdown(true);
 
-      // Calculate dropdown position
+      // Calculate dropdown position - position below the textarea
       const textarea = e.target;
       const rect = textarea.getBoundingClientRect();
       setMentionPosition({
-        bottom: window.innerHeight - rect.top + 10,
+        top: rect.bottom + 5, // Position below textarea with 5px gap
         left: rect.left
       });
     } else {
@@ -242,7 +258,18 @@ export default function EnhancedAskAdvicly({
 
     // Add context chip clients to mentioned clients
     const contextChipClients = contextChips.map(chip => {
-      const client = clients.find(c => c.name === chip.clientName);
+      // Try to find client by exact name match first
+      let client = clients.find(c => c.name === chip.clientName);
+
+      // If not found, try to find by partial name match or email
+      if (!client) {
+        client = clients.find(c =>
+          c.name.toLowerCase().includes(chip.clientName.toLowerCase()) ||
+          chip.clientName.toLowerCase().includes(c.name.toLowerCase()) ||
+          c.email === chip.clientName
+        );
+      }
+
       return client ? {
         id: client.id,
         name: client.name,
@@ -250,8 +277,16 @@ export default function EnhancedAskAdvicly({
         status: client.status,
         meetingTitle: chip.meetingTitle,
         meetingDate: chip.meetingDate
-      } : null;
-    }).filter(Boolean);
+      } : {
+        // If no exact client match found, create a temporary client object
+        id: chip.clientName, // Use name as ID
+        name: chip.clientName,
+        email: chip.clientName.includes('@') ? chip.clientName : `${chip.clientName}@unknown.com`,
+        status: 'Unknown',
+        meetingTitle: chip.meetingTitle,
+        meetingDate: chip.meetingDate
+      };
+    });
 
     const allMentionedClients = [...mentionedClients, ...contextChipClients];
     const messageContent = input.trim();
@@ -574,7 +609,7 @@ export default function EnhancedAskAdvicly({
                       value={input}
                       onChange={handleInputChange}
                       onKeyDown={handleKeyDown}
-                      placeholder={`Ask about ${clientName || 'your clients'}... (Type @ to mention clients)`}
+                      placeholder={clientName ? `Ask about ${clientName}... (Type @ to mention clients)` : 'Ask about your clients... (Type @ to mention clients)'}
                       className={cn(
                         "w-full min-h-[40px] max-h-32 p-3 bg-background text-foreground border rounded-lg resize-none focus:outline-none focus:ring-2 focus:border-transparent text-sm",
                         showMentionDropdown

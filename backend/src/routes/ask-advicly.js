@@ -394,38 +394,6 @@ router.patch('/threads/:threadId', async (req, res) => {
   }
 });
 
-// Get all clients for @ mentions
-router.get('/clients', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
 
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
-
-    if (!isSupabaseAvailable()) {
-      return res.status(503).json({
-        error: 'Database service unavailable. Please contact support.'
-      });
-    }
-
-    const { data: clients, error } = await getSupabase()
-      .from('clients')
-      .select('id, name, email')
-      .eq('advisor_id', advisorId)
-      .order('name');
-
-    if (error) {
-      console.error('Error fetching clients:', error);
-      return res.status(500).json({ error: 'Failed to fetch clients' });
-    }
-
-    res.json(clients || []);
-  } catch (error) {
-    console.error('Error in /clients:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
 
 module.exports = router;
