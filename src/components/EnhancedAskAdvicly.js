@@ -15,6 +15,7 @@ import {
 import { api } from '../services/api';
 import ClientMentionDropdown from './ClientMentionDropdown';
 import MentionText, { extractMentionedClients } from './MentionText';
+import ContextChip from './ContextChip';
 
 const PROMPT_SUGGESTIONS = [
   "How many meetings did I have last month?",
@@ -24,7 +25,14 @@ const PROMPT_SUGGESTIONS = [
   "Show me this client's meeting history"
 ];
 
-export default function EnhancedAskAdvicly({ clientId, clientName, initialMessage = "", className = "" }) {
+export default function EnhancedAskAdvicly({
+  clientId,
+  clientName,
+  meetingTitle,
+  meetingDate,
+  initialMessage = "",
+  className = ""
+}) {
   const [threads, setThreads] = useState([]);
   const [activeThreadId, setActiveThreadId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -42,6 +50,9 @@ export default function EnhancedAskAdvicly({ clientId, clientName, initialMessag
   const [mentionPosition, setMentionPosition] = useState({ bottom: 60, left: 0 });
   const [cursorPosition, setCursorPosition] = useState(0);
   const textareaRef = useRef(null);
+
+  // Context chips functionality
+  const [contextChips, setContextChips] = useState([]);
 
   // Load clients for @ mentions
   const loadClients = useCallback(async () => {
@@ -100,17 +111,33 @@ export default function EnhancedAskAdvicly({ clientId, clientName, initialMessag
     }
   }, [messages]);
 
-  // Set initial message if provided (with auto @ mention for client)
+  // Create context chips based on URL parameters
   useEffect(() => {
-    if (initialMessage && !input) {
-      let message = initialMessage;
-      // Auto-add @ mention if we have a client
-      if (clientName && !message.includes(`@${clientName}`)) {
-        message = `@${clientName} ${message}`;
-      }
-      setInput(message);
+    if (clientName && contextChips.length === 0) {
+      const newChip = {
+        id: Date.now(),
+        clientName,
+        meetingTitle,
+        meetingDate
+      };
+      setContextChips([newChip]);
     }
-  }, [initialMessage, input, clientName]);
+  }, [clientName, meetingTitle, meetingDate, contextChips.length]);
+
+  // Handle context chip removal
+  const removeContextChip = (chipId) => {
+    setContextChips(prev => prev.filter(chip => chip.id !== chipId));
+  };
+
+  // Handle backspace to remove context chips
+  const handleBackspaceContextChip = () => {
+    if (input === '' && contextChips.length > 0) {
+      // Remove the last context chip when backspacing on empty input
+      setContextChips(prev => prev.slice(0, -1));
+      return true; // Indicate that we handled the backspace
+    }
+    return false;
+  };
 
   // Handle @ mention detection
   const handleInputChange = (e) => {
@@ -212,6 +239,21 @@ export default function EnhancedAskAdvicly({ clientId, clientName, initialMessag
 
     // Extract mentioned clients for enhanced context
     const mentionedClients = extractMentionedClients(input.trim(), clients);
+
+    // Add context chip clients to mentioned clients
+    const contextChipClients = contextChips.map(chip => {
+      const client = clients.find(c => c.name === chip.clientName);
+      return client ? {
+        id: client.id,
+        name: client.name,
+        email: client.email,
+        status: client.status,
+        meetingTitle: chip.meetingTitle,
+        meetingDate: chip.meetingDate
+      } : null;
+    }).filter(Boolean);
+
+    const allMentionedClients = [...mentionedClients, ...contextChipClients];
     const messageContent = input.trim();
 
     const userMessage = { role: 'user', content: messageContent };
@@ -219,16 +261,20 @@ export default function EnhancedAskAdvicly({ clientId, clientName, initialMessag
     setInput('');
     setLoading(true);
     setShowMentionDropdown(false); // Hide dropdown when sending
+    // Clear context chips after sending
+    setContextChips([]);
 
     try {
       // Send message with mentioned clients info
       const requestBody = {
         content: messageContent,
-        mentionedClients: mentionedClients.map(c => ({
+        mentionedClients: allMentionedClients.map(c => ({
           id: c.id,
           name: c.name,
           email: c.email,
-          status: c.status
+          status: c.status,
+          meetingTitle: c.meetingTitle,
+          meetingDate: c.meetingDate
         }))
       };
 
@@ -277,6 +323,11 @@ export default function EnhancedAskAdvicly({ clientId, clientName, initialMessag
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
+    } else if (e.key === 'Backspace') {
+      // Handle backspace for context chips
+      if (handleBackspaceContextChip()) {
+        e.preventDefault();
+      }
     }
   };
 
@@ -500,6 +551,21 @@ export default function EnhancedAskAdvicly({ clientId, clientName, initialMessag
 
             {/* Input area */}
             <div className="border-t border-border/50 p-4 relative">
+              {/* Context chips */}
+              {contextChips.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {contextChips.map((chip) => (
+                    <ContextChip
+                      key={chip.id}
+                      clientName={chip.clientName}
+                      meetingTitle={chip.meetingTitle}
+                      meetingDate={chip.meetingDate}
+                      onRemove={() => removeContextChip(chip.id)}
+                    />
+                  ))}
+                </div>
+              )}
+
               <div className="flex items-end gap-3">
                 <div className="flex-1 relative">
                   <div className="relative">

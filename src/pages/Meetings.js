@@ -757,12 +757,17 @@ export default function Meetings() {
                                   }
 
                                   const meetingTitle = selectedMeeting.summary || selectedMeeting.title || 'meeting';
+                                  const meetingDate = selectedMeeting.start || selectedMeeting.date;
                                   const params = new URLSearchParams({
                                     meeting: meetingTitle
                                   });
 
                                   if (clientName) {
                                     params.set('clientName', clientName);
+                                  }
+
+                                  if (meetingDate) {
+                                    params.set('meetingDate', meetingDate);
                                   }
 
                                   navigate(`/ask-advicly?${params.toString()}`);
