@@ -197,39 +197,85 @@ router.post('/threads/:threadId/messages', async (req, res) => {
       return res.status(500).json({ error: 'Failed to save message' });
     }
 
-    // Get client context if this is a client-scoped thread
+    // Get comprehensive advisor context
+    let advisorContext = '';
+
+    // Get ALL meetings for the advisor (for general questions)
+    const { data: allMeetings } = await getSupabase()
+      .from('meetings')
+      .select('title, starttime, endtime, transcript, quick_summary, email_summary_draft, attendees')
+      .eq('userid', advisorId)
+      .order('starttime', { ascending: false })
+      .limit(50); // Get recent 50 meetings
+
+    // Get all clients for the advisor
+    const { data: allClients } = await getSupabase()
+      .from('clients')
+      .select('name, email, status, likely_value, likely_close_month')
+      .eq('advisor_id', advisorId);
+
+    // Build comprehensive context
+    if (allMeetings && allMeetings.length > 0) {
+      const currentDate = new Date();
+      const lastMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
+      const thisMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+
+      const lastMonthMeetings = allMeetings.filter(m => {
+        const meetingDate = new Date(m.starttime);
+        return meetingDate >= lastMonth && meetingDate < thisMonth;
+      });
+
+      const thisMonthMeetings = allMeetings.filter(m => {
+        const meetingDate = new Date(m.starttime);
+        return meetingDate >= thisMonth;
+      });
+
+      advisorContext = `\n\nYour Meeting Data:
+      - Total meetings in database: ${allMeetings.length}
+      - Meetings last month: ${lastMonthMeetings.length}
+      - Meetings this month: ${thisMonthMeetings.length}
+      - Total clients: ${allClients ? allClients.length : 0}
+
+      Recent Meetings:
+      ${allMeetings.slice(0, 10).map(m =>
+        `• ${m.title} (${new Date(m.starttime).toLocaleDateString()})${m.quick_summary ? ` - ${m.quick_summary.substring(0, 100)}...` : ''}`
+      ).join('\n')}`;
+    }
+
+    // Add specific client context if this is a client-scoped thread
     let clientContext = '';
     if (thread.client_id && thread.clients) {
       const clientEmail = thread.clients.email;
       const clientName = thread.clients.name;
 
-      // Get recent meetings for this client
-      const { data: meetings } = await getSupabase()
-        .from('meetings')
-        .select('title, starttime, transcript, quick_summary, email_summary_draft')
-        .eq('userid', advisorId)
-        .contains('attendees', `[{"email": "${clientEmail}"}]`)
-        .order('starttime', { ascending: false })
-        .limit(5);
+      // Get recent meetings for this specific client
+      const clientMeetings = allMeetings?.filter(m =>
+        m.attendees && m.attendees.includes(clientEmail)
+      ) || [];
 
-      if (meetings && meetings.length > 0) {
-        clientContext = `\n\nClient Context for ${clientName} (${clientEmail}):\n` +
-          meetings.map(m =>
-            `Meeting: ${m.title} (${new Date(m.starttime).toLocaleDateString()})
-            ${m.quick_summary ? `Summary: ${m.quick_summary}` : ''}
-            ${m.transcript ? `Transcript excerpt: ${m.transcript.substring(0, 300)}...` : ''}`
-          ).join('\n\n');
+      if (clientMeetings.length > 0) {
+        clientContext = `\n\nSpecific Client Context for ${clientName} (${clientEmail}):
+        - Total meetings with this client: ${clientMeetings.length}
+        ${clientMeetings.slice(0, 5).map(m =>
+          `• ${m.title} (${new Date(m.starttime).toLocaleDateString()})${m.quick_summary ? ` - ${m.quick_summary}` : ''}`
+        ).join('\n')}`;
       }
     }
 
-    // Generate AI response
-    const systemPrompt = `You are Advicly AI, a helpful assistant for financial advisors. 
+    // Generate AI response with comprehensive context
+    const systemPrompt = `You are Advicly AI, a helpful assistant for financial advisors.
     You help advisors manage their client relationships and provide insights about meetings and client interactions.
-    Be concise, professional, and helpful.${clientContext}`;
 
-    const aiResponse = await generateMeetingSummary(content, 'chat', { 
+    IMPORTANT: Always use the actual data provided below to answer questions. Be specific and accurate with numbers and dates.
+
+    ${advisorContext}${clientContext}
+
+    When answering questions about meetings, clients, or data, always reference the specific information provided above.
+    Be concise, professional, and helpful.`;
+
+    const aiResponse = await generateMeetingSummary(content, 'chat', {
       prompt: systemPrompt,
-      maxTokens: 500 
+      maxTokens: 800
     });
 
     // Save AI response
