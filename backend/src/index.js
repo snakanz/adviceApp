@@ -535,7 +535,7 @@ app.get('/test-advicly', (req, res) => {
 // Mount Ask Advicly routes FIRST (before general /api routes)
 console.log('Mounting Ask Advicly routes...');
 const askAdviclyRouter = require('./routes/ask-advicly');
-app.use('/advicly', askAdviclyRouter);  // Try different path
+app.use('/api/ask-advicly', askAdviclyRouter);  // Fixed path to match frontend
 console.log('Ask Advicly routes mounted successfully');
 
 app.use('/api/clients', clientsRouter);

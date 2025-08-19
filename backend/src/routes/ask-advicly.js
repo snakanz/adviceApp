@@ -1,7 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
-const { generateMeetingSummary } = require('../services/openai');
+const { generateMeetingSummary, generateChatResponse } = require('../services/openai');
 
 const router = express.Router();
 
@@ -273,10 +273,7 @@ router.post('/threads/:threadId/messages', async (req, res) => {
     When answering questions about meetings, clients, or data, always reference the specific information provided above.
     Be concise, professional, and helpful.`;
 
-    const aiResponse = await generateMeetingSummary(content, 'chat', {
-      prompt: systemPrompt,
-      maxTokens: 800
-    });
+    const aiResponse = await generateChatResponse(content.trim(), systemPrompt, 800);
 
     // Save AI response
     const { data: aiMessage, error: aiMessageError } = await getSupabase()

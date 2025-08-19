@@ -123,9 +123,40 @@ async function improveTemplate(template, improvementRequest) {
   }
 }
 
+// Generate AI chat response for Ask Advicly
+async function generateChatResponse(userMessage, systemPrompt, maxTokens = 800) {
+  try {
+    if (!isOpenAIAvailable()) {
+      throw new Error('OpenAI service is not available. Please check your API key configuration.');
+    }
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: userMessage
+        }
+      ],
+      max_tokens: maxTokens,
+      temperature: 0.7,
+    });
+
+    return response.choices[0].message.content.trim();
+  } catch (error) {
+    console.error('Error generating chat response:', error);
+    throw new Error(`Failed to generate AI response: ${error.message}`);
+  }
+}
+
 module.exports = {
     generateMeetingSummary,
     adjustMeetingSummary,
     improveTemplate,
+    generateChatResponse,
     isOpenAIAvailable
 };
