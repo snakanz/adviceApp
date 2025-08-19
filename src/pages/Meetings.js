@@ -736,7 +736,37 @@ export default function Meetings() {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => navigate(`/ask-advicly?meeting=${encodeURIComponent(selectedMeeting.summary || selectedMeeting.title || 'meeting')}`)}
+                                onClick={() => {
+                                  // Extract client name from attendees if available
+                                  let clientName = '';
+                                  if (selectedMeeting.attendees) {
+                                    try {
+                                      const attendees = typeof selectedMeeting.attendees === 'string'
+                                        ? JSON.parse(selectedMeeting.attendees)
+                                        : selectedMeeting.attendees;
+
+                                      // Find first attendee that's not the current user
+                                      const currentUserEmail = localStorage.getItem('userEmail') || '';
+                                      const clientAttendee = attendees.find(a => a.email !== currentUserEmail);
+                                      if (clientAttendee) {
+                                        clientName = clientAttendee.name || clientAttendee.email;
+                                      }
+                                    } catch (e) {
+                                      console.log('Could not parse attendees');
+                                    }
+                                  }
+
+                                  const meetingTitle = selectedMeeting.summary || selectedMeeting.title || 'meeting';
+                                  const params = new URLSearchParams({
+                                    meeting: meetingTitle
+                                  });
+
+                                  if (clientName) {
+                                    params.set('clientName', clientName);
+                                  }
+
+                                  navigate(`/ask-advicly?${params.toString()}`);
+                                }}
                                 className="h-8 px-3 text-xs"
                               >
                                 Ask Advicly

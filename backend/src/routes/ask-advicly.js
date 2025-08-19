@@ -153,7 +153,7 @@ router.post('/threads/:threadId/messages', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const advisorId = decoded.id;
     const { threadId } = req.params;
-    const { content } = req.body;
+    const { content, mentionedClients = [] } = req.body;
 
     if (!content || !content.trim()) {
       return res.status(400).json({ error: 'Message content is required' });
@@ -262,13 +262,51 @@ router.post('/threads/:threadId/messages', async (req, res) => {
       }
     }
 
+    // Add mentioned clients context
+    let mentionedClientsContext = '';
+    if (mentionedClients && mentionedClients.length > 0) {
+      const mentionedClientDetails = [];
+
+      for (const mentionedClient of mentionedClients) {
+        // Get meetings for this mentioned client
+        const clientMeetings = allMeetings?.filter(m =>
+          m.attendees && JSON.stringify(m.attendees).toLowerCase().includes(mentionedClient.email.toLowerCase())
+        ) || [];
+
+        // Get client details from database
+        const { data: fullClientData } = await getSupabase()
+          .from('clients')
+          .select('*')
+          .eq('id', mentionedClient.id)
+          .single();
+
+        mentionedClientDetails.push({
+          ...mentionedClient,
+          meetings: clientMeetings,
+          fullData: fullClientData
+        });
+      }
+
+      mentionedClientsContext = `\n\nMentioned Clients Context:
+      ${mentionedClientDetails.map(client => `
+      Client: ${client.name} (${client.email})
+      Status: ${client.status || 'Unknown'}
+      ${client.fullData ? `Value: ${client.fullData.likely_value || 'Not set'}, Close Month: ${client.fullData.likely_close_month || 'Not set'}` : ''}
+      Recent Meetings: ${client.meetings.length}
+      ${client.meetings.slice(0, 3).map(m =>
+        `  • ${m.title} (${new Date(m.starttime).toLocaleDateString()})${m.quick_summary ? ` - ${m.quick_summary.substring(0, 80)}...` : ''}`
+      ).join('\n')}
+      `).join('\n')}`;
+    }
+
     // Generate AI response with comprehensive context
     const systemPrompt = `You are Advicly AI, a helpful assistant for financial advisors.
     You help advisors manage their client relationships and provide insights about meetings and client interactions.
 
     IMPORTANT: Always use the actual data provided below to answer questions. Be specific and accurate with numbers and dates.
+    When clients are mentioned with @ symbols, pay special attention to their specific context.
 
-    ${advisorContext}${clientContext}
+    ${advisorContext}${clientContext}${mentionedClientsContext}
 
     When answering questions about meetings, clients, or data, always reference the specific information provided above.
     Be concise, professional, and helpful.`;

@@ -13,6 +13,8 @@ import {
   Lightbulb
 } from 'lucide-react';
 import { api } from '../services/api';
+import ClientMentionDropdown from './ClientMentionDropdown';
+import MentionText, { extractMentionedClients } from './MentionText';
 
 const PROMPT_SUGGESTIONS = [
   "How many meetings did I have last month?",
@@ -33,12 +35,30 @@ export default function EnhancedAskAdvicly({ clientId, clientName, initialMessag
   const [editingTitle, setEditingTitle] = useState('');
   const feedRef = useRef(null);
 
+  // @ mention functionality
+  const [clients, setClients] = useState([]);
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionSearchTerm, setMentionSearchTerm] = useState('');
+  const [mentionPosition, setMentionPosition] = useState({ bottom: 60, left: 0 });
+  const [cursorPosition, setCursorPosition] = useState(0);
+  const textareaRef = useRef(null);
+
+  // Load clients for @ mentions
+  const loadClients = useCallback(async () => {
+    try {
+      const response = await api.request('/ask-advicly/clients');
+      setClients(response);
+    } catch (error) {
+      console.error('Error loading clients:', error);
+    }
+  }, []);
+
   const loadThreads = useCallback(async () => {
     try {
       setLoadingThreads(true);
       const response = await api.request('/ask-advicly/threads');
       setThreads(response);
-      
+
       // If we have a clientId, filter to client-specific threads or create one
       if (clientId) {
         const clientThreads = response.filter(t => t.client_id === clientId);
@@ -61,7 +81,8 @@ export default function EnhancedAskAdvicly({ clientId, clientName, initialMessag
   // Load threads on component mount
   useEffect(() => {
     loadThreads();
-  }, [loadThreads]);
+    loadClients();
+  }, [loadThreads, loadClients]);
 
   // Load messages when active thread changes
   useEffect(() => {
@@ -79,12 +100,78 @@ export default function EnhancedAskAdvicly({ clientId, clientName, initialMessag
     }
   }, [messages]);
 
-  // Set initial message if provided
+  // Set initial message if provided (with auto @ mention for client)
   useEffect(() => {
     if (initialMessage && !input) {
-      setInput(initialMessage);
+      let message = initialMessage;
+      // Auto-add @ mention if we have a client
+      if (clientName && !message.includes(`@${clientName}`)) {
+        message = `@${clientName} ${message}`;
+      }
+      setInput(message);
     }
-  }, [initialMessage, input]);
+  }, [initialMessage, input, clientName]);
+
+  // Handle @ mention detection
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    const cursorPos = e.target.selectionStart;
+
+    setInput(value);
+    setCursorPosition(cursorPos);
+
+    // Check for @ mention
+    const textBeforeCursor = value.substring(0, cursorPos);
+    const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+
+    if (mentionMatch) {
+      setMentionSearchTerm(mentionMatch[1]);
+      setShowMentionDropdown(true);
+
+      // Calculate dropdown position
+      const textarea = e.target;
+      const rect = textarea.getBoundingClientRect();
+      setMentionPosition({
+        bottom: window.innerHeight - rect.top + 10,
+        left: rect.left
+      });
+    } else {
+      setShowMentionDropdown(false);
+    }
+  };
+
+  // Handle mention selection
+  const handleMentionSelect = (client) => {
+    if (!client) {
+      setShowMentionDropdown(false);
+      return;
+    }
+
+    const textBeforeCursor = input.substring(0, cursorPosition);
+    const textAfterCursor = input.substring(cursorPosition);
+
+    // Find the @ symbol position
+    const mentionMatch = textBeforeCursor.match(/@(\w*)$/);
+    if (mentionMatch) {
+      const mentionStart = textBeforeCursor.lastIndexOf('@');
+      const newText =
+        input.substring(0, mentionStart) +
+        `@${client.name} ` +
+        textAfterCursor;
+
+      setInput(newText);
+      setShowMentionDropdown(false);
+
+      // Focus back to textarea
+      setTimeout(() => {
+        if (textareaRef.current) {
+          const newCursorPos = mentionStart + client.name.length + 2;
+          textareaRef.current.focus();
+          textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+        }
+      }, 0);
+    }
+  };
 
   const loadMessages = async (threadId) => {
     try {
@@ -113,9 +200,9 @@ export default function EnhancedAskAdvicly({ clientId, clientName, initialMessag
 
   const sendMessage = async () => {
     if (!input.trim()) return;
-    
+
     let threadId = activeThreadId;
-    
+
     // Create a new thread if none exists
     if (!threadId) {
       const newThread = await createNewThread(clientId, input.substring(0, 50) + '...');
@@ -123,22 +210,38 @@ export default function EnhancedAskAdvicly({ clientId, clientName, initialMessag
       if (!threadId) return;
     }
 
-    const userMessage = { role: 'user', content: input.trim() };
+    // Extract mentioned clients for enhanced context
+    const mentionedClients = extractMentionedClients(input.trim(), clients);
+    const messageContent = input.trim();
+
+    const userMessage = { role: 'user', content: messageContent };
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setLoading(true);
+    setShowMentionDropdown(false); // Hide dropdown when sending
 
     try {
+      // Send message with mentioned clients info
+      const requestBody = {
+        content: messageContent,
+        mentionedClients: mentionedClients.map(c => ({
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          status: c.status
+        }))
+      };
+
       const response = await api.request(`/ask-advicly/threads/${threadId}/messages`, {
         method: 'POST',
-        body: JSON.stringify({ content: input.trim() })
+        body: JSON.stringify(requestBody)
       });
 
       setMessages(prev => [...prev, response.aiMessage]);
-      
+
       // Update thread timestamp in local state
-      setThreads(prev => prev.map(t => 
-        t.id === threadId 
+      setThreads(prev => prev.map(t =>
+        t.id === threadId
           ? { ...t, updated_at: new Date().toISOString() }
           : t
       ));
@@ -369,7 +472,10 @@ export default function EnhancedAskAdvicly({ clientId, clientName, initialMessag
                         : "bg-muted text-foreground"
                     )}>
                       <div className="text-sm whitespace-pre-wrap">
-                        {msg.content}
+                        <MentionText
+                          text={msg.content}
+                          className={msg.role === 'user' ? "text-primary-foreground" : "text-foreground"}
+                        />
                       </div>
                     </div>
                   </div>
@@ -393,16 +499,38 @@ export default function EnhancedAskAdvicly({ clientId, clientName, initialMessag
             </div>
 
             {/* Input area */}
-            <div className="border-t border-border/50 p-4">
+            <div className="border-t border-border/50 p-4 relative">
               <div className="flex items-end gap-3">
-                <div className="flex-1">
-                  <textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder={`Ask about ${clientName || 'your clients'}...`}
-                    className="w-full min-h-[40px] max-h-32 p-3 bg-background text-foreground border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                    rows={1}
+                <div className="flex-1 relative">
+                  <div className="relative">
+                    <textarea
+                      ref={textareaRef}
+                      value={input}
+                      onChange={handleInputChange}
+                      onKeyDown={handleKeyDown}
+                      placeholder={`Ask about ${clientName || 'your clients'}... (Type @ to mention clients)`}
+                      className={cn(
+                        "w-full min-h-[40px] max-h-32 p-3 bg-background text-foreground border rounded-lg resize-none focus:outline-none focus:ring-2 focus:border-transparent text-sm",
+                        showMentionDropdown
+                          ? "border-blue-300 ring-2 ring-blue-100 focus:ring-blue-200"
+                          : "border-border focus:ring-primary"
+                      )}
+                      rows={1}
+                    />
+                    {showMentionDropdown && (
+                      <div className="absolute top-2 right-2 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
+                        @ mention active
+                      </div>
+                    )}
+                  </div>
+
+                  {/* @ Mention Dropdown */}
+                  <ClientMentionDropdown
+                    clients={clients}
+                    isVisible={showMentionDropdown}
+                    searchTerm={mentionSearchTerm}
+                    onSelect={handleMentionSelect}
+                    position={mentionPosition}
                   />
                 </div>
                 <Button
