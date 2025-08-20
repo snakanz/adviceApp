@@ -124,12 +124,8 @@ export default function Meetings() {
     setLoading(true);
     try {
       const token = localStorage.getItem('jwt');
-      let url;
-      if (window.location.hostname === 'localhost') {
-        url = `${API_URL}/api/dev/meetings`;
-      } else {
-        url = `${API_URL}/calendar/meetings/all`;
-      }
+      // 🔥 FIXED: Always use the database endpoint (dev/meetings) for both localhost and production
+      const url = `${API_URL}/api/dev/meetings`;
       const res = await fetch(url, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -146,16 +142,16 @@ export default function Meetings() {
       }
       const data = await res.json();
       console.log('Raw meetings data from API:', data); // Debug log
-      let meetingsData = data;
-      if (window.location.hostname === 'localhost') {
-        const now = new Date();
-        meetingsData = { past: [], future: [] };
-        data.forEach(m => {
-          const start = new Date(m.startTime);
-          if (start < now) meetingsData.past.push({ ...m, id: m.googleEventId });
-          else meetingsData.future.push({ ...m, id: m.googleEventId });
-        });
-      }
+
+      // 🔥 FIXED: Always process the data the same way since we're always using the database endpoint
+      const now = new Date();
+      const meetingsData = { past: [], future: [] };
+      data.forEach(m => {
+        const start = new Date(m.startTime);
+        if (start < now) meetingsData.past.push({ ...m, id: m.googleEventId });
+        else meetingsData.future.push({ ...m, id: m.googleEventId });
+      });
+
       setMeetings(meetingsData);
       if (selectedMeetingIdRef.current === null) {
         if (meetingsData.past.length > 0) {
