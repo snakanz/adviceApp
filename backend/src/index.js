@@ -193,15 +193,24 @@ app.post('/api/calendar/sync-with-deletions', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
 
-    const calendarSync = require('./services/calendarSync');
-    const results = await calendarSync.syncUserCalendar(userId, {
-      timeRange: 'extended' // 6 months for comprehensive sync
-    });
+    try {
+      const calendarSync = require('./services/calendarSync');
+      const results = await calendarSync.syncUserCalendar(userId, {
+        timeRange: 'extended' // 6 months for comprehensive sync
+      });
 
-    res.json({
-      message: 'Calendar synced with deletion detection',
-      results
-    });
+      res.json({
+        message: 'Calendar synced with deletion detection',
+        results
+      });
+    } catch (syncError) {
+      console.error('Calendar sync service error:', syncError);
+      // Return a more user-friendly error
+      res.status(503).json({
+        error: 'Calendar sync service temporarily unavailable',
+        details: syncError.message
+      });
+    }
   } catch (error) {
     console.error('Error syncing calendar with deletions:', error);
     res.status(500).json({ error: 'Failed to sync calendar' });
@@ -471,18 +480,26 @@ app.get('/test-advicly', (req, res) => {
 });
 
 // Mount Ask Advicly routes FIRST (before general /api routes)
-console.log('Mounting Ask Advicly routes...');
-const askAdviclyRouter = require('./routes/ask-advicly');
-app.use('/api/ask-advicly', askAdviclyRouter);  // Fixed path to match frontend
-console.log('Ask Advicly routes mounted successfully');
+try {
+  console.log('Mounting Ask Advicly routes...');
+  const askAdviclyRouter = require('./routes/ask-advicly');
+  app.use('/api/ask-advicly', askAdviclyRouter);  // Fixed path to match frontend
+  console.log('Ask Advicly routes mounted successfully');
+} catch (error) {
+  console.warn('Failed to mount Ask Advicly routes:', error.message);
+}
 
 // Mount Recall V2 routes
-console.log('Mounting Recall V2 routes...');
-const recallWebhooksRouter = require('./routes/recall-webhooks');
-const recallCalendarRouter = require('./routes/recall-calendar');
-app.use('/api/webhooks', recallWebhooksRouter);
-app.use('/api/recall', recallCalendarRouter);
-console.log('Recall V2 routes mounted successfully');
+try {
+  console.log('Mounting Recall V2 routes...');
+  const recallWebhooksRouter = require('./routes/recall-webhooks');
+  const recallCalendarRouter = require('./routes/recall-calendar');
+  app.use('/api/webhooks', recallWebhooksRouter);
+  app.use('/api/recall', recallCalendarRouter);
+  console.log('Recall V2 routes mounted successfully');
+} catch (error) {
+  console.warn('Failed to mount Recall V2 routes:', error.message);
+}
 
 app.use('/api/clients', clientsRouter);
 app.use('/api/pipeline', pipelineRouter);
