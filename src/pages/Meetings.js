@@ -2,11 +2,11 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
 } from '../components/ui/dropdown-menu';
 import { cn } from '../lib/utils';
 import {
@@ -18,7 +18,8 @@ import {
   ChevronDown,
   Upload,
   Edit3,
-  Check
+  Check,
+  RefreshCw
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -94,6 +95,9 @@ export default function Meetings() {
   const [quickSummary, setQuickSummary] = useState('');
   const [emailSummary, setEmailSummary] = useState('');
   const [autoGenerating, setAutoGenerating] = useState(false);
+
+  // Add calendar sync state
+  const [syncing, setSyncing] = useState(false);
 
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
@@ -467,6 +471,41 @@ export default function Meetings() {
     }
   };
 
+  // Calendar sync function
+  const syncCalendar = async () => {
+    setSyncing(true);
+    try {
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/api/calendar/sync-with-deletions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to sync calendar');
+      }
+
+      const result = await response.json();
+
+      // Refresh meetings after sync
+      await fetchMeetings();
+
+      setShowSnackbar(true);
+      setSnackbarMessage(`Calendar synced! ${result.results?.added || 0} added, ${result.results?.updated || 0} updated, ${result.results?.deleted || 0} deleted`);
+      setSnackbarSeverity('success');
+    } catch (error) {
+      console.error('Error syncing calendar:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to sync calendar');
+      setSnackbarSeverity('error');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const renderMeetingsList = (meetings, title) => (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-foreground">{title}</h2>
@@ -541,7 +580,19 @@ export default function Meetings() {
       )}>
         {/* Header */}
         <div className="border-b border-border/50 p-6 bg-card/50">
-          <h1 className="text-2xl font-bold text-foreground mb-4">Meetings</h1>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-foreground">Meetings</h1>
+            <Button
+              onClick={syncCalendar}
+              disabled={syncing}
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              <RefreshCw className={cn("w-4 h-4", syncing && "animate-spin")} />
+              {syncing ? 'Syncing...' : 'Sync Calendar'}
+            </Button>
+          </div>
 
           {/* Search Bar */}
           <div className="relative mb-4">

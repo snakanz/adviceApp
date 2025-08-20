@@ -125,148 +125,86 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
       });
     }
 
-    // Get user's Google tokens from database
-    const { data: tokenData } = await getSupabase()
-      .from('calendartoken')
-      .select('accesstoken, refreshtoken, expiresat')
-      .eq('userid', userId)
-      .single();
-
-    if (!tokenData?.accesstoken) {
-      return res.status(401).json({ error: 'User not connected to Google Calendar. Please reconnect your Google account.' });
-    }
-
-    // Check if token is expired and refresh if needed
-    let accessToken = tokenData.accesstoken;
-    const refreshToken = tokenData.refreshtoken;
-    const expiresAt = new Date(tokenData.expiresat);
-    
-    if (expiresAt < new Date()) {
-      // Token is expired, refresh it
-      try {
-        const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            client_id: process.env.GOOGLE_CLIENT_ID,
-            client_secret: process.env.GOOGLE_CLIENT_SECRET,
-            refresh_token: refreshToken,
-            grant_type: 'refresh_token'
-          })
-        });
-        
-        if (refreshResponse.ok) {
-          const newTokens = await refreshResponse.json();
-          accessToken = newTokens.access_token;
-          
-          // Update the token in database
-          const newExpiresAt = new Date(Date.now() + (newTokens.expires_in * 1000));
-          await getSupabase()
-            .from('calendartoken')
-            .update({
-              accesstoken: accessToken,
-              expiresat: newExpiresAt.toISOString(),
-              updatedat: new Date().toISOString()
-            })
-            .eq('userid', userId);
-        } else {
-          return res.status(401).json({ error: 'Failed to refresh Google token. Please reconnect your Google account.' });
-        }
-      } catch (error) {
-        console.error('Token refresh error:', error);
-        return res.status(401).json({ error: 'Failed to refresh Google token. Please reconnect your Google account.' });
-      }
-    }
-
-    // Create per-user OAuth2 client
-    const userOAuth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    );
-
-    // Set user's credentials
-    userOAuth2Client.setCredentials({
-      access_token: accessToken,
-      refresh_token: refreshToken
-    });
-
-    const calendar = google.calendar({ version: 'v3', auth: userOAuth2Client });
+    // Get meetings from DATABASE (not Google Calendar directly)
+    // This ensures we respect deletion detection and other database state
     const now = new Date();
-    const timeMin = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString(); // 3 months ago
-    const timeMax = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days ahead
+    const timeMin = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); // 3 months ago
 
-    const response = await calendar.events.list({
-      calendarId: 'primary',
-      timeMin,
-      timeMax,
-      singleEvents: true,
-      orderBy: 'startTime',
-      maxResults: 2500
-    });
-    const events = response.data.items || [];
+    const { data: meetings, error } = await getSupabase()
+      .from('meetings')
+      .select('*')
+      .eq('userid', userId)
+      .eq('is_deleted', false) // 🔥 KEY FIX: Only show non-deleted meetings
+      .gte('starttime', timeMin.toISOString())
+      .order('starttime', { ascending: true });
 
-    // Upsert each meeting into the database
-    for (const event of events) {
-      if (!event.start || !event.start.dateTime) continue; // skip all-day events
-      await getSupabase()
-        .from('meetings')
-        .upsert({
-          googleeventid: event.id,
-          userid: userId,
-          title: event.summary || 'Untitled Meeting',
-          starttime: event.start.dateTime,
-          endtime: event.end && event.end.dateTime ? event.end.dateTime : null,
-          summary: event.description || '',
-          updatedat: new Date().toISOString(),
-          attendees: JSON.stringify(event.attendees || [])
-        }, {
-          onConflict: 'googleeventid,userid'
-        });
+    if (error) {
+      console.error('Error fetching meetings from database:', error);
+      return res.status(500).json({ error: 'Failed to fetch meetings from database' });
     }
 
     // Group into past and future
     const past = [];
     const future = [];
-    for (const event of events) {
-      if (!event.start || !event.start.dateTime) continue;
-      // Fetch meeting data from DB
-      const { data: meetingData } = await getSupabase()
-        .from('meetings')
-        .select('transcript, quick_summary, email_summary_draft, email_template_id, last_summarized_at')
-        .eq('googleeventid', event.id)
-        .eq('userid', userId)
-        .single();
-      const transcript = meetingData?.transcript || null;
-      const quickSummary = meetingData?.quick_summary || null;
-      const emailSummary = meetingData?.email_summary_draft || null;
-      const templateId = meetingData?.email_template_id || null;
-      const lastSummarizedAt = meetingData?.last_summarized_at || null;
-      const eventStart = new Date(event.start.dateTime);
+
+    for (const meeting of meetings || []) {
+      if (!meeting.starttime) continue;
+
+      const eventStart = new Date(meeting.starttime);
+      const eventEnd = meeting.endtime ? new Date(meeting.endtime) : null;
+
       const processedEvent = {
-        id: event.id,
-        summary: event.summary || 'Untitled Meeting',
-        start: { dateTime: event.start.dateTime },
-        end: event.end ? { dateTime: event.end.dateTime } : null,
-        description: event.description,
-        location: event.location,
-        attendees: event.attendees || [],
-        transcript,
-        quickSummary,
-        emailSummary,
-        templateId,
-        lastSummarizedAt
+        id: meeting.googleeventid,
+        summary: meeting.title || 'Untitled Meeting',
+        start: { dateTime: meeting.starttime },
+        end: meeting.endtime ? { dateTime: meeting.endtime } : null,
+        description: meeting.summary || '',
+        location: meeting.location || '',
+        attendees: meeting.attendees ? JSON.parse(meeting.attendees) : [],
+        transcript: meeting.transcript,
+        quickSummary: meeting.quick_summary,
+        emailSummary: meeting.email_summary_draft,
+        templateId: meeting.email_template_id,
+        lastSummarizedAt: meeting.last_summarized_at,
+        meetingSummary: meeting.quick_summary // For compatibility with frontend
       };
-      if (eventStart > now) {
-        future.push(processedEvent);
-      } else {
+
+      if (eventEnd && eventEnd < now) {
         past.push(processedEvent);
+      } else {
+        future.push(processedEvent);
       }
     }
+
     res.json({ past, future });
   } catch (error) {
     console.error('Error fetching or saving meetings:', error);
     res.status(500).json({ error: 'Failed to fetch or save meetings' });
+  }
+});
+
+// New deletion-aware calendar sync endpoint
+app.post('/api/calendar/sync-with-deletions', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+
+    const calendarSync = require('./services/calendarSync');
+    const results = await calendarSync.syncUserCalendar(userId, {
+      timeRange: 'extended' // 6 months for comprehensive sync
+    });
+
+    res.json({
+      message: 'Calendar synced with deletion detection',
+      results
+    });
+  } catch (error) {
+    console.error('Error syncing calendar with deletions:', error);
+    res.status(500).json({ error: 'Failed to sync calendar' });
   }
 });
 
@@ -537,6 +475,14 @@ console.log('Mounting Ask Advicly routes...');
 const askAdviclyRouter = require('./routes/ask-advicly');
 app.use('/api/ask-advicly', askAdviclyRouter);  // Fixed path to match frontend
 console.log('Ask Advicly routes mounted successfully');
+
+// Mount Recall V2 routes
+console.log('Mounting Recall V2 routes...');
+const recallWebhooksRouter = require('./routes/recall-webhooks');
+const recallCalendarRouter = require('./routes/recall-calendar');
+app.use('/api/webhooks', recallWebhooksRouter);
+app.use('/api/recall', recallCalendarRouter);
+console.log('Recall V2 routes mounted successfully');
 
 app.use('/api/clients', clientsRouter);
 app.use('/api/pipeline', pipelineRouter);
