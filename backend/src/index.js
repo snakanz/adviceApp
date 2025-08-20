@@ -134,7 +134,7 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
       .from('meetings')
       .select('*')
       .eq('userid', userId)
-      .eq('is_deleted', false) // 🔥 KEY FIX: Only show non-deleted meetings
+      .or('is_deleted.is.null,is_deleted.eq.false') // 🔥 FIXED: Show meetings where is_deleted is NULL or false
       .gte('starttime', timeMin.toISOString())
       .order('starttime', { ascending: true });
 
