@@ -270,7 +270,7 @@ app.get('/api/calendar/sync-status', async (req, res) => {
   }
 });
 
-// 🔥 NEW: Database-only meetings endpoint (for frontend consistency)
+// 🔥 NEW: Database-only meetings endpoint (with fallback for missing columns)
 app.get('/api/dev/meetings', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
@@ -282,20 +282,40 @@ app.get('/api/dev/meetings', async (req, res) => {
 
     console.log(`📅 Fetching meetings from database for user ${userId}`);
 
-    // Query database with proper NULL handling
-    const { data: meetings, error } = await getSupabase()
-      .from('meetings')
-      .select('*')
-      .eq('userid', userId)
-      .or('is_deleted.is.null,is_deleted.eq.false') // Handle both NULL and false
-      .order('starttime', { ascending: false });
+    // Try enhanced query first, fallback to basic if is_deleted column doesn't exist
+    let meetings, error;
+
+    try {
+      // Try query with is_deleted column
+      const result = await getSupabase()
+        .from('meetings')
+        .select('*')
+        .eq('userid', userId)
+        .or('is_deleted.is.null,is_deleted.eq.false') // Handle both NULL and false
+        .order('starttime', { ascending: false });
+
+      meetings = result.data;
+      error = result.error;
+    } catch (enhancedError) {
+      console.log('is_deleted column not found, using basic query');
+
+      // Fallback to basic query without is_deleted filter
+      const result = await getSupabase()
+        .from('meetings')
+        .select('*')
+        .eq('userid', userId)
+        .order('starttime', { ascending: false });
+
+      meetings = result.data;
+      error = result.error;
+    }
 
     if (error) {
       console.error('Database query error:', error);
       throw error;
     }
 
-    console.log(`✅ Found ${meetings?.length || 0} active meetings in database`);
+    console.log(`✅ Found ${meetings?.length || 0} meetings in database`);
 
     res.json(meetings || []);
   } catch (error) {
@@ -304,7 +324,7 @@ app.get('/api/dev/meetings', async (req, res) => {
   }
 });
 
-// 🔥 NEW: Enhanced clients endpoint with activity status
+// 🔥 NEW: Enhanced clients endpoint with activity status (with fallback)
 app.get('/api/clients', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
@@ -316,31 +336,55 @@ app.get('/api/clients', async (req, res) => {
 
     console.log(`👥 Fetching clients with activity status for user ${userId}`);
 
-    // Query clients with enhanced status information
-    const { data: clients, error } = await getSupabase()
-      .from('clients')
-      .select(`
-        *,
-        meeting_count,
-        active_meeting_count,
-        is_active,
-        last_meeting_date
-      `)
-      .eq('advisor_id', userId)
-      .order('is_active', { ascending: false })
-      .order('last_meeting_date', { ascending: false, nullsFirst: false });
+    // Try enhanced query first, fallback to basic if columns don't exist
+    let clients, error;
+
+    try {
+      // Try enhanced query with new columns
+      const result = await getSupabase()
+        .from('clients')
+        .select(`
+          *,
+          meeting_count,
+          active_meeting_count,
+          is_active,
+          last_meeting_date
+        `)
+        .eq('advisor_id', userId)
+        .order('is_active', { ascending: false })
+        .order('last_meeting_date', { ascending: false, nullsFirst: false });
+
+      clients = result.data;
+      error = result.error;
+    } catch (enhancedError) {
+      console.log('Enhanced query failed, falling back to basic query');
+
+      // Fallback to basic query without new columns
+      const result = await getSupabase()
+        .from('clients')
+        .select('*')
+        .eq('advisor_id', userId)
+        .order('created_at', { ascending: false });
+
+      clients = result.data;
+      error = result.error;
+    }
 
     if (error) {
       console.error('Database query error:', error);
       throw error;
     }
 
-    // Add computed status field
+    // Add computed status field (with fallbacks for missing columns)
     const enhancedClients = (clients || []).map(client => ({
       ...client,
-      status: client.is_active ? 'Active' :
-              (client.meeting_count > 0 ? 'Historical' : 'No Meetings'),
-      displayStatus: client.is_active ? 'active' : 'historical'
+      // Use new columns if available, otherwise default values
+      is_active: client.is_active !== undefined ? client.is_active : false,
+      meeting_count: client.meeting_count || 0,
+      active_meeting_count: client.active_meeting_count || 0,
+      status: (client.is_active !== undefined ? client.is_active : false) ? 'Active' :
+              ((client.meeting_count || 0) > 0 ? 'Historical' : 'No Meetings'),
+      displayStatus: (client.is_active !== undefined ? client.is_active : false) ? 'active' : 'historical'
     }));
 
     console.log(`✅ Found ${enhancedClients.length} clients (${enhancedClients.filter(c => c.is_active).length} active)`);
