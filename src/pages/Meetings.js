@@ -27,7 +27,7 @@ import { useAuth } from '../context/AuthContext';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
 
-const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
+const API_URL = process.env.REACT_APP_API_URL;
 
 const formatDate = (dateTimeStr) => {
   const date = new Date(dateTimeStr);
