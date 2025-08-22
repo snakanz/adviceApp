@@ -27,7 +27,7 @@ import { useAuth } from '../context/AuthContext';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
 
-const API_URL = process.env.REACT_APP_API_URL;
+const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
 const formatDate = (dateTimeStr) => {
   const date = new Date(dateTimeStr);
@@ -467,35 +467,20 @@ export default function Meetings() {
     }
   };
 
-  // Calendar sync function
+  // Calendar sync function - simplified to just refresh meetings
   const syncCalendar = async () => {
     setSyncing(true);
     try {
-      const token = localStorage.getItem('jwt');
-      const response = await fetch(`${API_URL}/api/calendar/sync-with-deletions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to sync calendar');
-      }
-
-      const result = await response.json();
-
-      // Refresh meetings after sync
+      // Just refresh the meetings from the existing endpoint
       await fetchMeetings();
 
       setShowSnackbar(true);
-      setSnackbarMessage(`Calendar synced! ${result.results?.added || 0} added, ${result.results?.updated || 0} updated, ${result.results?.deleted || 0} deleted`);
+      setSnackbarMessage('Calendar refreshed successfully!');
       setSnackbarSeverity('success');
     } catch (error) {
-      console.error('Error syncing calendar:', error);
+      console.error('Error refreshing calendar:', error);
       setShowSnackbar(true);
-      setSnackbarMessage('Failed to sync calendar');
+      setSnackbarMessage('Failed to refresh calendar');
       setSnackbarSeverity('error');
     } finally {
       setSyncing(false);
