@@ -21,23 +21,57 @@ class CalendarDeletionSync {
     console.log(`🔄 Starting calendar sync with deletion detection for user ${userId}...`);
 
     try {
-      // Get user's calendar token
-      const { data: calendarToken } = await getSupabase()
+      // Get user's calendar token from calendartoken table
+      const { data: calendarToken, error: tokenError } = await getSupabase()
         .from('calendartoken')
         .select('*')
         .eq('userid', userId)
         .single();
 
-      if (!calendarToken) {
-        throw new Error('No calendar token found for user');
+      if (tokenError || !calendarToken) {
+        console.error('Calendar token error:', tokenError);
+        throw new Error(`No calendar token found for user ${userId}. Please reconnect your Google Calendar.`);
       }
+
+      console.log(`📅 Found calendar token for user ${userId}, expires: ${calendarToken.expiresat}`);
+
+      // Check if token is expired
+      const expiresAt = new Date(calendarToken.expiresat);
+      const now = new Date();
+      const isExpired = expiresAt <= now;
+
+      console.log(`🔐 Token status: ${isExpired ? 'EXPIRED' : 'VALID'} (expires: ${expiresAt.toISOString()})`);
 
       // Set up OAuth client
       this.oauth2Client.setCredentials({
         access_token: calendarToken.accesstoken,
         refresh_token: calendarToken.refreshtoken,
-        expiry_date: new Date(calendarToken.expiresat).getTime()
+        expiry_date: expiresAt.getTime()
       });
+
+      // If token is expired, try to refresh it
+      if (isExpired && calendarToken.refreshtoken) {
+        console.log('🔄 Refreshing expired access token...');
+        try {
+          const { credentials } = await this.oauth2Client.refreshAccessToken();
+
+          // Update the token in database
+          const newExpiresAt = new Date(credentials.expiry_date);
+          await getSupabase()
+            .from('calendartoken')
+            .update({
+              accesstoken: credentials.access_token,
+              expiresat: newExpiresAt.toISOString(),
+              updatedat: new Date().toISOString()
+            })
+            .eq('userid', userId);
+
+          console.log(`✅ Token refreshed successfully, new expiry: ${newExpiresAt.toISOString()}`);
+        } catch (refreshError) {
+          console.error('❌ Failed to refresh token:', refreshError);
+          throw new Error('Google Calendar token expired and could not be refreshed. Please reconnect your Google Calendar.');
+        }
+      }
 
       // Get calendar events (including deleted ones)
       const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });

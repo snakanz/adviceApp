@@ -185,15 +185,37 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
 
 // New deletion-aware calendar sync endpoint
 app.post('/api/calendar/sync-with-deletions', async (req, res) => {
-  console.log('🔄 Sync-with-deletions endpoint called'); // Debug log
+  console.log('🔄 Sync-with-deletions endpoint called');
+  console.log('📋 Request headers:', {
+    authorization: req.headers.authorization ? 'Bearer [REDACTED]' : 'MISSING',
+    contentType: req.headers['content-type'],
+    userAgent: req.headers['user-agent']
+  });
+
   const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
+  if (!auth) {
+    console.error('❌ No authorization header provided');
+    return res.status(401).json({ error: 'No authorization token provided' });
+  }
 
   try {
     const token = auth.split(' ')[1];
+    if (!token) {
+      console.error('❌ Malformed authorization header');
+      return res.status(401).json({ error: 'Malformed authorization header' });
+    }
+
+    console.log('🔐 Verifying JWT token...');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
-    console.log(`🔄 Starting sync for user ${userId}`); // Debug log
+    const userId = decoded.id || decoded.userId; // Handle both formats
+
+    if (!userId) {
+      console.error('❌ No user ID found in JWT token:', decoded);
+      return res.status(401).json({ error: 'Invalid token: no user ID' });
+    }
+
+    console.log(`✅ JWT verified successfully for user ${userId}`);
+    console.log(`🔄 Starting calendar sync for user ${userId}...`);
 
     try {
       const calendarSync = require('./services/calendarSync');
@@ -201,21 +223,67 @@ app.post('/api/calendar/sync-with-deletions', async (req, res) => {
         timeRange: 'extended' // 6 months for comprehensive sync
       });
 
+      console.log(`✅ Calendar sync completed successfully:`, {
+        userId,
+        added: results.added || 0,
+        updated: results.updated || 0,
+        deleted: results.deleted || 0
+      });
+
       res.json({
         message: 'Calendar synced with deletion detection',
-        results
+        results,
+        userId // Include for debugging
       });
     } catch (syncError) {
-      console.error('Calendar sync service error:', syncError);
-      // Return a more user-friendly error
-      res.status(503).json({
-        error: 'Calendar sync service temporarily unavailable',
-        details: syncError.message
+      console.error('❌ Calendar sync service error:', {
+        userId,
+        error: syncError.message,
+        stack: syncError.stack
+      });
+
+      // Return specific error messages based on the error type
+      if (syncError.message.includes('No calendar token found')) {
+        return res.status(401).json({
+          error: 'Google Calendar not connected',
+          details: 'Please reconnect your Google Calendar account',
+          action: 'reconnect_calendar'
+        });
+      } else if (syncError.message.includes('token expired')) {
+        return res.status(401).json({
+          error: 'Google Calendar token expired',
+          details: 'Please reconnect your Google Calendar account',
+          action: 'reconnect_calendar'
+        });
+      } else {
+        return res.status(503).json({
+          error: 'Calendar sync service temporarily unavailable',
+          details: syncError.message
+        });
+      }
+    }
+  } catch (jwtError) {
+    console.error('❌ JWT verification failed:', {
+      error: jwtError.message,
+      name: jwtError.name
+    });
+
+    if (jwtError.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        error: 'Token expired',
+        details: 'Please log in again'
+      });
+    } else if (jwtError.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        error: 'Invalid token',
+        details: 'Please log in again'
+      });
+    } else {
+      return res.status(500).json({
+        error: 'Authentication error',
+        details: jwtError.message
       });
     }
-  } catch (error) {
-    console.error('Error syncing calendar with deletions:', error);
-    res.status(500).json({ error: 'Failed to sync calendar' });
   }
 });
 
