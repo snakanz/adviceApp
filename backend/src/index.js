@@ -270,7 +270,7 @@ app.get('/api/calendar/sync-status', async (req, res) => {
   }
 });
 
-// 🔥 NEW: Database-only meetings endpoint (with fallback for missing columns)
+// 🔥 NEW: Database-only meetings endpoint (simplified with better error handling)
 app.get('/api/dev/meetings', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
@@ -282,45 +282,45 @@ app.get('/api/dev/meetings', async (req, res) => {
 
     console.log(`📅 Fetching meetings from database for user ${userId}`);
 
-    // Try enhanced query first, fallback to basic if is_deleted column doesn't exist
-    let meetings, error;
-
-    try {
-      // Try query with is_deleted column
-      const result = await getSupabase()
-        .from('meetings')
-        .select('*')
-        .eq('userid', userId)
-        .or('is_deleted.is.null,is_deleted.eq.false') // Handle both NULL and false
-        .order('starttime', { ascending: false });
-
-      meetings = result.data;
-      error = result.error;
-    } catch (enhancedError) {
-      console.log('is_deleted column not found, using basic query');
-
-      // Fallback to basic query without is_deleted filter
-      const result = await getSupabase()
-        .from('meetings')
-        .select('*')
-        .eq('userid', userId)
-        .order('starttime', { ascending: false });
-
-      meetings = result.data;
-      error = result.error;
+    // Check if Supabase is available
+    if (!isSupabaseAvailable()) {
+      console.error('❌ Supabase not available');
+      return res.status(503).json({ error: 'Database service unavailable' });
     }
 
+    // Start with the most basic query possible
+    console.log('🔍 Attempting basic meetings query...');
+    const { data: meetings, error } = await getSupabase()
+      .from('meetings')
+      .select('*')
+      .eq('userid', userId)
+      .order('starttime', { ascending: false });
+
     if (error) {
-      console.error('Database query error:', error);
-      throw error;
+      console.error('❌ Database query error:', error);
+      console.error('Error details:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
+      return res.status(500).json({
+        error: 'Database query failed',
+        details: error.message
+      });
     }
 
     console.log(`✅ Found ${meetings?.length || 0} meetings in database`);
 
+    // Return the meetings data
     res.json(meetings || []);
+
   } catch (error) {
-    console.error('Error fetching meetings from database:', error);
-    res.status(500).json({ error: 'Failed to fetch meetings from database' });
+    console.error('❌ Unexpected error in meetings endpoint:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      message: error.message
+    });
   }
 });
 
