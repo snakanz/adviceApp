@@ -185,6 +185,7 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
 
 // New deletion-aware calendar sync endpoint
 app.post('/api/calendar/sync-with-deletions', async (req, res) => {
+  console.log('🔄 Sync-with-deletions endpoint called'); // Debug log
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
 
@@ -192,6 +193,7 @@ app.post('/api/calendar/sync-with-deletions', async (req, res) => {
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
+    console.log(`🔄 Starting sync for user ${userId}`); // Debug log
 
     try {
       const calendarSync = require('./services/calendarSync');
