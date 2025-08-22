@@ -217,6 +217,141 @@ app.post('/api/calendar/sync-with-deletions', async (req, res) => {
   }
 });
 
+// Comprehensive calendar sync endpoint
+app.post('/api/calendar/sync-comprehensive', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+
+    console.log(`🔄 Starting comprehensive calendar sync for user ${userId}`);
+
+    const comprehensiveSync = require('./services/comprehensiveCalendarSync');
+    const dryRun = req.body.dryRun || false;
+
+    const results = await comprehensiveSync.reconcileCalendarData(userId, dryRun);
+
+    console.log(`✅ Comprehensive sync completed:`, results);
+    res.json({
+      success: true,
+      message: `Comprehensive calendar sync ${dryRun ? '(dry run) ' : ''}completed`,
+      results,
+      dryRun
+    });
+  } catch (error) {
+    console.error('Comprehensive calendar sync error:', error);
+    res.status(500).json({ error: 'Failed to perform comprehensive calendar sync' });
+  }
+});
+
+// Calendar sync status endpoint
+app.get('/api/calendar/sync-status', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+
+    const comprehensiveSync = require('./services/comprehensiveCalendarSync');
+    const status = await comprehensiveSync.getSyncStatus(userId);
+
+    res.json({
+      success: true,
+      status
+    });
+  } catch (error) {
+    console.error('Sync status error:', error);
+    res.status(500).json({ error: 'Failed to get sync status' });
+  }
+});
+
+// 🔥 NEW: Database-only meetings endpoint (for frontend consistency)
+app.get('/api/dev/meetings', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+
+    console.log(`📅 Fetching meetings from database for user ${userId}`);
+
+    // Query database with proper NULL handling
+    const { data: meetings, error } = await getSupabase()
+      .from('meetings')
+      .select('*')
+      .eq('userid', userId)
+      .or('is_deleted.is.null,is_deleted.eq.false') // Handle both NULL and false
+      .order('starttime', { ascending: false });
+
+    if (error) {
+      console.error('Database query error:', error);
+      throw error;
+    }
+
+    console.log(`✅ Found ${meetings?.length || 0} active meetings in database`);
+
+    res.json(meetings || []);
+  } catch (error) {
+    console.error('Error fetching meetings from database:', error);
+    res.status(500).json({ error: 'Failed to fetch meetings from database' });
+  }
+});
+
+// 🔥 NEW: Enhanced clients endpoint with activity status
+app.get('/api/clients', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+
+    console.log(`👥 Fetching clients with activity status for user ${userId}`);
+
+    // Query clients with enhanced status information
+    const { data: clients, error } = await getSupabase()
+      .from('clients')
+      .select(`
+        *,
+        meeting_count,
+        active_meeting_count,
+        is_active,
+        last_meeting_date
+      `)
+      .eq('advisor_id', userId)
+      .order('is_active', { ascending: false })
+      .order('last_meeting_date', { ascending: false, nullsFirst: false });
+
+    if (error) {
+      console.error('Database query error:', error);
+      throw error;
+    }
+
+    // Add computed status field
+    const enhancedClients = (clients || []).map(client => ({
+      ...client,
+      status: client.is_active ? 'Active' :
+              (client.meeting_count > 0 ? 'Historical' : 'No Meetings'),
+      displayStatus: client.is_active ? 'active' : 'historical'
+    }));
+
+    console.log(`✅ Found ${enhancedClients.length} clients (${enhancedClients.filter(c => c.is_active).length} active)`);
+
+    res.json(enhancedClients);
+  } catch (error) {
+    console.error('Error fetching clients:', error);
+    res.status(500).json({ error: 'Failed to fetch clients' });
+  }
+});
+
 // Transcript upload endpoint
 app.post('/api/calendar/meetings/:id/transcript', async (req, res) => {
   const auth = req.headers.authorization;
