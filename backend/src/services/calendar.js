@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const recallService = require('./recall');
+const { getSupabase } = require('../lib/supabase');
 
 class CalendarService {
   constructor() {
@@ -233,21 +234,24 @@ class CalendarService {
   }
 
   async getAuthClient(userId) {
-    const userTokens = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { 
-        googleAccessToken: true,
-        googleRefreshToken: true
-      }
-    });
+    // Convert userId to string to match database format
+    const userIdStr = String(userId);
 
-    if (!userTokens?.googleAccessToken) {
+    const { data: userTokens, error } = await getSupabase()
+      .from('calendartoken')
+      .select('accesstoken, refreshtoken')
+      .eq('userid', userIdStr)
+      .single();
+
+    if (error || !userTokens?.accesstoken) {
+      console.error('Calendar token query error:', error);
+      console.error('Looking for user ID:', userIdStr);
       throw new Error('User not connected to Google Calendar');
     }
 
     this.oauth2Client.setCredentials({
-      access_token: userTokens.googleAccessToken,
-      refresh_token: userTokens.googleRefreshToken
+      access_token: userTokens.accesstoken,
+      refresh_token: userTokens.refreshtoken
     });
 
     return this.oauth2Client;
@@ -272,28 +276,27 @@ class CalendarService {
       });
 
       // Get meeting records from our database
-      const meetingRecords = await prisma.meeting.findMany({
-        where: {
-          userId,
-          googleEventId: {
-            in: response.data.items.map(event => event.id)
-          }
-        }
-      });
+      const eventIds = response.data.items.map(event => event.id);
+      const userIdStr = String(userId);
+      const { data: meetingRecords } = await getSupabase()
+        .from('meetings')
+        .select('*')
+        .eq('userid', userIdStr)
+        .in('googleeventid', eventIds);
 
       // Map meeting records to their Google Calendar events
       const meetingRecordsMap = new Map(
-        meetingRecords.map(record => [record.googleEventId, record])
+        (meetingRecords || []).map(record => [record.googleeventid, record])
       );
 
       // Combine Google Calendar data with our database records
       return response.data.items.map(event => {
         const meetingRecord = meetingRecordsMap.get(event.id);
         const eventEndTime = new Date(event.end.dateTime || event.end.date);
-        
+
         return {
           ...event,
-          hasRecording: !!meetingRecord?.recallBotId,
+          hasRecording: !!meetingRecord?.recallbotid,
           hasTranscript: !!meetingRecord?.transcript,
           hasSummary: !!meetingRecord?.summary,
           isPast: eventEndTime < now

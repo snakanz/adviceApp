@@ -8,6 +8,7 @@ const openai = require('../services/openai');
 const { google } = require('googleapis');
 const { getGoogleAuthClient, refreshAccessToken } = require('../services/calendar');
 const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
+const calendarSyncService = require('../services/calendarSync');
 
 // Get Google Calendar auth URL
 router.get('/auth/google', async (req, res) => {
@@ -125,6 +126,28 @@ router.post('/meetings', authenticateUser, async (req, res) => {
   } catch (error) {
     console.error('Error creating meeting:', error);
     res.status(500).json({ error: 'Failed to create meeting' });
+  }
+});
+
+// Sync calendar meetings to database
+router.post('/sync', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    console.log(`🔄 Starting calendar sync for user ${userId}`);
+
+    const results = await calendarSyncService.syncUserCalendar(userId, {
+      timeRange: 'extended', // 6 months
+      includeDeleted: true
+    });
+
+    console.log(`✅ Calendar sync completed:`, results);
+    res.json({
+      message: 'Calendar synced successfully',
+      results
+    });
+  } catch (error) {
+    console.error('Error syncing calendar:', error);
+    res.status(500).json({ error: 'Failed to sync calendar' });
   }
 });
 

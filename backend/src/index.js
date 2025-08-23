@@ -752,6 +752,7 @@ try {
 
 app.use('/api/clients', clientsRouter);
 app.use('/api/pipeline', pipelineRouter);
+app.use('/api/calendar', require('./routes/calendar'));
 app.use('/api', routes);
 
 const port = process.env.PORT || 8787;

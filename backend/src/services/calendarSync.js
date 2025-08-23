@@ -82,9 +82,8 @@ class CalendarSyncService {
         }
       }
 
-      // Calculate time range
-      const now = new Date();
-      const timeMin = timeRange === 'recent' 
+      // Calculate time range (reuse 'now' from token expiry check)
+      const timeMin = timeRange === 'recent'
         ? new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000) // 2 weeks ago
         : new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000); // 6 months ago
 
@@ -300,12 +299,19 @@ class CalendarSyncService {
     } else {
       // Add new meeting
       if (!dryRun) {
-        await getSupabase()
+        const { error: insertError } = await getSupabase()
           .from('meetings')
-          .insert({
-            ...meetingData,
-            last_calendar_sync: new Date().toISOString()
+          .insert(meetingData);
+
+        if (insertError) {
+          console.error(`❌ Failed to insert meeting "${calendarEvent.summary}":`, insertError);
+          results.errors++;
+          results.details.errors.push({
+            event: calendarEvent.summary,
+            error: insertError.message
           });
+          return; // Skip this meeting
+        }
       }
 
       results.added++;
@@ -389,15 +395,19 @@ class CalendarSyncService {
   extractMeetingData(userId, calendarEvent) {
     return {
       googleeventid: calendarEvent.id,
-      userid: userId,
+      userid: parseInt(userId), // Convert to integer to match database
       title: calendarEvent.summary || 'Untitled Meeting',
       starttime: calendarEvent.start.dateTime,
       endtime: calendarEvent.end?.dateTime || null,
       summary: calendarEvent.description || '',
+      description: calendarEvent.description || '',
       location: calendarEvent.location || null,
-      meeting_url: calendarEvent.hangoutLink || null,
-      attendees: JSON.stringify(calendarEvent.attendees || []),
-      updatedat: new Date().toISOString()
+      attendees: JSON.stringify(calendarEvent.attendees || []), // Convert to text
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      is_deleted: false,
+      sync_status: 'active',
+      last_calendar_sync: new Date().toISOString()
     };
   }
 

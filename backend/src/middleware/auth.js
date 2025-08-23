@@ -32,7 +32,7 @@ const authenticateToken = (req, res, next) => {
       return res.status(401).json({ error: 'No token provided' });
     }
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { id: decoded.userId };
+    req.user = { id: decoded.userId || decoded.id, email: decoded.email, name: decoded.name };
     next();
   } catch (error) {
     console.error('Auth error:', error);

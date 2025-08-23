@@ -40,13 +40,24 @@ const formatDate = (dateTimeStr) => {
 };
 
 function getMeetingSource(meeting) {
-  if (meeting.attendees?.some(a => a.email?.includes('google'))) return 'google';
-  if (meeting.attendees?.some(a => a.email?.includes('outlook'))) return 'outlook';
+  try {
+    // Handle both array and JSON string formats
+    let attendees = meeting.attendees;
+    if (typeof attendees === 'string') {
+      attendees = JSON.parse(attendees);
+    }
+    if (Array.isArray(attendees)) {
+      if (attendees.some(a => a.email?.includes('google'))) return 'google';
+      if (attendees.some(a => a.email?.includes('outlook'))) return 'outlook';
+    }
+  } catch (e) {
+    console.log('Could not parse attendees for meeting source detection');
+  }
   return 'google'; // default
 }
 
 function formatMeetingTime(meeting) {
-  const start = new Date(meeting.start?.dateTime || meeting.startTime);
+  const start = new Date(meeting.start?.dateTime || meeting.startTime || meeting.starttime);
   return start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
@@ -143,13 +154,29 @@ export default function Meetings() {
       const data = await res.json();
       console.log('Raw meetings data from API:', data); // Debug log
 
-      // 🔥 FIXED: Always process the data the same way since we're always using the database endpoint
+      // 🔥 FIXED: Handle database format (starttime, googleeventid)
       const now = new Date();
       const meetingsData = { past: [], future: [] };
       data.forEach(m => {
-        const start = new Date(m.startTime);
-        if (start < now) meetingsData.past.push({ ...m, id: m.googleEventId });
-        else meetingsData.future.push({ ...m, id: m.googleEventId });
+        // Handle both database format and API format
+        const startTime = m.starttime || m.startTime;
+        const googleEventId = m.googleeventid || m.googleEventId;
+
+        if (startTime) {
+          const start = new Date(startTime);
+          const meetingData = {
+            ...m,
+            id: googleEventId,
+            startTime: startTime, // Ensure consistent naming
+            googleEventId: googleEventId
+          };
+
+          if (start < now) {
+            meetingsData.past.push(meetingData);
+          } else {
+            meetingsData.future.push(meetingData);
+          }
+        }
       });
 
       setMeetings(meetingsData);
@@ -527,7 +554,7 @@ export default function Meetings() {
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Calendar className="w-4 h-4" />
-                <span>{formatDate(meeting.start?.dateTime || meeting.startTime)}</span>
+                <span>{formatDate(meeting.start?.dateTime || meeting.startTime || meeting.starttime)}</span>
                 <span>•</span>
                 <Clock className="w-4 h-4" />
                 <span>
@@ -649,7 +676,7 @@ export default function Meetings() {
               {(() => {
                 const today = new Date();
                 const todayMeetings = meetings.future.filter(meeting => {
-                  const meetingDate = new Date(meeting.start?.dateTime || meeting.startTime);
+                  const meetingDate = new Date(meeting.start?.dateTime || meeting.startTime || meeting.starttime);
                   return meetingDate.toDateString() === today.toDateString();
                 });
 
@@ -703,7 +730,7 @@ export default function Meetings() {
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Calendar className="w-3 h-3" />
-                  <span>{formatDate(selectedMeeting.start?.dateTime || selectedMeeting.startTime)}</span>
+                  <span>{formatDate(selectedMeeting.start?.dateTime || selectedMeeting.startTime || selectedMeeting.starttime)}</span>
                   <span>•</span>
                   <Clock className="w-3 h-3" />
                   <span>
