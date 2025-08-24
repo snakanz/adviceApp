@@ -358,12 +358,13 @@ app.get('/api/dev/meetings', async (req, res) => {
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
-    // Start with the most basic query possible
-    console.log('🔍 Attempting basic meetings query...');
+    // Query meetings excluding deleted ones
+    console.log('🔍 Fetching active meetings (excluding deleted)...');
     const { data: meetings, error } = await getSupabase()
       .from('meetings')
       .select('*')
       .eq('userid', userId)
+      .or('is_deleted.is.null,is_deleted.eq.false') // Only show non-deleted meetings
       .order('starttime', { ascending: false });
 
     if (error) {
