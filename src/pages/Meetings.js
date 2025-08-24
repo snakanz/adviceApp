@@ -521,45 +521,52 @@ export default function Meetings() {
         <Card
           key={meeting.id}
           onClick={() => handleMeetingSelect(meeting)}
-          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          className="cursor-pointer hover:bg-muted/50 transition-colors min-h-[80px]"
         >
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {getMeetingSource(meeting) === 'google' ?
-                  <GoogleIcon className="w-5 h-5" /> :
-                  <OutlookIcon className="w-5 h-5" />
-                }
-                <h3 className="text-lg font-medium text-foreground">
-                  {meeting.summary || meeting.title || 'Untitled Meeting'}
-                </h3>
-                {/* Completion Indicators */}
-                <div className="flex items-center gap-1 ml-2">
-                  {meeting.transcript && (
-                    <div className="flex items-center justify-center w-5 h-5 bg-blue-100 rounded-full" title="Transcript available">
-                      <Check className="w-3 h-3 text-blue-600" />
-                    </div>
-                  )}
-                  {meeting.quick_summary && (
-                    <div className="flex items-center justify-center w-5 h-5 bg-green-100 rounded-full" title="Summary available">
-                      <Check className="w-3 h-3 text-green-600" />
-                    </div>
-                  )}
-                  {meeting.email_summary_draft && (
-                    <div className="flex items-center justify-center w-5 h-5 bg-purple-100 rounded-full" title="Email summary available">
-                      <Check className="w-3 h-3 text-purple-600" />
-                    </div>
-                  )}
+          <CardContent className="p-4 h-full">
+            <div className="flex items-center justify-between h-full min-h-[48px]">
+              <div className="flex items-center gap-3 flex-1 min-w-0">
+                <div className="flex-shrink-0">
+                  {getMeetingSource(meeting) === 'google' ?
+                    <GoogleIcon className="w-5 h-5" /> :
+                    <OutlookIcon className="w-5 h-5" />
+                  }
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-medium text-foreground truncate">
+                    {meeting.summary || meeting.title || 'Untitled Meeting'}
+                  </h3>
+                  {/* Completion Indicators */}
+                  <div className="flex items-center gap-1 mt-1">
+                    {meeting.transcript && (
+                      <div className="flex items-center justify-center w-5 h-5 bg-blue-100 rounded-full" title="Transcript available">
+                        <Check className="w-3 h-3 text-blue-600" />
+                      </div>
+                    )}
+                    {meeting.quick_summary && (
+                      <div className="flex items-center justify-center w-5 h-5 bg-green-100 rounded-full" title="Summary available">
+                        <Check className="w-3 h-3 text-green-600" />
+                      </div>
+                    )}
+                    {meeting.email_summary_draft && (
+                      <div className="flex items-center justify-center w-5 h-5 bg-purple-100 rounded-full" title="Email summary available">
+                        <Check className="w-3 h-3 text-purple-600" />
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Calendar className="w-4 h-4" />
-                <span>{formatDate(meeting.start?.dateTime || meeting.startTime || meeting.starttime)}</span>
-                <span>•</span>
-                <Clock className="w-4 h-4" />
-                <span>
-                  {formatMeetingTime(meeting)}
-                </span>
+              <div className="flex flex-col items-end gap-1 text-sm text-muted-foreground flex-shrink-0 ml-4">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  <span>{formatDate(meeting.start?.dateTime || meeting.startTime || meeting.starttime)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  <span>
+                    {formatMeetingTime(meeting)}
+                  </span>
+                </div>
               </div>
             </div>
           </CardContent>

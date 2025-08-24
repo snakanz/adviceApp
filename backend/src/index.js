@@ -395,77 +395,7 @@ app.get('/api/dev/meetings', async (req, res) => {
   }
 });
 
-// 🔥 NEW: Enhanced clients endpoint with activity status (with fallback)
-app.get('/api/clients', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
-
-    console.log(`👥 Fetching clients with activity status for user ${userId}`);
-
-    // Try enhanced query first, fallback to basic if columns don't exist
-    let clients, error;
-
-    try {
-      // Try enhanced query with new columns
-      const result = await getSupabase()
-        .from('clients')
-        .select(`
-          *,
-          meeting_count,
-          active_meeting_count,
-          is_active,
-          last_meeting_date
-        `)
-        .eq('advisor_id', userId)
-        .order('is_active', { ascending: false })
-        .order('last_meeting_date', { ascending: false, nullsFirst: false });
-
-      clients = result.data;
-      error = result.error;
-    } catch (enhancedError) {
-      console.log('Enhanced query failed, falling back to basic query');
-
-      // Fallback to basic query without new columns
-      const result = await getSupabase()
-        .from('clients')
-        .select('*')
-        .eq('advisor_id', userId)
-        .order('created_at', { ascending: false });
-
-      clients = result.data;
-      error = result.error;
-    }
-
-    if (error) {
-      console.error('Database query error:', error);
-      throw error;
-    }
-
-    // Add computed status field (with fallbacks for missing columns)
-    const enhancedClients = (clients || []).map(client => ({
-      ...client,
-      // Use new columns if available, otherwise default values
-      is_active: client.is_active !== undefined ? client.is_active : false,
-      meeting_count: client.meeting_count || 0,
-      active_meeting_count: client.active_meeting_count || 0,
-      status: (client.is_active !== undefined ? client.is_active : false) ? 'Active' :
-              ((client.meeting_count || 0) > 0 ? 'Historical' : 'No Meetings'),
-      displayStatus: (client.is_active !== undefined ? client.is_active : false) ? 'active' : 'historical'
-    }));
-
-    console.log(`✅ Found ${enhancedClients.length} clients (${enhancedClients.filter(c => c.is_active).length} active)`);
-
-    res.json(enhancedClients);
-  } catch (error) {
-    console.error('Error fetching clients:', error);
-    res.status(500).json({ error: 'Failed to fetch clients' });
-  }
-});
+// Clients endpoint is now handled by the clients router (routes/clients.js)
 
 // Transcript upload endpoint
 app.post('/api/calendar/meetings/:id/transcript', async (req, res) => {
