@@ -54,7 +54,7 @@ export default function Clients() {
   // Helper function to check if meeting is complete (has transcript + summaries)
   const isMeetingComplete = (meeting) => {
     return meeting.transcript &&
-           meeting.quick_summary &&
+           (meeting.brief_summary || meeting.quick_summary) &&
            meeting.email_summary_draft;
   };
 
@@ -394,11 +394,19 @@ export default function Clients() {
                               </div>
                               {/* Meeting Summary */}
                               <div className="flex-1 min-w-0">
-                                {mtg.quick_summary ? (
+                                {mtg.brief_summary ? (
                                   <div className="space-y-2">
-                                    <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Quick Summary</h5>
+                                    <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Meeting Summary</h5>
                                     <div className="text-sm text-foreground">
-                                      {mtg.quick_summary}
+                                      {mtg.brief_summary}
+                                    </div>
+                                  </div>
+                                ) : mtg.quick_summary ? (
+                                  <div className="space-y-2">
+                                    <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Meeting Summary</h5>
+                                    <div className="text-sm text-foreground">
+                                      {/* Extract first sentence from detailed summary for backward compatibility */}
+                                      {mtg.quick_summary.split('\n')[0] || mtg.quick_summary.substring(0, 150) + '...'}
                                     </div>
                                   </div>
                                 ) : mtg.summary ? (

@@ -88,6 +88,7 @@ router.get('/', async (req, res) => {
                 endtime: meeting.endtime,
                 summary: meeting.summary,
                 transcript: meeting.transcript,
+                brief_summary: meeting.brief_summary,
                 quick_summary: meeting.quick_summary,
                 email_summary_draft: meeting.email_summary_draft
               });
@@ -237,6 +238,7 @@ router.get('/:clientId', async (req, res) => {
               endtime: meeting.endtime,
               summary: meeting.summary,
               transcript: meeting.transcript,
+              brief_summary: meeting.brief_summary,
               quick_summary: meeting.quick_summary,
               email_summary_draft: meeting.email_summary_draft
             });
@@ -308,6 +310,7 @@ router.get('/:clientId/meetings', async (req, res) => {
               title: meeting.title,
               summary: meeting.summary,
               transcript: meeting.transcript,
+              brief_summary: meeting.brief_summary,
               quick_summary: meeting.quick_summary,
               email_summary_draft: meeting.email_summary_draft,
               starttime: meeting.starttime,

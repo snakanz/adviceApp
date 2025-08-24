@@ -432,22 +432,49 @@ app.post('/api/calendar/meetings/:id/transcript', async (req, res) => {
         const { generateMeetingSummary, isOpenAIAvailable } = require('./services/openai');
 
         if (isOpenAIAvailable()) {
-          // Generate Quick Summary
-          const quickSummaryPrompt = `# SYSTEM PROMPT: Advicly Quick Summary Generator
-You are an expert financial advisor creating a concise summary of a client meeting. Your role is to generate a **brief, accurate summary based ONLY on the provided transcript**.
+          // Generate Brief Summary (for Clients page)
+          const briefSummaryPrompt = `# SYSTEM PROMPT: Advicly Brief Summary Generator
+You are an expert financial advisor creating a single-sentence summary of a client meeting.
 
-Create a quick summary that includes:
-• Meeting overview (2-3 sentences)
-• Key points discussed
-• Important decisions or outcomes
-• Next steps if any
+Generate ONE concise sentence that captures what was discussed in the meeting. Focus on the main topic or purpose of the meeting.
 
-Keep it concise and professional.
+Examples:
+- "Discussed client's retirement planning goals and reviewed current 401k allocation."
+- "Reviewed portfolio performance and explored ESG investment opportunities."
+- "Initial consultation covering financial goals, risk tolerance, and investment preferences."
+
+Transcript:
+${transcript}
+
+Respond with ONLY the single sentence summary, no additional text.`;
+
+          const briefSummary = await generateMeetingSummary(transcript, 'standard', { prompt: briefSummaryPrompt });
+
+          // Generate Detailed Summary (for Meetings page)
+          const detailedSummaryPrompt = `# SYSTEM PROMPT: Advicly Detailed Summary Generator
+You are an expert financial advisor creating a structured summary of a client meeting.
+
+Generate a summary in this exact format:
+
+[Single sentence overview of what was discussed]
+
+**Key Points Discussed:**
+- [Bullet point 1]
+- [Bullet point 2]
+- [Bullet point 3 if applicable]
+
+**Important Decisions or Outcomes:**
+[Brief description of any decisions made or outcomes reached]
+
+**Next Steps:**
+[What will happen next or action items]
+
+Keep it professional and concise. Use the exact format shown above.
 
 Transcript:
 ${transcript}`;
 
-          const quickSummary = await generateMeetingSummary(transcript, 'standard', { prompt: quickSummaryPrompt });
+          const detailedSummary = await generateMeetingSummary(transcript, 'standard', { prompt: detailedSummaryPrompt });
 
           // Generate Email Summary using Auto template
           const autoTemplate = `# SYSTEM PROMPT: Advicly Auto Email Generator
@@ -473,7 +500,8 @@ Respond with the **email body only** — no headers or subject lines.`;
           await getSupabase()
             .from('meetings')
             .update({
-              quick_summary: quickSummary,
+              brief_summary: briefSummary,
+              quick_summary: detailedSummary,
               email_summary_draft: emailSummary,
               email_template_id: 'auto-template',
               last_summarized_at: new Date().toISOString(),
@@ -483,7 +511,8 @@ Respond with the **email body only** — no headers or subject lines.`;
             .eq('userid', userId);
 
           summaries = {
-            quickSummary,
+            briefSummary,
+            quickSummary: detailedSummary,
             emailSummary,
             templateId: 'auto-template',
             lastSummarizedAt: new Date().toISOString()
@@ -584,22 +613,49 @@ app.post('/api/meetings/:meetingId/summary', async (req, res) => {
       });
     }
 
-    // Generate Quick Summary
-    const quickSummaryPrompt = `# SYSTEM PROMPT: Advicly Quick Summary Generator
-You are an expert financial advisor creating a concise summary of a client meeting. Your role is to generate a **brief, accurate summary based ONLY on the provided transcript**.
+    // Generate Brief Summary (for Clients page)
+    const briefSummaryPrompt = `# SYSTEM PROMPT: Advicly Brief Summary Generator
+You are an expert financial advisor creating a single-sentence summary of a client meeting.
 
-Create a quick summary that includes:
-• Meeting overview (2-3 sentences)
-• Key points discussed
-• Important decisions or outcomes
-• Next steps if any
+Generate ONE concise sentence that captures what was discussed in the meeting. Focus on the main topic or purpose of the meeting.
 
-Keep it concise and professional.
+Examples:
+- "Discussed client's retirement planning goals and reviewed current 401k allocation."
+- "Reviewed portfolio performance and explored ESG investment opportunities."
+- "Initial consultation covering financial goals, risk tolerance, and investment preferences."
+
+Transcript:
+${meeting.transcript}
+
+Respond with ONLY the single sentence summary, no additional text.`;
+
+    const briefSummary = await generateMeetingSummary(meeting.transcript, 'standard', { prompt: briefSummaryPrompt });
+
+    // Generate Detailed Summary (for Meetings page)
+    const detailedSummaryPrompt = `# SYSTEM PROMPT: Advicly Detailed Summary Generator
+You are an expert financial advisor creating a structured summary of a client meeting.
+
+Generate a summary in this exact format:
+
+[Single sentence overview of what was discussed]
+
+**Key Points Discussed:**
+- [Bullet point 1]
+- [Bullet point 2]
+- [Bullet point 3 if applicable]
+
+**Important Decisions or Outcomes:**
+[Brief description of any decisions made or outcomes reached]
+
+**Next Steps:**
+[What will happen next or action items]
+
+Keep it professional and concise. Use the exact format shown above.
 
 Transcript:
 ${meeting.transcript}`;
 
-    const quickSummary = await generateMeetingSummary(meeting.transcript, 'standard', { prompt: quickSummaryPrompt });
+    const detailedSummary = await generateMeetingSummary(meeting.transcript, 'standard', { prompt: detailedSummaryPrompt });
 
     // Generate Email Summary using Auto template
     const autoTemplate = `# SYSTEM PROMPT: Advicly Auto Email Generator
@@ -625,7 +681,8 @@ Respond with the **email body only** — no headers or subject lines.`;
     const { error: updateError } = await getSupabase()
       .from('meetings')
       .update({
-        quick_summary: quickSummary,
+        brief_summary: briefSummary,
+        quick_summary: detailedSummary,
         email_summary_draft: emailSummary,
         email_template_id: 'auto-template',
         last_summarized_at: new Date().toISOString(),
@@ -641,7 +698,8 @@ Respond with the **email body only** — no headers or subject lines.`;
 
     res.json({
       success: true,
-      quickSummary,
+      briefSummary,
+      quickSummary: detailedSummary,
       emailSummary,
       templateId: 'auto-template',
       lastSummarizedAt: new Date().toISOString()
