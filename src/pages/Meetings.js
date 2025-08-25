@@ -939,7 +939,7 @@ export default function Meetings() {
                                   // Build enhanced URL parameters for meeting context
                                   const params = new URLSearchParams({
                                     contextType: 'meeting',
-                                    meetingId: selectedMeeting.id,
+                                    meetingId: selectedMeeting.googleeventid || selectedMeeting.id,
                                     meetingTitle: meetingTitle,
                                     meetingDate: meetingDate,
                                     hasTranscript: (!!selectedMeeting.transcript).toString(),

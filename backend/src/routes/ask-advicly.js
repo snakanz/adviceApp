@@ -3,6 +3,34 @@ const jwt = require('jsonwebtoken');
 const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
 const { generateMeetingSummary, generateChatResponse } = require('../services/openai');
 
+// Generate proactive insights based on meeting content
+function generateProactiveInsights(meetingData) {
+  if (!meetingData) return '';
+
+  let insights = [];
+
+  // Add context-aware insights based on meeting content
+  if (meetingData.transcript) {
+    insights.push(`
+    PROACTIVE INSIGHTS FOR THIS MEETING:
+    Based on the transcript and summary, consider these follow-up opportunities:
+    - Review any specific financial products or strategies mentioned
+    - Follow up on action items or decisions that were made
+    - Address any concerns or questions the client raised
+    - Explore related financial planning opportunities based on their situation
+    `);
+  }
+
+  if (meetingData.quick_summary) {
+    insights.push(`
+    MEETING SUMMARY CONTEXT:
+    Use this summary to understand the key outcomes: ${meetingData.quick_summary}
+    `);
+  }
+
+  return insights.join('\n');
+}
+
 const router = express.Router();
 
 console.log('Ask Advicly router created');
@@ -52,6 +80,34 @@ function extractTopicFromMessage(message) {
 router.get('/test', (req, res) => {
   console.log('Test route hit!');
   res.json({ message: 'Ask Advicly routes working!' });
+});
+
+// Debug route to check meeting data
+router.get('/debug/meetings', async (req, res) => {
+  try {
+    const { data: meetings } = await getSupabase()
+      .from('meetings')
+      .select('googleeventid, title, starttime, attendees, transcript, quick_summary, email_summary_draft')
+      .order('starttime', { ascending: false })
+      .limit(10);
+
+    res.json({
+      count: meetings?.length || 0,
+      meetings: meetings?.map(m => ({
+        googleeventid: m.googleeventid,
+        title: m.title,
+        starttime: m.starttime,
+        attendees: m.attendees,
+        hasTranscript: !!m.transcript,
+        transcriptLength: m.transcript?.length || 0,
+        hasQuickSummary: !!m.quick_summary,
+        hasEmailSummary: !!m.email_summary_draft
+      }))
+    });
+  } catch (error) {
+    console.error('Debug meetings error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 console.log('Test route registered');
@@ -226,7 +282,8 @@ router.post('/threads', async (req, res) => {
       id: thread.id,
       title: thread.title,
       contextType: thread.context_type,
-      meetingId: thread.meeting_id
+      meetingId: thread.meeting_id,
+      contextData: contextData
     });
 
     res.json(thread);
@@ -343,16 +400,90 @@ router.post('/threads/:threadId/messages', async (req, res) => {
 
     if (thread.context_type === 'meeting' && thread.meeting_id) {
       // Meeting-specific context
-      const meetingData = allMeetings?.find(m => m.googleeventid === thread.meeting_id);
-      if (meetingData) {
-        specificContext = `\n\nMeeting-Specific Context:
-        - Meeting: ${meetingData.title} (${new Date(meetingData.starttime).toLocaleDateString()})
-        - Attendees: ${meetingData.attendees || 'Not specified'}
-        ${meetingData.transcript ? `- Has transcript (${meetingData.transcript.length} characters)` : '- No transcript available'}
-        ${meetingData.quick_summary ? `- Summary: ${meetingData.quick_summary}` : '- No summary available'}
-        ${meetingData.email_summary_draft ? `- Email draft available` : ''}
+      console.log(`🔍 Looking for meeting with googleeventid: ${thread.meeting_id}`);
+      console.log(`📊 Available meetings count: ${allMeetings?.length || 0}`);
 
-        IMPORTANT: This conversation is specifically about the above meeting. Focus your responses on this meeting's content, participants, and outcomes.`;
+      const meetingData = allMeetings?.find(m => m.googleeventid === thread.meeting_id);
+      console.log(`🎯 Found meeting data:`, meetingData ? 'YES' : 'NO');
+
+      if (meetingData) {
+        console.log(`✅ Meeting found: ${meetingData.title}`);
+        console.log(`📝 Has transcript: ${!!meetingData.transcript}`);
+        console.log(`📋 Has quick summary: ${!!meetingData.quick_summary}`);
+
+        // Build comprehensive meeting context with explicit instructions
+        let meetingContextParts = [
+          `=== SPECIFIC MEETING CONTEXT ===`,
+          `Meeting Title: ${meetingData.title}`,
+          `Date: ${new Date(meetingData.starttime).toLocaleDateString()}`,
+          `Attendees: ${meetingData.attendees || 'Not specified'}`,
+          ``
+        ];
+
+        if (meetingData.quick_summary) {
+          meetingContextParts.push(`QUICK SUMMARY:`);
+          meetingContextParts.push(meetingData.quick_summary);
+          meetingContextParts.push(``);
+        }
+
+        if (meetingData.email_summary_draft) {
+          meetingContextParts.push(`DETAILED SUMMARY:`);
+          meetingContextParts.push(meetingData.email_summary_draft);
+          meetingContextParts.push(``);
+        }
+
+        if (meetingData.transcript) {
+          meetingContextParts.push(`FULL MEETING TRANSCRIPT:`);
+          meetingContextParts.push(`"${meetingData.transcript}"`);
+          meetingContextParts.push(``);
+        }
+
+        meetingContextParts.push(`=== END MEETING CONTEXT ===`);
+
+        // Add proactive insights
+        const proactiveInsights = generateProactiveInsights(meetingData);
+
+        // Find related meetings with the same client for cross-reference
+        let relatedMeetingsContext = '';
+        if (meetingData.attendees) {
+          try {
+            const attendeeEmails = JSON.parse(meetingData.attendees).map(a => a.email).filter(Boolean);
+            if (attendeeEmails.length > 0) {
+              const relatedMeetings = allMeetings?.filter(m =>
+                m.googleeventid !== meetingData.googleeventid &&
+                m.attendees &&
+                attendeeEmails.some(email => m.attendees.includes(email))
+              ).slice(0, 3);
+
+              if (relatedMeetings && relatedMeetings.length > 0) {
+                relatedMeetingsContext = `\n\nRELATED MEETINGS WITH SAME CLIENT(S):
+                ${relatedMeetings.map(m =>
+                  `• ${m.title} (${new Date(m.starttime).toLocaleDateString()})${m.quick_summary ? ` - ${m.quick_summary}` : ''}`
+                ).join('\n')}
+
+                Use this relationship history to provide continuity and context in your responses.`;
+              }
+            }
+          } catch (e) {
+            console.log('Error parsing attendees for cross-reference:', e);
+          }
+        }
+
+        specificContext = `\n\n${meetingContextParts.join('\n')}
+
+        ${proactiveInsights}${relatedMeetingsContext}
+
+        CRITICAL: You are discussing the specific meeting "${meetingData.title}" from ${new Date(meetingData.starttime).toLocaleDateString()}.
+        - Reference specific quotes, decisions, and details from the transcript above
+        - Mention specific client concerns, goals, or situations discussed
+        - Provide insights based on the actual conversation content
+        - Suggest follow-up actions based on what was actually discussed
+        - Cross-reference with related meetings when relevant for relationship continuity
+        - Never give generic responses when you have this specific meeting data
+        - Be proactive in offering relevant insights and suggestions based on the meeting content`;
+      } else {
+        console.log(`❌ No meeting found with googleeventid: ${thread.meeting_id}`);
+        console.log(`📋 Available googleeventids:`, allMeetings?.slice(0, 5).map(m => m.googleeventid));
       }
     } else if (thread.context_type === 'client' && thread.client_id && thread.clients) {
       // Client-specific context
@@ -360,9 +491,19 @@ router.post('/threads/:threadId/messages', async (req, res) => {
       const clientName = thread.clients.name;
 
       // Get recent meetings for this specific client
-      const clientMeetings = allMeetings?.filter(m =>
-        m.attendees && m.attendees.includes(clientEmail)
-      ) || [];
+      const clientMeetings = allMeetings?.filter(m => {
+        if (!m.attendees) return false;
+        try {
+          const attendeesList = typeof m.attendees === 'string' ? JSON.parse(m.attendees) : m.attendees;
+          return Array.isArray(attendeesList) && attendeesList.some(attendee =>
+            (typeof attendee === 'string' && attendee.toLowerCase().includes(clientEmail.toLowerCase())) ||
+            (typeof attendee === 'object' && attendee.email && attendee.email.toLowerCase() === clientEmail.toLowerCase())
+          );
+        } catch (e) {
+          // Fallback to string search if JSON parsing fails
+          return m.attendees.toLowerCase().includes(clientEmail.toLowerCase());
+        }
+      }) || [];
 
       if (clientMeetings.length > 0) {
         specificContext = `\n\nClient-Specific Context for ${clientName} (${clientEmail}):
@@ -389,9 +530,19 @@ router.post('/threads/:threadId/messages', async (req, res) => {
 
       for (const mentionedClient of mentionedClients) {
         // Get meetings for this mentioned client
-        const clientMeetings = allMeetings?.filter(m =>
-          m.attendees && JSON.stringify(m.attendees).toLowerCase().includes(mentionedClient.email.toLowerCase())
-        ) || [];
+        const clientMeetings = allMeetings?.filter(m => {
+          if (!m.attendees) return false;
+          try {
+            const attendeesList = typeof m.attendees === 'string' ? JSON.parse(m.attendees) : m.attendees;
+            return Array.isArray(attendeesList) && attendeesList.some(attendee =>
+              (typeof attendee === 'string' && attendee.toLowerCase().includes(mentionedClient.email.toLowerCase())) ||
+              (typeof attendee === 'object' && attendee.email && attendee.email.toLowerCase() === mentionedClient.email.toLowerCase())
+            );
+          } catch (e) {
+            // Fallback to string search if JSON parsing fails
+            return JSON.stringify(m.attendees).toLowerCase().includes(mentionedClient.email.toLowerCase());
+          }
+        }) || [];
 
         // Get client details from database
         const { data: fullClientData } = await getSupabase()
@@ -420,18 +571,44 @@ router.post('/threads/:threadId/messages', async (req, res) => {
     }
 
     // Generate AI response with enhanced context-aware prompt
-    const systemPrompt = `You are Advicly AI, a helpful assistant for financial advisors.
-    You help advisors manage their client relationships and provide insights about meetings and client interactions.
+    const systemPrompt = `You are Advicly AI, an expert financial advisor assistant with deep contextual awareness.
 
-    IMPORTANT: Always use the actual data provided below to answer questions. Be specific and accurate with numbers and dates.
-    When clients are mentioned with @ symbols, pay special attention to their specific context.
+    CRITICAL INSTRUCTIONS:
+    1. You have access to SPECIFIC meeting transcripts, client data, and conversation details below
+    2. ALWAYS reference and use the actual data provided - never give generic responses
+    3. When discussing meetings, quote specific details from transcripts and summaries
+    4. Demonstrate deep understanding by referencing specific client situations, decisions made, and action items
+    5. Provide proactive insights based on the actual meeting content
+    6. Cross-reference information across multiple meetings when relevant
 
+    CONTEXT DATA AVAILABLE:
     ${advisorContext}${specificContext}${mentionedClientsContext}
 
-    When answering questions about meetings, clients, or data, always reference the specific information provided above.
-    Be concise, professional, and helpful. Pay special attention to the context type of this conversation.`;
+    RESPONSE GUIDELINES:
+    - Always start responses by acknowledging the specific context (e.g., "Based on your meeting with John on August 12th...")
+    - Quote specific details from transcripts when available
+    - Reference specific decisions, concerns, or goals mentioned in meetings
+    - Provide actionable insights based on the actual conversation content
+    - Suggest follow-up actions based on what was discussed
+    - Never say you don't have access to information when context data is provided above
 
-    const aiResponse = await generateChatResponse(content.trim(), systemPrompt, 800);
+    Your responses should demonstrate that you have thoroughly "read" and "understood" the specific meeting content.`;
+
+    // Log context for debugging
+    console.log('🎯 Final system prompt length:', systemPrompt.length);
+    console.log('📋 Context includes meeting data:', specificContext.includes('MEETING CONTEXT'));
+    console.log('💬 User question:', content.trim());
+    console.log('🔍 System prompt preview:', systemPrompt.substring(0, 500) + '...');
+
+    // Log specific context details
+    if (thread.context_type === 'meeting') {
+      console.log('🎪 Meeting context details:');
+      console.log('  - Meeting ID:', thread.meeting_id);
+      console.log('  - Context data:', JSON.stringify(thread.context_data, null, 2));
+      console.log('  - Specific context length:', specificContext.length);
+    }
+
+    const aiResponse = await generateChatResponse(content.trim(), systemPrompt, 1200);
 
     // Save AI response
     const { data: aiMessage, error: aiMessageError } = await getSupabase()
