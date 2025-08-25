@@ -13,7 +13,7 @@ import {
   X,
   Trash2
 } from 'lucide-react';
-import { api } from '../services/api';
+import { api } from '../services/api'; // Fixed import path for deployment
 
 const PROMPT_SUGGESTIONS = [
   "How many meetings did I have last month?",
