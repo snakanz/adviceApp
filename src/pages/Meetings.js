@@ -600,20 +600,39 @@ export default function Meetings() {
     }
   };
 
-  // Calendar sync function - simplified to just refresh meetings
+  // Calendar sync function - actually sync with Google Calendar
   const syncCalendar = async () => {
     setSyncing(true);
     try {
-      // Just refresh the meetings from the existing endpoint
+      const token = localStorage.getItem('jwt');
+
+      // Call the actual calendar sync API endpoint
+      const response = await fetch(`${API_URL}/api/calendar/sync`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to sync calendar');
+      }
+
+      const syncResults = await response.json();
+      console.log('Calendar sync results:', syncResults);
+
+      // Refresh meetings after successful sync
       await fetchMeetings();
 
       setShowSnackbar(true);
-      setSnackbarMessage('Calendar refreshed successfully!');
+      setSnackbarMessage(`Calendar synced successfully! Added: ${syncResults.results?.added || 0}, Updated: ${syncResults.results?.updated || 0}`);
       setSnackbarSeverity('success');
     } catch (error) {
-      console.error('Error refreshing calendar:', error);
+      console.error('Error syncing calendar:', error);
       setShowSnackbar(true);
-      setSnackbarMessage('Failed to refresh calendar');
+      setSnackbarMessage('Failed to sync calendar: ' + error.message);
       setSnackbarSeverity('error');
     } finally {
       setSyncing(false);
