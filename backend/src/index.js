@@ -557,6 +557,11 @@ app.delete('/api/calendar/meetings/:id/transcript', async (req, res) => {
       .from('meetings')
       .update({
         transcript: null,
+        quick_summary: null,
+        brief_summary: null,
+        email_summary_draft: null,
+        email_template_id: null,
+        last_summarized_at: null,
         updatedat: new Date().toISOString()
       })
       .eq('googleeventid', meetingId)

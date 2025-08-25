@@ -180,15 +180,16 @@ export default function Meetings() {
       });
 
       setMeetings(meetingsData);
-      if (selectedMeetingIdRef.current === null) {
-        if (meetingsData.past.length > 0) {
-          setSelectedMeetingId(meetingsData.past[0].id);
-          setSummaryContent(meetingsData.past[0].meetingSummary);
-        } else if (meetingsData.future.length > 0) {
-          setSelectedMeetingId(meetingsData.future[0].id);
-          setSummaryContent(meetingsData.future[0].meetingSummary);
-        }
-      }
+      // Don't auto-select first meeting - let users see the default state
+      // if (selectedMeetingIdRef.current === null) {
+      //   if (meetingsData.past.length > 0) {
+      //     setSelectedMeetingId(meetingsData.past[0].id);
+      //     setSummaryContent(meetingsData.past[0].meetingSummary);
+      //   } else if (meetingsData.future.length > 0) {
+      //     setSelectedMeetingId(meetingsData.future[0].id);
+      //     setSummaryContent(meetingsData.future[0].meetingSummary);
+      //   }
+      // }
     } catch (error) {
       console.error('Error fetching meetings:', error);
       setShowSnackbar(true);
@@ -211,9 +212,9 @@ export default function Meetings() {
     setActiveTab('summary');
 
     // Set existing summaries if available
-    setQuickSummary(meeting.quickSummary || '');
-    setEmailSummary(meeting.emailSummary || '');
-    setSummaryContent(meeting.emailSummary || meeting.meetingSummary || '');
+    setQuickSummary(meeting.quick_summary || meeting.brief_summary || '');
+    setEmailSummary(meeting.email_summary_draft || '');
+    setSummaryContent(meeting.email_summary_draft || meeting.meetingSummary || '');
 
     // Set template info
     if (meeting.templateId) {
@@ -405,24 +406,41 @@ export default function Meetings() {
 
       if (!res.ok) throw new Error('Failed to delete transcript');
 
-      // Update local state
+      // Update local state - clear transcript and all related summaries
       const updatedMeetings = {
         ...meetings,
         past: meetings.past.map(m =>
           m.id === selectedMeeting.id
-            ? { ...m, transcript: null }
+            ? {
+                ...m,
+                transcript: null,
+                quick_summary: null,
+                brief_summary: null,
+                email_summary_draft: null
+              }
             : m
         ),
         future: meetings.future.map(m =>
           m.id === selectedMeeting.id
-            ? { ...m, transcript: null }
+            ? {
+                ...m,
+                transcript: null,
+                quick_summary: null,
+                brief_summary: null,
+                email_summary_draft: null
+              }
             : m
         )
       };
       setMeetings(updatedMeetings);
 
+      // Clear local summary state as well
+      setQuickSummary('');
+      setEmailSummary('');
+      setSummaryContent('');
+
       setShowSnackbar(true);
-      setSnackbarMessage('Transcript deleted successfully');
+      setSnackbarMessage('Transcript and summaries deleted successfully');
       setSnackbarSeverity('success');
     } catch (error) {
       console.error('Error deleting transcript:', error);
@@ -569,6 +587,9 @@ export default function Meetings() {
             onClick={() => handleMeetingSelect(meeting)}
             className={cn(
               "cursor-pointer hover:bg-muted/50 transition-colors min-h-[80px] relative",
+              // Selected state styling
+              selectedMeetingId === meeting.id && "bg-muted/30 ring-2 ring-primary/20",
+              // Status-based border colors
               isComplete ? "border-green-200 dark:border-green-800" :
               hasPartialData ? "border-yellow-200 dark:border-yellow-800" :
               "border-gray-200 dark:border-gray-700 opacity-75"
@@ -789,7 +810,7 @@ export default function Meetings() {
       </div>
 
       {/* Right Panel - Meeting Details */}
-      {selectedMeeting && (
+      {selectedMeeting ? (
         <div className="w-1/2 bg-card border-l border-border/50 flex flex-col">
           {/* Header */}
           <div className="border-b border-border/50 p-4 bg-card/50">
@@ -931,11 +952,11 @@ export default function Meetings() {
                               )}
                             </div>
                           </div>
-                          {quickSummary ? (
+                          {(quickSummary || selectedMeeting?.quick_summary || selectedMeeting?.brief_summary) ? (
                             <Card className="border-border/50">
                               <CardContent className="p-3">
                                 <div className="text-sm text-foreground whitespace-pre-line">
-                                  {quickSummary}
+                                  {quickSummary || selectedMeeting?.quick_summary || selectedMeeting?.brief_summary}
                                 </div>
                               </CardContent>
                             </Card>
@@ -998,11 +1019,11 @@ export default function Meetings() {
                           )}
 
                           {/* Email Summary Content */}
-                          {emailSummary ? (
+                          {(emailSummary || selectedMeeting?.email_summary_draft) ? (
                             <Card className="border-border/50">
                               <CardContent className="p-4">
                                 <div className="prose prose-sm max-w-none text-foreground">
-                                  <div className="whitespace-pre-line text-sm">{emailSummary}</div>
+                                  <div className="whitespace-pre-line text-sm">{emailSummary || selectedMeeting?.email_summary_draft}</div>
                                 </div>
                               </CardContent>
                             </Card>
@@ -1186,6 +1207,21 @@ Example:
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        /* Default State - No Meeting Selected */
+        <div className="w-1/2 bg-card border-l border-border/50 flex flex-col items-center justify-center">
+          <div className="text-center space-y-4 p-8">
+            <div className="w-16 h-16 mx-auto bg-muted/20 rounded-full flex items-center justify-center">
+              <MessageSquare className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-lg font-medium text-foreground">Select a meeting to view details</h3>
+              <p className="text-sm text-muted-foreground max-w-sm">
+                Choose a meeting from the list to view its transcript, AI summaries, and email drafts.
+              </p>
             </div>
           </div>
         </div>
