@@ -155,7 +155,10 @@ export default function SimplifiedAskAdvicly({
     try {
       setLoadingThreads(true);
       const response = await api.request('/ask-advicly/threads');
-      setThreads(response || []);
+
+      // Handle both old format (array) and new format (object with threads array)
+      const threadsData = response.threads || response;
+      setThreads(threadsData || []);
     } catch (error) {
       console.error('Error loading threads:', error);
       setThreads([]);
@@ -238,7 +241,8 @@ export default function SimplifiedAskAdvicly({
         })
       });
 
-      setMessages(prev => [...prev, response]);
+      // Handle the AI response message
+      setMessages(prev => [...prev, response.aiMessage || response]);
     } catch (error) {
       console.error('Error sending message:', error);
       setMessages(prev => [...prev, {
