@@ -569,6 +569,8 @@ app.delete('/api/calendar/meetings/:id/transcript', async (req, res) => {
     const userId = decoded.id;
     const meetingId = req.params.id;
 
+    console.log('🗑️  Deleting transcript for meeting:', meetingId, 'user:', userId);
+
     // Check if Supabase is available
     if (!isSupabaseAvailable()) {
       return res.status(503).json({
@@ -576,7 +578,7 @@ app.delete('/api/calendar/meetings/:id/transcript', async (req, res) => {
       });
     }
 
-    await getSupabase()
+    const { error: deleteError } = await getSupabase()
       .from('meetings')
       .update({
         transcript: null,
@@ -591,6 +593,12 @@ app.delete('/api/calendar/meetings/:id/transcript', async (req, res) => {
       .eq('googleeventid', meetingId)
       .eq('userid', userId);
 
+    if (deleteError) {
+      console.error('Error deleting transcript from database:', deleteError);
+      return res.status(500).json({ error: 'Failed to delete transcript from database' });
+    }
+
+    console.log('✅ Successfully deleted transcript and summaries for meeting:', meetingId);
     res.json({ success: true });
   } catch (error) {
     console.error('Transcript delete error:', error);
