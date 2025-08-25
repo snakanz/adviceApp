@@ -338,9 +338,7 @@ export default function Clients() {
                   className="tab-btn"
                   onClick={() => {
                     // Build comprehensive client context
-                    const clientMeetings = meetings.filter(m =>
-                      m.attendees && m.attendees.includes(selectedClient.email)
-                    );
+                    const clientMeetings = selectedClient.meetings || [];
 
                     const params = new URLSearchParams({
                       contextType: 'client',
