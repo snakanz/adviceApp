@@ -5,17 +5,55 @@ import EnhancedAskAdvicly from '../components/EnhancedAskAdvicly';
 export default function AskAdvicly() {
   const [searchParams] = useSearchParams();
 
-  // Extract parameters from URL
+  // Extract enhanced context parameters from URL
+  const contextType = searchParams.get('contextType') || 'general';
   const clientId = searchParams.get('client');
   const clientName = searchParams.get('clientName');
-  const meetingParam = searchParams.get('meeting');
+  const clientEmail = searchParams.get('clientEmail');
+  const meetingId = searchParams.get('meetingId');
+  const meetingParam = searchParams.get('meeting') || searchParams.get('meetingTitle');
   const meetingDate = searchParams.get('meetingDate');
+  const hasTranscript = searchParams.get('hasTranscript') === 'true';
+  const hasSummary = searchParams.get('hasSummary') === 'true';
+  const meetingCount = searchParams.get('meetingCount');
+  const pipelineStatus = searchParams.get('pipelineStatus');
+  const likelyValue = searchParams.get('likelyValue');
+  const lastMeetingDate = searchParams.get('lastMeetingDate');
+
+  // Build context data object
+  const contextData = {
+    type: contextType,
+    ...(contextType === 'meeting' && {
+      meetingId,
+      meetingTitle: meetingParam,
+      meetingDate,
+      clientName,
+      clientEmail,
+      hasTranscript,
+      hasSummary
+    }),
+    ...(contextType === 'client' && {
+      clientId,
+      clientName,
+      clientEmail,
+      meetingCount: parseInt(meetingCount) || 0,
+      pipelineStatus,
+      likelyValue: parseFloat(likelyValue) || 0,
+      lastMeetingDate
+    }),
+    ...(contextType === 'general' && {
+      scope: 'cross-client'
+    })
+  };
 
   return (
     <div className="h-full bg-background">
       <EnhancedAskAdvicly
+        contextType={contextType}
+        contextData={contextData}
         clientId={clientId}
         clientName={clientName}
+        meetingId={meetingId}
         meetingTitle={meetingParam}
         meetingDate={meetingDate}
         className="h-full"

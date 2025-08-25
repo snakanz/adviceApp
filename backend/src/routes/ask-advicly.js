@@ -7,6 +7,47 @@ const router = express.Router();
 
 console.log('Ask Advicly router created');
 
+// Helper function to generate contextual thread titles
+function generateContextualTitle(contextType, contextData) {
+  try {
+    switch (contextType) {
+      case 'meeting':
+        if (contextData.clientName && contextData.meetingTitle) {
+          const date = contextData.meetingDate ?
+            new Date(contextData.meetingDate).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric'
+            }) : '';
+          return `${contextData.clientName} - ${contextData.meetingTitle}${date ? ` (${date})` : ''}`;
+        }
+        return contextData.meetingTitle || 'Meeting Discussion';
+
+      case 'client':
+        if (contextData.clientName) {
+          return `${contextData.clientName} - Client Discussion`;
+        }
+        return 'Client Discussion';
+
+      default:
+        return 'General Advisory Chat';
+    }
+  } catch (error) {
+    console.error('Error generating contextual title:', error);
+    return 'New Conversation';
+  }
+}
+
+// Helper function to extract topic from message for title generation
+function extractTopicFromMessage(message) {
+  if (!message || typeof message !== 'string') return null;
+
+  const words = message.toLowerCase().split(' ');
+  const topics = ['retirement', 'investment', 'portfolio', 'planning', 'insurance', 'tax', 'estate', 'savings'];
+  const foundTopic = topics.find(topic => words.includes(topic));
+
+  return foundTopic ? foundTopic.charAt(0).toUpperCase() + foundTopic.slice(1) + ' Discussion' : null;
+}
+
 // Test route
 router.get('/test', (req, res) => {
   console.log('Test route hit!');
@@ -15,7 +56,7 @@ router.get('/test', (req, res) => {
 
 console.log('Test route registered');
 
-// Get all threads for an advisor
+// Get all threads for an advisor with enhanced context support
 router.get('/threads', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
@@ -37,6 +78,9 @@ router.get('/threads', async (req, res) => {
         id,
         title,
         client_id,
+        context_type,
+        context_data,
+        meeting_id,
         created_at,
         updated_at,
         clients(name, email)
@@ -50,7 +94,24 @@ router.get('/threads', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch threads' });
     }
 
-    res.json(threads || []);
+    // Group threads by context type for easier frontend handling
+    const allThreads = threads || [];
+    const groupedThreads = {
+      meeting: allThreads.filter(t => t.context_type === 'meeting'),
+      client: allThreads.filter(t => t.context_type === 'client'),
+      general: allThreads.filter(t => t.context_type === 'general')
+    };
+
+    res.json({
+      threads: allThreads,
+      grouped: groupedThreads,
+      counts: {
+        total: allThreads.length,
+        meeting: groupedThreads.meeting.length,
+        client: groupedThreads.client.length,
+        general: groupedThreads.general.length
+      }
+    });
   } catch (error) {
     console.error('Error in /threads:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -104,7 +165,7 @@ router.get('/threads/:threadId/messages', async (req, res) => {
   }
 });
 
-// Create a new thread
+// Create a new thread with enhanced context support
 router.post('/threads', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
@@ -113,7 +174,13 @@ router.post('/threads', async (req, res) => {
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const advisorId = decoded.id;
-    const { clientId, title = 'New Conversation' } = req.body;
+    const {
+      clientId,
+      title = 'New Conversation',
+      contextType = 'general',
+      contextData = {},
+      meetingId = null
+    } = req.body;
 
     if (!isSupabaseAvailable()) {
       return res.status(503).json({
@@ -121,20 +188,46 @@ router.post('/threads', async (req, res) => {
       });
     }
 
+    // Generate smart title if not provided and we have context data
+    let finalTitle = title;
+    if (title === 'New Conversation' && contextData && Object.keys(contextData).length > 0) {
+      finalTitle = generateContextualTitle(contextType, contextData);
+    }
+
     const { data: thread, error } = await getSupabase()
       .from('ask_threads')
       .insert({
         advisor_id: advisorId,
         client_id: clientId || null,
-        title
+        title: finalTitle,
+        context_type: contextType,
+        context_data: contextData,
+        meeting_id: meetingId
       })
-      .select()
+      .select(`
+        id,
+        title,
+        client_id,
+        context_type,
+        context_data,
+        meeting_id,
+        created_at,
+        updated_at,
+        clients(name, email)
+      `)
       .single();
 
     if (error) {
       console.error('Error creating thread:', error);
       return res.status(500).json({ error: 'Failed to create thread' });
     }
+
+    console.log('✅ Created new thread:', {
+      id: thread.id,
+      title: thread.title,
+      contextType: thread.context_type,
+      meetingId: thread.meeting_id
+    });
 
     res.json(thread);
   } catch (error) {
@@ -165,12 +258,15 @@ router.post('/threads/:threadId/messages', async (req, res) => {
       });
     }
 
-    // Verify thread belongs to advisor and get client context
+    // Verify thread belongs to advisor and get enhanced context
     const { data: thread, error: threadError } = await getSupabase()
       .from('ask_threads')
       .select(`
         id,
         client_id,
+        context_type,
+        context_data,
+        meeting_id,
         clients(name, email)
       `)
       .eq('id', threadId)
@@ -242,9 +338,24 @@ router.post('/threads/:threadId/messages', async (req, res) => {
       ).join('\n')}`;
     }
 
-    // Add specific client context if this is a client-scoped thread
-    let clientContext = '';
-    if (thread.client_id && thread.clients) {
+    // Add enhanced context based on thread type
+    let specificContext = '';
+
+    if (thread.context_type === 'meeting' && thread.meeting_id) {
+      // Meeting-specific context
+      const meetingData = allMeetings?.find(m => m.googleeventid === thread.meeting_id);
+      if (meetingData) {
+        specificContext = `\n\nMeeting-Specific Context:
+        - Meeting: ${meetingData.title} (${new Date(meetingData.starttime).toLocaleDateString()})
+        - Attendees: ${meetingData.attendees || 'Not specified'}
+        ${meetingData.transcript ? `- Has transcript (${meetingData.transcript.length} characters)` : '- No transcript available'}
+        ${meetingData.quick_summary ? `- Summary: ${meetingData.quick_summary}` : '- No summary available'}
+        ${meetingData.email_summary_draft ? `- Email draft available` : ''}
+
+        IMPORTANT: This conversation is specifically about the above meeting. Focus your responses on this meeting's content, participants, and outcomes.`;
+      }
+    } else if (thread.context_type === 'client' && thread.client_id && thread.clients) {
+      // Client-specific context
       const clientEmail = thread.clients.email;
       const clientName = thread.clients.name;
 
@@ -254,12 +365,21 @@ router.post('/threads/:threadId/messages', async (req, res) => {
       ) || [];
 
       if (clientMeetings.length > 0) {
-        clientContext = `\n\nSpecific Client Context for ${clientName} (${clientEmail}):
+        specificContext = `\n\nClient-Specific Context for ${clientName} (${clientEmail}):
         - Total meetings with this client: ${clientMeetings.length}
+        - Recent meetings:
         ${clientMeetings.slice(0, 5).map(m =>
           `• ${m.title} (${new Date(m.starttime).toLocaleDateString()})${m.quick_summary ? ` - ${m.quick_summary}` : ''}`
-        ).join('\n')}`;
+        ).join('\n')}
+
+        IMPORTANT: This conversation is specifically about ${clientName}. Focus your responses on this client's relationship, meetings, and specific needs.`;
       }
+    } else if (thread.context_type === 'general') {
+      // General context
+      specificContext = `\n\nGeneral Advisory Context:
+      - This is a general advisory conversation covering cross-client insights and portfolio-level analysis
+      - You have access to data from all ${allMeetings?.length || 0} meetings and ${allClients?.length || 0} clients
+      - Focus on broader financial planning, market insights, and business development advice`;
     }
 
     // Add mentioned clients context
@@ -299,17 +419,17 @@ router.post('/threads/:threadId/messages', async (req, res) => {
       `).join('\n')}`;
     }
 
-    // Generate AI response with comprehensive context
+    // Generate AI response with enhanced context-aware prompt
     const systemPrompt = `You are Advicly AI, a helpful assistant for financial advisors.
     You help advisors manage their client relationships and provide insights about meetings and client interactions.
 
     IMPORTANT: Always use the actual data provided below to answer questions. Be specific and accurate with numbers and dates.
     When clients are mentioned with @ symbols, pay special attention to their specific context.
 
-    ${advisorContext}${clientContext}${mentionedClientsContext}
+    ${advisorContext}${specificContext}${mentionedClientsContext}
 
     When answering questions about meetings, clients, or data, always reference the specific information provided above.
-    Be concise, professional, and helpful.`;
+    Be concise, professional, and helpful. Pay special attention to the context type of this conversation.`;
 
     const aiResponse = await generateChatResponse(content.trim(), systemPrompt, 800);
 

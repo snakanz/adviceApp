@@ -336,10 +336,35 @@ export default function Clients() {
               <div className="flex gap-4 justify-between">
                 <button
                   className="tab-btn"
-                  onClick={() => navigate(`/ask-advicly?client=${selectedClient?.id}&clientName=${encodeURIComponent(selectedClient?.name || selectedClient?.email)}`)}
+                  onClick={() => {
+                    // Build comprehensive client context
+                    const clientMeetings = meetings.filter(m =>
+                      m.attendees && m.attendees.includes(selectedClient.email)
+                    );
+
+                    const params = new URLSearchParams({
+                      contextType: 'client',
+                      client: selectedClient.id,
+                      clientName: selectedClient.name,
+                      clientEmail: selectedClient.email,
+                      meetingCount: clientMeetings.length.toString(),
+                      pipelineStatus: selectedClient.status || 'Unknown',
+                      likelyValue: selectedClient.likely_value?.toString() || '0'
+                    });
+
+                    if (clientMeetings.length > 0) {
+                      const lastMeeting = clientMeetings.sort((a, b) =>
+                        new Date(b.startTime || b.starttime) - new Date(a.startTime || a.starttime)
+                      )[0];
+                      params.set('lastMeetingDate', lastMeeting.startTime || lastMeeting.starttime);
+                      params.set('lastMeetingTitle', lastMeeting.title);
+                    }
+
+                    navigate(`/ask-advicly?${params.toString()}`);
+                  }}
                 >
                   <Sparkles className="w-4 h-4 inline mr-2" />
-                  Ask Advicly
+                  Ask About {selectedClient?.name}
                 </button>
                 <button
                   className={cn(

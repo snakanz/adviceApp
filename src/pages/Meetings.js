@@ -906,13 +906,13 @@ export default function Meetings() {
                           <div className="flex items-center justify-between">
                             <h3 className="text-sm font-semibold text-foreground">Quick Summary</h3>
                             <div className="flex items-center gap-2">
-                              {/* Ask Advicly button */}
+                              {/* Enhanced Ask Advicly button */}
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
-                                  // Extract client name from attendees if available
-                                  let clientName = '';
+                                  // Extract comprehensive meeting context
+                                  let clientInfo = null;
                                   if (selectedMeeting.attendees) {
                                     try {
                                       const attendees = typeof selectedMeeting.attendees === 'string'
@@ -923,32 +923,40 @@ export default function Meetings() {
                                       const currentUserEmail = user?.email || '';
                                       const clientAttendee = attendees.find(a => a.email !== currentUserEmail);
                                       if (clientAttendee) {
-                                        clientName = clientAttendee.name || clientAttendee.email;
+                                        clientInfo = {
+                                          name: clientAttendee.name || clientAttendee.email,
+                                          email: clientAttendee.email
+                                        };
                                       }
                                     } catch (e) {
                                       console.log('Could not parse attendees');
                                     }
                                   }
 
-                                  const meetingTitle = selectedMeeting.summary || selectedMeeting.title || 'meeting';
-                                  const meetingDate = selectedMeeting.start || selectedMeeting.date;
+                                  const meetingTitle = selectedMeeting.summary || selectedMeeting.title || 'Meeting';
+                                  const meetingDate = selectedMeeting.startTime || selectedMeeting.start || selectedMeeting.date;
+
+                                  // Build enhanced URL parameters for meeting context
                                   const params = new URLSearchParams({
-                                    meeting: meetingTitle
+                                    contextType: 'meeting',
+                                    meetingId: selectedMeeting.id,
+                                    meetingTitle: meetingTitle,
+                                    meetingDate: meetingDate,
+                                    hasTranscript: (!!selectedMeeting.transcript).toString(),
+                                    hasSummary: (!!selectedMeeting.quick_summary).toString()
                                   });
 
-                                  if (clientName) {
-                                    params.set('clientName', clientName);
-                                  }
-
-                                  if (meetingDate) {
-                                    params.set('meetingDate', meetingDate);
+                                  if (clientInfo) {
+                                    params.set('clientName', clientInfo.name);
+                                    params.set('clientEmail', clientInfo.email);
                                   }
 
                                   navigate(`/ask-advicly?${params.toString()}`);
                                 }}
                                 className="h-8 px-3 text-xs"
                               >
-                                Ask Advicly
+                                <MessageSquare className="w-3 h-3 mr-1" />
+                                Ask About This Meeting
                               </Button>
                               {(quickSummary || emailSummary) && (
                                 <Button

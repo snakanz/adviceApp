@@ -10,12 +10,14 @@ import {
   MessageSquare,
   Plus,
   Edit3,
-  Lightbulb
+  Lightbulb,
+  Calendar
 } from 'lucide-react';
 import { api } from '../services/api';
 import ClientMentionDropdown from './ClientMentionDropdown';
 import MentionText, { extractMentionedClients } from './MentionText';
 import ContextChip from './ContextChip';
+import ContextHeader from './ContextHeader';
 
 const PROMPT_SUGGESTIONS = [
   "How many meetings did I have last month?",
@@ -26,8 +28,11 @@ const PROMPT_SUGGESTIONS = [
 ];
 
 export default function EnhancedAskAdvicly({
+  contextType = 'general',
+  contextData = {},
   clientId,
   clientName,
+  meetingId,
   meetingTitle,
   meetingDate,
   initialMessage = "",
@@ -84,26 +89,44 @@ export default function EnhancedAskAdvicly({
     try {
       setLoadingThreads(true);
       const response = await api.request('/ask-advicly/threads');
-      setThreads(response);
 
-      // If we have a clientId, filter to client-specific threads or create one
-      if (clientId) {
-        const clientThreads = response.filter(t => t.client_id === clientId);
+      // Handle both old format (array) and new format (object with threads array)
+      const threadsData = response.threads || response;
+      setThreads(threadsData);
+
+      // Context-aware thread selection and creation
+      if (contextType === 'meeting' && meetingId) {
+        // Look for existing meeting-specific thread
+        const meetingThreads = threadsData.filter(t =>
+          t.context_type === 'meeting' && t.meeting_id === meetingId
+        );
+        if (meetingThreads.length > 0) {
+          setActiveThreadId(meetingThreads[0].id);
+        } else {
+          // Create new meeting-specific thread
+          await createNewThread(clientId, null, 'meeting', contextData, meetingId);
+        }
+      } else if (contextType === 'client' && clientId) {
+        // Look for existing client-specific threads
+        const clientThreads = threadsData.filter(t =>
+          t.context_type === 'client' && t.client_id === clientId
+        );
         if (clientThreads.length > 0) {
           setActiveThreadId(clientThreads[0].id);
         } else {
-          // Create a new thread for this client
-          await createNewThread(clientId, `Chat with ${clientName || 'Client'}`);
+          // Create new client-specific thread
+          await createNewThread(clientId, null, 'client', contextData);
         }
-      } else if (response.length > 0) {
-        setActiveThreadId(response[0].id);
+      } else if (threadsData.length > 0) {
+        // Default to most recent thread
+        setActiveThreadId(threadsData[0].id);
       }
     } catch (error) {
       console.error('Error loading threads:', error);
     } finally {
       setLoadingThreads(false);
     }
-  }, [clientId, clientName]);
+  }, [contextType, contextData, clientId, meetingId]);
 
   // Load threads on component mount
   useEffect(() => {
@@ -226,13 +249,25 @@ export default function EnhancedAskAdvicly({
     }
   };
 
-  const createNewThread = async (clientId = null, title = 'New Conversation') => {
+  const createNewThread = async (
+    clientId = null,
+    title = 'New Conversation',
+    contextType = 'general',
+    contextData = {},
+    meetingId = null
+  ) => {
     try {
       const response = await api.request('/ask-advicly/threads', {
         method: 'POST',
-        body: JSON.stringify({ clientId, title })
+        body: JSON.stringify({
+          clientId,
+          title,
+          contextType,
+          contextData,
+          meetingId
+        })
       });
-      
+
       setThreads(prev => [response, ...prev]);
       setActiveThreadId(response.id);
       return response;
@@ -248,7 +283,14 @@ export default function EnhancedAskAdvicly({
 
     // Create a new thread if none exists
     if (!threadId) {
-      const newThread = await createNewThread(clientId, input.substring(0, 50) + '...');
+      const threadTitle = input.substring(0, 50) + (input.length > 50 ? '...' : '');
+      const newThread = await createNewThread(
+        clientId,
+        threadTitle,
+        contextType,
+        contextData,
+        meetingId
+      );
       threadId = newThread?.id;
       if (!threadId) return;
     }
@@ -376,15 +418,25 @@ export default function EnhancedAskAdvicly({
     <div className={cn("h-full flex bg-background", className)}>
       {/* Sidebar with threads */}
       <div className="w-80 border-r border-border/50 flex flex-col">
+        {/* Context Header */}
+        <ContextHeader
+          contextType={contextType}
+          contextData={contextData}
+          onContextChange={() => {
+            // TODO: Implement context switching modal
+            console.log('Context change requested');
+          }}
+        />
+
         <div className="p-4 border-b border-border/50">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-foreground">
-              {clientName ? `Chat with ${clientName}` : 'Ask Advicly'}
+              Conversations
             </h2>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => createNewThread(clientId)}
+              onClick={() => createNewThread(clientId, 'New Conversation', contextType, contextData, meetingId)}
               className="h-8 w-8 p-0"
             >
               <Plus className="w-4 h-4" />
@@ -437,7 +489,14 @@ export default function EnhancedAskAdvicly({
                   onClick={() => setActiveThreadId(thread.id)}
                 >
                   <div className="flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                    {/* Context-aware icon */}
+                    {thread.context_type === 'meeting' ? (
+                      <Calendar className="w-4 h-4 text-blue-600" />
+                    ) : thread.context_type === 'client' ? (
+                      <User className="w-4 h-4 text-green-600" />
+                    ) : (
+                      <MessageSquare className="w-4 h-4 text-muted-foreground" />
+                    )}
                     {editingThreadId === thread.id ? (
                       <input
                         value={editingTitle}
@@ -459,11 +518,17 @@ export default function EnhancedAskAdvicly({
                         <div className="text-sm font-medium text-foreground truncate">
                           {thread.title}
                         </div>
-                        {thread.clients && (
-                          <div className="text-xs text-muted-foreground truncate">
-                            {thread.clients.name}
-                          </div>
-                        )}
+                        <div className="text-xs text-muted-foreground truncate">
+                          {thread.context_type === 'meeting' && thread.context_data?.meetingDate && (
+                            <span>Meeting • {new Date(thread.context_data.meetingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                          )}
+                          {thread.context_type === 'client' && thread.clients && (
+                            <span>Client • {thread.clients.name}</span>
+                          )}
+                          {thread.context_type === 'general' && (
+                            <span>General Advisory</span>
+                          )}
+                        </div>
                       </div>
                     )}
                     {activeThreadId === thread.id && editingThreadId !== thread.id && (
