@@ -209,7 +209,7 @@ export default function Meetings() {
   // Update local state when selectedMeeting changes (e.g., after data refresh)
   useEffect(() => {
     if (selectedMeeting) {
-      setQuickSummary(selectedMeeting.quick_summary || selectedMeeting.brief_summary || '');
+      setQuickSummary(selectedMeeting.detailed_summary || selectedMeeting.quick_summary || selectedMeeting.brief_summary || '');
       setEmailSummary(selectedMeeting.email_summary_draft || '');
       setSummaryContent(selectedMeeting.email_summary_draft || selectedMeeting.meetingSummary || '');
     }
@@ -221,7 +221,7 @@ export default function Meetings() {
     setActiveTab('summary');
 
     // Set existing summaries if available
-    setQuickSummary(meeting.quick_summary || meeting.brief_summary || '');
+    setQuickSummary(meeting.detailed_summary || meeting.quick_summary || meeting.brief_summary || '');
     setEmailSummary(meeting.email_summary_draft || '');
     setSummaryContent(meeting.email_summary_draft || meeting.meetingSummary || '');
 
@@ -354,12 +354,13 @@ export default function Meetings() {
 
       // If summaries were auto-generated, include them
       if (responseData.summaries) {
-        meetingUpdate.brief_summary = responseData.summaries.briefSummary;
         meetingUpdate.quick_summary = responseData.summaries.quickSummary;
+        meetingUpdate.detailed_summary = responseData.summaries.detailedSummary;
         meetingUpdate.email_summary_draft = responseData.summaries.emailSummary;
 
         // Also update the local state variables immediately
-        setQuickSummary(responseData.summaries.quickSummary || '');
+        // Use detailed_summary for Meetings page display
+        setQuickSummary(responseData.summaries.detailedSummary || '');
         setEmailSummary(responseData.summaries.emailSummary || '');
         setSummaryContent(responseData.summaries.emailSummary || '');
       }
@@ -429,6 +430,7 @@ export default function Meetings() {
                 ...m,
                 transcript: null,
                 quick_summary: null,
+                detailed_summary: null,
                 brief_summary: null,
                 email_summary_draft: null
               }
@@ -440,6 +442,7 @@ export default function Meetings() {
                 ...m,
                 transcript: null,
                 quick_summary: null,
+                detailed_summary: null,
                 brief_summary: null,
                 email_summary_draft: null
               }
@@ -592,8 +595,8 @@ export default function Meetings() {
         )}
       </div>
       {meetings.map((meeting) => {
-        const isComplete = meeting.transcript && (meeting.quick_summary || meeting.brief_summary) && meeting.email_summary_draft;
-        const hasPartialData = meeting.transcript || meeting.quick_summary || meeting.email_summary_draft;
+        const isComplete = meeting.transcript && (meeting.detailed_summary || meeting.quick_summary || meeting.brief_summary) && meeting.email_summary_draft;
+        const hasPartialData = meeting.transcript || meeting.detailed_summary || meeting.quick_summary || meeting.email_summary_draft;
 
         return (
           <Card
@@ -876,7 +879,7 @@ export default function Meetings() {
                 >
                   <MessageSquare className="w-4 h-4" />
                   Summary
-                  {(selectedMeeting?.quick_summary || selectedMeeting?.brief_summary) && (
+                  {(selectedMeeting?.detailed_summary || selectedMeeting?.quick_summary || selectedMeeting?.brief_summary) && (
                     <div className="w-2 h-2 bg-green-500 rounded-full ml-1"></div>
                   )}
                 </button>
@@ -966,11 +969,11 @@ export default function Meetings() {
                               )}
                             </div>
                           </div>
-                          {(quickSummary || selectedMeeting?.quick_summary || selectedMeeting?.brief_summary) ? (
+                          {(quickSummary || selectedMeeting?.detailed_summary || selectedMeeting?.quick_summary || selectedMeeting?.brief_summary) ? (
                             <Card className="border-border/50">
                               <CardContent className="p-3">
                                 <div className="text-sm text-foreground whitespace-pre-line">
-                                  {quickSummary || selectedMeeting?.quick_summary || selectedMeeting?.brief_summary}
+                                  {quickSummary || selectedMeeting?.detailed_summary || selectedMeeting?.quick_summary || selectedMeeting?.brief_summary}
                                 </div>
                               </CardContent>
                             </Card>

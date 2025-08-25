@@ -54,7 +54,7 @@ export default function Clients() {
   // Helper function to check if meeting is complete (has transcript + summaries)
   const isMeetingComplete = (meeting) => {
     return meeting.transcript &&
-           (meeting.brief_summary || meeting.quick_summary) &&
+           (meeting.quick_summary || meeting.detailed_summary || meeting.brief_summary) &&
            meeting.email_summary_draft;
   };
 
@@ -408,20 +408,27 @@ export default function Clients() {
                               </div>
                               {/* Meeting Summary */}
                               <div className="flex-1 min-w-0">
-                                {mtg.brief_summary ? (
+                                {mtg.quick_summary ? (
+                                  <div className="space-y-2">
+                                    <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Meeting Summary</h5>
+                                    <div className="text-sm text-foreground">
+                                      {mtg.quick_summary}
+                                    </div>
+                                  </div>
+                                ) : mtg.brief_summary ? (
                                   <div className="space-y-2">
                                     <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Meeting Summary</h5>
                                     <div className="text-sm text-foreground">
                                       {mtg.brief_summary}
                                     </div>
                                   </div>
-                                ) : mtg.quick_summary ? (
+                                ) : mtg.detailed_summary ? (
                                   <div className="space-y-2">
                                     <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Meeting Summary</h5>
                                     <div className="text-sm text-foreground">
-                                      {/* Extract meaningful content from detailed summary for backward compatibility */}
+                                      {/* Extract first sentence from detailed summary for backward compatibility */}
                                       {(() => {
-                                        const summary = mtg.quick_summary;
+                                        const summary = mtg.detailed_summary;
                                         // If it starts with markdown headers or bullet points, extract the first meaningful sentence
                                         if (summary.includes('**Key Points Discussed:**') || summary.includes('**Important Decisions')) {
                                           // Look for the first sentence before any markdown formatting

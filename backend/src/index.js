@@ -446,8 +446,8 @@ app.post('/api/calendar/meetings/:id/transcript', async (req, res) => {
         const { generateMeetingSummary, isOpenAIAvailable } = require('./services/openai');
 
         if (isOpenAIAvailable()) {
-          // Generate Brief Summary (for Clients page)
-          const briefSummaryPrompt = `# SYSTEM PROMPT: Advicly Brief Summary Generator
+          // Generate Quick Summary (single sentence for Clients page)
+          const quickSummaryPrompt = `# SYSTEM PROMPT: Advicly Quick Summary Generator
 You are an expert financial advisor creating a single-sentence summary of a client meeting.
 
 Generate ONE concise sentence that captures what was discussed in the meeting. Focus on the main topic or purpose of the meeting.
@@ -462,9 +462,9 @@ ${transcript}
 
 Respond with ONLY the single sentence summary, no additional text.`;
 
-          const briefSummary = await generateMeetingSummary(transcript, 'standard', { prompt: briefSummaryPrompt });
+          const quickSummary = await generateMeetingSummary(transcript, 'standard', { prompt: quickSummaryPrompt });
 
-          // Generate Detailed Summary (for Meetings page)
+          // Generate Detailed Summary (structured format for Meetings page)
           const detailedSummaryPrompt = `# SYSTEM PROMPT: Advicly Detailed Summary Generator
 You are an expert financial advisor creating a structured summary of a client meeting.
 
@@ -510,13 +510,13 @@ Respond with the **email body only** — no headers or subject lines.`;
 
           const emailSummary = await generateMeetingSummary(transcript, 'standard', { prompt: autoTemplate });
 
-          // Save summaries to database
+          // Save summaries to database with proper field separation
           const { error: updateError } = await getSupabase()
             .from('meetings')
             .update({
-              brief_summary: briefSummary,
-              quick_summary: detailedSummary,
-              email_summary_draft: emailSummary,
+              quick_summary: quickSummary,           // Single sentence for Clients page
+              detailed_summary: detailedSummary,     // Structured format for Meetings page
+              email_summary_draft: emailSummary,     // Email format
               email_template_id: 'auto-template',
               last_summarized_at: new Date().toISOString(),
               updatedat: new Date().toISOString()
@@ -530,13 +530,13 @@ Respond with the **email body only** — no headers or subject lines.`;
           }
 
           console.log('✅ Successfully saved summaries to database for meeting:', meetingId);
-          console.log('Brief summary length:', briefSummary?.length || 0);
-          console.log('Quick summary length:', detailedSummary?.length || 0);
+          console.log('Quick summary length:', quickSummary?.length || 0);
+          console.log('Detailed summary length:', detailedSummary?.length || 0);
 
           summaries = {
-            briefSummary,
-            quickSummary: detailedSummary,
-            emailSummary,
+            quickSummary,                    // Single sentence for Clients page
+            detailedSummary,                 // Structured format for Meetings page
+            emailSummary,                    // Email format
             templateId: 'auto-template',
             lastSummarizedAt: new Date().toISOString()
           };
@@ -581,6 +581,7 @@ app.delete('/api/calendar/meetings/:id/transcript', async (req, res) => {
       .update({
         transcript: null,
         quick_summary: null,
+        detailed_summary: null,
         brief_summary: null,
         email_summary_draft: null,
         email_template_id: null,
