@@ -540,13 +540,47 @@ export default function Meetings() {
 
   const renderMeetingsList = (meetings, title) => (
     <div className="space-y-6">
-      <h2 className="text-xl font-semibold text-foreground">{title}</h2>
-      {meetings.map((meeting) => (
-        <Card
-          key={meeting.id}
-          onClick={() => handleMeetingSelect(meeting)}
-          className="cursor-pointer hover:bg-muted/50 transition-colors min-h-[80px]"
-        >
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-semibold text-foreground">{title}</h2>
+        {meetings.length > 0 && (
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span>Complete</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+              <span>Partial</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+              <span>Needs Transcript</span>
+            </div>
+          </div>
+        )}
+      </div>
+      {meetings.map((meeting) => {
+        const isComplete = meeting.transcript && (meeting.quick_summary || meeting.brief_summary) && meeting.email_summary_draft;
+        const hasPartialData = meeting.transcript || meeting.quick_summary || meeting.email_summary_draft;
+
+        return (
+          <Card
+            key={meeting.id}
+            onClick={() => handleMeetingSelect(meeting)}
+            className={cn(
+              "cursor-pointer hover:bg-muted/50 transition-colors min-h-[80px] relative",
+              isComplete ? "border-green-200 dark:border-green-800" :
+              hasPartialData ? "border-yellow-200 dark:border-yellow-800" :
+              "border-gray-200 dark:border-gray-700 opacity-75"
+            )}
+          >
+            {/* Completion Status Indicator */}
+            <div className={cn(
+              "absolute top-2 right-2 w-3 h-3 rounded-full",
+              isComplete ? "bg-green-500" :
+              hasPartialData ? "bg-yellow-500" :
+              "bg-gray-400"
+            )}></div>
           <CardContent className="p-4 h-full">
             <div className="flex items-center justify-between h-full min-h-[48px]">
               <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -560,21 +594,31 @@ export default function Meetings() {
                   <h3 className="text-lg font-medium text-foreground truncate">
                     {meeting.summary || meeting.title || 'Untitled Meeting'}
                   </h3>
-                  {/* Completion Indicators */}
-                  <div className="flex items-center gap-1 mt-1">
+                  {/* Completion Status Indicators */}
+                  <div className="flex items-center gap-2 mt-2">
                     {meeting.transcript && (
-                      <div className="flex items-center justify-center w-5 h-5 bg-blue-100 rounded-full" title="Transcript available">
+                      <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-950/20 rounded-full border border-blue-200 dark:border-blue-800">
                         <Check className="w-3 h-3 text-blue-600" />
+                        <span className="text-xs font-medium text-blue-700 dark:text-blue-300">Transcript</span>
                       </div>
                     )}
-                    {meeting.quick_summary && (
-                      <div className="flex items-center justify-center w-5 h-5 bg-green-100 rounded-full" title="Summary available">
+                    {(meeting.quick_summary || meeting.brief_summary) && (
+                      <div className="flex items-center gap-1 px-2 py-1 bg-green-50 dark:bg-green-950/20 rounded-full border border-green-200 dark:border-green-800">
                         <Check className="w-3 h-3 text-green-600" />
+                        <span className="text-xs font-medium text-green-700 dark:text-green-300">AI Summary</span>
                       </div>
                     )}
                     {meeting.email_summary_draft && (
-                      <div className="flex items-center justify-center w-5 h-5 bg-purple-100 rounded-full" title="Email summary available">
+                      <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 dark:bg-purple-950/20 rounded-full border border-purple-200 dark:border-purple-800">
                         <Check className="w-3 h-3 text-purple-600" />
+                        <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Email Draft</span>
+                      </div>
+                    )}
+                    {/* Show incomplete status for meetings without data */}
+                    {!meeting.transcript && !meeting.quick_summary && !meeting.email_summary_draft && (
+                      <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700">
+                        <div className="w-3 h-3 rounded-full border-2 border-gray-400"></div>
+                        <span className="text-xs font-medium text-gray-500">Needs Transcript</span>
                       </div>
                     )}
                   </div>
@@ -595,7 +639,8 @@ export default function Meetings() {
             </div>
           </CardContent>
         </Card>
-      ))}
+        );
+      })}
     </div>
   );
 
@@ -796,6 +841,9 @@ export default function Meetings() {
                 >
                   <MessageSquare className="w-4 h-4" />
                   Summary
+                  {(selectedMeeting?.quick_summary || selectedMeeting?.brief_summary) && (
+                    <div className="w-2 h-2 bg-green-500 rounded-full ml-1"></div>
+                  )}
                 </button>
                 <button
                   className={cn(
@@ -808,6 +856,9 @@ export default function Meetings() {
                 >
                   <FileText className="w-4 h-4" />
                   Transcript
+                  {selectedMeeting?.transcript && (
+                    <div className="w-2 h-2 bg-blue-500 rounded-full ml-1"></div>
+                  )}
                 </button>
               </div>
 

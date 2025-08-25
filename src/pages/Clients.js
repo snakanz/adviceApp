@@ -405,8 +405,28 @@ export default function Clients() {
                                   <div className="space-y-2">
                                     <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Meeting Summary</h5>
                                     <div className="text-sm text-foreground">
-                                      {/* Extract first sentence from detailed summary for backward compatibility */}
-                                      {mtg.quick_summary.split('\n')[0] || mtg.quick_summary.substring(0, 150) + '...'}
+                                      {/* Extract meaningful content from detailed summary for backward compatibility */}
+                                      {(() => {
+                                        const summary = mtg.quick_summary;
+                                        // If it starts with markdown headers or bullet points, extract the first meaningful sentence
+                                        if (summary.includes('**Key Points Discussed:**') || summary.includes('**Important Decisions')) {
+                                          // Look for the first sentence before any markdown formatting
+                                          const firstLine = summary.split('\n')[0];
+                                          if (firstLine && !firstLine.includes('**') && firstLine.length > 10) {
+                                            return firstLine;
+                                          }
+                                          // If first line is formatted, look for content after headers
+                                          const lines = summary.split('\n');
+                                          for (let line of lines) {
+                                            if (line.trim() && !line.includes('**') && !line.startsWith('-') && line.length > 20) {
+                                              return line.trim();
+                                            }
+                                          }
+                                        }
+                                        // Fallback to first sentence or truncated content
+                                        const firstSentence = summary.split('.')[0];
+                                        return firstSentence.length > 10 ? firstSentence + '.' : summary.substring(0, 150) + '...';
+                                      })()}
                                     </div>
                                   </div>
                                 ) : mtg.summary ? (
