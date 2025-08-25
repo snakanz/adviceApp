@@ -510,13 +510,12 @@ Respond with the **email body only** — no headers or subject lines.`;
 
           const emailSummary = await generateMeetingSummary(transcript, 'standard', { prompt: autoTemplate });
 
-          // Save summaries to database with proper field separation
+          // Save summaries to database (using only existing columns for now)
           const { error: updateError } = await getSupabase()
             .from('meetings')
             .update({
-              quick_summary: quickSummary,           // Single sentence for Clients page
-              detailed_summary: detailedSummary,     // Structured format for Meetings page
-              email_summary_draft: emailSummary,     // Email format
+              quick_summary: quickSummary,           // Single sentence for Clients page (existing column)
+              email_summary_draft: emailSummary,     // Email format (existing column)
               email_template_id: 'auto-template',
               last_summarized_at: new Date().toISOString(),
               updatedat: new Date().toISOString()
@@ -534,9 +533,9 @@ Respond with the **email body only** — no headers or subject lines.`;
           console.log('Detailed summary length:', detailedSummary?.length || 0);
 
           summaries = {
-            quickSummary,                    // Single sentence for Clients page
-            detailedSummary,                 // Structured format for Meetings page
-            emailSummary,                    // Email format
+            quickSummary,                    // Single sentence for Clients page (saved to DB)
+            detailedSummary,                 // Structured format for Meetings page (not saved to DB yet)
+            emailSummary,                    // Email format (saved to DB)
             templateId: 'auto-template',
             lastSummarizedAt: new Date().toISOString()
           };
@@ -583,8 +582,6 @@ app.delete('/api/calendar/meetings/:id/transcript', async (req, res) => {
       .update({
         transcript: null,
         quick_summary: null,
-        detailed_summary: null,
-        brief_summary: null,
         email_summary_draft: null,
         email_template_id: null,
         last_summarized_at: null,
