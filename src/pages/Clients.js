@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
@@ -58,22 +58,36 @@ export default function Clients() {
            meeting.email_summary_draft;
   };
 
-  useEffect(() => {
-    async function fetchClients() {
-      setLoading(true);
-      try {
-        const data = await api.request('/clients');
-        setClients(data);
-        setSelectedClientIndex(0); // Always select the first client by default
-      } catch (err) {
-        setError(err.message);
-        setClients([]);
-      } finally {
-        setLoading(false);
-      }
+  const fetchClients = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api.request('/clients');
+      setClients(data);
+      setSelectedClientIndex(0); // Always select the first client by default
+    } catch (err) {
+      setError(err.message);
+      setClients([]);
+    } finally {
+      setLoading(false);
     }
-    fetchClients();
   }, []);
+
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]);
+
+  // Refresh data when page becomes visible (e.g., navigating back from Meetings page)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // Page became visible, refresh client data to get latest summaries
+        fetchClients();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [fetchClients]);
 
   // Handle URL parameters for client selection and tab switching
   useEffect(() => {
