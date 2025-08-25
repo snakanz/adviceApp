@@ -383,6 +383,15 @@ app.get('/api/dev/meetings', async (req, res) => {
 
     console.log(`✅ Found ${meetings?.length || 0} meetings in database`);
 
+    // Log summary data for debugging
+    if (meetings && meetings.length > 0) {
+      meetings.forEach(meeting => {
+        if (meeting.brief_summary || meeting.quick_summary) {
+          console.log(`📝 Meeting ${meeting.googleeventid}: brief_summary=${!!meeting.brief_summary}, quick_summary=${!!meeting.quick_summary}`);
+        }
+      });
+    }
+
     // Return the meetings data
     res.json(meetings || []);
 
@@ -416,7 +425,7 @@ app.post('/api/calendar/meetings/:id/transcript', async (req, res) => {
     }
 
     // Update the transcript for the meeting
-    await getSupabase()
+    const { error: transcriptError } = await getSupabase()
       .from('meetings')
       .update({
         transcript: transcript,
@@ -424,6 +433,11 @@ app.post('/api/calendar/meetings/:id/transcript', async (req, res) => {
       })
       .eq('googleeventid', meetingId)
       .eq('userid', userId);
+
+    if (transcriptError) {
+      console.error('Error saving transcript to database:', transcriptError);
+      return res.status(500).json({ error: 'Failed to save transcript to database' });
+    }
 
     // Auto-generate summaries if OpenAI is available and transcript is provided
     let summaries = null;
@@ -497,7 +511,7 @@ Respond with the **email body only** — no headers or subject lines.`;
           const emailSummary = await generateMeetingSummary(transcript, 'standard', { prompt: autoTemplate });
 
           // Save summaries to database
-          await getSupabase()
+          const { error: updateError } = await getSupabase()
             .from('meetings')
             .update({
               brief_summary: briefSummary,
@@ -509,6 +523,15 @@ Respond with the **email body only** — no headers or subject lines.`;
             })
             .eq('googleeventid', meetingId)
             .eq('userid', userId);
+
+          if (updateError) {
+            console.error('Error saving summaries to database:', updateError);
+            throw new Error('Failed to save summaries to database');
+          }
+
+          console.log('✅ Successfully saved summaries to database for meeting:', meetingId);
+          console.log('Brief summary length:', briefSummary?.length || 0);
+          console.log('Quick summary length:', detailedSummary?.length || 0);
 
           summaries = {
             briefSummary,
