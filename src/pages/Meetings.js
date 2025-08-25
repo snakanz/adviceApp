@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Upload,
   Check,
+  Mail,
   RefreshCw
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
@@ -58,6 +59,36 @@ function getMeetingSource(meeting) {
 function formatMeetingTime(meeting) {
   const start = new Date(meeting.start?.dateTime || meeting.startTime || meeting.starttime);
   return start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+// Group meetings by month/year for better organization
+function groupMeetingsByDate(meetings) {
+  const groups = {};
+
+  meetings.forEach(meeting => {
+    const startTime = meeting.start?.dateTime || meeting.startTime || meeting.starttime;
+    if (!startTime) return;
+
+    const date = new Date(startTime);
+    const monthYear = date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long'
+    });
+
+    if (!groups[monthYear]) {
+      groups[monthYear] = [];
+    }
+    groups[monthYear].push(meeting);
+  });
+
+  // Sort groups by date (most recent first for past meetings)
+  const sortedGroups = Object.entries(groups).sort(([a], [b]) => {
+    const dateA = new Date(a + ' 1');
+    const dateB = new Date(b + ' 1');
+    return dateB - dateA; // Most recent first
+  });
+
+  return sortedGroups;
 }
 
 // Load templates from localStorage
@@ -280,6 +311,27 @@ export default function Meetings() {
       setQuickSummary(data.quickSummary);
       setEmailSummary(data.emailSummary);
       setSummaryContent(data.emailSummary);
+
+      // Update the meetings state to reflect the new data
+      setMeetings(prevMeetings => {
+        const updateMeeting = (meeting) => {
+          if (meeting.id === meetingId) {
+            return {
+              ...meeting,
+              quick_summary: data.quickSummary,
+              email_summary_draft: data.emailSummary,
+              action_points: data.actionPoints,
+              last_summarized_at: data.lastSummarizedAt
+            };
+          }
+          return meeting;
+        };
+
+        return {
+          past: prevMeetings.past.map(updateMeeting),
+          future: prevMeetings.future.map(updateMeeting)
+        };
+      });
 
       // Update template info
       const template = templates.find(t => t.id === data.templateId);
@@ -568,28 +620,45 @@ export default function Meetings() {
     }
   };
 
-  const renderMeetingsList = (meetings, title) => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-foreground">{title}</h2>
-        {meetings.length > 0 && (
-          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span>Complete</span>
+  const renderMeetingsList = (meetings, title) => {
+    const groupedMeetings = groupMeetingsByDate(meetings);
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-foreground">{title}</h2>
+          {meetings.length > 0 && (
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700 flex items-center justify-center">
+                  <Check className="w-2 h-2 text-blue-600 dark:text-blue-400" />
+                </div>
+                <span>Transcript</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 flex items-center justify-center">
+                  <Check className="w-2 h-2 text-green-600 dark:text-green-400" />
+                </div>
+                <span>AI Summary</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded-full bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700 flex items-center justify-center">
+                  <Check className="w-2 h-2 text-purple-600 dark:text-purple-400" />
+                </div>
+                <span>Email Draft</span>
+              </div>
             </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-              <span>Partial</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-              <span>Needs Transcript</span>
-            </div>
-          </div>
-        )}
-      </div>
-      {meetings.map((meeting) => {
+          )}
+        </div>
+
+        {/* Render grouped meetings by date */}
+        {groupedMeetings.map(([monthYear, monthMeetings]) => (
+          <div key={monthYear} className="space-y-3">
+            <h3 className="text-sm font-medium text-muted-foreground border-b border-border/30 pb-1">
+              {monthYear}
+            </h3>
+            <div className="space-y-3">
+              {monthMeetings.map((meeting) => {
         const isComplete = meeting.transcript && meeting.quick_summary && meeting.email_summary_draft;
         const hasPartialData = meeting.transcript || meeting.quick_summary || meeting.email_summary_draft;
 
@@ -627,33 +696,46 @@ export default function Meetings() {
                   <h3 className="text-lg font-medium text-foreground truncate">
                     {meeting.summary || meeting.title || 'Untitled Meeting'}
                   </h3>
-                  {/* Completion Status Indicators */}
-                  <div className="flex items-center gap-2 mt-2">
-                    {meeting.transcript && (
-                      <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-950/20 rounded-full border border-blue-200 dark:border-blue-800">
-                        <Check className="w-3 h-3 text-blue-600" />
-                        <span className="text-xs font-medium text-blue-700 dark:text-blue-300">Transcript</span>
-                      </div>
-                    )}
-                    {(meeting.quick_summary || meeting.brief_summary) && (
-                      <div className="flex items-center gap-1 px-2 py-1 bg-green-50 dark:bg-green-950/20 rounded-full border border-green-200 dark:border-green-800">
-                        <Check className="w-3 h-3 text-green-600" />
-                        <span className="text-xs font-medium text-green-700 dark:text-green-300">AI Summary</span>
-                      </div>
-                    )}
-                    {meeting.email_summary_draft && (
-                      <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 dark:bg-purple-950/20 rounded-full border border-purple-200 dark:border-purple-800">
-                        <Check className="w-3 h-3 text-purple-600" />
-                        <span className="text-xs font-medium text-purple-700 dark:text-purple-300">Email Draft</span>
-                      </div>
-                    )}
-                    {/* Show incomplete status for meetings without data */}
-                    {!meeting.transcript && !meeting.quick_summary && !meeting.email_summary_draft && (
-                      <div className="flex items-center gap-1 px-2 py-1 bg-gray-50 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700">
-                        <div className="w-3 h-3 rounded-full border-2 border-gray-400"></div>
-                        <span className="text-xs font-medium text-gray-500">Needs Transcript</span>
-                      </div>
-                    )}
+                  {/* Compact Status Indicators */}
+                  <div className="flex items-center gap-1 mt-2">
+                    {/* Transcript Status */}
+                    <div
+                      className={cn(
+                        "w-4 h-4 rounded-full flex items-center justify-center transition-colors",
+                        meeting.transcript
+                          ? "bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700"
+                          : "bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600"
+                      )}
+                      title={meeting.transcript ? "Transcript available" : "No transcript"}
+                    >
+                      {meeting.transcript && <Check className="w-2.5 h-2.5 text-blue-600 dark:text-blue-400" />}
+                    </div>
+
+                    {/* AI Summary Status */}
+                    <div
+                      className={cn(
+                        "w-4 h-4 rounded-full flex items-center justify-center transition-colors",
+                        (meeting.quick_summary || meeting.brief_summary)
+                          ? "bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700"
+                          : "bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600"
+                      )}
+                      title={(meeting.quick_summary || meeting.brief_summary) ? "AI summary available" : "No AI summary"}
+                    >
+                      {(meeting.quick_summary || meeting.brief_summary) && <Check className="w-2.5 h-2.5 text-green-600 dark:text-green-400" />}
+                    </div>
+
+                    {/* Email Draft Status */}
+                    <div
+                      className={cn(
+                        "w-4 h-4 rounded-full flex items-center justify-center transition-colors",
+                        meeting.email_summary_draft
+                          ? "bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700"
+                          : "bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600"
+                      )}
+                      title={meeting.email_summary_draft ? "Email draft available" : "No email draft"}
+                    >
+                      {meeting.email_summary_draft && <Check className="w-2.5 h-2.5 text-purple-600 dark:text-purple-400" />}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -673,9 +755,13 @@ export default function Meetings() {
           </CardContent>
         </Card>
         );
-      })}
-    </div>
-  );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -992,14 +1078,49 @@ export default function Meetings() {
                           ) : null}
                         </div>
 
+                        {/* Action Points Section */}
+                        <div className="space-y-2">
+                          <h3 className="text-sm font-semibold text-foreground">Action Points</h3>
+                          {selectedMeeting?.action_points ? (
+                            <Card>
+                              <CardContent className="p-3">
+                                <div className="text-sm text-foreground whitespace-pre-wrap">
+                                  {selectedMeeting.action_points}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ) : (
+                            <Card>
+                              <CardContent className="p-3">
+                                <div className="text-sm text-muted-foreground italic">
+                                  No action points generated yet. Action points will be automatically extracted when summaries are generated.
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )}
+                        </div>
+
                         {/* Email Summary Section */}
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <h3 className="text-sm font-semibold text-foreground">Email Summary</h3>
+                            {/* Generate Email Button - only show if transcript exists and no email draft */}
+                            {selectedMeeting?.transcript && !selectedMeeting?.email_summary_draft && (
+                              <Button
+                                onClick={handleGenerateAISummary}
+                                disabled={generatingSummary}
+                                size="sm"
+                                variant="default"
+                                className="h-6 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                              >
+                                <Mail className="w-3 h-3 mr-1" />
+                                {generatingSummary ? 'Generating...' : 'Generate Email'}
+                              </Button>
+                            )}
                           </div>
 
-                          {/* Template Selection */}
-                          {templates.length > 0 && (
+                          {/* Template Selection - only show when generating or regenerating */}
+                          {(generatingSummary || selectedMeeting?.email_summary_draft) && templates.length > 0 && (
                             <div className="space-y-2">
                               <div className="flex items-center justify-between">
                                 <h4 className="text-xs font-medium text-muted-foreground">Template</h4>
@@ -1023,8 +1144,8 @@ export default function Meetings() {
                                 </DropdownMenu>
                               </div>
 
-                              {/* Apply Button - only show when template changed */}
-                              {selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && (
+                              {/* Apply Template Button - only show when template changed and email exists */}
+                              {selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && selectedMeeting?.email_summary_draft && (
                                 <Button
                                   onClick={handleGenerateAISummary}
                                   disabled={generatingSummary}

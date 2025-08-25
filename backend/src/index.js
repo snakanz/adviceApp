@@ -510,12 +510,31 @@ Respond with the **email body only** — no headers or subject lines.`;
 
           const emailSummary = await generateMeetingSummary(transcript, 'standard', { prompt: autoTemplate });
 
-          // Save summaries to database (using only existing columns for now)
+          // Generate action points
+          const actionPointsPrompt = `Extract key action items from this meeting transcript that the user (financial advisor) needs to complete or follow up on.
+
+Focus on:
+• Tasks the advisor committed to doing
+• Follow-up actions required
+• Documents to prepare or send
+• Meetings to schedule
+• Research to conduct
+• Client requests to fulfill
+
+Format as a clean, scannable list. Be specific and actionable. If no clear action items exist, respond with "No specific action items identified."
+
+Transcript:
+${transcript}`;
+
+          const actionPoints = await generateMeetingSummary(transcript, 'standard', { prompt: actionPointsPrompt });
+
+          // Save summaries to database
           const { error: updateError } = await getSupabase()
             .from('meetings')
             .update({
-              quick_summary: quickSummary,           // Single sentence for Clients page (existing column)
-              email_summary_draft: emailSummary,     // Email format (existing column)
+              quick_summary: quickSummary,           // Single sentence for Clients page
+              email_summary_draft: emailSummary,     // Email format
+              action_points: actionPoints,           // Action items for user
               email_template_id: 'auto-template',
               last_summarized_at: new Date().toISOString(),
               updatedat: new Date().toISOString()

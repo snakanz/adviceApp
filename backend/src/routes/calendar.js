@@ -394,17 +394,19 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateToken, async (r
       });
     }
 
-    // Generate Quick Summary (fixed bullet points)
-    const quickSummaryPrompt = `Please create a concise bullet-point summary of this meeting transcript. Focus on:
-• Key decisions made
-• Action items assigned
-• Important topics discussed
-• Next steps
+    // Generate Quick Summary (single sentence for Clients page)
+    const quickSummaryPrompt = `Create a brief, single-sentence summary of this meeting transcript. Focus on the main outcome or key decision made.
 
-Keep it brief and professional. Use bullet points only.
+Requirements:
+• Must be exactly ONE sentence
+• Include the most important outcome or decision
+• Keep it professional and concise
+• Maximum 150 characters
 
 Transcript:
-${meeting.transcript}`;
+${meeting.transcript}
+
+Respond with ONLY the single sentence summary, no additional text.`;
 
     const quickSummary = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: quickSummaryPrompt });
 
@@ -428,12 +430,31 @@ Respond with the **email body only** — no headers or subject lines.`;
 
     const emailSummary = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: autoTemplate });
 
+    // Generate action points
+    const actionPointsPrompt = `Extract key action items from this meeting transcript that the user (financial advisor) needs to complete or follow up on.
+
+Focus on:
+• Tasks the advisor committed to doing
+• Follow-up actions required
+• Documents to prepare or send
+• Meetings to schedule
+• Research to conduct
+• Client requests to fulfill
+
+Format as a clean, scannable list. Be specific and actionable. If no clear action items exist, respond with "No specific action items identified."
+
+Transcript:
+${meeting.transcript}`;
+
+    const actionPoints = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: actionPointsPrompt });
+
     // Save summaries to database
     const { error: updateError } = await getSupabase()
       .from('meetings')
       .update({
         quick_summary: quickSummary,
         email_summary_draft: emailSummary,
+        action_points: actionPoints,
         email_template_id: 'auto-template',
         last_summarized_at: new Date().toISOString(),
         updatedat: new Date().toISOString()
@@ -449,6 +470,7 @@ Respond with the **email body only** — no headers or subject lines.`;
     res.json({
       quickSummary,
       emailSummary,
+      actionPoints,
       templateId: 'auto-template',
       lastSummarizedAt: new Date().toISOString(),
       generated: true
