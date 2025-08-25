@@ -1,6 +1,6 @@
 import React from 'react';
 import { useSearchParams } from 'react-router-dom';
-import EnhancedAskAdvicly from '../components/EnhancedAskAdvicly';
+import SimplifiedAskAdvicly from '../components/SimplifiedAskAdvicly';
 
 export default function AskAdvicly() {
   const [searchParams] = useSearchParams();
@@ -48,7 +48,7 @@ export default function AskAdvicly() {
 
   return (
     <div className="h-full bg-background">
-      <EnhancedAskAdvicly
+      <SimplifiedAskAdvicly
         contextType={contextType}
         contextData={contextData}
         clientId={clientId}
