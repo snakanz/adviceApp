@@ -35,29 +35,8 @@ const ContextHeader = ({
     }
   };
 
-  const getBadgeVariant = (type) => {
-    switch (type) {
-      case 'meeting': return 'default';
-      case 'client': return 'secondary';
-      default: return 'outline';
-    }
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return '';
-    try {
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    } catch (error) {
-      return dateString;
-    }
-  };
+  // Removed unused getBadgeVariant and formatDate functions
+  // formatShortDate is used instead
 
   const formatShortDate = (dateString) => {
     if (!dateString) return '';
