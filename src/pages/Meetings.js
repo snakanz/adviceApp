@@ -26,6 +26,8 @@ import { adjustMeetingSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
+import DocumentsTab from '../components/DocumentsTab';
+import CreateMeetingDialog from '../components/CreateMeetingDialog';
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
@@ -804,16 +806,26 @@ export default function Meetings() {
         <div className="border-b border-border/50 p-6 bg-card/50">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-foreground">Meetings</h1>
-            <Button
-              onClick={syncCalendar}
-              disabled={syncing}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              <RefreshCw className={cn("w-4 h-4", syncing && "animate-spin")} />
-              {syncing ? 'Syncing...' : 'Sync Calendar'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <CreateMeetingDialog
+                onMeetingCreated={(meeting) => {
+                  // Refresh meetings after creation
+                  fetchMeetings();
+                  // Auto-select the new meeting
+                  setSelectedMeetingId(meeting.id);
+                }}
+              />
+              <Button
+                onClick={syncCalendar}
+                disabled={syncing}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={cn("w-4 h-4", syncing && "animate-spin")} />
+                {syncing ? 'Syncing...' : 'Sync Calendar'}
+              </Button>
+            </div>
           </div>
 
           {/* Search Bar */}
@@ -997,6 +1009,18 @@ export default function Meetings() {
                   {selectedMeeting?.transcript && (
                     <div className="w-2 h-2 bg-blue-500 rounded-full ml-1"></div>
                   )}
+                </button>
+                <button
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                    activeTab === 'documents'
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => setActiveTab('documents')}
+                >
+                  <Upload className="w-4 h-4" />
+                  Documents
                 </button>
               </div>
 
@@ -1211,6 +1235,13 @@ export default function Meetings() {
                       </Card>
                     )}
                   </div>
+                )}
+
+                {activeTab === 'documents' && (
+                  <DocumentsTab
+                    meetingId={selectedMeeting?.id}
+                    selectedMeeting={selectedMeeting}
+                  />
                 )}
 
                 {activeTab === 'transcript' && (

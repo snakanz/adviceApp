@@ -9,6 +9,7 @@ const { google } = require('googleapis');
 const { getGoogleAuthClient, refreshAccessToken } = require('../services/calendar');
 const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
 const calendarSyncService = require('../services/calendarSync');
+const fileUploadService = require('../services/fileUpload');
 
 // Get Google Calendar auth URL
 router.get('/auth/google', async (req, res) => {
@@ -607,6 +608,332 @@ router.post('/meetings/:id/update-summary', authenticateToken, async (req, res) 
   } catch (error) {
     console.error('Error updating meeting summary:', error);
     res.status(500).json({ error: 'Failed to update summary' });
+  }
+});
+
+// ============================================================================
+// MANUAL MEETING CREATION ENDPOINTS
+// ============================================================================
+
+// Create a manual meeting
+router.post('/meetings/manual', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      title,
+      description,
+      startTime,
+      endTime,
+      locationType,
+      locationDetails,
+      attendees,
+      transcript
+    } = req.body;
+
+    // Validation
+    if (!title || !startTime) {
+      return res.status(400).json({ error: 'Title and start time are required' });
+    }
+
+    // Generate a unique event ID for manual meetings
+    const manualEventId = `manual_${userId}_${Date.now()}`;
+
+    // Prepare meeting data
+    const meetingData = {
+      userid: userId,
+      googleeventid: manualEventId,
+      title: title.trim(),
+      starttime: new Date(startTime).toISOString(),
+      endtime: endTime ? new Date(endTime).toISOString() : null,
+      summary: description || null,
+      transcript: transcript || null,
+      location_type: locationType || 'other',
+      location_details: locationDetails || null,
+      manual_attendees: attendees || null,
+      attendees: attendees ? JSON.stringify([{ displayName: attendees }]) : null,
+      meeting_source: 'manual',
+      is_manual: true,
+      created_by: userId,
+      recording_status: 'none',
+      created_at: new Date().toISOString(),
+      updatedat: new Date().toISOString()
+    };
+
+    // Insert meeting into database
+    const { data: meeting, error: insertError } = await getSupabase()
+      .from('meetings')
+      .insert(meetingData)
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error creating manual meeting:', insertError);
+      return res.status(500).json({ error: 'Failed to create meeting' });
+    }
+
+    res.status(201).json({
+      message: 'Meeting created successfully',
+      meeting: {
+        ...meeting,
+        id: meeting.googleeventid, // For frontend compatibility
+        startTime: meeting.starttime,
+        googleEventId: meeting.googleeventid
+      }
+    });
+
+  } catch (error) {
+    console.error('Error in manual meeting creation:', error);
+    res.status(500).json({ error: 'Failed to create meeting' });
+  }
+});
+
+// Update a manual meeting
+router.put('/meetings/manual/:meetingId', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { meetingId } = req.params;
+    const {
+      title,
+      description,
+      startTime,
+      endTime,
+      locationType,
+      locationDetails,
+      attendees,
+      transcript
+    } = req.body;
+
+    // Verify meeting exists and is manual
+    const { data: existingMeeting, error: fetchError } = await getSupabase()
+      .from('meetings')
+      .select('*')
+      .eq('googleeventid', meetingId)
+      .eq('userid', userId)
+      .eq('is_manual', true)
+      .single();
+
+    if (fetchError || !existingMeeting) {
+      return res.status(404).json({ error: 'Manual meeting not found' });
+    }
+
+    // Prepare update data
+    const updateData = {
+      title: title?.trim() || existingMeeting.title,
+      summary: description !== undefined ? description : existingMeeting.summary,
+      starttime: startTime ? new Date(startTime).toISOString() : existingMeeting.starttime,
+      endtime: endTime ? new Date(endTime).toISOString() : existingMeeting.endtime,
+      location_type: locationType || existingMeeting.location_type,
+      location_details: locationDetails !== undefined ? locationDetails : existingMeeting.location_details,
+      manual_attendees: attendees !== undefined ? attendees : existingMeeting.manual_attendees,
+      attendees: attendees ? JSON.stringify([{ displayName: attendees }]) : existingMeeting.attendees,
+      transcript: transcript !== undefined ? transcript : existingMeeting.transcript,
+      updatedat: new Date().toISOString()
+    };
+
+    // Update meeting
+    const { data: updatedMeeting, error: updateError } = await getSupabase()
+      .from('meetings')
+      .update(updateData)
+      .eq('googleeventid', meetingId)
+      .eq('userid', userId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating manual meeting:', updateError);
+      return res.status(500).json({ error: 'Failed to update meeting' });
+    }
+
+    res.json({
+      message: 'Meeting updated successfully',
+      meeting: {
+        ...updatedMeeting,
+        id: updatedMeeting.googleeventid,
+        startTime: updatedMeeting.starttime,
+        googleEventId: updatedMeeting.googleeventid
+      }
+    });
+
+  } catch (error) {
+    console.error('Error updating manual meeting:', error);
+    res.status(500).json({ error: 'Failed to update meeting' });
+  }
+});
+
+// Delete a manual meeting
+router.delete('/meetings/manual/:meetingId', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { meetingId } = req.params;
+
+    // Verify meeting exists and is manual
+    const { data: existingMeeting, error: fetchError } = await getSupabase()
+      .from('meetings')
+      .select('id')
+      .eq('googleeventid', meetingId)
+      .eq('userid', userId)
+      .eq('is_manual', true)
+      .single();
+
+    if (fetchError || !existingMeeting) {
+      return res.status(404).json({ error: 'Manual meeting not found' });
+    }
+
+    // Delete meeting (this will cascade delete documents due to foreign key)
+    const { error: deleteError } = await getSupabase()
+      .from('meetings')
+      .delete()
+      .eq('googleeventid', meetingId)
+      .eq('userid', userId);
+
+    if (deleteError) {
+      console.error('Error deleting manual meeting:', deleteError);
+      return res.status(500).json({ error: 'Failed to delete meeting' });
+    }
+
+    res.json({ message: 'Meeting deleted successfully' });
+
+  } catch (error) {
+    console.error('Error deleting manual meeting:', error);
+    res.status(500).json({ error: 'Failed to delete meeting' });
+  }
+});
+
+// ============================================================================
+// FILE UPLOAD ENDPOINTS
+// ============================================================================
+
+// Upload files to a meeting
+router.post('/meetings/:meetingId/documents', authenticateToken, fileUploadService.upload.array('files', 10), async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const userId = req.user.id;
+    const files = req.files;
+
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    // Verify meeting exists and user has access
+    const { data: meeting, error: meetingError } = await getSupabase()
+      .from('meetings')
+      .select('id, title')
+      .eq('id', meetingId)
+      .eq('userid', userId)
+      .single();
+
+    if (meetingError || !meeting) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    const uploadedFiles = [];
+    const errors = [];
+
+    // Process each file
+    for (const file of files) {
+      try {
+        // Generate unique filename
+        const fileName = fileUploadService.generateFileName(file.originalname, meetingId);
+
+        // Upload to storage
+        const storageResult = await fileUploadService.uploadToStorage(file, fileName);
+
+        // Save metadata to database
+        const fileData = {
+          meeting_id: parseInt(meetingId),
+          file_name: fileName,
+          original_name: file.originalname,
+          file_type: file.mimetype,
+          file_category: fileUploadService.getFileCategory(file.mimetype),
+          file_size: file.size,
+          storage_path: storageResult.path,
+          storage_bucket: 'meeting-documents',
+          uploaded_by: userId
+        };
+
+        const savedFile = await fileUploadService.saveFileMetadata(fileData);
+
+        // Add download URL
+        savedFile.download_url = await fileUploadService.getFileDownloadUrl(storageResult.path);
+
+        uploadedFiles.push(savedFile);
+      } catch (fileError) {
+        console.error(`Error uploading file ${file.originalname}:`, fileError);
+        errors.push({
+          filename: file.originalname,
+          error: fileError.message
+        });
+      }
+    }
+
+    res.json({
+      message: `Successfully uploaded ${uploadedFiles.length} file(s)`,
+      files: uploadedFiles,
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+  } catch (error) {
+    console.error('Error in file upload:', error);
+    res.status(500).json({ error: 'Failed to upload files' });
+  }
+});
+
+// Get files for a meeting
+router.get('/meetings/:meetingId/documents', authenticateToken, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const userId = req.user.id;
+
+    // Verify meeting access
+    const { data: meeting, error: meetingError } = await getSupabase()
+      .from('meetings')
+      .select('id')
+      .eq('id', meetingId)
+      .eq('userid', userId)
+      .single();
+
+    if (meetingError || !meeting) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    const files = await fileUploadService.getMeetingFiles(meetingId, userId);
+
+    res.json({
+      files,
+      count: files.length
+    });
+
+  } catch (error) {
+    console.error('Error fetching meeting files:', error);
+    res.status(500).json({ error: 'Failed to fetch files' });
+  }
+});
+
+// Delete a file
+router.delete('/meetings/:meetingId/documents/:fileId', authenticateToken, async (req, res) => {
+  try {
+    const { meetingId, fileId } = req.params;
+    const userId = req.user.id;
+
+    // Verify meeting access
+    const { data: meeting, error: meetingError } = await getSupabase()
+      .from('meetings')
+      .select('id')
+      .eq('id', meetingId)
+      .eq('userid', userId)
+      .single();
+
+    if (meetingError || !meeting) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    await fileUploadService.deleteFile(fileId, userId);
+
+    res.json({ message: 'File deleted successfully' });
+
+  } catch (error) {
+    console.error('Error deleting file:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete file' });
   }
 });
 
