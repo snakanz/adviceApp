@@ -6,8 +6,7 @@ import { Textarea } from './ui/textarea';
 import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
-import { Calendar, Clock, MapPin, Users, FileText, Plus, X, Mic, Square } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { Plus, Mic, Square } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
