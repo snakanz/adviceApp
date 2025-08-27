@@ -28,6 +28,12 @@ import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
 import DocumentsTab from '../components/DocumentsTab';
 import CreateMeetingDialog from '../components/CreateMeetingDialog';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '../components/ui/tooltip';
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
@@ -61,6 +67,105 @@ function getMeetingSource(meeting) {
 function formatMeetingTime(meeting) {
   const start = new Date(meeting.start?.dateTime || meeting.startTime || meeting.starttime);
   return start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+// Extract attendee information from meeting data
+function extractAttendees(meeting, currentUserEmail) {
+  try {
+    let attendees = meeting.attendees;
+    if (typeof attendees === 'string') {
+      attendees = JSON.parse(attendees);
+    }
+
+    if (!Array.isArray(attendees)) {
+      return [];
+    }
+
+    // Filter out the current user and return attendee info
+    return attendees
+      .filter(attendee => attendee.email && attendee.email !== currentUserEmail)
+      .map(attendee => ({
+        email: attendee.email,
+        name: attendee.displayName || attendee.name || attendee.email,
+        initials: getInitials(attendee.displayName || attendee.name || attendee.email)
+      }));
+  } catch (e) {
+    console.log('Could not parse attendees for meeting:', meeting.id);
+    return [];
+  }
+}
+
+// Get initials from a name or email
+function getInitials(nameOrEmail) {
+  if (!nameOrEmail) return '?';
+
+  // If it's an email, extract the part before @
+  if (nameOrEmail.includes('@')) {
+    nameOrEmail = nameOrEmail.split('@')[0];
+  }
+
+  // Split by spaces and take first letter of each word
+  const words = nameOrEmail.split(/[\s._-]+/).filter(word => word.length > 0);
+  if (words.length === 0) return '?';
+
+  if (words.length === 1) {
+    return words[0].charAt(0).toUpperCase();
+  }
+
+  return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+}
+
+// AttendeeAvatars component to display meeting attendees
+function AttendeeAvatars({ meeting, currentUserEmail, maxVisible = 3 }) {
+  const attendees = extractAttendees(meeting, currentUserEmail);
+
+  if (attendees.length === 0) {
+    return null;
+  }
+
+  const visibleAttendees = attendees.slice(0, maxVisible);
+  const remainingCount = attendees.length - maxVisible;
+
+  return (
+    <TooltipProvider>
+      <div className="flex items-center gap-1">
+        {visibleAttendees.map((attendee, index) => (
+          <Tooltip key={attendee.email}>
+            <TooltipTrigger asChild>
+              <div className="w-6 h-6 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-xs font-medium text-primary cursor-help">
+                {attendee.initials}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className="text-center">
+                <div className="font-medium">{attendee.name}</div>
+                <div className="text-xs text-muted-foreground">{attendee.email}</div>
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        ))}
+        {remainingCount > 0 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="w-6 h-6 rounded-full bg-muted border border-border flex items-center justify-center text-xs font-medium text-muted-foreground cursor-help">
+                +{remainingCount}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              <div className="space-y-1">
+                {attendees.slice(maxVisible).map((attendee) => (
+                  <div key={attendee.email} className="text-center">
+                    <div className="font-medium">{attendee.name}</div>
+                    <div className="text-xs text-muted-foreground">{attendee.email}</div>
+                  </div>
+                ))}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </div>
+    </TooltipProvider>
+  );
 }
 
 // Group meetings by month/year for better organization
@@ -757,6 +862,13 @@ export default function Meetings() {
                     >
                       {meeting.email_summary_draft && <Check className="w-2.5 h-2.5 text-purple-600 dark:text-purple-400" />}
                     </div>
+
+                    {/* Attendee Avatars */}
+                    <AttendeeAvatars
+                      meeting={meeting}
+                      currentUserEmail={user?.email}
+                      maxVisible={3}
+                    />
                   </div>
                 </div>
               </div>
