@@ -32,15 +32,16 @@ const upload = multer({
  * Expected spreadsheet format for MEETING IMPORT:
  *
  * REQUIRED FIELDS:
- * - client_email (required, must match an existing client)
- * - meeting_title (required, meeting title/subject)
- * - last_contact_date (required, physical meeting date in YYYY-MM-DD format)
+ * - Meeting Held With (required, email of existing client)
+ * - Full Name (required, client's full name for reference)
+ * - First Name (optional, client's first name)
+ * - Last Name (optional, client's last name)
+ * - Meeting Date (required, physical meeting date in YYYY-MM-DD format)
+ * - Meeting Time (optional, meeting time in HH:MM format, defaults to 09:00)
+ * - Meeting Title (required, meeting title/subject)
  *
  * OPTIONAL FIELDS:
- * - start_time (meeting start time in HH:MM format, defaults to 09:00)
  * - meeting_duration (duration in minutes, defaults to 60)
- * - end_date (alternative to duration, YYYY-MM-DD format)
- * - end_time (alternative to duration, HH:MM format)
  * - summary (meeting summary/description)
  * - location_type (video, in-person, phone, other)
  * - location_details (meeting location or link)
@@ -74,8 +75,21 @@ async function parseCSV(fileBuffer) {
       .on('data', (data) => results.push(data))
       .on('end', () => {
         // All rows are expected to be meeting data
-        const meetings = results.filter(row =>
-          row.client_email && (row.meeting_title || row.title) && row.last_contact_date
+        // Map the user's column headers to our internal field names
+        const meetings = results.map(row => ({
+          client_email: row['Meeting Held With'] || row.client_email,
+          full_name: row['Full Name'] || row.full_name,
+          first_name: row['First Name'] || row.first_name,
+          last_name: row['Last Name'] || row.last_name,
+          meeting_date: row['Meeting Date'] || row.meeting_date || row.last_contact_date,
+          meeting_time: row['Meeting Time'] || row.meeting_time || row.start_time,
+          meeting_title: row['Meeting Title'] || row.meeting_title || row.title,
+          meeting_duration: row.meeting_duration,
+          summary: row.summary,
+          location_type: row.location_type,
+          location_details: row.location_details
+        })).filter(row =>
+          row.client_email && row.meeting_title && row.meeting_date
         );
 
         resolve({
@@ -108,9 +122,21 @@ function parseExcel(fileBuffer) {
     const meetingsSheet = workbook.Sheets[meetingsSheetName];
     const allRows = XLSX.utils.sheet_to_json(meetingsSheet);
 
-    // Filter for valid meeting rows
-    result.meetings = allRows.filter(row =>
-      row.client_email && (row.meeting_title || row.title) && row.last_contact_date
+    // Map the user's column headers to our internal field names
+    result.meetings = allRows.map(row => ({
+      client_email: row['Meeting Held With'] || row.client_email,
+      full_name: row['Full Name'] || row.full_name,
+      first_name: row['First Name'] || row.first_name,
+      last_name: row['Last Name'] || row.last_name,
+      meeting_date: row['Meeting Date'] || row.meeting_date || row.last_contact_date,
+      meeting_time: row['Meeting Time'] || row.meeting_time || row.start_time,
+      meeting_title: row['Meeting Title'] || row.meeting_title || row.title,
+      meeting_duration: row.meeting_duration,
+      summary: row.summary,
+      location_type: row.location_type,
+      location_details: row.location_details
+    })).filter(row =>
+      row.client_email && row.meeting_title && row.meeting_date
     );
   }
 
@@ -201,19 +227,19 @@ function validateMeetingData(meetingRow, rowIndex) {
 
   // Required fields
   if (!meetingRow.client_email) {
-    errors.push(`Row ${rowIndex + 1}: Client email is required`);
+    errors.push(`Row ${rowIndex + 1}: Meeting Held With (client email) is required`);
   }
 
-  // Support both meeting_title and title for backward compatibility
-  const meetingTitle = meetingRow.meeting_title || meetingRow.title;
-  if (!meetingTitle) {
-    errors.push(`Row ${rowIndex + 1}: Meeting title is required`);
+  if (!meetingRow.meeting_title) {
+    errors.push(`Row ${rowIndex + 1}: Meeting Title is required`);
   } else {
-    meetingRow.title = meetingTitle; // Normalize to title field
+    meetingRow.title = meetingRow.meeting_title; // Normalize to title field for database
   }
 
-  if (!meetingRow.last_contact_date) {
-    errors.push(`Row ${rowIndex + 1}: Last contact date (meeting date) is required`);
+  if (!meetingRow.meeting_date) {
+    errors.push(`Row ${rowIndex + 1}: Meeting Date is required`);
+  } else {
+    meetingRow.last_contact_date = meetingRow.meeting_date; // Normalize for database
   }
 
   // Validate email format
@@ -222,33 +248,23 @@ function validateMeetingData(meetingRow, rowIndex) {
   }
   
   // Parse meeting date and time
-  const meetingDate = parseDate(meetingRow.last_contact_date);
+  const meetingDate = parseDate(meetingRow.meeting_date);
   if (!meetingDate) {
-    errors.push(`Row ${rowIndex + 1}: Invalid meeting date format`);
+    errors.push(`Row ${rowIndex + 1}: Invalid Meeting Date format`);
   } else {
     // Default start time to 09:00 if not provided
-    const startTime = meetingRow.start_time || '09:00';
-    const startDateTime = parseDateTime(meetingRow.last_contact_date, startTime);
+    const startTime = meetingRow.meeting_time || '09:00';
+    const startDateTime = parseDateTime(meetingRow.meeting_date, startTime);
 
     if (!startDateTime) {
-      errors.push(`Row ${rowIndex + 1}: Invalid meeting date/time format`);
+      errors.push(`Row ${rowIndex + 1}: Invalid Meeting Date/Time format`);
     } else {
       meetingRow.starttime = startDateTime.toISOString();
 
-      // Calculate end time based on duration or explicit end time
-      let endDateTime;
-      if (meetingRow.end_date && meetingRow.end_time) {
-        // Use explicit end date/time
-        endDateTime = parseDateTime(meetingRow.end_date, meetingRow.end_time);
-      } else {
-        // Use duration (default 60 minutes)
-        const duration = parseInt(meetingRow.meeting_duration) || 60;
-        endDateTime = new Date(startDateTime.getTime() + (duration * 60 * 1000));
-      }
-
-      if (endDateTime) {
-        meetingRow.endtime = endDateTime.toISOString();
-      }
+      // Calculate end time based on duration (default 60 minutes)
+      const duration = parseInt(meetingRow.meeting_duration) || 60;
+      const endDateTime = new Date(startDateTime.getTime() + (duration * 60 * 1000));
+      meetingRow.endtime = endDateTime.toISOString();
     }
   }
   
@@ -499,7 +515,7 @@ async function importData(fileBuffer, filename, userId, options = {}) {
 
             // Update client's last_contact_date with the meeting date
             try {
-              const meetingDate = parseDate(validation.data.last_contact_date);
+              const meetingDate = parseDate(validation.data.meeting_date);
               if (meetingDate) {
                 await supabase
                   .from('clients')

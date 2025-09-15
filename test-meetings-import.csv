@@ -1,9 +1,9 @@
-client_email,meeting_title,last_contact_date,start_time,meeting_duration,summary,location_type,location_details
-john.smith@example.com,Quarterly Business Review,2024-01-15,10:00,90,Quarterly review of business performance and goals,video,Zoom Meeting Room
-sarah.johnson@techcorp.com,Investment Strategy Discussion,2024-01-18,14:00,60,Discussion of investment portfolio and strategy adjustments,in-person,123 Main St Conference Room
-mike.wilson@startup.io,Retirement Planning Session,2024-01-22,09:30,60,Initial retirement planning consultation,phone,Phone Call
-lisa.brown@consulting.com,Tax Planning Meeting,2024-01-25,16:00,60,Annual tax planning and optimization strategies,video,Microsoft Teams
-david.lee@manufacturing.com,Estate Planning Review,2024-01-29,11:00,60,Review of estate planning documents and updates,in-person,Office Conference Room
-emily.davis@retail.com,Portfolio Review Meeting,2024-02-05,13:00,60,Monthly portfolio performance review,video,Google Meet
-robert.taylor@finance.org,Insurance Planning Session,2024-02-08,10:30,60,Life and disability insurance needs analysis,in-person,Client Office
-jennifer.white@healthcare.net,College Savings Discussion,2024-02-12,15:30,60,529 plan setup and education funding strategies,phone,Phone Call
+Meeting Held With,Full Name,First Name,Last Name,Meeting Date,Meeting Time,Meeting Title,meeting_duration,summary,location_type,location_details
+john.smith@example.com,John Smith,John,Smith,2024-01-15,10:00,Quarterly Business Review,90,Quarterly review of business performance and goals,video,Zoom Meeting Room
+sarah.johnson@techcorp.com,Sarah Johnson,Sarah,Johnson,2024-01-18,14:00,Investment Strategy Discussion,60,Discussion of investment portfolio and strategy adjustments,in-person,123 Main St Conference Room
+mike.wilson@startup.io,Mike Wilson,Mike,Wilson,2024-01-22,09:30,Retirement Planning Session,60,Initial retirement planning consultation,phone,Phone Call
+lisa.brown@consulting.com,Lisa Brown,Lisa,Brown,2024-01-25,16:00,Tax Planning Meeting,60,Annual tax planning and optimization strategies,video,Microsoft Teams
+david.lee@manufacturing.com,David Lee,David,Lee,2024-01-29,11:00,Estate Planning Review,60,Review of estate planning documents and updates,in-person,Office Conference Room
+emily.davis@retail.com,Emily Davis,Emily,Davis,2024-02-05,13:00,Portfolio Review Meeting,60,Monthly portfolio performance review,video,Google Meet
+robert.taylor@finance.org,Robert Taylor,Robert,Taylor,2024-02-08,10:30,Insurance Planning Session,60,Life and disability insurance needs analysis,in-person,Client Office
+jennifer.white@healthcare.net,Jennifer White,Jennifer,White,2024-02-12,15:30,College Savings Discussion,60,529 plan setup and education funding strategies,phone,Phone Call
