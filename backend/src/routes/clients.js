@@ -37,7 +37,27 @@ router.get('/', async (req, res) => {
       });
     }
 
-    // Get clients from the actual clients table
+    // First, get all client IDs that have meetings
+    const { data: clientsWithMeetings, error: meetingsError } = await getSupabase()
+      .from('meetings')
+      .select('client_id')
+      .eq('userid', userId)
+      .not('client_id', 'is', null);
+
+    if (meetingsError) {
+      console.error('Error fetching clients with meetings:', meetingsError);
+      return res.status(500).json({ error: 'Failed to fetch clients' });
+    }
+
+    // Extract unique client IDs
+    const clientIds = [...new Set(clientsWithMeetings.map(m => m.client_id))];
+
+    if (clientIds.length === 0) {
+      // No clients with meetings found
+      return res.json([]);
+    }
+
+    // Get clients who have meetings (only show clients with actual meetings)
     const { data: clients, error: clientsError } = await getSupabase()
       .from('clients')
       .select(`
@@ -56,6 +76,7 @@ router.get('/', async (req, res) => {
         )
       `)
       .eq('advisor_id', userId)
+      .in('id', clientIds) // Only include clients who have meetings
       .order('created_at', { ascending: false });
 
     if (clientsError) {
