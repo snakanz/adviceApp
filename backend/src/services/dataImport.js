@@ -29,34 +29,21 @@ const upload = multer({
 });
 
 /**
- * Expected spreadsheet format:
- * 
- * CLIENTS SHEET/SECTION:
- * - email (required)
- * - name
- * - business_type
- * - likely_value
- * - likely_close_month (YYYY-MM-DD or MM/YYYY format)
- * - pipeline_stage (unscheduled, prospecting, qualified, proposal, negotiation, closed_won, closed_lost)
- * - priority_level (1-5)
- * - last_contact_date (YYYY-MM-DD format)
- * - next_follow_up_date (YYYY-MM-DD format)
- * - notes
- * - tags (comma-separated)
- * - source
- * 
- * MEETINGS SHEET/SECTION:
- * - client_email (required, must match a client)
- * - title (required)
- * - start_date (YYYY-MM-DD format, required)
- * - start_time (HH:MM format, required)
- * - end_date (YYYY-MM-DD format)
- * - end_time (HH:MM format)
- * - summary
- * - notes
- * - location_type (in-person, phone, video, other)
- * - location_details
- * - attendees (comma-separated email addresses)
+ * Expected spreadsheet format for MEETING IMPORT:
+ *
+ * REQUIRED FIELDS:
+ * - client_email (required, must match an existing client)
+ * - title (required, meeting title/subject)
+ * - start_date (required, YYYY-MM-DD format)
+ * - start_time (required, HH:MM format)
+ * - end_date (required, YYYY-MM-DD format)
+ * - end_time (required, HH:MM format)
+ *
+ * OPTIONAL FIELDS:
+ * - summary (meeting summary/description)
+ * - location_type (video, in-person, phone)
+ * - location_details (meeting location or link)
+ * - attendees (comma-separated emails, will include client_email automatically)
  */
 
 /**
@@ -75,34 +62,23 @@ async function parseFile(fileBuffer, filename) {
 }
 
 /**
- * Parse CSV file
+ * Parse CSV file - Focus on meetings only
  */
 async function parseCSV(fileBuffer) {
   return new Promise((resolve, reject) => {
     const results = [];
     const stream = Readable.from(fileBuffer.toString());
-    
+
     stream
       .pipe(csv())
       .on('data', (data) => results.push(data))
       .on('end', () => {
-        // For CSV, we assume all data is in one sheet
-        // We'll separate clients and meetings based on column presence
-        const clients = [];
-        const meetings = [];
-        
-        results.forEach(row => {
-          if (row.email && !row.client_email) {
-            // This looks like a client row
-            clients.push(row);
-          } else if (row.client_email && row.title) {
-            // This looks like a meeting row
-            meetings.push(row);
-          }
-        });
-        
+        // All rows are expected to be meeting data
+        const meetings = results.filter(row =>
+          row.client_email && row.title && row.start_date && row.start_time
+        );
+
         resolve({
-          clients: clients,
           meetings: meetings
         });
       })
@@ -111,40 +87,33 @@ async function parseCSV(fileBuffer) {
 }
 
 /**
- * Parse Excel file
+ * Parse Excel file - Focus on meetings only
  */
 function parseExcel(fileBuffer) {
   const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
   const result = {
-    clients: [],
     meetings: []
   };
-  
-  // Look for sheets named 'Clients', 'Meetings', or use first two sheets
+
+  // Look for sheet named 'Meetings' or use first sheet
   const sheetNames = workbook.SheetNames;
-  
-  // Try to find clients sheet
-  let clientsSheetName = sheetNames.find(name => 
-    name.toLowerCase().includes('client')
-  ) || sheetNames[0];
-  
-  // Try to find meetings sheet
-  let meetingsSheetName = sheetNames.find(name => 
+
+  // Try to find meetings sheet, otherwise use first sheet
+  let meetingsSheetName = sheetNames.find(name =>
     name.toLowerCase().includes('meeting')
-  ) || (sheetNames.length > 1 ? sheetNames[1] : null);
-  
-  // Parse clients sheet
-  if (clientsSheetName) {
-    const clientsSheet = workbook.Sheets[clientsSheetName];
-    result.clients = XLSX.utils.sheet_to_json(clientsSheet);
-  }
-  
+  ) || sheetNames[0];
+
   // Parse meetings sheet
   if (meetingsSheetName) {
     const meetingsSheet = workbook.Sheets[meetingsSheetName];
-    result.meetings = XLSX.utils.sheet_to_json(meetingsSheet);
+    const allRows = XLSX.utils.sheet_to_json(meetingsSheet);
+
+    // Filter for valid meeting rows
+    result.meetings = allRows.filter(row =>
+      row.client_email && row.title && row.start_date && row.start_time
+    );
   }
-  
+
   return result;
 }
 
@@ -219,36 +188,45 @@ function validateClientData(clientRow, rowIndex) {
     clientRow.tags = clientRow.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
   }
   
+  // This function is no longer used - focusing on meetings only
   return { errors, warnings, data: clientRow };
 }
 
 /**
- * Validate and normalize meeting data
+ * Validate and normalize meeting data - Simplified for meetings-only import
  */
-function validateMeetingData(meetingRow, rowIndex, clientEmailMap) {
+function validateMeetingData(meetingRow, rowIndex) {
   const errors = [];
   const warnings = [];
-  
+
   // Required fields
   if (!meetingRow.client_email) {
     errors.push(`Row ${rowIndex + 1}: Client email is required`);
   }
-  
+
   if (!meetingRow.title) {
     errors.push(`Row ${rowIndex + 1}: Meeting title is required`);
   }
-  
+
   if (!meetingRow.start_date) {
     errors.push(`Row ${rowIndex + 1}: Start date is required`);
   }
-  
+
   if (!meetingRow.start_time) {
     errors.push(`Row ${rowIndex + 1}: Start time is required`);
   }
-  
-  // Validate client exists
-  if (meetingRow.client_email && !clientEmailMap.has(meetingRow.client_email)) {
-    errors.push(`Row ${rowIndex + 1}: Client with email '${meetingRow.client_email}' not found`);
+
+  if (!meetingRow.end_date) {
+    errors.push(`Row ${rowIndex + 1}: End date is required`);
+  }
+
+  if (!meetingRow.end_time) {
+    errors.push(`Row ${rowIndex + 1}: End time is required`);
+  }
+
+  // Validate email format
+  if (meetingRow.client_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(meetingRow.client_email)) {
+    errors.push(`Row ${rowIndex + 1}: Invalid client email format`);
   }
   
   // Validate and parse start datetime
@@ -265,8 +243,7 @@ function validateMeetingData(meetingRow, rowIndex, clientEmailMap) {
   if (meetingRow.end_date && meetingRow.end_time) {
     const endDateTime = parseDateTime(meetingRow.end_date, meetingRow.end_time);
     if (!endDateTime) {
-      warnings.push(`Row ${rowIndex + 1}: Invalid end date/time format`);
-      meetingRow.endtime = null;
+      errors.push(`Row ${rowIndex + 1}: Invalid end date/time format`);
     } else {
       meetingRow.endtime = endDateTime.toISOString();
     }
@@ -355,13 +332,6 @@ async function previewImport(fileBuffer, filename, userId) {
   try {
     const parsedData = await parseFile(fileBuffer, filename);
     const preview = {
-      clients: {
-        total: parsedData.clients.length,
-        valid: 0,
-        errors: [],
-        warnings: [],
-        sample: []
-      },
       meetings: {
         total: parsedData.meetings.length,
         valid: 0,
@@ -371,28 +341,9 @@ async function previewImport(fileBuffer, filename, userId) {
       }
     };
 
-    // Validate clients
-    const clientEmailMap = new Map();
-    parsedData.clients.forEach((client, index) => {
-      const validation = validateClientData(client, index);
-
-      if (validation.errors.length === 0) {
-        preview.clients.valid++;
-        clientEmailMap.set(client.email, true);
-
-        // Add to sample (first 5 valid records)
-        if (preview.clients.sample.length < 5) {
-          preview.clients.sample.push(validation.data);
-        }
-      }
-
-      preview.clients.errors.push(...validation.errors);
-      preview.clients.warnings.push(...validation.warnings);
-    });
-
-    // Validate meetings
+    // Validate meetings only
     parsedData.meetings.forEach((meeting, index) => {
-      const validation = validateMeetingData(meeting, index, clientEmailMap);
+      const validation = validateMeetingData(meeting, index);
 
       if (validation.errors.length === 0) {
         preview.meetings.valid++;
@@ -424,12 +375,6 @@ async function importData(fileBuffer, filename, userId, options = {}) {
     const supabase = getSupabase();
 
     const results = {
-      clients: {
-        imported: 0,
-        skipped: 0,
-        updated: 0,
-        errors: []
-      },
       meetings: {
         imported: 0,
         skipped: 0,
@@ -437,119 +382,41 @@ async function importData(fileBuffer, filename, userId, options = {}) {
         errors: []
       },
       summary: {
-        totalProcessed: 0,
+        totalProcessed: parsedData.meetings.length,
         totalImported: 0,
         totalErrors: 0
       }
     };
 
-    // Start transaction
+    // Get existing clients to map emails to IDs
+    const { data: existingClients } = await supabase
+      .from('clients')
+      .select('id, email')
+      .eq('advisor_id', userId);
+
     const clientEmailToIdMap = new Map();
-
-    // Import clients first
-    for (let i = 0; i < parsedData.clients.length; i++) {
-      const clientRow = parsedData.clients[i];
-      const validation = validateClientData(clientRow, i);
-
-      if (validation.errors.length > 0) {
-        results.clients.errors.push(...validation.errors);
-        results.summary.totalErrors += validation.errors.length;
-        continue;
-      }
-
-      try {
-        // Check if client already exists
-        const { data: existingClient } = await supabase
-          .from('clients')
-          .select('id, email')
-          .eq('advisor_id', userId)
-          .eq('email', validation.data.email)
-          .single();
-
-        if (existingClient) {
-          clientEmailToIdMap.set(validation.data.email, existingClient.id);
-
-          if (updateExisting) {
-            // Update existing client
-            const updateData = {
-              name: validation.data.name || existingClient.name,
-              business_type: validation.data.business_type,
-              likely_value: validation.data.likely_value,
-              likely_close_month: validation.data.likely_close_month,
-              pipeline_stage: validation.data.pipeline_stage || 'unscheduled',
-              priority_level: validation.data.priority_level || 3,
-              last_contact_date: validation.data.last_contact_date,
-              next_follow_up_date: validation.data.next_follow_up_date,
-              notes: validation.data.notes,
-              tags: validation.data.tags,
-              source: validation.data.source,
-              updated_at: new Date().toISOString()
-            };
-
-            const { error: updateError } = await supabase
-              .from('clients')
-              .update(updateData)
-              .eq('id', existingClient.id);
-
-            if (updateError) {
-              results.clients.errors.push(`Row ${i + 1}: Failed to update client - ${updateError.message}`);
-              results.summary.totalErrors++;
-            } else {
-              results.clients.updated++;
-              results.summary.totalImported++;
-            }
-          } else {
-            results.clients.skipped++;
-          }
-        } else {
-          // Insert new client
-          const insertData = {
-            advisor_id: userId,
-            email: validation.data.email,
-            name: validation.data.name,
-            business_type: validation.data.business_type,
-            likely_value: validation.data.likely_value,
-            likely_close_month: validation.data.likely_close_month,
-            pipeline_stage: validation.data.pipeline_stage || 'unscheduled',
-            priority_level: validation.data.priority_level || 3,
-            last_contact_date: validation.data.last_contact_date,
-            next_follow_up_date: validation.data.next_follow_up_date,
-            notes: validation.data.notes,
-            tags: validation.data.tags,
-            source: validation.data.source
-          };
-
-          const { data: newClient, error: insertError } = await supabase
-            .from('clients')
-            .insert(insertData)
-            .select('id, email')
-            .single();
-
-          if (insertError) {
-            results.clients.errors.push(`Row ${i + 1}: Failed to insert client - ${insertError.message}`);
-            results.summary.totalErrors++;
-          } else {
-            clientEmailToIdMap.set(validation.data.email, newClient.id);
-            results.clients.imported++;
-            results.summary.totalImported++;
-          }
-        }
-
-        results.summary.totalProcessed++;
-      } catch (error) {
-        results.clients.errors.push(`Row ${i + 1}: Unexpected error - ${error.message}`);
-        results.summary.totalErrors++;
-      }
+    if (existingClients) {
+      existingClients.forEach(client => {
+        clientEmailToIdMap.set(client.email, client.id);
+      });
     }
 
-    // Import meetings
+    // Import meetings only
     for (let i = 0; i < parsedData.meetings.length; i++) {
       const meetingRow = parsedData.meetings[i];
-      const validation = validateMeetingData(meetingRow, i, clientEmailToIdMap);
+      const validation = validateMeetingData(meetingRow, i);
 
       if (validation.errors.length > 0) {
         results.meetings.errors.push(...validation.errors);
         results.summary.totalErrors += validation.errors.length;
+        continue;
+      }
+
+      // Check if client exists
+      const clientId = clientEmailToIdMap.get(validation.data.client_email);
+      if (!clientId) {
+        results.meetings.errors.push(`Row ${i + 1}: Client with email '${validation.data.client_email}' not found. Please ensure the client exists before importing meetings.`);
+        results.summary.totalErrors++;
         continue;
       }
 
@@ -647,6 +514,5 @@ module.exports = {
   parseFile,
   previewImport,
   importData,
-  validateClientData,
   validateMeetingData
 };

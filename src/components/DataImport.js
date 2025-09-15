@@ -1,15 +1,14 @@
 import React, { useState, useCallback } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { 
-  Upload, 
-  FileSpreadsheet, 
-  Download, 
-  CheckCircle, 
-  AlertCircle, 
+import {
+  Upload,
+  FileSpreadsheet,
+  Download,
+  CheckCircle,
+  AlertCircle,
   XCircle,
   Loader2,
-  Users,
   Calendar,
   Info
 } from 'lucide-react';
@@ -17,7 +16,7 @@ import { cn } from '../lib/utils';
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
-const DataImport = () => {
+const DataImport = ({ onImportComplete }) => {
   const [file, setFile] = useState(null);
   const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -140,6 +139,11 @@ const DataImport = () => {
       const data = await response.json();
       setImportResults(data.results);
       setStep('complete');
+
+      // Call the callback if provided
+      if (onImportComplete && data.results.meetings.imported > 0) {
+        setTimeout(() => onImportComplete(), 1500); // Small delay to show results
+      }
     } catch (error) {
       console.error('Error executing import:', error);
       alert(`Import failed: ${error.message}`);
@@ -307,46 +311,20 @@ const DataImport = () => {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Clients Summary */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-5 h-5 text-blue-500" />
-                    <h3 className="font-medium text-foreground">Clients</h3>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Total found:</span>
-                      <span className="font-medium">{preview.clients.total}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Valid:</span>
-                      <span className="font-medium text-green-600">{preview.clients.valid}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Errors:</span>
-                      <span className="font-medium text-red-600">{preview.clients.errors.length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Warnings:</span>
-                      <span className="font-medium text-yellow-600">{preview.clients.warnings.length}</span>
-                    </div>
-                  </div>
-                </div>
-
+              <div className="max-w-md mx-auto">
                 {/* Meetings Summary */}
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-purple-500" />
-                    <h3 className="font-medium text-foreground">Meetings</h3>
+                  <div className="flex items-center gap-2 justify-center">
+                    <Calendar className="w-6 h-6 text-purple-500" />
+                    <h3 className="font-medium text-foreground text-lg">Meeting Import Preview</h3>
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Total found:</span>
+                      <span className="text-muted-foreground">Total meetings found:</span>
                       <span className="font-medium">{preview.meetings.total}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Valid:</span>
+                      <span className="text-muted-foreground">Valid meetings:</span>
                       <span className="font-medium text-green-600">{preview.meetings.valid}</span>
                     </div>
                     <div className="flex justify-between">
@@ -399,7 +377,7 @@ const DataImport = () => {
                 </Button>
                 <Button
                   onClick={handleImport}
-                  disabled={loading || (preview.clients.valid === 0 && preview.meetings.valid === 0)}
+                  disabled={loading || preview.meetings.valid === 0 || preview.meetings.errors.length > 0}
                   className="flex items-center gap-2"
                 >
                   {loading ? (
@@ -407,37 +385,31 @@ const DataImport = () => {
                   ) : (
                     <Upload className="w-4 h-4" />
                   )}
-                  Import Data
+                  Import Meetings
                 </Button>
               </div>
             </CardContent>
           </Card>
 
           {/* Errors and Warnings */}
-          {(preview.clients.errors.length > 0 || preview.meetings.errors.length > 0 ||
-            preview.clients.warnings.length > 0 || preview.meetings.warnings.length > 0) && (
+          {(preview.meetings.errors.length > 0 || preview.meetings.warnings.length > 0) && (
             <Card className="border-border/50">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <AlertCircle className="w-5 h-5 text-yellow-500" />
-                  Issues Found
+                  Validation Issues
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {/* Errors */}
-                  {(preview.clients.errors.length > 0 || preview.meetings.errors.length > 0) && (
+                  {preview.meetings.errors.length > 0 && (
                     <div>
                       <h4 className="font-medium text-red-600 mb-2 flex items-center gap-2">
                         <XCircle className="w-4 h-4" />
                         Errors (must be fixed before import)
                       </h4>
                       <div className="space-y-1">
-                        {preview.clients.errors.map((error, index) => (
-                          <p key={`client-error-${index}`} className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                            {error}
-                          </p>
-                        ))}
                         {preview.meetings.errors.map((error, index) => (
                           <p key={`meeting-error-${index}`} className="text-sm text-red-600 bg-red-50 p-2 rounded">
                             {error}
@@ -448,18 +420,13 @@ const DataImport = () => {
                   )}
 
                   {/* Warnings */}
-                  {(preview.clients.warnings.length > 0 || preview.meetings.warnings.length > 0) && (
+                  {preview.meetings.warnings.length > 0 && (
                     <div>
                       <h4 className="font-medium text-yellow-600 mb-2 flex items-center gap-2">
                         <AlertCircle className="w-4 h-4" />
                         Warnings (will be handled automatically)
                       </h4>
                       <div className="space-y-1">
-                        {preview.clients.warnings.map((warning, index) => (
-                          <p key={`client-warning-${index}`} className="text-sm text-yellow-600 bg-yellow-50 p-2 rounded">
-                            {warning}
-                          </p>
-                        ))}
                         {preview.meetings.warnings.map((warning, index) => (
                           <p key={`meeting-warning-${index}`} className="text-sm text-yellow-600 bg-yellow-50 p-2 rounded">
                             {warning}
@@ -474,70 +441,35 @@ const DataImport = () => {
           )}
 
           {/* Sample Data Preview */}
-          {(preview.clients.sample.length > 0 || preview.meetings.sample.length > 0) && (
+          {preview.meetings.sample.length > 0 && (
             <Card className="border-border/50">
               <CardHeader>
-                <CardTitle>Sample Data Preview</CardTitle>
+                <CardTitle>Sample Meeting Data Preview</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
-                  {/* Sample Clients */}
-                  {preview.clients.sample.length > 0 && (
-                    <div>
-                      <h4 className="font-medium text-foreground mb-3">Sample Clients</h4>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b">
-                              <th className="text-left p-2">Email</th>
-                              <th className="text-left p-2">Name</th>
-                              <th className="text-left p-2">Business Type</th>
-                              <th className="text-left p-2">Pipeline Stage</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {preview.clients.sample.map((client, index) => (
-                              <tr key={index} className="border-b">
-                                <td className="p-2">{client.email}</td>
-                                <td className="p-2">{client.name || '-'}</td>
-                                <td className="p-2">{client.business_type || '-'}</td>
-                                <td className="p-2">{client.pipeline_stage || 'unscheduled'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Sample Meetings */}
-                  {preview.meetings.sample.length > 0 && (
-                    <div>
-                      <h4 className="font-medium text-foreground mb-3">Sample Meetings</h4>
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="border-b">
-                              <th className="text-left p-2">Client Email</th>
-                              <th className="text-left p-2">Title</th>
-                              <th className="text-left p-2">Start Time</th>
-                              <th className="text-left p-2">Location</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {preview.meetings.sample.map((meeting, index) => (
-                              <tr key={index} className="border-b">
-                                <td className="p-2">{meeting.client_email}</td>
-                                <td className="p-2">{meeting.title}</td>
-                                <td className="p-2">{new Date(meeting.starttime).toLocaleString()}</td>
-                                <td className="p-2">{meeting.location_type || '-'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2">Client Email</th>
+                        <th className="text-left p-2">Meeting Title</th>
+                        <th className="text-left p-2">Start Date & Time</th>
+                        <th className="text-left p-2">End Date & Time</th>
+                        <th className="text-left p-2">Location</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.meetings.sample.map((meeting, index) => (
+                        <tr key={index} className="border-b">
+                          <td className="p-2">{meeting.client_email}</td>
+                          <td className="p-2">{meeting.title}</td>
+                          <td className="p-2">{meeting.starttime ? new Date(meeting.starttime).toLocaleString() : '-'}</td>
+                          <td className="p-2">{meeting.endtime ? new Date(meeting.endtime).toLocaleString() : '-'}</td>
+                          <td className="p-2">{meeting.location_type || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>
@@ -572,48 +504,23 @@ const DataImport = () => {
           <CardContent>
             <div className="space-y-6">
               {/* Results Summary */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="max-w-md mx-auto">
                 <div className="space-y-3">
-                  <h3 className="font-medium text-foreground flex items-center gap-2">
-                    <Users className="w-5 h-5 text-blue-500" />
-                    Clients Results
+                  <h3 className="font-medium text-foreground flex items-center gap-2 justify-center">
+                    <Calendar className="w-6 h-6 text-purple-500" />
+                    Meeting Import Results
                   </h3>
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Imported:</span>
-                      <span className="font-medium text-green-600">{importResults.clients.imported}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Updated:</span>
-                      <span className="font-medium text-blue-600">{importResults.clients.updated}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Skipped:</span>
-                      <span className="font-medium text-yellow-600">{importResults.clients.skipped}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Errors:</span>
-                      <span className="font-medium text-red-600">{importResults.clients.errors.length}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <h3 className="font-medium text-foreground flex items-center gap-2">
-                    <Calendar className="w-5 h-5 text-purple-500" />
-                    Meetings Results
-                  </h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Imported:</span>
+                      <span className="text-muted-foreground">Meetings imported:</span>
                       <span className="font-medium text-green-600">{importResults.meetings.imported}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Updated:</span>
+                      <span className="text-muted-foreground">Meetings updated:</span>
                       <span className="font-medium text-blue-600">{importResults.meetings.updated}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Skipped:</span>
+                      <span className="text-muted-foreground">Meetings skipped:</span>
                       <span className="font-medium text-yellow-600">{importResults.meetings.skipped}</span>
                     </div>
                     <div className="flex justify-between">
@@ -637,18 +544,13 @@ const DataImport = () => {
               </div>
 
               {/* Errors */}
-              {(importResults.clients.errors.length > 0 || importResults.meetings.errors.length > 0) && (
+              {importResults.meetings.errors.length > 0 && (
                 <div>
                   <h4 className="font-medium text-red-600 mb-3 flex items-center gap-2">
                     <XCircle className="w-4 h-4" />
                     Import Errors
                   </h4>
                   <div className="space-y-1">
-                    {importResults.clients.errors.map((error, index) => (
-                      <p key={`client-error-${index}`} className="text-sm text-red-600 bg-red-50 p-2 rounded">
-                        {error}
-                      </p>
-                    ))}
                     {importResults.meetings.errors.map((error, index) => (
                       <p key={`meeting-error-${index}`} className="text-sm text-red-600 bg-red-50 p-2 rounded">
                         {error}

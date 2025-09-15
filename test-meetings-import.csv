@@ -1,0 +1,9 @@
+client_email,title,start_date,start_time,end_date,end_time,summary,location_type,location_details,attendees
+john.smith@example.com,Quarterly Business Review,2024-01-15,10:00,2024-01-15,11:30,Quarterly review of business performance and goals,video,Zoom Meeting Room,john.smith@example.com;advisor@example.com
+sarah.johnson@techcorp.com,Investment Strategy Discussion,2024-01-18,14:00,2024-01-18,15:00,Discussion of investment portfolio and strategy adjustments,in-person,123 Main St Conference Room,sarah.johnson@techcorp.com;advisor@example.com
+mike.wilson@startup.io,Retirement Planning Session,2024-01-22,09:30,2024-01-22,10:30,Initial retirement planning consultation,phone,Phone Call,mike.wilson@startup.io;advisor@example.com
+lisa.brown@consulting.com,Tax Planning Meeting,2024-01-25,16:00,2024-01-25,17:00,Annual tax planning and optimization strategies,video,Microsoft Teams,lisa.brown@consulting.com;advisor@example.com
+david.lee@manufacturing.com,Estate Planning Review,2024-01-29,11:00,2024-01-29,12:00,Review of estate planning documents and updates,in-person,Office Conference Room,david.lee@manufacturing.com;advisor@example.com
+emily.davis@retail.com,Portfolio Review Meeting,2024-02-05,13:00,2024-02-05,14:00,Monthly portfolio performance review,video,Google Meet,emily.davis@retail.com;advisor@example.com
+robert.taylor@finance.org,Insurance Planning Session,2024-02-08,10:30,2024-02-08,11:30,Life and disability insurance needs analysis,in-person,Client Office,robert.taylor@finance.org;advisor@example.com
+jennifer.white@healthcare.net,College Savings Discussion,2024-02-12,15:30,2024-02-12,16:30,529 plan setup and education funding strategies,phone,Phone Call,jennifer.white@healthcare.net;advisor@example.com

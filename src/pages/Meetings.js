@@ -28,6 +28,7 @@ import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
 import DocumentsTab from '../components/DocumentsTab';
 import CreateMeetingDialog from '../components/CreateMeetingDialog';
+import DataImport from '../components/DataImport';
 import {
   Tooltip,
   TooltipContent,
@@ -247,6 +248,9 @@ export default function Meetings() {
 
   // Add calendar sync state
   const [syncing, setSyncing] = useState(false);
+
+  // Add import dialog state
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
@@ -919,6 +923,15 @@ export default function Meetings() {
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-foreground">Meetings</h1>
             <div className="flex items-center gap-2">
+              <Button
+                onClick={() => setShowImportDialog(true)}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Upload className="w-4 h-4" />
+                Import Meetings
+              </Button>
               <CreateMeetingDialog
                 onMeetingCreated={(meeting) => {
                   // Refresh meetings after creation
@@ -1537,6 +1550,35 @@ Example:
         onAdjust={handleAIAdjustment}
         currentSummary={summaryContent}
       />
+
+      {/* Import Dialog */}
+      {showImportDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-background rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-border/50">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-foreground">Import Meetings</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowImportDialog(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  ✕
+                </Button>
+              </div>
+            </div>
+            <div className="p-6">
+              <DataImport
+                onImportComplete={() => {
+                  fetchMeetings();
+                  setShowImportDialog(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Snackbar */}
       {showSnackbar && (
