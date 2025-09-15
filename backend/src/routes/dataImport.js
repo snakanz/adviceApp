@@ -172,6 +172,19 @@ router.get('/template', authenticateToken, async (req, res) => {
         'summary': 'Reviewed detailed proposal and pricing',
         'location_type': 'in-person',
         'location_details': 'Client office, Conference Room A'
+      },
+      {
+        'Meeting Held With': 'newclient@startup.com',
+        'Full Name': 'Alex Johnson',
+        'First Name': 'Alex',
+        'Last Name': 'Johnson',
+        'Meeting Date': '2024-01-25',
+        'Meeting Time': '09:00',
+        'Meeting Title': 'Discovery Meeting',
+        'meeting_duration': 45,
+        'summary': 'New client discovery session - will create client automatically',
+        'location_type': 'video',
+        'location_details': 'Google Meet'
       }
     ];
 
@@ -203,8 +216,8 @@ router.get('/template', authenticateToken, async (req, res) => {
       { Field: 'source', Description: 'How client was acquired', Required: 'No', Format: 'text' },
       { Field: '', Description: '', Required: '', Format: '' },
       { Field: 'MEETINGS SHEET INSTRUCTIONS', Description: '', Required: '', Format: '' },
-      { Field: 'Meeting Held With', Description: 'Client email (must match existing client)', Required: 'Yes', Format: 'valid email format' },
-      { Field: 'Full Name', Description: 'Client full name for reference', Required: 'Yes', Format: 'text' },
+      { Field: 'Meeting Held With', Description: 'Client email (new clients will be created automatically)', Required: 'Yes', Format: 'valid email format' },
+      { Field: 'Full Name', Description: 'Client full name (used for new client creation)', Required: 'Yes', Format: 'text' },
       { Field: 'First Name', Description: 'Client first name', Required: 'No', Format: 'text' },
       { Field: 'Last Name', Description: 'Client last name', Required: 'No', Format: 'text' },
       { Field: 'Meeting Date', Description: 'Physical meeting date', Required: 'Yes', Format: 'YYYY-MM-DD' },

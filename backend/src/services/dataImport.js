@@ -242,6 +242,11 @@ function validateMeetingData(meetingRow, rowIndex) {
     meetingRow.last_contact_date = meetingRow.meeting_date; // Normalize for database
   }
 
+  // Normalize full name for client creation
+  if (meetingRow.full_name) {
+    meetingRow.full_name = meetingRow.full_name.trim();
+  }
+
   // Validate email format
   if (meetingRow.client_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(meetingRow.client_email)) {
     errors.push(`Row ${rowIndex + 1}: Invalid client email format`);
@@ -431,16 +436,47 @@ async function importData(fileBuffer, filename, userId, options = {}) {
         continue;
       }
 
-      // Check if client exists
-      const clientId = clientEmailToIdMap.get(validation.data.client_email);
+      // Check if client exists, create if not
+      let clientId = clientEmailToIdMap.get(validation.data.client_email);
+
       if (!clientId) {
-        results.meetings.errors.push(`Row ${i + 1}: Client with email '${validation.data.client_email}' not found. Please ensure the client exists before importing meetings.`);
-        results.summary.totalErrors++;
-        continue;
+        // Create new client from meeting data
+        try {
+          const newClientData = {
+            advisor_id: userId,
+            email: validation.data.client_email,
+            name: validation.data.full_name || validation.data.client_email.split('@')[0],
+            pipeline_stage: 'unscheduled',
+            priority_level: 3,
+            source: 'meeting_import',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+
+          const { data: newClient, error: clientError } = await supabase
+            .from('clients')
+            .insert(newClientData)
+            .select('id')
+            .single();
+
+          if (clientError) {
+            results.meetings.errors.push(`Row ${i + 1}: Failed to create client '${validation.data.client_email}' - ${clientError.message}`);
+            results.summary.totalErrors++;
+            continue;
+          }
+
+          clientId = newClient.id;
+          // Add to map for future meetings with same client
+          clientEmailToIdMap.set(validation.data.client_email, clientId);
+
+        } catch (clientCreationError) {
+          results.meetings.errors.push(`Row ${i + 1}: Error creating client '${validation.data.client_email}' - ${clientCreationError.message}`);
+          results.summary.totalErrors++;
+          continue;
+        }
       }
 
       try {
-        const clientId = clientEmailToIdMap.get(validation.data.client_email);
 
         // Generate unique googleeventid for imported meetings
         const googleEventId = `import_${Date.now()}_${i}_${uuidv4().substring(0, 8)}`;

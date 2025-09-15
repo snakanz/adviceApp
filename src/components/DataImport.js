@@ -187,7 +187,8 @@ const DataImport = ({ onImportComplete }) => {
   const handleDownloadCSVTemplate = () => {
     const csvContent = `Meeting Held With,Full Name,First Name,Last Name,Meeting Date,Meeting Time,Meeting Title,meeting_duration,summary,location_type,location_details
 john.doe@example.com,John Doe,John,Doe,2024-01-15,10:00,Initial Consultation,60,Discussed client needs and our services,video,Zoom meeting
-jane.smith@company.com,Jane Smith,Jane,Smith,2024-01-20,14:30,Proposal Review,60,Reviewed detailed proposal and pricing,in-person,Client office`;
+jane.smith@company.com,Jane Smith,Jane,Smith,2024-01-20,14:30,Proposal Review,60,Reviewed detailed proposal and pricing,in-person,Client office
+newclient@startup.com,Alex Johnson,Alex,Johnson,2024-01-25,09:00,Discovery Meeting,45,New client discovery session - will create client automatically,video,Google Meet`;
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
@@ -214,8 +215,8 @@ jane.smith@company.com,Jane Smith,Jane,Smith,2024-01-20,14:30,Proposal Review,60
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Data Import</h2>
-          <p className="text-muted-foreground">Import clients and meetings from Excel or CSV files</p>
+          <h2 className="text-2xl font-bold text-foreground">Meeting Import</h2>
+          <p className="text-muted-foreground">Import meetings from Excel or CSV files. New clients will be created automatically.</p>
         </div>
         <div className="flex gap-2">
           <Button
