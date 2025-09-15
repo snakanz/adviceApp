@@ -792,6 +792,16 @@ try {
   console.warn('Failed to mount Recall V2 routes:', error.message);
 }
 
+// Mount Data Import routes
+try {
+  console.log('Mounting Data Import routes...');
+  const dataImportRouter = require('./routes/dataImport');
+  app.use('/api/data-import', dataImportRouter);
+  console.log('Data Import routes mounted successfully');
+} catch (error) {
+  console.warn('Failed to mount Data Import routes:', error.message);
+}
+
 app.use('/api/clients', clientsRouter);
 app.use('/api/pipeline', pipelineRouter);
 app.use('/api/calendar', require('./routes/calendar'));

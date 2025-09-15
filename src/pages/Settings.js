@@ -1,16 +1,54 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { 
+import DataImport from '../components/DataImport';
+import {
   Settings as SettingsIcon,
   User,
   Bell,
   Shield,
   Palette,
-  Database
+  Database,
+  Upload,
+  ArrowLeft
 } from 'lucide-react';
 
 export default function Settings() {
+  const [activeSection, setActiveSection] = useState('main'); // 'main' or 'data-import'
+
+  if (activeSection === 'data-import') {
+    return (
+      <div className="h-full flex flex-col bg-background">
+        {/* Header */}
+        <div className="border-b border-border/50 p-6 bg-card/50">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setActiveSection('main')}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Settings
+            </Button>
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Upload className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Data Import</h1>
+              <p className="text-muted-foreground">Import clients and meetings from spreadsheets</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <DataImport />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col bg-background">
       {/* Header */}
@@ -111,11 +149,21 @@ export default function Settings() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Manage your data, exports, and storage preferences.
+                Import clients and meetings from Excel/CSV files, manage data exports, and configure storage preferences.
               </p>
-              <Button variant="outline" className="w-full">
-                Data Management
-              </Button>
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  className="w-full flex items-center gap-2"
+                  onClick={() => setActiveSection('data-import')}
+                >
+                  <Upload className="w-4 h-4" />
+                  Import Data
+                </Button>
+                <Button variant="outline" className="w-full" disabled>
+                  Export Data (Coming Soon)
+                </Button>
+              </div>
             </CardContent>
           </Card>
 

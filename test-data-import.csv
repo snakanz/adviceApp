@@ -1,0 +1,12 @@
+email,name,business_type,likely_value,likely_close_month,pipeline_stage,priority_level,last_contact_date,next_follow_up_date,notes,tags,source
+john.doe@techstartup.com,John Doe,Technology,75000,2024-03-01,prospecting,2,2024-01-15,2024-02-01,"Interested in our premium package, has budget approved","tech,startup,high-value",referral
+jane.smith@healthcorp.com,Jane Smith,Healthcare,120000,2024-04-01,qualified,1,2024-01-20,2024-02-05,"Ready for proposal presentation, decision maker","healthcare,enterprise,urgent",website
+mike.johnson@retailplus.com,Mike Johnson,Retail,45000,2024-05-01,proposal,3,2024-01-10,2024-01-25,"Reviewing our proposal, price sensitive","retail,small-business",cold-call
+sarah.wilson@financegroup.com,Sarah Wilson,Finance,200000,2024-06-01,negotiation,1,2024-01-25,2024-02-10,"In final negotiations, very interested","finance,enterprise,high-value",partnership
+client_email,title,start_date,start_time,end_date,end_time,summary,notes,location_type,location_details,attendees
+john.doe@techstartup.com,Initial Discovery Call,2024-01-15,10:00,2024-01-15,11:00,"Discussed client's current tech stack and pain points","Client is using outdated systems, needs modern solution",video,Zoom Meeting Room,"john.doe@techstartup.com,advisor@company.com"
+john.doe@techstartup.com,Technical Deep Dive,2024-01-22,14:00,2024-01-22,15:30,"Detailed technical requirements gathering","Client has complex integration needs",video,Google Meet,"john.doe@techstartup.com,advisor@company.com,tech-lead@company.com"
+jane.smith@healthcorp.com,Needs Assessment,2024-01-20,09:00,2024-01-20,10:30,"Comprehensive needs analysis for healthcare compliance","HIPAA compliance is critical requirement",in-person,Client Office - Conference Room A,"jane.smith@healthcorp.com,advisor@company.com"
+jane.smith@healthcorp.com,Proposal Presentation,2024-01-27,15:00,2024-01-27,16:00,"Presented tailored solution for healthcare sector","Client very positive, ready to move forward",video,Teams Meeting,"jane.smith@healthcorp.com,advisor@company.com,sales-manager@company.com"
+mike.johnson@retailplus.com,Budget Discussion,2024-01-10,11:00,2024-01-10,12:00,"Discussed pricing options and budget constraints","Client needs flexible payment terms",phone,Phone Call,"mike.johnson@retailplus.com,advisor@company.com"
+sarah.wilson@financegroup.com,Executive Briefing,2024-01-25,16:00,2024-01-25,17:30,"High-level overview for C-suite executives","Strong buy-in from leadership team",in-person,Client Headquarters - Boardroom,"sarah.wilson@financegroup.com,advisor@company.com,ceo@company.com"

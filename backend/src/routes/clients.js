@@ -37,74 +37,67 @@ router.get('/', async (req, res) => {
       });
     }
 
-    // For now, let's create clients from meeting attendees since we don't have a clients table yet
-    // Get all meetings for this user
-    const { data: meetings, error: meetingsError } = await getSupabase()
-      .from('meetings')
-      .select('*')
-      .eq('userid', userId)
-      .order('starttime', { ascending: false });
+    // Get clients from the actual clients table
+    const { data: clients, error: clientsError } = await getSupabase()
+      .from('clients')
+      .select(`
+        *,
+        meetings:meetings(
+          id,
+          googleeventid,
+          title,
+          starttime,
+          endtime,
+          summary,
+          transcript,
+          quick_summary,
+          email_summary_draft,
+          action_points
+        )
+      `)
+      .eq('advisor_id', userId)
+      .order('created_at', { ascending: false });
 
-    if (meetingsError) {
-      console.error('Error fetching meetings:', meetingsError);
-      return res.status(500).json({ error: 'Failed to fetch meetings' });
+    if (clientsError) {
+      console.error('Error fetching clients:', clientsError);
+      return res.status(500).json({ error: 'Failed to fetch clients' });
     }
 
-    // Extract unique clients from meeting attendees
-    const clientsMap = new Map();
+    // Format the response to match the expected structure
+    const formattedClients = (clients || []).map(client => ({
+      id: client.id,
+      email: client.email,
+      name: client.name,
+      business_type: client.business_type,
+      likely_value: client.likely_value,
+      likely_close_month: client.likely_close_month,
+      pipeline_stage: client.pipeline_stage,
+      priority_level: client.priority_level,
+      last_contact_date: client.last_contact_date,
+      next_follow_up_date: client.next_follow_up_date,
+      notes: client.notes,
+      tags: client.tags,
+      source: client.source,
+      is_active: client.is_active,
+      meeting_count: client.meeting_count || (client.meetings ? client.meetings.length : 0),
+      active_meeting_count: client.active_meeting_count,
+      last_meeting_date: client.last_meeting_date,
+      created_at: client.created_at,
+      updated_at: client.updated_at,
+      meetings: (client.meetings || []).map(meeting => ({
+        id: meeting.googleeventid,
+        title: meeting.title,
+        starttime: meeting.starttime,
+        endtime: meeting.endtime,
+        summary: meeting.summary,
+        transcript: meeting.transcript,
+        quick_summary: meeting.quick_summary,
+        email_summary_draft: meeting.email_summary_draft,
+        action_points: meeting.action_points
+      }))
+    }));
 
-    for (const meeting of meetings || []) {
-      if (meeting.attendees) {
-        try {
-          const attendees = typeof meeting.attendees === 'string'
-            ? JSON.parse(meeting.attendees)
-            : meeting.attendees;
-
-          for (const attendee of attendees || []) {
-            if (attendee.email && attendee.email !== decoded.email) {
-              const clientEmail = attendee.email;
-              if (!clientsMap.has(clientEmail)) {
-                clientsMap.set(clientEmail, {
-                  id: clientEmail, // Use email as ID for now
-                  email: clientEmail,
-                  name: attendee.displayName || attendee.email,
-                  business_type: '',
-                  likely_value: '',
-                  likely_close_month: '',
-                  meeting_count: 0,
-                  meetings: [],
-                  created_at: meeting.starttime,
-                  updated_at: meeting.updatedat || meeting.starttime
-                });
-              }
-
-              // Add this meeting to the client
-              const client = clientsMap.get(clientEmail);
-              client.meeting_count++;
-              client.meetings.push({
-                id: meeting.googleeventid,
-                title: meeting.title,
-                starttime: meeting.starttime,
-                endtime: meeting.endtime,
-                summary: meeting.summary,
-                transcript: meeting.transcript,
-                brief_summary: meeting.brief_summary,
-                quick_summary: meeting.quick_summary,
-                email_summary_draft: meeting.email_summary_draft
-              });
-            }
-          }
-        } catch (e) {
-          console.error('Error parsing attendees for meeting:', meeting.googleeventid, e);
-        }
-      }
-    }
-
-    const clients = Array.from(clientsMap.values()).sort((a, b) =>
-      (a.name || a.email).localeCompare(b.name || b.email)
-    );
-
-    res.json(clients);
+    res.json(formattedClients);
   } catch (error) {
     console.error('Error fetching clients:', error);
     res.status(500).json({ error: 'Failed to fetch clients', details: error.message });
@@ -131,11 +124,64 @@ router.post('/upsert', async (req, res) => {
       });
     }
 
-    // For now, return a message that client management is not yet implemented
-    // In the future, this would create/update a clients table
-    res.status(501).json({
-      error: 'Client management features are not yet implemented. Clients are currently derived from meeting attendees.'
-    });
+    // Check if client already exists
+    const { data: existingClient, error: checkError } = await getSupabase()
+      .from('clients')
+      .select('id')
+      .eq('advisor_id', advisorId)
+      .eq('email', email)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Error checking existing client:', checkError);
+      return res.status(500).json({ error: 'Failed to check existing client' });
+    }
+
+    if (existingClient) {
+      // Update existing client
+      const { data: updatedClient, error: updateError } = await getSupabase()
+        .from('clients')
+        .update({
+          name: name || null,
+          business_type: business_type || null,
+          likely_value: likely_value || null,
+          likely_close_month: likely_close_month || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingClient.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('Error updating client:', updateError);
+        return res.status(500).json({ error: 'Failed to update client' });
+      }
+
+      res.json({ message: 'Client updated successfully', client: updatedClient });
+    } else {
+      // Create new client
+      const { data: newClient, error: insertError } = await getSupabase()
+        .from('clients')
+        .insert({
+          advisor_id: advisorId,
+          email: email,
+          name: name || null,
+          business_type: business_type || null,
+          likely_value: likely_value || null,
+          likely_close_month: likely_close_month || null,
+          pipeline_stage: 'unscheduled',
+          priority_level: 3
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Error creating client:', insertError);
+        return res.status(500).json({ error: 'Failed to create client' });
+      }
+
+      res.json({ message: 'Client created successfully', client: newClient });
+    }
   } catch (error) {
     console.error('Error upserting client:', error);
     res.status(500).json({ error: 'Failed to upsert client', details: error.message });
@@ -164,17 +210,38 @@ router.post('/update-name', async (req, res) => {
       });
     }
 
-    // For now, return a message that client management is not yet implemented
-    res.status(501).json({
-      error: 'Client management features are not yet implemented. Clients are currently derived from meeting attendees.'
-    });
+    // Find and update the client
+    const { data: updatedClient, error: updateError } = await getSupabase()
+      .from('clients')
+      .update({
+        name: name,
+        business_type: business_type || null,
+        likely_value: likely_value || null,
+        likely_close_month: likely_close_month || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('advisor_id', advisorId)
+      .eq('email', email)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating client:', updateError);
+      return res.status(500).json({ error: 'Failed to update client' });
+    }
+
+    if (!updatedClient) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    res.json({ message: 'Client updated successfully', client: updatedClient });
   } catch (error) {
     console.error('Error updating client:', error);
     res.status(500).json({ error: 'Failed to update client', details: error.message });
   }
 });
 
-// Get specific client by ID (email)
+// Get specific client by ID (can be UUID or email for backward compatibility)
 router.get('/:clientId', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
@@ -183,7 +250,7 @@ router.get('/:clientId', async (req, res) => {
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
-    const clientEmail = decodeURIComponent(req.params.clientId); // clientId is actually email
+    const clientIdentifier = decodeURIComponent(req.params.clientId);
 
     // Check if Supabase is available
     if (!isSupabaseAvailable()) {
@@ -192,71 +259,81 @@ router.get('/:clientId', async (req, res) => {
       });
     }
 
-    // Get all meetings for this user to find the client
-    const { data: meetings, error: meetingsError } = await getSupabase()
-      .from('meetings')
-      .select('*')
-      .eq('userid', userId)
-      .order('starttime', { ascending: false });
+    // Try to find client by ID first, then by email for backward compatibility
+    let clientQuery = getSupabase()
+      .from('clients')
+      .select(`
+        *,
+        meetings:meetings(
+          id,
+          googleeventid,
+          title,
+          starttime,
+          endtime,
+          summary,
+          transcript,
+          quick_summary,
+          email_summary_draft,
+          action_points
+        )
+      `)
+      .eq('advisor_id', userId);
 
-    if (meetingsError) {
-      console.error('Error fetching meetings:', meetingsError);
-      return res.status(500).json({ error: 'Failed to fetch meetings' });
+    // Check if clientIdentifier looks like a UUID
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientIdentifier);
+
+    if (isUUID) {
+      clientQuery = clientQuery.eq('id', clientIdentifier);
+    } else {
+      // Assume it's an email
+      clientQuery = clientQuery.eq('email', clientIdentifier);
     }
 
-    // Find client data from meeting attendees
-    let clientData = null;
-    const clientMeetings = [];
+    const { data: client, error: clientError } = await clientQuery.single();
 
-    for (const meeting of meetings || []) {
-      if (meeting.attendees) {
-        try {
-          const attendees = typeof meeting.attendees === 'string'
-            ? JSON.parse(meeting.attendees)
-            : meeting.attendees;
-
-          const clientAttendee = attendees?.find(att => att.email === clientEmail);
-          if (clientAttendee) {
-            if (!clientData) {
-              clientData = {
-                id: clientEmail,
-                email: clientEmail,
-                name: clientAttendee.displayName || clientEmail,
-                business_type: '',
-                likely_value: '',
-                likely_close_month: '',
-                meeting_count: 0,
-                created_at: meeting.starttime,
-                updated_at: meeting.updatedat || meeting.starttime
-              };
-            }
-
-            clientMeetings.push({
-              id: meeting.googleeventid,
-              title: meeting.title,
-              starttime: meeting.starttime,
-              endtime: meeting.endtime,
-              summary: meeting.summary,
-              transcript: meeting.transcript,
-              brief_summary: meeting.brief_summary,
-              quick_summary: meeting.quick_summary,
-              email_summary_draft: meeting.email_summary_draft
-            });
-          }
-        } catch (e) {
-          console.error('Error parsing attendees for meeting:', meeting.googleeventid, e);
-        }
+    if (clientError) {
+      if (clientError.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Client not found' });
       }
+      console.error('Error fetching client:', clientError);
+      return res.status(500).json({ error: 'Failed to fetch client' });
     }
 
-    if (!clientData) {
-      return res.status(404).json({ error: 'Client not found' });
-    }
+    // Format the response
+    const formattedClient = {
+      id: client.id,
+      email: client.email,
+      name: client.name,
+      business_type: client.business_type,
+      likely_value: client.likely_value,
+      likely_close_month: client.likely_close_month,
+      pipeline_stage: client.pipeline_stage,
+      priority_level: client.priority_level,
+      last_contact_date: client.last_contact_date,
+      next_follow_up_date: client.next_follow_up_date,
+      notes: client.notes,
+      tags: client.tags,
+      source: client.source,
+      is_active: client.is_active,
+      meeting_count: client.meeting_count || (client.meetings ? client.meetings.length : 0),
+      active_meeting_count: client.active_meeting_count,
+      last_meeting_date: client.last_meeting_date,
+      created_at: client.created_at,
+      updated_at: client.updated_at,
+      meetings: (client.meetings || []).map(meeting => ({
+        id: meeting.googleeventid,
+        title: meeting.title,
+        starttime: meeting.starttime,
+        endtime: meeting.endtime,
+        summary: meeting.summary,
+        transcript: meeting.transcript,
+        quick_summary: meeting.quick_summary,
+        email_summary_draft: meeting.email_summary_draft,
+        action_points: meeting.action_points
+      }))
+    };
 
-    clientData.meeting_count = clientMeetings.length;
-    clientData.meetings = clientMeetings;
-
-    res.json(clientData);
+    res.json(formattedClient);
   } catch (error) {
     console.error('Error fetching client:', error);
     res.status(500).json({ error: 'Failed to fetch client', details: error.message });
@@ -272,7 +349,7 @@ router.get('/:clientId/meetings', async (req, res) => {
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
-    const clientEmail = decodeURIComponent(req.params.clientId); // clientId is actually email
+    const clientIdentifier = decodeURIComponent(req.params.clientId);
 
     // Check if Supabase is available
     if (!isSupabaseAvailable()) {
@@ -281,11 +358,36 @@ router.get('/:clientId/meetings', async (req, res) => {
       });
     }
 
-    // Get all meetings for this user
+    // First, find the client to get their UUID
+    let clientQuery = getSupabase()
+      .from('clients')
+      .select('id')
+      .eq('advisor_id', userId);
+
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientIdentifier);
+
+    if (isUUID) {
+      clientQuery = clientQuery.eq('id', clientIdentifier);
+    } else {
+      clientQuery = clientQuery.eq('email', clientIdentifier);
+    }
+
+    const { data: client, error: clientError } = await clientQuery.single();
+
+    if (clientError) {
+      if (clientError.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Client not found' });
+      }
+      console.error('Error fetching client:', clientError);
+      return res.status(500).json({ error: 'Failed to fetch client' });
+    }
+
+    // Get meetings for this client
     const { data: meetings, error: meetingsError } = await getSupabase()
       .from('meetings')
       .select('*')
       .eq('userid', userId)
+      .eq('client_id', client.id)
       .order('starttime', { ascending: false });
 
     if (meetingsError) {
@@ -293,39 +395,22 @@ router.get('/:clientId/meetings', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch meetings' });
     }
 
-    // Filter meetings that include this client
-    const clientMeetings = [];
+    // Format the meetings
+    const formattedMeetings = (meetings || []).map(meeting => ({
+      id: meeting.googleeventid,
+      title: meeting.title,
+      starttime: meeting.starttime,
+      endtime: meeting.endtime,
+      summary: meeting.summary,
+      transcript: meeting.transcript,
+      quick_summary: meeting.quick_summary,
+      email_summary_draft: meeting.email_summary_draft,
+      action_points: meeting.action_points,
+      attendees: meeting.attendees,
+      created_at: meeting.created_at
+    }));
 
-    for (const meeting of meetings || []) {
-      if (meeting.attendees) {
-        try {
-          const attendees = typeof meeting.attendees === 'string'
-            ? JSON.parse(meeting.attendees)
-            : meeting.attendees;
-
-          const hasClient = attendees?.some(att => att.email === clientEmail);
-          if (hasClient) {
-            clientMeetings.push({
-              id: meeting.googleeventid,
-              title: meeting.title,
-              summary: meeting.summary,
-              transcript: meeting.transcript,
-              brief_summary: meeting.brief_summary,
-              quick_summary: meeting.quick_summary,
-              email_summary_draft: meeting.email_summary_draft,
-              starttime: meeting.starttime,
-              endtime: meeting.endtime,
-              attendees: attendees,
-              created_at: meeting.starttime
-            });
-          }
-        } catch (e) {
-          console.error('Error parsing attendees for meeting:', meeting.googleeventid, e);
-        }
-      }
-    }
-
-    res.json(clientMeetings);
+    res.json(formattedMeetings);
   } catch (error) {
     console.error('Error fetching client meetings:', error);
     res.status(500).json({ error: 'Failed to fetch client meetings', details: error.message });
@@ -351,10 +436,34 @@ router.put('/:clientId', async (req, res) => {
       });
     }
 
-    // For now, return a message that client management is not yet implemented
-    res.status(501).json({
-      error: 'Client management features are not yet implemented. Clients are currently derived from meeting attendees.'
-    });
+    // Update the client
+    const updateData = {
+      updated_at: new Date().toISOString()
+    };
+
+    if (name !== undefined) updateData.name = name;
+    if (business_type !== undefined) updateData.business_type = business_type;
+    if (likely_value !== undefined) updateData.likely_value = likely_value;
+    if (likely_close_month !== undefined) updateData.likely_close_month = likely_close_month;
+
+    const { data: updatedClient, error: updateError } = await getSupabase()
+      .from('clients')
+      .update(updateData)
+      .eq('advisor_id', advisorId)
+      .eq('id', clientId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating client:', updateError);
+      return res.status(500).json({ error: 'Failed to update client' });
+    }
+
+    if (!updatedClient) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    res.json({ message: 'Client updated successfully', client: updatedClient });
   } catch (error) {
     console.error('Error updating client:', error);
     res.status(500).json({ error: 'Failed to update client', details: error.message });
