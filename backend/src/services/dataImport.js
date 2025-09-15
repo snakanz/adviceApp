@@ -33,17 +33,17 @@ const upload = multer({
  *
  * REQUIRED FIELDS:
  * - client_email (required, must match an existing client)
- * - title (required, meeting title/subject)
- * - start_date (required, YYYY-MM-DD format)
- * - start_time (required, HH:MM format)
- * - end_date (required, YYYY-MM-DD format)
- * - end_time (required, HH:MM format)
+ * - meeting_title (required, meeting title/subject)
+ * - last_contact_date (required, physical meeting date in YYYY-MM-DD format)
  *
  * OPTIONAL FIELDS:
+ * - start_time (meeting start time in HH:MM format, defaults to 09:00)
+ * - meeting_duration (duration in minutes, defaults to 60)
+ * - end_date (alternative to duration, YYYY-MM-DD format)
+ * - end_time (alternative to duration, HH:MM format)
  * - summary (meeting summary/description)
- * - location_type (video, in-person, phone)
+ * - location_type (video, in-person, phone, other)
  * - location_details (meeting location or link)
- * - attendees (comma-separated emails, will include client_email automatically)
  */
 
 /**
@@ -75,7 +75,7 @@ async function parseCSV(fileBuffer) {
       .on('end', () => {
         // All rows are expected to be meeting data
         const meetings = results.filter(row =>
-          row.client_email && row.title && row.start_date && row.start_time
+          row.client_email && (row.meeting_title || row.title) && row.last_contact_date
         );
 
         resolve({
@@ -110,7 +110,7 @@ function parseExcel(fileBuffer) {
 
     // Filter for valid meeting rows
     result.meetings = allRows.filter(row =>
-      row.client_email && row.title && row.start_date && row.start_time
+      row.client_email && (row.meeting_title || row.title) && row.last_contact_date
     );
   }
 
@@ -204,24 +204,16 @@ function validateMeetingData(meetingRow, rowIndex) {
     errors.push(`Row ${rowIndex + 1}: Client email is required`);
   }
 
-  if (!meetingRow.title) {
+  // Support both meeting_title and title for backward compatibility
+  const meetingTitle = meetingRow.meeting_title || meetingRow.title;
+  if (!meetingTitle) {
     errors.push(`Row ${rowIndex + 1}: Meeting title is required`);
+  } else {
+    meetingRow.title = meetingTitle; // Normalize to title field
   }
 
-  if (!meetingRow.start_date) {
-    errors.push(`Row ${rowIndex + 1}: Start date is required`);
-  }
-
-  if (!meetingRow.start_time) {
-    errors.push(`Row ${rowIndex + 1}: Start time is required`);
-  }
-
-  if (!meetingRow.end_date) {
-    errors.push(`Row ${rowIndex + 1}: End date is required`);
-  }
-
-  if (!meetingRow.end_time) {
-    errors.push(`Row ${rowIndex + 1}: End time is required`);
+  if (!meetingRow.last_contact_date) {
+    errors.push(`Row ${rowIndex + 1}: Last contact date (meeting date) is required`);
   }
 
   // Validate email format
@@ -229,23 +221,34 @@ function validateMeetingData(meetingRow, rowIndex) {
     errors.push(`Row ${rowIndex + 1}: Invalid client email format`);
   }
   
-  // Validate and parse start datetime
-  if (meetingRow.start_date && meetingRow.start_time) {
-    const startDateTime = parseDateTime(meetingRow.start_date, meetingRow.start_time);
+  // Parse meeting date and time
+  const meetingDate = parseDate(meetingRow.last_contact_date);
+  if (!meetingDate) {
+    errors.push(`Row ${rowIndex + 1}: Invalid meeting date format`);
+  } else {
+    // Default start time to 09:00 if not provided
+    const startTime = meetingRow.start_time || '09:00';
+    const startDateTime = parseDateTime(meetingRow.last_contact_date, startTime);
+
     if (!startDateTime) {
-      errors.push(`Row ${rowIndex + 1}: Invalid start date/time format`);
+      errors.push(`Row ${rowIndex + 1}: Invalid meeting date/time format`);
     } else {
       meetingRow.starttime = startDateTime.toISOString();
-    }
-  }
-  
-  // Validate and parse end datetime
-  if (meetingRow.end_date && meetingRow.end_time) {
-    const endDateTime = parseDateTime(meetingRow.end_date, meetingRow.end_time);
-    if (!endDateTime) {
-      errors.push(`Row ${rowIndex + 1}: Invalid end date/time format`);
-    } else {
-      meetingRow.endtime = endDateTime.toISOString();
+
+      // Calculate end time based on duration or explicit end time
+      let endDateTime;
+      if (meetingRow.end_date && meetingRow.end_time) {
+        // Use explicit end date/time
+        endDateTime = parseDateTime(meetingRow.end_date, meetingRow.end_time);
+      } else {
+        // Use duration (default 60 minutes)
+        const duration = parseInt(meetingRow.meeting_duration) || 60;
+        endDateTime = new Date(startDateTime.getTime() + (duration * 60 * 1000));
+      }
+
+      if (endDateTime) {
+        meetingRow.endtime = endDateTime.toISOString();
+      }
     }
   }
   
@@ -493,6 +496,23 @@ async function importData(fileBuffer, filename, userId, options = {}) {
           } else {
             results.meetings.imported++;
             results.summary.totalImported++;
+
+            // Update client's last_contact_date with the meeting date
+            try {
+              const meetingDate = parseDate(validation.data.last_contact_date);
+              if (meetingDate) {
+                await supabase
+                  .from('clients')
+                  .update({
+                    last_contact_date: meetingDate.toISOString(),
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', clientId);
+              }
+            } catch (updateError) {
+              // Don't fail the import if client update fails, just log it
+              console.warn(`Failed to update client last_contact_date for client ${clientId}:`, updateError);
+            }
           }
         }
 

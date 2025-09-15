@@ -453,8 +453,8 @@ const DataImport = ({ onImportComplete }) => {
                       <tr className="border-b">
                         <th className="text-left p-2">Client Email</th>
                         <th className="text-left p-2">Meeting Title</th>
-                        <th className="text-left p-2">Start Date & Time</th>
-                        <th className="text-left p-2">End Date & Time</th>
+                        <th className="text-left p-2">Meeting Date</th>
+                        <th className="text-left p-2">Duration</th>
                         <th className="text-left p-2">Location</th>
                       </tr>
                     </thead>
@@ -462,9 +462,14 @@ const DataImport = ({ onImportComplete }) => {
                       {preview.meetings.sample.map((meeting, index) => (
                         <tr key={index} className="border-b">
                           <td className="p-2">{meeting.client_email}</td>
-                          <td className="p-2">{meeting.title}</td>
-                          <td className="p-2">{meeting.starttime ? new Date(meeting.starttime).toLocaleString() : '-'}</td>
-                          <td className="p-2">{meeting.endtime ? new Date(meeting.endtime).toLocaleString() : '-'}</td>
+                          <td className="p-2">{meeting.title || meeting.meeting_title}</td>
+                          <td className="p-2">{meeting.last_contact_date || (meeting.starttime ? new Date(meeting.starttime).toLocaleDateString() : '-')}</td>
+                          <td className="p-2">
+                            {meeting.meeting_duration ? `${meeting.meeting_duration} min` :
+                             (meeting.starttime && meeting.endtime ?
+                               `${Math.round((new Date(meeting.endtime) - new Date(meeting.starttime)) / (1000 * 60))} min` :
+                               '-')}
+                          </td>
                           <td className="p-2">{meeting.location_type || '-'}</td>
                         </tr>
                       ))}
