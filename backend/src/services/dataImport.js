@@ -30,21 +30,23 @@ const upload = multer({
 
 /**
  * Expected spreadsheet format for MEETING IMPORT:
+ * Matches the Create Meeting form fields exactly
  *
  * REQUIRED FIELDS:
- * - Meeting Held With (required, email of existing client)
- * - Full Name (required, client's full name for reference)
- * - First Name (optional, client's first name)
- * - Last Name (optional, client's last name)
- * - Meeting Date (required, physical meeting date in YYYY-MM-DD format)
- * - Meeting Time (optional, meeting time in HH:MM format, defaults to 09:00)
+ * - Meeting Held With (required, email of existing client or new client)
+ * - Full Name (required, client's full name for reference/creation)
  * - Meeting Title (required, meeting title/subject)
+ * - Start Time (required, meeting start date and time)
  *
  * OPTIONAL FIELDS:
- * - meeting_duration (duration in minutes, defaults to 60)
- * - summary (meeting summary/description)
- * - location_type (video, in-person, phone, other)
- * - location_details (meeting location or link)
+ * - First Name (client's first name)
+ * - Last Name (client's last name)
+ * - Description (meeting description/agenda - maps to summary)
+ * - End Time (meeting end date and time)
+ * - Location Type (video, phone, in-person, other - defaults to video)
+ * - Location Details (meeting link, address, or phone number)
+ * - Attendees (client name or attendee list)
+ * - Transcript (meeting transcript if available)
  */
 
 /**
@@ -75,21 +77,25 @@ async function parseCSV(fileBuffer) {
       .on('data', (data) => results.push(data))
       .on('end', () => {
         // All rows are expected to be meeting data
-        // Map the user's column headers to our internal field names
+        // Map the user's column headers to our internal field names (matching Create Meeting form)
         const meetings = results.map(row => ({
           client_email: row['Meeting Held With'] || row.client_email,
           full_name: row['Full Name'] || row.full_name,
           first_name: row['First Name'] || row.first_name,
           last_name: row['Last Name'] || row.last_name,
-          meeting_date: row['Meeting Date'] || row.meeting_date || row.last_contact_date,
-          meeting_time: row['Meeting Time'] || row.meeting_time || row.start_time,
-          meeting_title: row['Meeting Title'] || row.meeting_title || row.title,
-          meeting_duration: row.meeting_duration,
-          summary: row.summary,
-          location_type: row.location_type,
-          location_details: row.location_details
+          title: row['Meeting Title'] || row.meeting_title || row.title,
+          description: row['Description'] || row.description || row.summary,
+          start_time: row['Start Time'] || row.start_time,
+          end_time: row['End Time'] || row.end_time,
+          location_type: row['Location Type'] || row.location_type,
+          location_details: row['Location Details'] || row.location_details,
+          attendees: row['Attendees'] || row.attendees,
+          transcript: row['Transcript'] || row.transcript,
+          // Legacy support for old format
+          meeting_date: row['Meeting Date'] || row.meeting_date,
+          meeting_time: row['Meeting Time'] || row.meeting_time
         })).filter(row =>
-          row.client_email && row.meeting_title && row.meeting_date
+          row.client_email && row.title && (row.start_time || row.meeting_date)
         );
 
         resolve({
@@ -122,21 +128,25 @@ function parseExcel(fileBuffer) {
     const meetingsSheet = workbook.Sheets[meetingsSheetName];
     const allRows = XLSX.utils.sheet_to_json(meetingsSheet);
 
-    // Map the user's column headers to our internal field names
+    // Map the user's column headers to our internal field names (matching Create Meeting form)
     result.meetings = allRows.map(row => ({
       client_email: row['Meeting Held With'] || row.client_email,
       full_name: row['Full Name'] || row.full_name,
       first_name: row['First Name'] || row.first_name,
       last_name: row['Last Name'] || row.last_name,
-      meeting_date: row['Meeting Date'] || row.meeting_date || row.last_contact_date,
-      meeting_time: row['Meeting Time'] || row.meeting_time || row.start_time,
-      meeting_title: row['Meeting Title'] || row.meeting_title || row.title,
-      meeting_duration: row.meeting_duration,
-      summary: row.summary,
-      location_type: row.location_type,
-      location_details: row.location_details
+      title: row['Meeting Title'] || row.meeting_title || row.title,
+      description: row['Description'] || row.description || row.summary,
+      start_time: row['Start Time'] || row.start_time,
+      end_time: row['End Time'] || row.end_time,
+      location_type: row['Location Type'] || row.location_type,
+      location_details: row['Location Details'] || row.location_details,
+      attendees: row['Attendees'] || row.attendees,
+      transcript: row['Transcript'] || row.transcript,
+      // Legacy support for old format
+      meeting_date: row['Meeting Date'] || row.meeting_date,
+      meeting_time: row['Meeting Time'] || row.meeting_time
     })).filter(row =>
-      row.client_email && row.meeting_title && row.meeting_date
+      row.client_email && row.title && (row.start_time || row.meeting_date)
     );
   }
 
@@ -230,16 +240,16 @@ function validateMeetingData(meetingRow, rowIndex) {
     errors.push(`Row ${rowIndex + 1}: Meeting Held With (client email) is required`);
   }
 
-  if (!meetingRow.meeting_title) {
+  // Validate meeting title (support both new and legacy formats)
+  if (!meetingRow.title && !meetingRow.meeting_title) {
     errors.push(`Row ${rowIndex + 1}: Meeting Title is required`);
-  } else {
-    meetingRow.title = meetingRow.meeting_title; // Normalize to title field for database
+  } else if (meetingRow.meeting_title && !meetingRow.title) {
+    meetingRow.title = meetingRow.meeting_title; // Normalize legacy format
   }
 
-  if (!meetingRow.meeting_date) {
-    errors.push(`Row ${rowIndex + 1}: Meeting Date is required`);
-  } else {
-    meetingRow.last_contact_date = meetingRow.meeting_date; // Normalize for database
+  // Validate start time (support both new format and legacy format)
+  if (!meetingRow.start_time && !meetingRow.meeting_date) {
+    errors.push(`Row ${rowIndex + 1}: Start Time is required`);
   }
 
   // Normalize full name for client creation
@@ -252,32 +262,64 @@ function validateMeetingData(meetingRow, rowIndex) {
     errors.push(`Row ${rowIndex + 1}: Invalid client email format`);
   }
   
-  // Parse meeting date and time
-  const meetingDate = parseDate(meetingRow.meeting_date);
-  if (!meetingDate) {
-    errors.push(`Row ${rowIndex + 1}: Invalid Meeting Date format`);
-  } else {
-    // Default start time to 09:00 if not provided
-    const startTime = meetingRow.meeting_time || '09:00';
-    const startDateTime = parseDateTime(meetingRow.meeting_date, startTime);
+  // Parse start and end times (support both new format and legacy format)
+  let startDateTime, endDateTime;
 
-    if (!startDateTime) {
-      errors.push(`Row ${rowIndex + 1}: Invalid Meeting Date/Time format`);
+  if (meetingRow.start_time) {
+    // New format: Start Time (datetime-local format)
+    startDateTime = new Date(meetingRow.start_time);
+    if (isNaN(startDateTime.getTime())) {
+      errors.push(`Row ${rowIndex + 1}: Invalid Start Time format`);
     } else {
       meetingRow.starttime = startDateTime.toISOString();
 
-      // Calculate end time based on duration (default 60 minutes)
-      const duration = parseInt(meetingRow.meeting_duration) || 60;
-      const endDateTime = new Date(startDateTime.getTime() + (duration * 60 * 1000));
+      if (meetingRow.end_time) {
+        // Use provided end time
+        endDateTime = new Date(meetingRow.end_time);
+        if (isNaN(endDateTime.getTime())) {
+          warnings.push(`Row ${rowIndex + 1}: Invalid End Time format, will calculate from start time`);
+          endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000); // Default 1 hour
+        }
+      } else {
+        // Calculate end time (default 1 hour)
+        endDateTime = new Date(startDateTime.getTime() + 60 * 60 * 1000);
+      }
       meetingRow.endtime = endDateTime.toISOString();
+    }
+  } else if (meetingRow.meeting_date) {
+    // Legacy format: Meeting Date + Meeting Time
+    const meetingDate = parseDate(meetingRow.meeting_date);
+    if (!meetingDate) {
+      errors.push(`Row ${rowIndex + 1}: Invalid Meeting Date format`);
+    } else {
+      const startTime = meetingRow.meeting_time || '09:00';
+      startDateTime = parseDateTime(meetingRow.meeting_date, startTime);
+
+      if (!startDateTime) {
+        errors.push(`Row ${rowIndex + 1}: Invalid Meeting Date/Time format`);
+      } else {
+        meetingRow.starttime = startDateTime.toISOString();
+
+        // Calculate end time based on duration (default 60 minutes)
+        const duration = parseInt(meetingRow.meeting_duration) || 60;
+        endDateTime = new Date(startDateTime.getTime() + (duration * 60 * 1000));
+        meetingRow.endtime = endDateTime.toISOString();
+      }
     }
   }
   
-  // Validate location type
-  const validLocationTypes = ['in-person', 'phone', 'video', 'other'];
-  if (meetingRow.location_type && !validLocationTypes.includes(meetingRow.location_type.toLowerCase())) {
-    warnings.push(`Row ${rowIndex + 1}: Invalid location type '${meetingRow.location_type}', will default to 'other'`);
-    meetingRow.location_type = 'other';
+  // Validate and normalize location type
+  const validLocationTypes = ['video', 'phone', 'in-person', 'other'];
+  if (meetingRow.location_type) {
+    const normalizedType = meetingRow.location_type.toLowerCase();
+    if (!validLocationTypes.includes(normalizedType)) {
+      warnings.push(`Row ${rowIndex + 1}: Invalid location type '${meetingRow.location_type}', will default to 'video'`);
+      meetingRow.location_type = 'video';
+    } else {
+      meetingRow.location_type = normalizedType;
+    }
+  } else {
+    meetingRow.location_type = 'video'; // Default to video like Create Meeting form
   }
   
   // Parse attendees
@@ -520,7 +562,7 @@ async function importData(fileBuffer, filename, userId, options = {}) {
             results.meetings.skipped++;
           }
         } else {
-          // Insert new meeting
+          // Insert new meeting (matching Create Meeting form structure)
           const insertData = {
             userid: userId,
             googleeventid: googleEventId,
@@ -528,14 +570,17 @@ async function importData(fileBuffer, filename, userId, options = {}) {
             title: validation.data.title,
             starttime: validation.data.starttime,
             endtime: validation.data.endtime,
-            summary: validation.data.summary,
-            notes: validation.data.notes,
-            attendees: JSON.stringify(validation.data.attendees || []),
+            summary: validation.data.description || validation.data.summary, // Use description field
+            transcript: validation.data.transcript,
+            attendees: validation.data.attendees ? JSON.stringify([{ displayName: validation.data.attendees }]) : null,
+            manual_attendees: validation.data.attendees,
             meeting_source: 'manual',
             location_type: validation.data.location_type,
             location_details: validation.data.location_details,
             is_manual: true,
-            created_by: userId
+            created_by: userId,
+            created_at: new Date().toISOString(),
+            updatedat: new Date().toISOString()
           };
 
           const { error: insertError } = await supabase

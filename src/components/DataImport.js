@@ -183,12 +183,12 @@ const DataImport = ({ onImportComplete }) => {
     }
   };
 
-  // Download CSV template
+  // Download CSV template (matching Create Meeting form fields)
   const handleDownloadCSVTemplate = () => {
-    const csvContent = `Meeting Held With,Full Name,First Name,Last Name,Meeting Date,Meeting Time,Meeting Title,meeting_duration,summary,location_type,location_details
-john.doe@example.com,John Doe,John,Doe,2024-01-15,10:00,Initial Consultation,60,Discussed client needs and our services,video,Zoom meeting
-jane.smith@company.com,Jane Smith,Jane,Smith,2024-01-20,14:30,Proposal Review,60,Reviewed detailed proposal and pricing,in-person,Client office
-newclient@startup.com,Alex Johnson,Alex,Johnson,2024-01-25,09:00,Discovery Meeting,45,New client discovery session - will create client automatically,video,Google Meet`;
+    const csvContent = `Meeting Held With,Full Name,First Name,Last Name,Meeting Title,Description,Start Time,End Time,Location Type,Location Details,Attendees,Transcript
+john.doe@example.com,John Doe,John,Doe,Initial Consultation,Discussed client needs and our services,2024-01-15T10:00,2024-01-15T11:00,video,Zoom meeting,John Doe,
+jane.smith@company.com,Jane Smith,Jane,Smith,Proposal Review,Reviewed detailed proposal and pricing,2024-01-20T14:30,2024-01-20T15:30,in-person,Client office,Jane Smith,
+newclient@startup.com,Alex Johnson,Alex,Johnson,Discovery Meeting,New client discovery session - will create client automatically,2024-01-25T09:00,2024-01-25T09:45,video,Google Meet,Alex Johnson,`;
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
@@ -481,9 +481,9 @@ newclient@startup.com,Alex Johnson,Alex,Johnson,2024-01-25,09:00,Discovery Meeti
                       <tr className="border-b">
                         <th className="text-left p-2">Meeting Held With</th>
                         <th className="text-left p-2">Full Name</th>
-                        <th className="text-left p-2">Meeting Date</th>
-                        <th className="text-left p-2">Meeting Time</th>
                         <th className="text-left p-2">Meeting Title</th>
+                        <th className="text-left p-2">Start Time</th>
+                        <th className="text-left p-2">Location Type</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -491,9 +491,14 @@ newclient@startup.com,Alex Johnson,Alex,Johnson,2024-01-25,09:00,Discovery Meeti
                         <tr key={index} className="border-b">
                           <td className="p-2">{meeting.client_email || meeting['Meeting Held With']}</td>
                           <td className="p-2">{meeting.full_name || meeting['Full Name']}</td>
-                          <td className="p-2">{meeting.meeting_date || meeting['Meeting Date'] || meeting.last_contact_date}</td>
-                          <td className="p-2">{meeting.meeting_time || meeting['Meeting Time'] || '09:00'}</td>
-                          <td className="p-2">{meeting.meeting_title || meeting['Meeting Title'] || meeting.title}</td>
+                          <td className="p-2">{meeting.title || meeting['Meeting Title'] || meeting.meeting_title}</td>
+                          <td className="p-2">
+                            {meeting.start_time || meeting['Start Time'] ||
+                             (meeting.meeting_date && meeting.meeting_time ?
+                               `${meeting.meeting_date} ${meeting.meeting_time}` :
+                               '-')}
+                          </td>
+                          <td className="p-2">{meeting.location_type || meeting['Location Type'] || 'video'}</td>
                         </tr>
                       ))}
                     </tbody>

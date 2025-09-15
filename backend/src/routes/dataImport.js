@@ -145,46 +145,49 @@ router.get('/template', authenticateToken, async (req, res) => {
       }
     ];
 
-    // Create sample meetings data for the template with exact column headers
+    // Create sample meetings data matching Create Meeting form fields
     const meetingsData = [
       {
         'Meeting Held With': 'john.doe@example.com',
         'Full Name': 'John Doe',
         'First Name': 'John',
         'Last Name': 'Doe',
-        'Meeting Date': '2024-01-15',
-        'Meeting Time': '10:00',
         'Meeting Title': 'Initial Consultation',
-        'meeting_duration': 60,
-        'summary': 'Discussed client needs and our services',
-        'location_type': 'video',
-        'location_details': 'Zoom meeting'
+        'Description': 'Discussed client needs and our services',
+        'Start Time': '2024-01-15T10:00',
+        'End Time': '2024-01-15T11:00',
+        'Location Type': 'video',
+        'Location Details': 'Zoom meeting',
+        'Attendees': 'John Doe',
+        'Transcript': ''
       },
       {
         'Meeting Held With': 'jane.smith@company.com',
         'Full Name': 'Jane Smith',
         'First Name': 'Jane',
         'Last Name': 'Smith',
-        'Meeting Date': '2024-01-20',
-        'Meeting Time': '14:30',
         'Meeting Title': 'Proposal Review',
-        'meeting_duration': 60,
-        'summary': 'Reviewed detailed proposal and pricing',
-        'location_type': 'in-person',
-        'location_details': 'Client office, Conference Room A'
+        'Description': 'Reviewed detailed proposal and pricing',
+        'Start Time': '2024-01-20T14:30',
+        'End Time': '2024-01-20T15:30',
+        'Location Type': 'in-person',
+        'Location Details': 'Client office, Conference Room A',
+        'Attendees': 'Jane Smith',
+        'Transcript': ''
       },
       {
         'Meeting Held With': 'newclient@startup.com',
         'Full Name': 'Alex Johnson',
         'First Name': 'Alex',
         'Last Name': 'Johnson',
-        'Meeting Date': '2024-01-25',
-        'Meeting Time': '09:00',
         'Meeting Title': 'Discovery Meeting',
-        'meeting_duration': 45,
-        'summary': 'New client discovery session - will create client automatically',
-        'location_type': 'video',
-        'location_details': 'Google Meet'
+        'Description': 'New client discovery session - will create client automatically',
+        'Start Time': '2024-01-25T09:00',
+        'End Time': '2024-01-25T09:45',
+        'Location Type': 'video',
+        'Location Details': 'Google Meet',
+        'Attendees': 'Alex Johnson',
+        'Transcript': ''
       }
     ];
 
@@ -215,18 +218,19 @@ router.get('/template', authenticateToken, async (req, res) => {
       { Field: 'tags', Description: 'Comma-separated tags', Required: 'No', Format: 'tag1, tag2, tag3' },
       { Field: 'source', Description: 'How client was acquired', Required: 'No', Format: 'text' },
       { Field: '', Description: '', Required: '', Format: '' },
-      { Field: 'MEETINGS SHEET INSTRUCTIONS', Description: '', Required: '', Format: '' },
-      { Field: 'Meeting Held With', Description: 'Client email (new clients will be created automatically)', Required: 'Yes', Format: 'valid email format' },
+      { Field: 'MEETINGS SHEET INSTRUCTIONS (Matches Create Meeting Form)', Description: '', Required: '', Format: '' },
+      { Field: 'Meeting Held With', Description: 'Client email (new clients created automatically)', Required: 'Yes', Format: 'valid email format' },
       { Field: 'Full Name', Description: 'Client full name (used for new client creation)', Required: 'Yes', Format: 'text' },
       { Field: 'First Name', Description: 'Client first name', Required: 'No', Format: 'text' },
       { Field: 'Last Name', Description: 'Client last name', Required: 'No', Format: 'text' },
-      { Field: 'Meeting Date', Description: 'Physical meeting date', Required: 'Yes', Format: 'YYYY-MM-DD' },
-      { Field: 'Meeting Time', Description: 'Meeting start time (defaults to 09:00)', Required: 'No', Format: 'HH:MM (24-hour)' },
       { Field: 'Meeting Title', Description: 'Meeting title/subject', Required: 'Yes', Format: 'text' },
-      { Field: 'meeting_duration', Description: 'Meeting duration in minutes (defaults to 60)', Required: 'No', Format: 'number' },
-      { Field: 'summary', Description: 'Meeting summary/description', Required: 'No', Format: 'text' },
-      { Field: 'location_type', Description: 'Type of meeting location', Required: 'No', Format: 'in-person, phone, video, other' },
-      { Field: 'location_details', Description: 'Specific location details', Required: 'No', Format: 'text' }
+      { Field: 'Description', Description: 'Meeting description or agenda', Required: 'No', Format: 'text' },
+      { Field: 'Start Time', Description: 'Meeting start date and time', Required: 'Yes', Format: 'YYYY-MM-DDTHH:MM (e.g., 2024-01-15T10:00)' },
+      { Field: 'End Time', Description: 'Meeting end date and time', Required: 'No', Format: 'YYYY-MM-DDTHH:MM (e.g., 2024-01-15T11:00)' },
+      { Field: 'Location Type', Description: 'Type of meeting location (defaults to video)', Required: 'No', Format: 'video, phone, in-person, other' },
+      { Field: 'Location Details', Description: 'Meeting link, address, or phone number', Required: 'No', Format: 'text' },
+      { Field: 'Attendees', Description: 'Client name or attendee list', Required: 'No', Format: 'text' },
+      { Field: 'Transcript', Description: 'Meeting transcript if available', Required: 'No', Format: 'text' }
     ];
     
     const instructionsSheet = XLSX.utils.json_to_sheet(instructionsData);
