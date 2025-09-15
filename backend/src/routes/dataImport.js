@@ -145,32 +145,33 @@ router.get('/template', authenticateToken, async (req, res) => {
       }
     ];
 
+    // Create sample meetings data for the template with exact column headers
     const meetingsData = [
       {
-        client_email: 'john.doe@example.com',
-        title: 'Initial Consultation',
-        start_date: '2024-01-15',
-        start_time: '10:00',
-        end_date: '2024-01-15',
-        end_time: '11:00',
-        summary: 'Discussed client needs and our services',
-        notes: 'Client is very interested, follow up next week',
-        location_type: 'video',
-        location_details: 'Zoom meeting',
-        attendees: 'john.doe@example.com, advisor@company.com'
+        'Meeting Held With': 'john.doe@example.com',
+        'Full Name': 'John Doe',
+        'First Name': 'John',
+        'Last Name': 'Doe',
+        'Meeting Date': '2024-01-15',
+        'Meeting Time': '10:00',
+        'Meeting Title': 'Initial Consultation',
+        'meeting_duration': 60,
+        'summary': 'Discussed client needs and our services',
+        'location_type': 'video',
+        'location_details': 'Zoom meeting'
       },
       {
-        client_email: 'jane.smith@company.com',
-        title: 'Proposal Review',
-        start_date: '2024-01-20',
-        start_time: '14:30',
-        end_date: '2024-01-20',
-        end_time: '15:30',
-        summary: 'Reviewed detailed proposal and pricing',
-        notes: 'Client has some questions about implementation timeline',
-        location_type: 'in-person',
-        location_details: 'Client office, Conference Room A',
-        attendees: 'jane.smith@company.com, advisor@company.com'
+        'Meeting Held With': 'jane.smith@company.com',
+        'Full Name': 'Jane Smith',
+        'First Name': 'Jane',
+        'Last Name': 'Smith',
+        'Meeting Date': '2024-01-20',
+        'Meeting Time': '14:30',
+        'Meeting Title': 'Proposal Review',
+        'meeting_duration': 60,
+        'summary': 'Reviewed detailed proposal and pricing',
+        'location_type': 'in-person',
+        'location_details': 'Client office, Conference Room A'
       }
     ];
 
@@ -202,17 +203,17 @@ router.get('/template', authenticateToken, async (req, res) => {
       { Field: 'source', Description: 'How client was acquired', Required: 'No', Format: 'text' },
       { Field: '', Description: '', Required: '', Format: '' },
       { Field: 'MEETINGS SHEET INSTRUCTIONS', Description: '', Required: '', Format: '' },
-      { Field: 'client_email', Description: 'Client email (must match Clients sheet)', Required: 'Yes', Format: 'valid email format' },
-      { Field: 'title', Description: 'Meeting title', Required: 'Yes', Format: 'text' },
-      { Field: 'start_date', Description: 'Meeting start date', Required: 'Yes', Format: 'YYYY-MM-DD' },
-      { Field: 'start_time', Description: 'Meeting start time', Required: 'Yes', Format: 'HH:MM (24-hour)' },
-      { Field: 'end_date', Description: 'Meeting end date', Required: 'No', Format: 'YYYY-MM-DD' },
-      { Field: 'end_time', Description: 'Meeting end time', Required: 'No', Format: 'HH:MM (24-hour)' },
+      { Field: 'Meeting Held With', Description: 'Client email (must match existing client)', Required: 'Yes', Format: 'valid email format' },
+      { Field: 'Full Name', Description: 'Client full name for reference', Required: 'Yes', Format: 'text' },
+      { Field: 'First Name', Description: 'Client first name', Required: 'No', Format: 'text' },
+      { Field: 'Last Name', Description: 'Client last name', Required: 'No', Format: 'text' },
+      { Field: 'Meeting Date', Description: 'Physical meeting date', Required: 'Yes', Format: 'YYYY-MM-DD' },
+      { Field: 'Meeting Time', Description: 'Meeting start time (defaults to 09:00)', Required: 'No', Format: 'HH:MM (24-hour)' },
+      { Field: 'Meeting Title', Description: 'Meeting title/subject', Required: 'Yes', Format: 'text' },
+      { Field: 'meeting_duration', Description: 'Meeting duration in minutes (defaults to 60)', Required: 'No', Format: 'number' },
       { Field: 'summary', Description: 'Meeting summary/description', Required: 'No', Format: 'text' },
-      { Field: 'notes', Description: 'Meeting notes', Required: 'No', Format: 'text' },
       { Field: 'location_type', Description: 'Type of meeting location', Required: 'No', Format: 'in-person, phone, video, other' },
-      { Field: 'location_details', Description: 'Specific location details', Required: 'No', Format: 'text' },
-      { Field: 'attendees', Description: 'Comma-separated attendee emails', Required: 'No', Format: 'email1, email2, email3' }
+      { Field: 'location_details', Description: 'Specific location details', Required: 'No', Format: 'text' }
     ];
     
     const instructionsSheet = XLSX.utils.json_to_sheet(instructionsData);

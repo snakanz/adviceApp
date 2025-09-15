@@ -172,7 +172,7 @@ const DataImport = ({ onImportComplete }) => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'advicly-import-template.xlsx';
+      a.download = 'advicly-meeting-import-template.xlsx';
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -181,6 +181,23 @@ const DataImport = ({ onImportComplete }) => {
       console.error('Error downloading template:', error);
       alert(`Failed to download template: ${error.message}`);
     }
+  };
+
+  // Download CSV template
+  const handleDownloadCSVTemplate = () => {
+    const csvContent = `Meeting Held With,Full Name,First Name,Last Name,Meeting Date,Meeting Time,Meeting Title,meeting_duration,summary,location_type,location_details
+john.doe@example.com,John Doe,John,Doe,2024-01-15,10:00,Initial Consultation,60,Discussed client needs and our services,video,Zoom meeting
+jane.smith@company.com,Jane Smith,Jane,Smith,2024-01-20,14:30,Proposal Review,60,Reviewed detailed proposal and pricing,in-person,Client office`;
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'advicly-meeting-import-template.csv';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   };
 
   // Reset to start over
@@ -200,14 +217,24 @@ const DataImport = ({ onImportComplete }) => {
           <h2 className="text-2xl font-bold text-foreground">Data Import</h2>
           <p className="text-muted-foreground">Import clients and meetings from Excel or CSV files</p>
         </div>
-        <Button
-          variant="outline"
-          onClick={handleDownloadTemplate}
-          className="flex items-center gap-2"
-        >
-          <Download className="w-4 h-4" />
-          Download Template
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleDownloadTemplate}
+            className="flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            Download Excel Template
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleDownloadCSVTemplate}
+            className="flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            Download CSV Template
+          </Button>
+        </div>
       </div>
 
       {/* Upload Section */}
