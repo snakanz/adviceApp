@@ -41,6 +41,7 @@ export default function Clients() {
   });
   const [saving, setSaving] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
+  const [extracting, setExtracting] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -56,6 +57,28 @@ export default function Clients() {
     return meeting.transcript &&
            meeting.quick_summary &&
            meeting.email_summary_draft;
+  };
+
+  // Extract clients from meeting attendees
+  const handleExtractClients = async () => {
+    setExtracting(true);
+    try {
+      const response = await api.extractClientsFromMeetings();
+
+      console.log('Client extraction result:', response);
+
+      // Refresh the clients list
+      await fetchClients();
+
+      // Show success message
+      alert(`Client extraction completed! ${response.linked} meetings linked, ${response.clientsCreated} new clients created.`);
+
+    } catch (error) {
+      console.error('Client extraction failed:', error);
+      alert('Failed to extract clients. Please try again.');
+    } finally {
+      setExtracting(false);
+    }
   };
 
   const fetchClients = useCallback(async () => {
@@ -251,14 +274,37 @@ export default function Clients() {
       {/* Client List Panel */}
       <div className="w-80 border-r border-border/50 overflow-y-auto bg-card/30">
         <div className="p-6">
-          <div className="relative mb-6">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search clients..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-10"
-            />
+          <div className="space-y-4 mb-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search clients..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            {/* Client Extraction Button */}
+            <Button
+              onClick={handleExtractClients}
+              disabled={extracting}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              {extracting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />
+                  Extracting Clients...
+                </>
+              ) : (
+                <>
+                  <Users className="w-4 h-4 mr-2" />
+                  Extract Clients from Meetings
+                </>
+              )}
+            </Button>
           </div>
           
           <div className="space-y-2">

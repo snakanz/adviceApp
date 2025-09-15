@@ -160,6 +160,13 @@ class ApiService {
             headers: {} // Remove Content-Type to let browser set it for FormData
         });
     }
+
+    // Extract clients from meeting attendees
+    async extractClientsFromMeetings() {
+        return this.request('/clients/extract-clients', {
+            method: 'POST'
+        });
+    }
 }
 
 export const api = new ApiService();

@@ -2,6 +2,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
+const clientExtractionService = require('../services/clientExtraction');
 
 const router = express.Router();
 
@@ -576,6 +577,41 @@ router.post('/:clientId/avatar', upload.single('avatar'), async (req, res) => {
 
   } catch (error) {
     console.error('Error in avatar upload:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Extract clients from meeting attendees and link meetings
+router.post('/extract-clients', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Authorization token required' });
+    }
+
+    const token = authHeader.substring(7);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.userId;
+
+    console.log('🔗 Starting client extraction for user:', userId);
+
+    // Run client extraction service
+    const result = await clientExtractionService.linkMeetingsToClients(userId);
+
+    if (result.success) {
+      res.json({
+        message: 'Client extraction completed successfully',
+        ...result
+      });
+    } else {
+      res.status(500).json({
+        error: 'Client extraction failed',
+        details: result.error
+      });
+    }
+
+  } catch (error) {
+    console.error('Client extraction endpoint error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
