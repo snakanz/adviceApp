@@ -1,0 +1,12 @@
+name = "adviceapp"
+compatibility_date = "2024-01-15"
+
+pages_build_output_dir = "build"
+
+[env.production]
+name = "adviceapp"
+
+[env.production.vars]
+REACT_APP_BACKEND_URL = "https://advicly-backend.onrender.com"
+REACT_APP_SUPABASE_URL = "https://your-project.supabase.co"
+REACT_APP_SUPABASE_ANON_KEY = "your-supabase-anon-key"
