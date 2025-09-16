@@ -3,6 +3,99 @@ const router = express.Router();
 const { adjustMeetingSummary, improveTemplate, isOpenAIAvailable } = require('./services/openai');
 const calendarRoutes = require('./routes/calendar');
 // const calendlyRoutes = require('./routes/calendly');
+
+// Calendly integration endpoint - directly in routes.js for reliability
+router.get('/calendly/status', async (req, res) => {
+  try {
+    const token = process.env.CALENDLY_PERSONAL_ACCESS_TOKEN;
+    if (!token || token === 'YOUR_TOKEN_HERE') {
+      return res.json({
+        connected: false,
+        configured: false,
+        message: 'Calendly personal access token not configured'
+      });
+    }
+
+    // Test connection to Calendly API using fetch (Node 18+)
+    try {
+      const response = await fetch('https://api.calendly.com/users/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        res.json({
+          connected: true,
+          configured: true,
+          user: userData.resource.name,
+          message: 'Calendly integration working!'
+        });
+      } else {
+        res.json({
+          connected: false,
+          configured: true,
+          message: 'Invalid Calendly token or API error'
+        });
+      }
+    } catch (fetchError) {
+      // Fallback to https module if fetch is not available
+      const https = require('https');
+
+      const options = {
+        hostname: 'api.calendly.com',
+        path: '/users/me',
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      };
+
+      const response = await new Promise((resolve, reject) => {
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => {
+            resolve({
+              ok: res.statusCode >= 200 && res.statusCode < 300,
+              status: res.statusCode,
+              json: () => Promise.resolve(JSON.parse(data))
+            });
+          });
+        });
+        req.on('error', reject);
+        req.end();
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        res.json({
+          connected: true,
+          configured: true,
+          user: userData.resource.name,
+          message: 'Calendly integration working!'
+        });
+      } else {
+        res.json({
+          connected: false,
+          configured: true,
+          message: 'Invalid Calendly token or API error'
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Calendly status error:', error);
+    res.status(500).json({
+      connected: false,
+      configured: false,
+      message: 'Error checking Calendly connection',
+      error: error.message
+    });
+  }
+});
 const jwt = require('jsonwebtoken');
 const { authenticateUser } = require('./middleware/auth');
 const { getSupabase, isSupabaseAvailable } = require('./lib/supabase');
