@@ -829,6 +829,7 @@ try {
 app.use('/api/clients', clientsRouter);
 app.use('/api/pipeline', pipelineRouter);
 app.use('/api/calendar', require('./routes/calendar'));
+app.use('/api/notifications', require('./routes/notifications'));
 console.log('🔄 Mounting main routes at /api...');
 app.use('/api', routes);
 console.log('✅ Main routes mounted at /api');

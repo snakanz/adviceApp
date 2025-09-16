@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import DataImport from '../components/DataImport';
+import NotificationSettings from '../components/NotificationSettings';
 import {
   Settings as SettingsIcon,
   User,
@@ -86,22 +87,7 @@ export default function Settings() {
           </Card>
 
           {/* Notifications */}
-          <Card className="border-border/50">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="w-5 h-5 text-primary" />
-                Notifications
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Configure how you receive notifications and alerts.
-              </p>
-              <Button variant="outline" className="w-full">
-                Configure Notifications
-              </Button>
-            </CardContent>
-          </Card>
+          <NotificationSettings />
 
           {/* Security */}
           <Card className="border-border/50">

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './Layout';
@@ -11,9 +11,18 @@ import Settings from './pages/Settings';
 import LoginPage from './pages/LoginPage';
 import AuthCallback from './pages/AuthCallback';
 import AskAdvicly from './pages/AskAdvicly';
+import notificationService from './services/notificationService';
 
 function PrivateRoute() {
   const { isAuthenticated, isLoading } = useAuth();
+
+  useEffect(() => {
+    // Initialize notification service when user is authenticated
+    if (isAuthenticated) {
+      notificationService.initialize();
+    }
+  }, [isAuthenticated]);
+
   console.log('PrivateRoute: isAuthenticated:', isAuthenticated, 'isLoading:', isLoading);
   if (isLoading) {
     return <div className="flex items-center justify-center min-h-screen">Loading...</div>;
