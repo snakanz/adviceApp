@@ -1,15 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Switch } from './ui/switch';
 import { Badge } from './ui/badge';
-import { 
-  Bell, 
-  BellOff, 
-  Calendar, 
-  Users, 
-  MessageSquare, 
-  Mail,
+import {
+  Bell,
+  BellOff,
+  Calendar,
+  Users,
+  MessageSquare,
   Clock,
   CheckCircle,
   XCircle,
@@ -25,32 +24,32 @@ const NotificationSettings = () => {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
-  useEffect(() => {
-    initializeNotifications();
-  }, []);
-
-  const initializeNotifications = async () => {
+  const initializeNotifications = useCallback(async () => {
     setLoading(true);
-    
+
     // Check if notifications are supported
     const supported = await notificationService.initialize();
     setIsSupported(supported);
-    
+
     if (supported) {
       // Get current permission status
       const currentPermission = notificationService.getPermissionStatus();
       setPermission(currentPermission);
-      
+
       // Check subscription status
       const subscription = await notificationService.getSubscription();
       setIsSubscribed(!!subscription);
-      
+
       // Load preferences
       await loadPreferences();
     }
-    
+
     setLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    initializeNotifications();
+  }, [initializeNotifications]);
 
   const loadPreferences = async () => {
     try {

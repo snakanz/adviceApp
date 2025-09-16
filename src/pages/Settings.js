@@ -6,7 +6,6 @@ import NotificationSettings from '../components/NotificationSettings';
 import {
   Settings as SettingsIcon,
   User,
-  Bell,
   Shield,
   Palette,
   Database,
