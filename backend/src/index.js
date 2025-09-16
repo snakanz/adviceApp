@@ -4,9 +4,10 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { google } = require('googleapis');
 const { supabase, isSupabaseAvailable, getSupabase } = require('./lib/supabase');
+const CalendlyService = require('./services/calendlyService');
 const clientsRouter = require('./routes/clients');
 const pipelineRouter = require('./routes/pipeline');
-const routes = require('./routes/index');
+const routes = require('./routes');
 
 const app = express();
 app.use(cors({
@@ -16,6 +17,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
+
+// Test routes removed - using proper Calendly integration below
 
 // Google OAuth2 setup
 const oauth2Client = new google.auth.OAuth2(
@@ -74,6 +77,78 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// Simple test endpoint
+app.get('/api/test-simple', (req, res) => {
+  res.json({ message: 'Simple test working!' });
+});
+
+// Calendly integration status endpoint
+app.get('/api/calendly/status', async (req, res) => {
+  try {
+    const token = process.env.CALENDLY_PERSONAL_ACCESS_TOKEN;
+    if (!token || token === 'YOUR_TOKEN_HERE') {
+      return res.json({
+        connected: false,
+        configured: false,
+        message: 'Calendly personal access token not configured'
+      });
+    }
+
+    // Test connection to Calendly API
+    const https = require('https');
+
+    const options = {
+      hostname: 'api.calendly.com',
+      path: '/users/me',
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      }
+    };
+
+    const response = await new Promise((resolve, reject) => {
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => data += chunk);
+        res.on('end', () => {
+          resolve({
+            ok: res.statusCode >= 200 && res.statusCode < 300,
+            status: res.statusCode,
+            json: () => Promise.resolve(JSON.parse(data))
+          });
+        });
+      });
+      req.on('error', reject);
+      req.end();
+    });
+
+    if (response.ok) {
+      const userData = await response.json();
+      res.json({
+        connected: true,
+        configured: true,
+        user: userData.resource.name,
+        message: 'Calendly integration working!'
+      });
+    } else {
+      res.json({
+        connected: false,
+        configured: true,
+        message: 'Invalid Calendly token or API error'
+      });
+    }
+  } catch (error) {
+    console.error('Calendly status error:', error);
+    res.status(500).json({
+      connected: false,
+      configured: false,
+      message: 'Error checking Calendly connection',
+      error: error.message
+    });
+  }
+});
+
 // Google OAuth routes moved to /routes/auth.js
 
 // Google OAuth callback moved to /routes/auth.js
@@ -125,7 +200,7 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
       });
     }
 
-    // Get meetings from DATABASE (not Google Calendar directly)
+    // Get meetings from DATABASE (includes Google Calendar, Calendly, and manual meetings)
     // This ensures we respect deletion detection and other database state
     const now = new Date();
     const timeMin = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); // 3 months ago
@@ -134,7 +209,7 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
       .from('meetings')
       .select('*')
       .eq('userid', userId)
-      .or('is_deleted.is.null,is_deleted.eq.false') // 🔥 FIXED: Show meetings where is_deleted is NULL or false
+      .or('is_deleted.is.null,is_deleted.eq.false') // Show meetings where is_deleted is NULL or false
       .gte('starttime', timeMin.toISOString())
       .order('starttime', { ascending: true });
 
@@ -356,6 +431,18 @@ app.get('/api/dev/meetings', async (req, res) => {
     if (!isSupabaseAvailable()) {
       console.error('❌ Supabase not available');
       return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    // Automatically sync Calendly meetings if configured
+    try {
+      const calendlyService = new CalendlyService();
+      if (calendlyService.isConfigured()) {
+        console.log('🔄 Auto-syncing Calendly meetings...');
+        await calendlyService.syncMeetingsToDatabase(userId);
+      }
+    } catch (error) {
+      console.error('Error auto-syncing Calendly meetings:', error);
+      // Don't fail the request if Calendly sync fails
     }
 
     // Query meetings excluding deleted ones
@@ -802,10 +889,14 @@ try {
   console.warn('Failed to mount Data Import routes:', error.message);
 }
 
+// Duplicate Calendly routes removed - using proper integration above
+
 app.use('/api/clients', clientsRouter);
 app.use('/api/pipeline', pipelineRouter);
 app.use('/api/calendar', require('./routes/calendar'));
+console.log('🔄 Mounting main routes at /api...');
 app.use('/api', routes);
+console.log('✅ Main routes mounted at /api');
 
 const port = process.env.PORT || 8787;
 app.listen(port, () => {

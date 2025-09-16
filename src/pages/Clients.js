@@ -42,6 +42,7 @@ export default function Clients() {
   const [saving, setSaving] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [extracting, setExtracting] = useState(false);
+  const [clientFilter, setClientFilter] = useState('all'); // 'all', 'with-upcoming', 'no-upcoming'
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -68,7 +69,7 @@ export default function Clients() {
       console.log('Client extraction result:', response);
 
       // Refresh the clients list
-      await fetchClients();
+      await fetchClients(clientFilter);
 
       // Show success message
       alert(`Client extraction completed! ${response.linked} meetings linked, ${response.clientsCreated} new clients created.`);
@@ -81,10 +82,11 @@ export default function Clients() {
     }
   };
 
-  const fetchClients = useCallback(async () => {
+  const fetchClients = useCallback(async (filter = 'all') => {
     setLoading(true);
     try {
-      const data = await api.request('/clients');
+      const endpoint = filter === 'all' ? '/clients' : `/clients?filter=${filter}`;
+      const data = await api.request(endpoint);
       setClients(data);
       setSelectedClientIndex(0); // Always select the first client by default
     } catch (err) {
@@ -96,21 +98,21 @@ export default function Clients() {
   }, []);
 
   useEffect(() => {
-    fetchClients();
-  }, [fetchClients]);
+    fetchClients(clientFilter);
+  }, [fetchClients, clientFilter]);
 
   // Refresh data when page becomes visible (e.g., navigating back from Meetings page)
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         // Page became visible, refresh client data to get latest summaries
-        fetchClients();
+        fetchClients(clientFilter);
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [fetchClients]);
+  }, [fetchClients, clientFilter]);
 
   // Handle URL parameters for client selection and tab switching
   useEffect(() => {
@@ -275,6 +277,34 @@ export default function Clients() {
       <div className="w-80 border-r border-border/50 overflow-y-auto bg-card/30">
         <div className="p-6">
           <div className="space-y-4 mb-6">
+            {/* Client Filter Buttons */}
+            <div className="flex gap-2">
+              <Button
+                onClick={() => setClientFilter('all')}
+                variant={clientFilter === 'all' ? 'default' : 'outline'}
+                size="sm"
+                className="flex-1"
+              >
+                All Clients
+              </Button>
+              <Button
+                onClick={() => setClientFilter('with-upcoming')}
+                variant={clientFilter === 'with-upcoming' ? 'default' : 'outline'}
+                size="sm"
+                className="flex-1"
+              >
+                With Upcoming
+              </Button>
+              <Button
+                onClick={() => setClientFilter('no-upcoming')}
+                variant={clientFilter === 'no-upcoming' ? 'default' : 'outline'}
+                size="sm"
+                className="flex-1"
+              >
+                Need Follow-up
+              </Button>
+            </div>
+
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
@@ -325,9 +355,23 @@ export default function Clients() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-foreground truncate">
-                        {client.name || 'Unnamed Client'}
-                      </h4>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-semibold text-foreground truncate">
+                          {client.name || 'Unnamed Client'}
+                        </h4>
+                        {client.has_upcoming_meetings && (
+                          <div className="flex items-center gap-1 text-green-600">
+                            <Calendar className="w-3 h-3" />
+                            <span className="text-xs font-medium">{client.upcoming_meetings_count}</span>
+                          </div>
+                        )}
+                        {!client.has_upcoming_meetings && (
+                          <div className="flex items-center gap-1 text-orange-500">
+                            <Clock className="w-3 h-3" />
+                            <span className="text-xs">Follow-up</span>
+                          </div>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground truncate">
                         {client.email && client.email.includes('@') ? client.email : 'No email address'}
                       </p>

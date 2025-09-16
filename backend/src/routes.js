@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { adjustMeetingSummary, improveTemplate, isOpenAIAvailable } = require('./services/openai');
 const calendarRoutes = require('./routes/calendar');
+// const calendlyRoutes = require('./routes/calendly');
 const jwt = require('jsonwebtoken');
 const { authenticateUser } = require('./middleware/auth');
-const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
+const { getSupabase, isSupabaseAvailable } = require('./lib/supabase');
 const OpenAI = require('openai');
 
 // Helper function for error responses
@@ -16,12 +17,23 @@ const handleError = (res, error) => {
 };
 
 // Health check endpoint
-router.get('/health', (req, res) => {
-  res.json({ status: 'ok', message: 'Backend API is healthy' });
+router.get('/health2', (req, res) => {
+  res.json({ status: 'ok', message: 'Backend API is healthy from routes.js' });
 });
 
 // Mount calendar routes
 router.use('/calendar', calendarRoutes);
+
+// Test route for calendly
+router.get('/calendly/test', (req, res) => {
+  console.log('🔄 Direct calendly test route hit');
+  res.json({ message: 'Direct calendly test working!' });
+});
+
+// Mount calendly routes
+// console.log('🔄 Mounting Calendly routes in main routes.js...');
+// router.use('/calendly', calendlyRoutes);
+// console.log('✅ Calendly routes mounted in main routes.js');
 
 // OpenAI routes
 router.post('/ai/adjust-summary', authenticateUser, async (req, res) => {

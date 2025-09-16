@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { Button } from './components/ui/button';
 import { Avatar, AvatarFallback } from './components/ui/avatar';
+import ConnectedIntegrations from './components/ConnectedIntegrations';
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -184,6 +185,8 @@ export default function Layout() {
         <div className="h-full w-full overflow-hidden">
           <Outlet />
         </div>
+        {/* Connected Integrations Status */}
+        <ConnectedIntegrations />
       </main>
 
       {/* Mobile Menu Dialog */}

@@ -31,6 +31,9 @@ router.get('/', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
 
+    // Get filter parameter for upcoming meetings
+    const filter = req.query.filter; // 'all', 'with-upcoming', 'no-upcoming'
+
     // Check if Supabase is available
     if (!isSupabaseAvailable()) {
       return res.status(503).json({
@@ -85,28 +88,10 @@ router.get('/', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch clients' });
     }
 
-    // Format the response to match the expected structure
-    const formattedClients = (clients || []).map(client => ({
-      id: client.id,
-      email: client.email,
-      name: client.name,
-      business_type: client.business_type,
-      likely_value: client.likely_value,
-      likely_close_month: client.likely_close_month,
-      pipeline_stage: client.pipeline_stage,
-      priority_level: client.priority_level,
-      last_contact_date: client.last_contact_date,
-      next_follow_up_date: client.next_follow_up_date,
-      notes: client.notes,
-      tags: client.tags,
-      source: client.source,
-      is_active: client.is_active,
-      meeting_count: client.meeting_count || (client.meetings ? client.meetings.length : 0),
-      active_meeting_count: client.active_meeting_count,
-      last_meeting_date: client.last_meeting_date,
-      created_at: client.created_at,
-      updated_at: client.updated_at,
-      meetings: (client.meetings || []).map(meeting => ({
+    // Format the response and apply filtering based on upcoming meetings
+    const now = new Date();
+    const formattedClients = (clients || []).map(client => {
+      const meetings = (client.meetings || []).map(meeting => ({
         id: meeting.googleeventid,
         title: meeting.title,
         starttime: meeting.starttime,
@@ -116,10 +101,50 @@ router.get('/', async (req, res) => {
         quick_summary: meeting.quick_summary,
         email_summary_draft: meeting.email_summary_draft,
         action_points: meeting.action_points
-      }))
-    }));
+      }));
 
-    res.json(formattedClients);
+      // Calculate upcoming meetings
+      const upcomingMeetings = meetings.filter(meeting => {
+        const meetingDate = new Date(meeting.starttime);
+        return meetingDate > now;
+      });
+
+      return {
+        id: client.id,
+        email: client.email,
+        name: client.name,
+        business_type: client.business_type,
+        likely_value: client.likely_value,
+        likely_close_month: client.likely_close_month,
+        pipeline_stage: client.pipeline_stage,
+        priority_level: client.priority_level,
+        last_contact_date: client.last_contact_date,
+        next_follow_up_date: client.next_follow_up_date,
+        notes: client.notes,
+        tags: client.tags,
+        source: client.source,
+        is_active: client.is_active,
+        meeting_count: client.meeting_count || meetings.length,
+        active_meeting_count: client.active_meeting_count,
+        last_meeting_date: client.last_meeting_date,
+        created_at: client.created_at,
+        updated_at: client.updated_at,
+        meetings: meetings,
+        upcoming_meetings_count: upcomingMeetings.length,
+        has_upcoming_meetings: upcomingMeetings.length > 0
+      };
+    });
+
+    // Apply filter based on upcoming meetings
+    let filteredClients = formattedClients;
+    if (filter === 'with-upcoming') {
+      filteredClients = formattedClients.filter(client => client.has_upcoming_meetings);
+    } else if (filter === 'no-upcoming') {
+      filteredClients = formattedClients.filter(client => !client.has_upcoming_meetings);
+    }
+    // If filter === 'all' or undefined, return all clients
+
+    res.json(filteredClients);
   } catch (error) {
     console.error('Error fetching clients:', error);
     res.status(500).json({ error: 'Failed to fetch clients', details: error.message });

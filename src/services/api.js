@@ -167,6 +167,29 @@ class ApiService {
             method: 'POST'
         });
     }
+
+    // Calendly endpoints
+    async getCalendlyStatus() {
+        return this.request('/calendly/status');
+    }
+
+    async testCalendlyConnection() {
+        return this.request('/calendly/test-connection');
+    }
+
+    async syncCalendlyMeetings() {
+        return this.request('/calendly/sync', {
+            method: 'POST'
+        });
+    }
+
+    async getCalendlyMeetings() {
+        return this.request('/calendly/meetings');
+    }
+
+    async getIntegrationStats() {
+        return this.request('/calendly/stats');
+    }
 }
 
 export const api = new ApiService();
