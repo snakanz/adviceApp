@@ -189,4 +189,64 @@ router.get('/verify', async (req, res) => {
     }
 });
 
-module.exports = router; 
+// Register endpoint
+router.post('/register', async (req, res) => {
+  try {
+    const { email, password, name } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    // Check if user already exists
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (existingUser) {
+      return res.status(409).json({ error: 'User already exists' });
+    }
+
+    // Create new user
+    const { data: user, error } = await supabase
+      .from('users')
+      .insert({
+        email,
+        name,
+        provider: 'local',
+        providerid: email
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Registration error:', error);
+      return res.status(500).json({ error: 'Registration failed' });
+    }
+
+    res.json({ message: 'User registered', user: { id: user.id, email: user.email } });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+// Login endpoint
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    // For now, basic auth is not implemented with Supabase
+    // This is a placeholder for future implementation
+    res.status(501).json({ error: 'Basic auth not implemented. Please use Google OAuth.' });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Login failed' });
+  }
+});
+
+module.exports = router;

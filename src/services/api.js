@@ -173,14 +173,14 @@ class ApiService {
         return this.request('/calendly/status');
     }
 
-    async testCalendlyConnection() {
-        return this.request('/calendly/test-connection');
-    }
-
     async syncCalendlyMeetings() {
         return this.request('/calendly/sync', {
             method: 'POST'
         });
+    }
+
+    async testCalendlyConnection() {
+        return this.request('/calendly/test-connection');
     }
 
     async getCalendlyMeetings() {
@@ -193,6 +193,7 @@ class ApiService {
 }
 
 export const api = new ApiService();
+export default api; // Default export for backward compatibility
 
 export const adjustMeetingSummary = async (originalSummary, adjustmentPrompt) => {
   try {

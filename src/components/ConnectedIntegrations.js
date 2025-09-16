@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, CheckCircle, XCircle, Upload, Loader2, RefreshCw } from 'lucide-react';
-import api from '../services/api';
+import { api } from '../services/api';
 
 const ConnectedIntegrations = () => {
   const [integrations, setIntegrations] = useState({

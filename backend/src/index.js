@@ -7,7 +7,7 @@ const { supabase, isSupabaseAvailable, getSupabase } = require('./lib/supabase')
 const CalendlyService = require('./services/calendlyService');
 const clientsRouter = require('./routes/clients');
 const pipelineRouter = require('./routes/pipeline');
-const routes = require('./routes');
+const routes = require('./routes/index');
 
 const app = express();
 app.use(cors({
