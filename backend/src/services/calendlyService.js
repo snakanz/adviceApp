@@ -135,11 +135,9 @@ class CalendlyService {
         sync_status: 'active',
         last_calendar_sync: new Date().toISOString(),
         created_at: new Date().toISOString(),
-        updatedat: new Date().toISOString(),
-        // Store original Calendly data for reference
-        calendly_event_uri: calendlyEvent.uri,
-        calendly_event_uuid: calendlyEvent.uri.split('/').pop(),
-        client_email: clientEmail
+        updatedat: new Date().toISOString()
+        // Note: Calendly-specific columns (calendly_event_uri, calendly_event_uuid, client_email)
+        // will be added after database migration
       };
     } catch (error) {
       console.error('Error transforming Calendly event:', error);

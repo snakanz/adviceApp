@@ -1,6 +1,6 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
-// const CalendlyService = require('../services/calendlyService');
+const CalendlyService = require('../services/calendlyService');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 
 const router = express.Router();
@@ -43,14 +43,25 @@ router.get('/test-connection', authenticateUser, async (req, res) => {
 // Get Calendly connection status
 router.get('/status', authenticateUser, async (req, res) => {
   try {
-    // const calendlyService = new CalendlyService();
-    // const isConfigured = calendlyService.isConfigured();
+    const calendlyService = new CalendlyService();
+    const isConfigured = calendlyService.isConfigured();
 
-    // Temporary response while setting up integration
+    if (!isConfigured) {
+      return res.json({
+        connected: false,
+        configured: false,
+        message: 'Calendly personal access token not configured'
+      });
+    }
+
+    // Test the connection
+    const connectionTest = await calendlyService.testConnection();
+
     return res.json({
-      connected: false,
-      configured: false,
-      message: 'Calendly integration not configured yet'
+      connected: connectionTest.connected,
+      configured: true,
+      user: connectionTest.user?.name || 'Unknown',
+      message: connectionTest.connected ? 'Calendly integration working!' : connectionTest.error
     });
 
     // // Test the connection

@@ -49,20 +49,36 @@ const formatDate = (dateTimeStr) => {
 };
 
 function getMeetingSource(meeting) {
+  // First check if we have an explicit meeting_source field
+  if (meeting.meeting_source) {
+    switch (meeting.meeting_source.toLowerCase()) {
+      case 'google':
+        return 'Google Calendar';
+      case 'calendly':
+        return 'Calendly';
+      case 'outlook':
+        return 'Outlook';
+      case 'manual':
+        return 'Manual Upload';
+      default:
+        return meeting.meeting_source;
+    }
+  }
+
+  // Fallback to attendee-based detection for legacy meetings
   try {
-    // Handle both array and JSON string formats
     let attendees = meeting.attendees;
     if (typeof attendees === 'string') {
       attendees = JSON.parse(attendees);
     }
     if (Array.isArray(attendees)) {
-      if (attendees.some(a => a.email?.includes('google'))) return 'google';
-      if (attendees.some(a => a.email?.includes('outlook'))) return 'outlook';
+      if (attendees.some(a => a.email?.includes('google'))) return 'Google Calendar';
+      if (attendees.some(a => a.email?.includes('outlook'))) return 'Outlook';
     }
   } catch (e) {
     console.log('Could not parse attendees for meeting source detection');
   }
-  return 'google'; // default
+  return 'Google Calendar'; // default
 }
 
 function formatMeetingTime(meeting) {
@@ -817,15 +833,31 @@ export default function Meetings() {
             <div className="flex items-center justify-between h-full min-h-[48px]">
               <div className="flex items-center gap-3 flex-1 min-w-0">
                 <div className="flex-shrink-0">
-                  {getMeetingSource(meeting) === 'google' ?
+                  {getMeetingSource(meeting) === 'Google Calendar' ?
                     <GoogleIcon className="w-5 h-5" /> :
+                    getMeetingSource(meeting) === 'Calendly' ?
+                    <div className="w-5 h-5 bg-orange-500 rounded-sm flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">C</span>
+                    </div> :
                     <OutlookIcon className="w-5 h-5" />
                   }
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-medium text-foreground truncate">
-                    {meeting.summary || meeting.title || 'Untitled Meeting'}
-                  </h3>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-lg font-medium text-foreground truncate">
+                      {meeting.summary || meeting.title || 'Untitled Meeting'}
+                    </h3>
+                    {/* Source badge */}
+                    <div className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      getMeetingSource(meeting) === 'Google Calendar'
+                        ? 'bg-blue-100 text-blue-800'
+                        : getMeetingSource(meeting) === 'Calendly'
+                        ? 'bg-orange-100 text-orange-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {getMeetingSource(meeting)}
+                    </div>
+                  </div>
                   {/* Compact Status Indicators */}
                   <div className="flex items-center gap-1 mt-2">
                     {/* Transcript Status */}
@@ -1071,14 +1103,50 @@ export default function Meetings() {
             <div className="flex items-start justify-between">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2">
-                  {getMeetingSource(selectedMeeting) === 'google' ?
+                  {getMeetingSource(selectedMeeting) === 'Google Calendar' ?
                     <GoogleIcon className="w-4 h-4" /> :
+                    getMeetingSource(selectedMeeting) === 'Calendly' ?
+                    <div className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center">
+                      <span className="text-white text-xs font-bold">C</span>
+                    </div> :
                     <OutlookIcon className="w-4 h-4" />
                   }
                   <h1 className="text-lg font-bold text-foreground truncate">
                     {selectedMeeting.summary || selectedMeeting.title || 'Untitled Meeting'}
                   </h1>
+                  {/* Meeting source badge */}
+                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    getMeetingSource(selectedMeeting) === 'Google Calendar'
+                      ? 'bg-blue-100 text-blue-800'
+                      : getMeetingSource(selectedMeeting) === 'Calendly'
+                      ? 'bg-orange-100 text-orange-800'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {getMeetingSource(selectedMeeting)}
+                  </div>
                 </div>
+
+                {/* Client info display */}
+                {selectedMeeting.attendees && (() => {
+                  try {
+                    const attendees = JSON.parse(selectedMeeting.attendees);
+                    const clientAttendee = attendees.find(a => a.email && a.email !== 'simon@greenwood.co.nz');
+                    if (clientAttendee) {
+                      return (
+                        <div className="flex items-center mb-2 text-sm text-gray-600">
+                          <Mail className="h-4 w-4 mr-2 text-gray-400" />
+                          <span className="font-medium text-gray-900">{clientAttendee.displayName || clientAttendee.email.split('@')[0]}</span>
+                          <span className="mx-2 text-gray-400">•</span>
+                          <span className="text-gray-500">{clientAttendee.email}</span>
+                        </div>
+                      );
+                    }
+                  } catch (e) {
+                    return null;
+                  }
+                  return null;
+                })()}
+
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Calendar className="w-3 h-3" />
                   <span>{formatDate(selectedMeeting.start?.dateTime || selectedMeeting.startTime || selectedMeeting.starttime)}</span>

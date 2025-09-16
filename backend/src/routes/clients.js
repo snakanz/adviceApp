@@ -616,7 +616,7 @@ router.post('/extract-clients', async (req, res) => {
 
     const token = authHeader.substring(7);
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.userId;
+    const userId = decoded.id;
 
     console.log('🔗 Starting client extraction for user:', userId);
 
