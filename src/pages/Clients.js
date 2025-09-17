@@ -1,29 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 
-
-import { ClientSkeleton } from '../components/ui/skeleton';
 import { useDebounce } from '../hooks/useDebounce';
-import { cn } from '../lib/utils';
 import {
   Search,
   Calendar,
-  TrendingUp,
   Sparkles,
   Clock,
-  Mail,
   Users,
   Building2,
   CheckCircle2,
-  ChevronRight,
   X,
   Edit3
 } from 'lucide-react';
 import { api } from '../services/api';
-import { Drawer } from '../components/ui/drawer';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export default function Clients() {
@@ -170,41 +163,11 @@ export default function Clients() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
-  // Add this function to handle form changes
-  const handleEditChange = (field, value) => {
-    setEditForm(f => ({ ...f, [field]: value }));
-  };
-
   // Add/remove email fields
   // Email management functions (currently unused but kept for future multi-email support)
   // const addEmailField = () => setEditForm(f => ({ ...f, emails: [...(f.emails || ['']), ''] }));
   // const removeEmailField = idx => setEditForm(f => ({ ...f, emails: f.emails.filter((_, i) => i !== idx) }));
   // const handleEmailChange = (idx, value) => setEditForm(f => ({ ...f, emails: f.emails.map((e, i) => i === idx ? value : e) }));
-
-  // Save handler
-  const handleSaveClient = async () => {
-    console.log('Saving client:', editForm); // Debug log
-    setSaving(true);
-    try {
-      const token = localStorage.getItem('jwt');
-      const res = await fetch('https://adviceapp-9rgw.onrender.com/api/clients/upsert', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(editForm)
-      });
-      if (!res.ok) throw new Error('Failed to update client');
-      // Refresh clients
-      const data = await api.request('/clients');
-      setClients(data);
-      setSaving(false);
-    } catch (err) {
-      console.error('Error saving client:', err);
-      setSaving(false);
-    }
-  };
 
   const handleEditClient = (client) => {
     setEditingClient(client);
