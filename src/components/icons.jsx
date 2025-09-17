@@ -1,16 +1,17 @@
 import React from 'react';
-import { 
-  Calendar, 
-  Users, 
-  FileText, 
-  Settings, 
-  BarChart3, 
-  LogOut, 
-  User, 
+import {
+  Calendar,
+  Users,
+  FileText,
+  Settings,
+  BarChart3,
+  LogOut,
+  User,
   ChevronDown,
   Menu,
   X,
-  Sparkles
+  Sparkles,
+  Bell
 } from 'lucide-react';
 
 export const CalendarIcon = ({ size = 24, className = "" }) => (
@@ -55,4 +56,8 @@ export const CloseIcon = ({ size = 24, className = "" }) => (
 
 export const AutoAwesomeIcon = ({ size = 24, className = "" }) => (
   <Sparkles size={size} className={className} />
-); 
+);
+
+export const NotificationsIcon = ({ size = 24, className = "" }) => (
+  <Bell size={size} className={className} />
+);

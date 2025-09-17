@@ -23,12 +23,14 @@ import {
   KeyboardArrowDownIcon,
   MenuIcon,
   CloseIcon,
-  AutoAwesomeIcon
+  AutoAwesomeIcon,
+  NotificationsIcon
 } from './components/icons';
 
 const navItems = [
   { label: 'Meetings', icon: <CalendarIcon />, path: '/meetings' },
   { label: 'Clients', icon: <PeopleIcon />, path: '/clients' },
+  { label: 'Action Items', icon: <NotificationsIcon />, path: '/action-items' },
   { label: 'Templates', icon: <DescriptionIcon />, path: '/templates' },
   { label: 'Ask Advicly', icon: <AutoAwesomeIcon />, path: '/ask-advicly' },
   { label: 'Settings', icon: <SettingsIcon />, path: '/settings' },

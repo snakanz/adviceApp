@@ -373,6 +373,18 @@ export default function Meetings() {
     }
   }, [selectedMeeting]);
 
+  // Auto-refresh meetings every 5 minutes to catch new Calendly meetings
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const interval = setInterval(() => {
+      console.log('Auto-refreshing meetings...');
+      fetchMeetings();
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, fetchMeetings]);
+
   const handleMeetingSelect = async (meeting) => {
     console.log('Meeting selected:', meeting); // Debug log
     setSelectedMeetingId(meeting.id);
@@ -766,6 +778,45 @@ export default function Meetings() {
     }
   };
 
+  // Calendly sync function - sync with Calendly meetings
+  const syncCalendly = async () => {
+    setSyncing(true);
+    try {
+      const token = localStorage.getItem('jwt');
+
+      // Call the Calendly sync API endpoint
+      const response = await fetch(`${API_URL}/api/calendly/sync`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to sync Calendly');
+      }
+
+      const syncResults = await response.json();
+      console.log('Calendly sync results:', syncResults);
+
+      // Refresh meetings after successful sync
+      await fetchMeetings();
+
+      setShowSnackbar(true);
+      setSnackbarMessage(`Calendly synced successfully! ${syncResults.synced || 0} meetings synced`);
+      setSnackbarSeverity('success');
+    } catch (error) {
+      console.error('Error syncing Calendly:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to sync Calendly: ' + error.message);
+      setSnackbarSeverity('error');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const renderMeetingsList = (meetings, title) => {
     const groupedMeetings = groupMeetingsByDate(meetings);
 
@@ -980,7 +1031,17 @@ export default function Meetings() {
                 className="flex items-center gap-2"
               >
                 <RefreshCw className={cn("w-4 h-4", syncing && "animate-spin")} />
-                {syncing ? 'Syncing...' : 'Sync Calendar'}
+                {syncing ? 'Syncing...' : 'Sync Google'}
+              </Button>
+              <Button
+                onClick={syncCalendly}
+                disabled={syncing}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2 bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200"
+              >
+                <RefreshCw className={cn("w-4 h-4", syncing && "animate-spin")} />
+                {syncing ? 'Syncing...' : 'Sync Calendly'}
               </Button>
             </div>
           </div>

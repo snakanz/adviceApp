@@ -1,757 +1,592 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Avatar, AvatarFallback } from '../components/ui/avatar';
+import { Badge } from '../components/ui/badge';
 import {
-  TrendingUp,
-  DollarSign,
-  Users,
-  Calendar,
-  Plus,
-  CheckCircle,
-  Circle,
-  Clock,
-  ArrowRight,
-  Target,
   User,
-  RefreshCw
+  Search,
+  Edit3,
+  X
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '../components/ui/dialog';
-import { Input } from '../components/ui/input';
-import { Textarea } from '../components/ui/textarea';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import {
-  useSortable,
-} from '@dnd-kit/sortable';
-import {
-  useDroppable,
-} from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
 
-const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
-// Generate next 12 months starting from current month
-function generateMonthColumns() {
-  const months = [];
-  const now = new Date();
-
-  for (let i = 0; i < 12; i++) {
-    const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    const monthKey = date.toISOString().substring(0, 7); // YYYY-MM
-    const monthName = date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long'
-    });
-
-    months.push({
-      monthKey,
-      monthName,
-      clients: []
-    });
-  }
-
-  return months;
-}
 
 export default function Pipeline() {
-  const navigate = useNavigate();
-  useAuth(); // Keep for potential future use
-  const [pipelineData, setPipelineData] = useState(null);
+  const [clients, setClients] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [monthColumns, setMonthColumns] = useState(generateMonthColumns());
-  const [unscheduledClients, setUnscheduledClients] = useState([]);
   const [selectedClient, setSelectedClient] = useState(null);
-  const [showTodoDialog, setShowTodoDialog] = useState(false);
-  const [clientTodos, setClientTodos] = useState([]);
-  const [newTodo, setNewTodo] = useState({ title: '', description: '', priority: 3, category: 'general' });
+  const [showDetailPanel, setShowDetailPanel] = useState(false);
+  const [search, setSearch] = useState('');
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [editingField, setEditingField] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
 
-  // Drag and drop sensors
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
+  // Generate months for tabs (current month + next 11 months)
+  const generateMonths = () => {
+    const months = [];
+    const current = new Date();
+    for (let i = 0; i < 12; i++) {
+      const month = new Date(current.getFullYear(), current.getMonth() + i, 1);
+      months.push(month);
+    }
+    return months;
+  };
+
+  const months = generateMonths();
+
+  // Mock pipeline data - will be replaced with API calls
+  const mockPipelineData = [
+    {
+      id: 1,
+      name: 'John Smith',
+      email: 'john.smith@email.com',
+      nextMeetingDate: '2025-09-25',
+      pastMeetingCount: 3,
+      businessStage: 'Proposal Sent',
+      pipelineNotes: 'Waiting on pension transfer paperwork',
+      likelihood: 85,
+      expectedValue: 15000,
+      expectedMonth: '2025-09',
+      businessType: 'Pension'
+    },
+    {
+      id: 2,
+      name: 'Sarah Johnson',
+      email: 'sarah.johnson@email.com',
+      nextMeetingDate: '2025-10-05',
+      pastMeetingCount: 2,
+      businessStage: 'Initial Consultation',
+      pipelineNotes: 'Interested in ISA and pension advice',
+      likelihood: 60,
+      expectedValue: 8000,
+      expectedMonth: '2025-10',
+      businessType: 'ISA'
+    },
+    {
+      id: 3,
+      name: 'Mike Wilson',
+      email: 'mike.wilson@email.com',
+      nextMeetingDate: null,
+      pastMeetingCount: 1,
+      businessStage: 'Follow-up Required',
+      pipelineNotes: 'Need to chase for second meeting',
+      likelihood: 40,
+      expectedValue: 12000,
+      expectedMonth: '2025-11',
+      businessType: 'Investment'
+    }
+  ];
 
   useEffect(() => {
-    fetchPipelineData();
-  }, []);
+    if (isAuthenticated) {
+      fetchPipelineData();
+    }
+  }, [isAuthenticated, fetchPipelineData]);
 
   const fetchPipelineData = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('jwt');
-      const response = await fetch(`${API_URL}/api/pipeline`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch pipeline data');
-      }
-      const data = await response.json();
-      setPipelineData(data);
-
-      // Organize clients into month columns and unscheduled
-      const newMonthColumns = generateMonthColumns();
-      const newUnscheduledClients = data.unscheduledClients || [];
-
-      // Populate month columns with clients
-      if (data.months) {
-        data.months.forEach(monthData => {
-          const columnIndex = newMonthColumns.findIndex(col => col.monthKey === monthData.monthKey);
-          if (columnIndex !== -1) {
-            newMonthColumns[columnIndex].clients = monthData.clients || [];
-          }
-        });
-      }
-
-      setMonthColumns(newMonthColumns);
-      setUnscheduledClients(newUnscheduledClients);
-    } catch (err) {
-      setError(err.message);
-      setPipelineData(null);
-    } finally {
+      // For now, use mock data
+      // In production, this would fetch from API
+      setTimeout(() => {
+        setClients(mockPipelineData);
+        setLoading(false);
+      }, 500);
+    } catch (error) {
+      console.error('Error fetching pipeline data:', error);
       setLoading(false);
     }
   };
 
-  // Handle drag end for moving clients between months
-  const handleDragEnd = async (event) => {
-    const { active, over } = event;
-
-    if (!over) return;
-
-    const activeId = active.id;
-    const overId = over.id;
-
-    // Find the client being dragged
-    let draggedClient = null;
-    let sourceContainer = null;
-
-    // Check unscheduled clients
-    const unscheduledIndex = unscheduledClients.findIndex(client => client.id === activeId);
-    if (unscheduledIndex !== -1) {
-      draggedClient = unscheduledClients[unscheduledIndex];
-      sourceContainer = 'unscheduled';
-    } else {
-      // Check month columns
-      for (let i = 0; i < monthColumns.length; i++) {
-        const clientIndex = monthColumns[i].clients.findIndex(client => client.id === activeId);
-        if (clientIndex !== -1) {
-          draggedClient = monthColumns[i].clients[clientIndex];
-          sourceContainer = monthColumns[i].monthKey;
-          break;
-        }
-      }
-    }
-
-    if (!draggedClient) return;
-
-    // Determine target container
-    let targetContainer = overId;
-    let targetMonthKey = null;
-
-    if (overId === 'unscheduled') {
-      targetMonthKey = null;
-    } else {
-      // Find the month column
-      const targetColumn = monthColumns.find(col => col.monthKey === overId);
-      if (targetColumn) {
-        targetMonthKey = targetColumn.monthKey;
-      }
-    }
-
-    // Don't do anything if dropping in the same container
-    if (sourceContainer === targetContainer) return;
-
-    try {
-      // Update client in backend
-      const token = localStorage.getItem('jwt');
-      const response = await fetch(`${API_URL}/api/pipeline/client/${draggedClient.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          likely_close_month: targetMonthKey ? `${targetMonthKey}-01` : null
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update client');
-      }
-
-      // Update local state
-      const updatedClient = { ...draggedClient, likely_close_month: targetMonthKey ? `${targetMonthKey}-01` : null };
-
-      // Remove from source
-      if (sourceContainer === 'unscheduled') {
-        setUnscheduledClients(prev => prev.filter(client => client.id !== activeId));
-      } else {
-        setMonthColumns(prev => prev.map(col =>
-          col.monthKey === sourceContainer
-            ? { ...col, clients: col.clients.filter(client => client.id !== activeId) }
-            : col
-        ));
-      }
-
-      // Add to target
-      if (targetContainer === 'unscheduled') {
-        setUnscheduledClients(prev => [...prev, updatedClient]);
-      } else {
-        setMonthColumns(prev => prev.map(col =>
-          col.monthKey === targetContainer
-            ? { ...col, clients: [...col.clients, updatedClient] }
-            : col
-        ));
-      }
-
-    } catch (error) {
-      console.error('Error updating client:', error);
-      // Could add a toast notification here
-    }
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'No meeting scheduled';
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
   };
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-AU', {
+    return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'AUD',
+      currency: 'USD',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(amount);
   };
 
-  // Fetch todos for a client
-  const fetchClientTodos = async (clientId) => {
-    try {
-      const token = localStorage.getItem('jwt');
-      const response = await fetch(`${API_URL}/api/pipeline/client/${clientId}/todos`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      if (response.ok) {
-        const todos = await response.json();
-        setClientTodos(todos);
-      }
-    } catch (error) {
-      console.error('Error fetching todos:', error);
-    }
+  const getBusinessTypeColor = (type) => {
+    const colors = {
+      'Pension': 'bg-blue-100 text-blue-800 border-blue-200',
+      'ISA': 'bg-green-100 text-green-800 border-green-200',
+      'Bond': 'bg-purple-100 text-purple-800 border-purple-200',
+      'Investment': 'bg-orange-100 text-orange-800 border-orange-200',
+      'Insurance': 'bg-red-100 text-red-800 border-red-200',
+      'Mortgage': 'bg-yellow-100 text-yellow-800 border-yellow-200'
+    };
+    return colors[type] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
-  // Handle client card click to show details and todos
+  const getLikelihoodColor = (likelihood) => {
+    if (likelihood >= 80) return 'text-green-600';
+    if (likelihood >= 60) return 'text-yellow-600';
+    if (likelihood >= 40) return 'text-orange-600';
+    return 'text-red-600';
+  };
+
+  const getStageColor = (stage) => {
+    const colors = {
+      'Initial Consultation': 'bg-blue-100 text-blue-800',
+      'Proposal Sent': 'bg-yellow-100 text-yellow-800',
+      'Follow-up Required': 'bg-red-100 text-red-800',
+      'Ready to Sign': 'bg-green-100 text-green-800',
+      'Signed': 'bg-purple-100 text-purple-800'
+    };
+    return colors[stage] || 'bg-gray-100 text-gray-800';
+  };
+
   const handleClientClick = (client) => {
     setSelectedClient(client);
-    setShowTodoDialog(true);
-    fetchClientTodos(client.id);
+    setShowDetailPanel(true);
   };
 
-  // Create a new todo
-  const handleCreateTodo = async () => {
-    if (!newTodo.title.trim() || !selectedClient) return;
+  const handleEditField = (field, value) => {
+    setEditingField(field);
+    setEditValue(value || '');
+  };
 
-    try {
-      const token = localStorage.getItem('jwt');
-      const response = await fetch(`${API_URL}/api/pipeline/client/${selectedClient.id}/todos`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(newTodo)
-      });
+  const handleSaveField = () => {
+    if (selectedClient && editingField) {
+      // Update the client data
+      setClients(clients.map(client =>
+        client.id === selectedClient.id
+          ? { ...client, [editingField]: editValue }
+          : client
+      ));
 
-      if (response.ok) {
-        const todo = await response.json();
-        setClientTodos(prev => [...prev, todo]);
-        setNewTodo({ title: '', description: '', priority: 3, category: 'general' });
-      }
-    } catch (error) {
-      console.error('Error creating todo:', error);
+      // Update selected client
+      setSelectedClient({ ...selectedClient, [editingField]: editValue });
     }
+    setEditingField(null);
+    setEditValue('');
   };
 
-  // Toggle todo completion
-  const handleToggleTodo = async (todoId, currentStatus) => {
-    const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
-
-    try {
-      const token = localStorage.getItem('jwt');
-      const response = await fetch(`${API_URL}/api/pipeline/todos/${todoId}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ status: newStatus })
-      });
-
-      if (response.ok) {
-        const updatedTodo = await response.json();
-        setClientTodos(prev => prev.map(todo =>
-          todo.id === todoId ? updatedTodo : todo
-        ));
-      }
-    } catch (error) {
-      console.error('Error updating todo:', error);
-    }
+  const getCurrentMonthClients = () => {
+    const monthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
+    return clients.filter(client => client.expectedMonth === monthKey);
   };
 
-  // Droppable Column Component
-  function DroppableColumn({ id, title, icon, clients, children }) {
-    const { isOver, setNodeRef } = useDroppable({
-      id: id,
-    });
+  const getMonthlyTotal = (month) => {
+    const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
+    const monthClients = clients.filter(client => client.expectedMonth === monthKey);
+    return monthClients.reduce((total, client) => total + (client.expectedValue || 0), 0);
+  };
 
-    return (
-      <Card
-        ref={setNodeRef}
-        className={cn(
-          "border-border/50 flex flex-col transition-colors",
-          isOver && "bg-primary/5 border-primary/30"
-        )}
-      >
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            {icon}
-            {title}
-            <span className="text-sm font-normal text-muted-foreground">
-              ({clients.length})
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 overflow-y-auto space-y-3 p-4">
-          {children}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Draggable Client Card Component
-  function ClientCard({ client, isDragging = false }) {
-    const {
-      attributes,
-      listeners,
-      setNodeRef,
-      transform,
-      transition,
-    } = useSortable({ id: client.id });
-
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-    };
-
-    const completedTodos = clientTodos.filter(todo =>
-      todo.client_id === client.id && todo.status === 'completed'
-    ).length;
-    const totalTodos = clientTodos.filter(todo => todo.client_id === client.id).length;
-
-    return (
-      <Card
-        ref={setNodeRef}
-        style={style}
-        {...attributes}
-        {...listeners}
-        className={cn(
-          "cursor-grab active:cursor-grabbing transition-all duration-200 hover:shadow-md",
-          isDragging && "opacity-50 rotate-2 shadow-lg"
-        )}
-        onClick={(e) => {
-          e.stopPropagation();
-          handleClientClick(client);
-        }}
-      >
-        <CardContent className="p-4">
-          <div className="space-y-3">
-            {/* Client Name and Priority */}
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-foreground truncate">
-                {client.name || client.email}
-              </h3>
-              {client.priority_level && client.priority_level <= 2 && (
-                <div className="w-2 h-2 bg-red-500 rounded-full" title="High Priority" />
-              )}
-            </div>
-
-            {/* Business Type */}
-            {client.business_type && (
-              <p className="text-sm text-muted-foreground truncate">
-                {client.business_type}
-              </p>
-            )}
-
-            {/* Value */}
-            {client.likely_value && (
-              <div className="flex items-center gap-1 text-sm">
-                <DollarSign className="w-3 h-3 text-green-600" />
-                <span className="font-medium text-green-600">
-                  {formatCurrency(client.likely_value)}
-                </span>
-              </div>
-            )}
-
-            {/* Meeting Count */}
-            <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <Users className="w-3 h-3" />
-              <span>{client.meeting_count || 0} meetings</span>
-            </div>
-
-            {/* Todo Progress */}
-            {totalTodos > 0 && (
-              <div className="flex items-center gap-2 text-sm">
-                <CheckCircle className="w-3 h-3 text-blue-600" />
-                <span className="text-blue-600">
-                  {completedTodos}/{totalTodos} tasks
-                </span>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const filteredClients = getCurrentMonthClients().filter(client =>
+    client.name.toLowerCase().includes(search.toLowerCase()) ||
+    client.email.toLowerCase().includes(search.toLowerCase()) ||
+    client.businessStage.toLowerCase().includes(search.toLowerCase())
+  );
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="flex items-center gap-3">
-          <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent"></div>
-          <span className="text-muted-foreground">Loading pipeline data...</span>
+      <div className="h-full bg-background p-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-foreground mb-4">Client Pipeline</h1>
+        </div>
+        <div className="space-y-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="h-16 bg-muted rounded animate-pulse"></div>
+          ))}
         </div>
       </div>
     );
   }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Card className="w-full max-w-md border-destructive/50">
-          <CardContent className="p-6 text-center">
-            <div className="text-destructive mb-4">
-              <TrendingUp className="w-12 h-12 mx-auto" />
-            </div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">Error Loading Pipeline</h3>
-            <p className="text-muted-foreground">{error}</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  // Calculate totals for KPI display
-  const totalClients = (pipelineData?.totalClients || 0) + unscheduledClients.length;
-  const totalValue = pipelineData?.totalValue || 0;
-  const averageValue = totalClients > 0 ? totalValue / totalClients : 0;
 
   return (
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="h-full flex flex-col bg-background">
+    <div className="h-full bg-background flex">
+      {/* Main Content */}
+      <div className={cn("flex-1 transition-all duration-300", showDetailPanel ? "mr-96" : "")}>
         {/* Header */}
         <div className="border-b border-border/50 p-6 bg-card/50">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-foreground">Client Pipeline</h1>
             <div className="flex items-center gap-4">
-              <Button
-                onClick={() => fetchPipelineData()}
-                variant="outline"
-                size="sm"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Refresh
-              </Button>
+              <div className="text-sm text-muted-foreground">
+                Total Pipeline Value: <span className="font-semibold text-foreground">
+                  {formatCurrency(clients.reduce((total, client) => total + (client.expectedValue || 0), 0))}
+                </span>
+              </div>
             </div>
+          </div>
+
+          {/* Monthly Tabs */}
+          <div className="flex gap-1 mb-6 overflow-x-auto">
+            {months.map((month) => {
+              const monthTotal = getMonthlyTotal(month);
+              const isActive = month.getMonth() === currentMonth.getMonth() &&
+                              month.getFullYear() === currentMonth.getFullYear();
+
+              return (
+                <Button
+                  key={month.toISOString()}
+                  onClick={() => setCurrentMonth(month)}
+                  variant={isActive ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex-shrink-0 flex flex-col items-center gap-1 h-auto py-3 px-4"
+                >
+                  <span className="font-medium">
+                    {month.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                  </span>
+                  <span className="text-xs opacity-75">
+                    {formatCurrency(monthTotal)}
+                  </span>
+                </Button>
+              );
+            })}
+          </div>
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search clients..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-10"
+            />
           </div>
         </div>
 
-        {/* KPI Cards */}
-        <div className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <Card className="border-border/50">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    <DollarSign className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Total Pipeline Value</h3>
-                  </div>
-                </div>
-                <p className="text-3xl font-bold text-foreground">
-                  {formatCurrency(totalValue)}
-                </p>
-              </CardContent>
-            </Card>
+        {/* Pipeline Table */}
+        <div className="flex-1 overflow-auto">
+          <div className="min-w-full">
+            {/* Table Header */}
+            <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-6 py-3">
+              <div className="grid grid-cols-12 gap-4 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <div className="col-span-2">Client</div>
+                <div className="col-span-2">Next Meeting</div>
+                <div className="col-span-2">Business Stage</div>
+                <div className="col-span-2">Pipeline Notes</div>
+                <div className="col-span-1">Likelihood</div>
+                <div className="col-span-2">Expected Value</div>
+                <div className="col-span-1">Type</div>
+              </div>
+            </div>
 
-            <Card className="border-border/50">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    <Users className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Total Clients</h3>
-                  </div>
-                </div>
-                <p className="text-3xl font-bold text-foreground">
-                  {totalClients}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="border-border/50">
-              <CardContent className="p-6">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-primary/10 rounded-lg">
-                    <TrendingUp className="w-5 h-5 text-primary" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-muted-foreground">Average Value</h3>
-                  </div>
-                </div>
-                <p className="text-3xl font-bold text-foreground">
-                  {formatCurrency(averageValue)}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Pipeline Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-5 gap-6 h-[calc(100vh-400px)] overflow-hidden">
-            {/* Unscheduled Clients Column */}
-            <DroppableColumn
-              id="unscheduled"
-              title="Unscheduled Clients"
-              icon={<Clock className="w-5 h-5 text-orange-600" />}
-              clients={unscheduledClients}
-            >
-              <SortableContext
-                items={unscheduledClients.map(client => client.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                {unscheduledClients.map((client) => (
-                  <ClientCard key={client.id} client={client} />
-                ))}
-              </SortableContext>
-              {unscheduledClients.length === 0 && (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No unscheduled clients</p>
-                </div>
-              )}
-            </DroppableColumn>
-
-            {/* Month Columns */}
-            {monthColumns.slice(0, 4).map((monthColumn) => (
-              <DroppableColumn
-                key={monthColumn.monthKey}
-                id={monthColumn.monthKey}
-                title={monthColumn.monthName}
-                icon={<Calendar className="w-5 h-5 text-blue-600" />}
-                clients={monthColumn.clients}
-              >
-                <SortableContext
-                  items={monthColumn.clients.map(client => client.id)}
-                  strategy={verticalListSortingStrategy}
+            {/* Table Body */}
+            <div className="px-6">
+              {filteredClients.map((client) => (
+                <div
+                  key={client.id}
+                  onClick={() => handleClientClick(client)}
+                  className="grid grid-cols-12 gap-4 py-4 border-b border-border/30 hover:bg-muted/50 cursor-pointer transition-colors group"
                 >
-                  {monthColumn.clients.map((client) => (
-                    <ClientCard key={client.id} client={client} />
-                  ))}
-                </SortableContext>
-                {monthColumn.clients.length === 0 && (
-                  <div className="text-center py-8 text-muted-foreground">
-                    <Target className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No clients scheduled</p>
+                  {/* Client Name */}
+                  <div className="col-span-2 flex items-center gap-3">
+                    <Avatar className="w-8 h-8">
+                      <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                        {client.name.split(' ').map(n => n[0]).join('')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm text-foreground truncate">
+                        {client.name}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {client.email}
+                      </div>
+                    </div>
                   </div>
-                )}
-              </DroppableColumn>
-            ))}
+
+                  {/* Next Meeting */}
+                  <div className="col-span-2 flex items-center">
+                    <div className="text-sm">
+                      <div className={cn(
+                        "font-medium",
+                        client.nextMeetingDate ? "text-foreground" : "text-muted-foreground"
+                      )}>
+                        {formatDate(client.nextMeetingDate)}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {client.pastMeetingCount} past meetings
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Business Stage */}
+                  <div className="col-span-2 flex items-center">
+                    <Badge className={cn("text-xs", getStageColor(client.businessStage))}>
+                      {client.businessStage}
+                    </Badge>
+                  </div>
+
+                  {/* Pipeline Notes */}
+                  <div className="col-span-2 flex items-center">
+                    <div className="text-sm text-muted-foreground truncate">
+                      {client.pipelineNotes || 'No notes'}
+                    </div>
+                  </div>
+
+                  {/* Likelihood */}
+                  <div className="col-span-1 flex items-center">
+                    <div className={cn("text-sm font-medium", getLikelihoodColor(client.likelihood))}>
+                      {client.likelihood}%
+                    </div>
+                  </div>
+
+                  {/* Expected Value */}
+                  <div className="col-span-2 flex items-center">
+                    <div className="text-sm font-medium text-foreground">
+                      {formatCurrency(client.expectedValue)}
+                    </div>
+                  </div>
+
+                  {/* Business Type */}
+                  <div className="col-span-1 flex items-center">
+                    <Badge className={cn("text-xs", getBusinessTypeColor(client.businessType))}>
+                      {client.businessType}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Empty State */}
+            {filteredClients.length === 0 && (
+              <div className="text-center py-12">
+                <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">
+                  No clients in pipeline for {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </h3>
+                <p className="text-muted-foreground">
+                  {search ? 'Try adjusting your search terms.' : 'No clients are expected to sign up this month.'}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Client Details and Todo Dialog */}
-      <Dialog open={showTodoDialog} onOpenChange={setShowTodoDialog}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <User className="w-5 h-5" />
-              {selectedClient?.name || selectedClient?.email}
-            </DialogTitle>
-          </DialogHeader>
+      {/* Detail Panel */}
+      {showDetailPanel && selectedClient && (
+        <div className="fixed right-0 top-0 h-full w-96 bg-card border-l border-border shadow-xl z-50 overflow-auto">
+          <div className="p-6">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-foreground">Pipeline Details</h2>
+              <Button
+                onClick={() => setShowDetailPanel(false)}
+                variant="ghost"
+                size="sm"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
 
-          {selectedClient && (
+            {/* Client Info */}
             <div className="space-y-6">
-              {/* Client Info */}
-              <div className="grid grid-cols-2 gap-4 p-4 bg-muted/50 rounded-lg">
+              <div className="flex items-center gap-4">
+                <Avatar className="w-12 h-12">
+                  <AvatarFallback className="bg-primary/10 text-primary">
+                    {selectedClient.name.split(' ').map(n => n[0]).join('')}
+                  </AvatarFallback>
+                </Avatar>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Email</p>
-                  <p className="text-sm">{selectedClient.email}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Business Type</p>
-                  <p className="text-sm">{selectedClient.business_type || 'Not specified'}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Expected Value</p>
-                  <p className="text-sm">
-                    {selectedClient.likely_value ? formatCurrency(selectedClient.likely_value) : 'Not specified'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Meetings</p>
-                  <p className="text-sm">{selectedClient.meeting_count || 0} meetings held</p>
+                  <h3 className="font-semibold text-foreground">{selectedClient.name}</h3>
+                  <p className="text-sm text-muted-foreground">{selectedClient.email}</p>
                 </div>
               </div>
 
-              {/* Todo Section */}
+              {/* Read-only Fields */}
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold">Tasks & Todo Items</h3>
-                  <Button
-                    onClick={() => navigate(`/clients/${selectedClient.id}`)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    <ArrowRight className="w-4 h-4 mr-2" />
-                    View Full Client
-                  </Button>
-                </div>
-
-                {/* Add New Todo */}
-                <div className="space-y-3 p-4 border border-border/50 rounded-lg">
-                  <h4 className="font-medium">Add New Task</h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Input
-                      placeholder="Task title..."
-                      value={newTodo.title}
-                      onChange={(e) => setNewTodo(prev => ({ ...prev, title: e.target.value }))}
-                    />
-                    <select
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      value={newTodo.category}
-                      onChange={(e) => setNewTodo(prev => ({ ...prev, category: e.target.value }))}
-                    >
-                      <option value="general">General</option>
-                      <option value="follow_up">Follow Up</option>
-                      <option value="meeting">Meeting</option>
-                      <option value="document">Document</option>
-                      <option value="research">Research</option>
-                      <option value="proposal">Proposal</option>
-                    </select>
-                  </div>
-                  <Textarea
-                    placeholder="Task description (optional)..."
-                    value={newTodo.description}
-                    onChange={(e) => setNewTodo(prev => ({ ...prev, description: e.target.value }))}
-                    rows={2}
-                  />
-                  <div className="flex items-center justify-between">
-                    <select
-                      className="flex h-10 w-32 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                      value={newTodo.priority}
-                      onChange={(e) => setNewTodo(prev => ({ ...prev, priority: parseInt(e.target.value) }))}
-                    >
-                      <option value={1}>High Priority</option>
-                      <option value={2}>Medium-High</option>
-                      <option value={3}>Medium</option>
-                      <option value={4}>Low-Medium</option>
-                      <option value={5}>Low Priority</option>
-                    </select>
-                    <Button onClick={handleCreateTodo} disabled={!newTodo.title.trim()}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Task
-                    </Button>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Next Meeting Date</label>
+                  <div className="mt-1 p-3 bg-muted/50 rounded-md text-sm">
+                    {formatDate(selectedClient.nextMeetingDate)}
                   </div>
                 </div>
 
-                {/* Todo List */}
-                <div className="space-y-2">
-                  {clientTodos.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <CheckCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No tasks yet. Add one above to get started.</p>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Past Meetings</label>
+                  <div className="mt-1 p-3 bg-muted/50 rounded-md text-sm">
+                    {selectedClient.pastMeetingCount} meetings
+                  </div>
+                </div>
+              </div>
+
+              {/* Editable Fields */}
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Business Stage</label>
+                  {editingField === 'businessStage' ? (
+                    <div className="mt-1 flex gap-2">
+                      <select
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="flex-1 p-2 border border-border rounded-md text-sm"
+                      >
+                        <option value="Initial Consultation">Initial Consultation</option>
+                        <option value="Proposal Sent">Proposal Sent</option>
+                        <option value="Follow-up Required">Follow-up Required</option>
+                        <option value="Ready to Sign">Ready to Sign</option>
+                        <option value="Signed">Signed</option>
+                      </select>
+                      <Button onClick={handleSaveField} size="sm">Save</Button>
+                      <Button onClick={() => setEditingField(null)} variant="outline" size="sm">Cancel</Button>
                     </div>
                   ) : (
-                    clientTodos.map((todo) => (
-                      <div
-                        key={todo.id}
-                        className={cn(
-                          "flex items-center gap-3 p-3 border border-border/50 rounded-lg transition-colors",
-                          todo.status === 'completed' && "bg-muted/50 opacity-75"
-                        )}
-                      >
-                        <button
-                          onClick={() => handleToggleTodo(todo.id, todo.status)}
-                          className="flex-shrink-0"
-                        >
-                          {todo.status === 'completed' ? (
-                            <CheckCircle className="w-5 h-5 text-green-600" />
-                          ) : (
-                            <Circle className="w-5 h-5 text-muted-foreground hover:text-primary" />
-                          )}
-                        </button>
-                        <div className="flex-1 min-w-0">
-                          <p className={cn(
-                            "font-medium",
-                            todo.status === 'completed' && "line-through text-muted-foreground"
-                          )}>
-                            {todo.title}
-                          </p>
-                          {todo.description && (
-                            <p className="text-sm text-muted-foreground mt-1">
-                              {todo.description}
-                            </p>
-                          )}
-                          <div className="flex items-center gap-2 mt-2">
-                            <span className={cn(
-                              "text-xs px-2 py-1 rounded-full",
-                              todo.priority <= 2 ? "bg-red-100 text-red-700" :
-                              todo.priority === 3 ? "bg-yellow-100 text-yellow-700" :
-                              "bg-green-100 text-green-700"
-                            )}>
-                              Priority {todo.priority}
-                            </span>
-                            <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700">
-                              {todo.category}
-                            </span>
-                          </div>
-                        </div>
+                    <div
+                      onClick={() => handleEditField('businessStage', selectedClient.businessStage)}
+                      className="mt-1 p-3 bg-background border border-border rounded-md text-sm cursor-pointer hover:bg-muted/50 flex items-center justify-between group"
+                    >
+                      <Badge className={getStageColor(selectedClient.businessStage)}>
+                        {selectedClient.businessStage}
+                      </Badge>
+                      <Edit3 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Pipeline Notes</label>
+                  {editingField === 'pipelineNotes' ? (
+                    <div className="mt-1 space-y-2">
+                      <textarea
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="w-full p-2 border border-border rounded-md text-sm min-h-[80px]"
+                        placeholder="Add pipeline notes..."
+                      />
+                      <div className="flex gap-2">
+                        <Button onClick={handleSaveField} size="sm">Save</Button>
+                        <Button onClick={() => setEditingField(null)} variant="outline" size="sm">Cancel</Button>
                       </div>
-                    ))
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => handleEditField('pipelineNotes', selectedClient.pipelineNotes)}
+                      className="mt-1 p-3 bg-background border border-border rounded-md text-sm cursor-pointer hover:bg-muted/50 min-h-[80px] flex items-start justify-between group"
+                    >
+                      <span className={selectedClient.pipelineNotes ? "text-foreground" : "text-muted-foreground"}>
+                        {selectedClient.pipelineNotes || 'Click to add notes...'}
+                      </span>
+                      <Edit3 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 flex-shrink-0 mt-0.5" />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Likelihood of Sign-up</label>
+                  {editingField === 'likelihood' ? (
+                    <div className="mt-1 flex gap-2">
+                      <Input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="flex-1"
+                        placeholder="0-100%"
+                      />
+                      <Button onClick={handleSaveField} size="sm">Save</Button>
+                      <Button onClick={() => setEditingField(null)} variant="outline" size="sm">Cancel</Button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => handleEditField('likelihood', selectedClient.likelihood)}
+                      className="mt-1 p-3 bg-background border border-border rounded-md text-sm cursor-pointer hover:bg-muted/50 flex items-center justify-between group"
+                    >
+                      <span className={cn("font-medium", getLikelihoodColor(selectedClient.likelihood))}>
+                        {selectedClient.likelihood}%
+                      </span>
+                      <Edit3 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Expected Business Value</label>
+                  {editingField === 'expectedValue' ? (
+                    <div className="mt-1 flex gap-2">
+                      <Input
+                        type="number"
+                        min="0"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="flex-1"
+                        placeholder="Enter amount"
+                      />
+                      <Button onClick={handleSaveField} size="sm">Save</Button>
+                      <Button onClick={() => setEditingField(null)} variant="outline" size="sm">Cancel</Button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => handleEditField('expectedValue', selectedClient.expectedValue)}
+                      className="mt-1 p-3 bg-background border border-border rounded-md text-sm cursor-pointer hover:bg-muted/50 flex items-center justify-between group"
+                    >
+                      <span className="font-medium text-foreground">
+                        {formatCurrency(selectedClient.expectedValue)}
+                      </span>
+                      <Edit3 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Business Type</label>
+                  {editingField === 'businessType' ? (
+                    <div className="mt-1 flex gap-2">
+                      <select
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        className="flex-1 p-2 border border-border rounded-md text-sm"
+                      >
+                        <option value="Pension">Pension</option>
+                        <option value="ISA">ISA</option>
+                        <option value="Bond">Bond</option>
+                        <option value="Investment">Investment</option>
+                        <option value="Insurance">Insurance</option>
+                        <option value="Mortgage">Mortgage</option>
+                      </select>
+                      <Button onClick={handleSaveField} size="sm">Save</Button>
+                      <Button onClick={() => setEditingField(null)} variant="outline" size="sm">Cancel</Button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => handleEditField('businessType', selectedClient.businessType)}
+                      className="mt-1 p-3 bg-background border border-border rounded-md text-sm cursor-pointer hover:bg-muted/50 flex items-center justify-between group"
+                    >
+                      <Badge className={getBusinessTypeColor(selectedClient.businessType)}>
+                        {selectedClient.businessType}
+                      </Badge>
+                      <Edit3 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                    </div>
                   )}
                 </div>
               </div>
+
+              {/* Actions */}
+              <div className="pt-4 border-t border-border">
+                <Button
+                  onClick={() => navigate(`/clients/${selectedClient.id}`)}
+                  variant="outline"
+                  className="w-full"
+                >
+                  View Full Client Profile
+                </Button>
+              </div>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
-    </DndContext>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
