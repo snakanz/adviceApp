@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
@@ -90,10 +90,8 @@ export default function Pipeline() {
 
       // For now, use mock data
       // In production, this would fetch from API
-      setTimeout(() => {
-        setClients(mockPipelineData);
-        setLoading(false);
-      }, 500);
+      setClients(mockPipelineData);
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching pipeline data:', error);
       setLoading(false);
@@ -161,8 +159,8 @@ export default function Pipeline() {
     return colors[stage] || 'bg-gray-100 text-gray-800';
   };
 
-  // Calculate pipeline summary by stage
-  const getPipelineSummary = () => {
+  // Calculate pipeline summary by stage (memoized to prevent flickering)
+  const pipelineSummary = useMemo(() => {
     const summary = {};
     const stages = [
       'Client Signed',
@@ -178,19 +176,21 @@ export default function Pipeline() {
       summary[stage] = { count: 0, total: 0 };
     });
 
-    // Calculate totals for each stage
-    clients.forEach(client => {
-      const stage = client.businessStage;
-      const value = parseFloat(client.expectedValue) || 0;
+    // Only calculate if we have clients data and it's not loading
+    if (clients && clients.length > 0 && !loading) {
+      clients.forEach(client => {
+        const stage = client.businessStage;
+        const value = parseFloat(client.expectedValue) || 0;
 
-      if (summary[stage]) {
-        summary[stage].count += 1;
-        summary[stage].total += value;
-      }
-    });
+        if (summary[stage]) {
+          summary[stage].count += 1;
+          summary[stage].total += value;
+        }
+      });
+    }
 
     return summary;
-  };
+  }, [clients, loading]); // Only recalculate when clients or loading state changes
 
   const handleClientClick = (client) => {
     setSelectedClient(client);
@@ -244,21 +244,33 @@ export default function Pipeline() {
           {/* Pipeline Summary Dashboard */}
           <div className="bg-card border border-border rounded-lg p-4 mb-6">
             <h2 className="text-lg font-semibold text-foreground mb-4">Pipeline Summary - Total IAF Expected by Stage</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {Object.entries(getPipelineSummary()).map(([stage, data]) => (
-                <div key={stage} className="text-center">
-                  <div className={cn("inline-flex items-center px-3 py-1 rounded-full text-xs font-medium mb-2", getStageColor(stage))}>
-                    {stage}
+            {loading ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="text-center animate-pulse">
+                    <div className="h-6 bg-muted rounded-full mb-2 mx-auto w-24"></div>
+                    <div className="h-6 bg-muted rounded mb-1"></div>
+                    <div className="h-4 bg-muted rounded w-16 mx-auto"></div>
                   </div>
-                  <div className="text-lg font-bold text-foreground">
-                    £{data.total.toLocaleString()}
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {Object.entries(pipelineSummary).map(([stage, data]) => (
+                  <div key={stage} className="text-center">
+                    <div className={cn("inline-flex items-center px-3 py-1 rounded-full text-xs font-medium mb-2", getStageColor(stage))}>
+                      {stage}
+                    </div>
+                    <div className="text-lg font-bold text-foreground">
+                      £{data.total.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {data.count} client{data.count !== 1 ? 's' : ''}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {data.count} client{data.count !== 1 ? 's' : ''}
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
         <div className="space-y-4">
