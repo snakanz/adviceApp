@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
@@ -83,13 +83,7 @@ export default function Pipeline() {
     }
   ];
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchPipelineData();
-    }
-  }, [isAuthenticated, fetchPipelineData]);
-
-  const fetchPipelineData = async () => {
+  const fetchPipelineData = useCallback(async () => {
     setLoading(true);
     try {
       // For now, use mock data
@@ -102,7 +96,13 @@ export default function Pipeline() {
       console.error('Error fetching pipeline data:', error);
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchPipelineData();
+    }
+  }, [isAuthenticated, fetchPipelineData]);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return 'No meeting scheduled';

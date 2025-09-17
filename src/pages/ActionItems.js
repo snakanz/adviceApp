@@ -21,8 +21,9 @@ export default function ActionItems() {
   const [filter, setFilter] = useState('all'); // 'all', 'pending', 'overdue', 'completed'
 
 
-  // Mock data for now - will be replaced with API calls
-  const mockActionItems = [
+  useEffect(() => {
+    // Mock data for now - will be replaced with API calls
+    const mockActionItems = [
     {
       id: 1,
       title: 'Chase client for booking next weekend',
@@ -78,13 +79,12 @@ export default function ActionItems() {
     }
   ];
 
-  useEffect(() => {
     // Simulate API call
     setTimeout(() => {
       setActionItems(mockActionItems);
       setLoading(false);
     }, 500);
-  }, [mockActionItems]);
+  }, []);
 
   const getPriorityColor = (priority) => {
     switch (priority) {
@@ -187,7 +187,7 @@ export default function ActionItems() {
             </div>
           </div>
           <Button
-            onClick={() => setShowAddForm(true)}
+            onClick={() => console.log('Add Action Item clicked')}
             className="flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
