@@ -40,52 +40,54 @@ export default function Pipeline() {
 
   const months = generateMonths();
 
-  // Mock pipeline data - will be replaced with API calls
-  const mockPipelineData = [
-    {
-      id: 1,
-      name: 'John Smith',
-      email: 'john.smith@email.com',
-      nextMeetingDate: '2025-09-25',
-      pastMeetingCount: 3,
-      businessStage: 'Proposal Sent',
-      pipelineNotes: 'Waiting on pension transfer paperwork',
-      likelihood: 85,
-      expectedValue: 15000,
-      expectedMonth: '2025-09',
-      businessType: 'Pension'
-    },
-    {
-      id: 2,
-      name: 'Sarah Johnson',
-      email: 'sarah.johnson@email.com',
-      nextMeetingDate: '2025-10-05',
-      pastMeetingCount: 2,
-      businessStage: 'Initial Consultation',
-      pipelineNotes: 'Interested in ISA and pension advice',
-      likelihood: 60,
-      expectedValue: 8000,
-      expectedMonth: '2025-10',
-      businessType: 'ISA'
-    },
-    {
-      id: 3,
-      name: 'Mike Wilson',
-      email: 'mike.wilson@email.com',
-      nextMeetingDate: null,
-      pastMeetingCount: 1,
-      businessStage: 'Follow-up Required',
-      pipelineNotes: 'Need to chase for second meeting',
-      likelihood: 40,
-      expectedValue: 12000,
-      expectedMonth: '2025-11',
-      businessType: 'Investment'
-    }
-  ];
+
 
   const fetchPipelineData = useCallback(async () => {
     setLoading(true);
     try {
+      // Mock pipeline data - will be replaced with API calls
+      const mockPipelineData = [
+        {
+          id: 1,
+          name: 'John Smith',
+          email: 'john.smith@email.com',
+          nextMeetingDate: '2025-09-25',
+          pastMeetingCount: 3,
+          businessStage: 'Proposal Sent',
+          pipelineNotes: 'Waiting on pension transfer paperwork',
+          likelihood: 85,
+          expectedValue: 15000,
+          expectedMonth: '2025-09',
+          businessType: 'Pension'
+        },
+        {
+          id: 2,
+          name: 'Sarah Johnson',
+          email: 'sarah.johnson@email.com',
+          nextMeetingDate: '2025-10-05',
+          pastMeetingCount: 2,
+          businessStage: 'Initial Consultation',
+          pipelineNotes: 'Interested in ISA and pension advice',
+          likelihood: 60,
+          expectedValue: 8000,
+          expectedMonth: '2025-10',
+          businessType: 'ISA'
+        },
+        {
+          id: 3,
+          name: 'Mike Wilson',
+          email: 'mike.wilson@email.com',
+          nextMeetingDate: null,
+          pastMeetingCount: 1,
+          businessStage: 'Follow-up Required',
+          pipelineNotes: 'Need to chase for second meeting',
+          likelihood: 40,
+          expectedValue: 12000,
+          expectedMonth: '2025-11',
+          businessType: 'Investment'
+        }
+      ];
+
       // For now, use mock data
       // In production, this would fetch from API
       setTimeout(() => {
