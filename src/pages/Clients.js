@@ -30,7 +30,10 @@ export default function Clients() {
     name: '',
     email: '',
     business_type: '',
-    likely_value: '',
+    iaf_expected: '',
+    business_amount: '',
+    regular_contribution_type: '',
+    regular_contribution_amount: '',
     likely_close_month: ''
   });
   const [saving, setSaving] = useState(false);
@@ -175,34 +178,34 @@ export default function Clients() {
       name: client.name || '',
       email: client.email || '',
       business_type: client.business_type || '',
-      likely_value: client.likely_value || '',
+      iaf_expected: client.iaf_expected || client.likely_value || '', // Handle both old and new field names
+      business_amount: client.business_amount || '',
+      regular_contribution_type: client.regular_contribution_type || '',
+      regular_contribution_amount: client.regular_contribution_amount || '',
       likely_close_month: client.likely_close_month || ''
     });
   };
 
   const handleSaveClientName = async () => {
     if (!editingClient || !editForm.name.trim()) return;
-    
+
     setSaving(true);
     try {
-      const token = localStorage.getItem('jwt');
-      const res = await fetch('https://adviceapp-9rgw.onrender.com/api/clients/update-name', {
+      // Use the API service instead of hardcoded URL
+      await api.request('/clients/update-name', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify({
           email: editingClient.email,
           name: editForm.name.trim(),
           business_type: editForm.business_type,
-          likely_value: editForm.likely_value,
+          iaf_expected: editForm.iaf_expected,
+          business_amount: editForm.business_amount,
+          regular_contribution_type: editForm.regular_contribution_type,
+          regular_contribution_amount: editForm.regular_contribution_amount,
           likely_close_month: editForm.likely_close_month
         })
       });
-      
-      if (!res.ok) throw new Error('Failed to update client');
-      
+
       // Refresh clients
       const data = await api.request('/clients');
       setClients(data);
@@ -216,7 +219,16 @@ export default function Clients() {
 
   const handleCancelEdit = () => {
     setEditingClient(null);
-    setEditForm({ name: '', email: '', business_type: '', likely_value: '', likely_close_month: '' });
+    setEditForm({
+      name: '',
+      email: '',
+      business_type: '',
+      iaf_expected: '',
+      business_amount: '',
+      regular_contribution_type: '',
+      regular_contribution_amount: '',
+      likely_close_month: ''
+    });
   };
 
   if (loading) {
@@ -495,11 +507,21 @@ export default function Clients() {
                       {selectedClient.business_type || 'Not specified'}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Value: {selectedClient.likely_value ?
-                        `£${parseFloat(selectedClient.likely_value).toLocaleString()}` :
+                      IAF Expected: {(selectedClient.iaf_expected || selectedClient.likely_value) ?
+                        `£${parseFloat(selectedClient.iaf_expected || selectedClient.likely_value).toLocaleString()}` :
                         'Not specified'
                       }
                     </div>
+                    {selectedClient.business_amount && (
+                      <div className="text-xs text-muted-foreground">
+                        Business Amount: £{parseFloat(selectedClient.business_amount).toLocaleString()}
+                      </div>
+                    )}
+                    {selectedClient.regular_contribution_type && (
+                      <div className="text-xs text-muted-foreground">
+                        {selectedClient.regular_contribution_type}: {selectedClient.regular_contribution_amount || 'Amount not specified'}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -625,24 +647,56 @@ export default function Clients() {
                   className="w-full p-2 border border-border rounded-md bg-background text-foreground"
                 >
                   <option value="">Select business type</option>
-                  <option value="Pension">Pension</option>
-                  <option value="ISA">ISA</option>
-                  <option value="Bond">Bond</option>
-                  <option value="Investment">Investment</option>
-                  <option value="Insurance">Insurance</option>
-                  <option value="Mortgage">Mortgage</option>
+                  <option value="pension">Pension</option>
+                  <option value="isa">ISA</option>
+                  <option value="bond">Bond</option>
+                  <option value="investment">Investment</option>
+                  <option value="insurance">Insurance</option>
+                  <option value="mortgage">Mortgage</option>
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Likely Value (£)</label>
+                <label className="block text-sm font-medium mb-2">IAF Expected (£)</label>
                 <input
                   type="number"
-                  value={editForm.likely_value}
-                  onChange={(e) => setEditForm({ ...editForm, likely_value: e.target.value })}
+                  value={editForm.iaf_expected}
+                  onChange={(e) => setEditForm({ ...editForm, iaf_expected: e.target.value })}
                   className="w-full p-2 border border-border rounded-md bg-background text-foreground"
-                  placeholder="Enter value in pounds"
+                  placeholder="Enter IAF expected in pounds"
                   min="0"
                   step="0.01"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Business Amount (£)</label>
+                <input
+                  type="number"
+                  value={editForm.business_amount}
+                  onChange={(e) => setEditForm({ ...editForm, business_amount: e.target.value })}
+                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
+                  placeholder="Enter business amount"
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Regular Contribution Type</label>
+                <input
+                  type="text"
+                  value={editForm.regular_contribution_type}
+                  onChange={(e) => setEditForm({ ...editForm, regular_contribution_type: e.target.value })}
+                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
+                  placeholder="e.g., Pension Regular Monthly"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Regular Contribution Amount</label>
+                <input
+                  type="text"
+                  value={editForm.regular_contribution_amount}
+                  onChange={(e) => setEditForm({ ...editForm, regular_contribution_amount: e.target.value })}
+                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
+                  placeholder="e.g., £3,000 per month"
                 />
               </div>
               <div>

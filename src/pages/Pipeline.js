@@ -53,7 +53,7 @@ export default function Pipeline() {
           email: 'john.smith@email.com',
           nextMeetingDate: '2025-09-25',
           pastMeetingCount: 3,
-          businessStage: 'Proposal Sent',
+          businessStage: 'Waiting on Paraplanning',
           pipelineNotes: 'Waiting on pension transfer paperwork',
           likelihood: 85,
           expectedValue: 15000,
@@ -66,7 +66,7 @@ export default function Pipeline() {
           email: 'sarah.johnson@email.com',
           nextMeetingDate: '2025-10-05',
           pastMeetingCount: 2,
-          businessStage: 'Initial Consultation',
+          businessStage: 'Need to Book Meeting',
           pipelineNotes: 'Interested in ISA and pension advice',
           likelihood: 60,
           expectedValue: 8000,
@@ -79,7 +79,7 @@ export default function Pipeline() {
           email: 'mike.wilson@email.com',
           nextMeetingDate: null,
           pastMeetingCount: 1,
-          businessStage: 'Follow-up Required',
+          businessStage: 'Can\'t Contact Client',
           pipelineNotes: 'Need to chase for second meeting',
           likelihood: 40,
           expectedValue: 12000,
@@ -145,6 +145,13 @@ export default function Pipeline() {
 
   const getStageColor = (stage) => {
     const colors = {
+      'Client Signed': 'bg-emerald-100 text-emerald-800',
+      'Waiting to Sign': 'bg-green-100 text-green-800',
+      'Waiting on Paraplanning': 'bg-yellow-100 text-yellow-800',
+      'Have Not Written Advice': 'bg-orange-100 text-orange-800',
+      'Need to Book Meeting': 'bg-blue-100 text-blue-800',
+      "Can't Contact Client": 'bg-red-100 text-red-800',
+      // Legacy stages for backward compatibility
       'Initial Consultation': 'bg-blue-100 text-blue-800',
       'Proposal Sent': 'bg-yellow-100 text-yellow-800',
       'Follow-up Required': 'bg-red-100 text-red-800',
@@ -152,6 +159,37 @@ export default function Pipeline() {
       'Signed': 'bg-purple-100 text-purple-800'
     };
     return colors[stage] || 'bg-gray-100 text-gray-800';
+  };
+
+  // Calculate pipeline summary by stage
+  const getPipelineSummary = () => {
+    const summary = {};
+    const stages = [
+      'Client Signed',
+      'Waiting to Sign',
+      'Waiting on Paraplanning',
+      'Have Not Written Advice',
+      'Need to Book Meeting',
+      "Can't Contact Client"
+    ];
+
+    // Initialize all stages with 0
+    stages.forEach(stage => {
+      summary[stage] = { count: 0, total: 0 };
+    });
+
+    // Calculate totals for each stage
+    clients.forEach(client => {
+      const stage = client.businessStage;
+      const value = parseFloat(client.expectedValue) || 0;
+
+      if (summary[stage]) {
+        summary[stage].count += 1;
+        summary[stage].total += value;
+      }
+    });
+
+    return summary;
   };
 
   const handleClientClick = (client) => {
@@ -202,6 +240,26 @@ export default function Pipeline() {
       <div className="h-full bg-background p-6">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-foreground mb-4">Client Pipeline</h1>
+
+          {/* Pipeline Summary Dashboard */}
+          <div className="bg-card border border-border rounded-lg p-4 mb-6">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Pipeline Summary - Total IAF Expected by Stage</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              {Object.entries(getPipelineSummary()).map(([stage, data]) => (
+                <div key={stage} className="text-center">
+                  <div className={cn("inline-flex items-center px-3 py-1 rounded-full text-xs font-medium mb-2", getStageColor(stage))}>
+                    {stage}
+                  </div>
+                  <div className="text-lg font-bold text-foreground">
+                    £{data.total.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {data.count} client{data.count !== 1 ? 's' : ''}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
         <div className="space-y-4">
           {[...Array(5)].map((_, i) => (
@@ -278,7 +336,7 @@ export default function Pipeline() {
                 <div className="col-span-2">Business Stage</div>
                 <div className="col-span-2">Pipeline Notes</div>
                 <div className="col-span-1">Likelihood</div>
-                <div className="col-span-2">Expected Value</div>
+                <div className="col-span-2">IAF Expected</div>
                 <div className="col-span-1">Type</div>
               </div>
             </div>
@@ -435,10 +493,12 @@ export default function Pipeline() {
                         onChange={(e) => setEditValue(e.target.value)}
                         className="flex-1 p-2 border border-border rounded-md text-sm"
                       >
-                        <option value="Initial Consultation">Initial Consultation</option>
-                        <option value="Proposal Sent">Proposal Sent</option>
-                        <option value="Follow-up Required">Follow-up Required</option>
-                        <option value="Ready to Sign">Ready to Sign</option>
+                        <option value="Client Signed">Client Signed</option>
+                        <option value="Waiting to Sign">Waiting to Sign</option>
+                        <option value="Waiting on Paraplanning">Waiting on Paraplanning</option>
+                        <option value="Have Not Written Advice">Have Not Written Advice</option>
+                        <option value="Need to Book Meeting">Need to Book Meeting</option>
+                        <option value="Can't Contact Client">Can't Contact Client</option>
                         <option value="Signed">Signed</option>
                       </select>
                       <Button onClick={handleSaveField} size="sm">Save</Button>
@@ -515,7 +575,7 @@ export default function Pipeline() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Expected Business Value</label>
+                  <label className="text-sm font-medium text-muted-foreground">IAF Expected</label>
                   {editingField === 'expectedValue' ? (
                     <div className="mt-1 flex gap-2">
                       <Input

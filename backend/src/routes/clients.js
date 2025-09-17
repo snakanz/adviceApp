@@ -160,7 +160,17 @@ router.post('/upsert', async (req, res) => {
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const advisorId = decoded.id;
-    const { email, name, business_type, likely_value, likely_close_month } = req.body;
+    const {
+      email,
+      name,
+      business_type,
+      likely_value,
+      iaf_expected,
+      business_amount,
+      regular_contribution_type,
+      regular_contribution_amount,
+      likely_close_month
+    } = req.body;
 
     if (!email) return res.status(400).json({ error: 'Email is required' });
 
@@ -186,15 +196,28 @@ router.post('/upsert', async (req, res) => {
 
     if (existingClient) {
       // Update existing client
+      const updateData = {
+        name: name || null,
+        business_type: business_type || null,
+        likely_close_month: likely_close_month || null,
+        updated_at: new Date().toISOString()
+      };
+
+      // Handle both old and new field names for backward compatibility
+      if (iaf_expected !== undefined) {
+        updateData.iaf_expected = iaf_expected;
+      } else if (likely_value !== undefined) {
+        updateData.iaf_expected = likely_value; // Map old field to new field
+      }
+
+      // Add new fields
+      if (business_amount !== undefined) updateData.business_amount = business_amount;
+      if (regular_contribution_type !== undefined) updateData.regular_contribution_type = regular_contribution_type;
+      if (regular_contribution_amount !== undefined) updateData.regular_contribution_amount = regular_contribution_amount;
+
       const { data: updatedClient, error: updateError } = await getSupabase()
         .from('clients')
-        .update({
-          name: name || null,
-          business_type: business_type || null,
-          likely_value: likely_value || null,
-          likely_close_month: likely_close_month || null,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', existingClient.id)
         .select()
         .single();
@@ -207,18 +230,31 @@ router.post('/upsert', async (req, res) => {
       res.json({ message: 'Client updated successfully', client: updatedClient });
     } else {
       // Create new client
+      const insertData = {
+        advisor_id: advisorId,
+        email: email,
+        name: name || null,
+        business_type: business_type || null,
+        likely_close_month: likely_close_month || null,
+        pipeline_stage: 'need_to_book_meeting', // Updated default stage
+        priority_level: 3
+      };
+
+      // Handle both old and new field names for backward compatibility
+      if (iaf_expected !== undefined) {
+        insertData.iaf_expected = iaf_expected;
+      } else if (likely_value !== undefined) {
+        insertData.iaf_expected = likely_value; // Map old field to new field
+      }
+
+      // Add new fields
+      if (business_amount !== undefined) insertData.business_amount = business_amount;
+      if (regular_contribution_type !== undefined) insertData.regular_contribution_type = regular_contribution_type;
+      if (regular_contribution_amount !== undefined) insertData.regular_contribution_amount = regular_contribution_amount;
+
       const { data: newClient, error: insertError } = await getSupabase()
         .from('clients')
-        .insert({
-          advisor_id: advisorId,
-          email: email,
-          name: name || null,
-          business_type: business_type || null,
-          likely_value: likely_value || null,
-          likely_close_month: likely_close_month || null,
-          pipeline_stage: 'unscheduled',
-          priority_level: 3
-        })
+        .insert(insertData)
         .select()
         .single();
 
@@ -244,7 +280,17 @@ router.post('/update-name', async (req, res) => {
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const advisorId = decoded.id;
-    const { email, name, business_type, likely_value, likely_close_month } = req.body;
+    const {
+      email,
+      name,
+      business_type,
+      likely_value,
+      iaf_expected,
+      business_amount,
+      regular_contribution_type,
+      regular_contribution_amount,
+      likely_close_month
+    } = req.body;
 
     if (!email || !name) {
       return res.status(400).json({ error: 'Email and name are required' });
@@ -258,15 +304,28 @@ router.post('/update-name', async (req, res) => {
     }
 
     // Find and update the client
+    const updateData = {
+      name: name,
+      business_type: business_type || null,
+      likely_close_month: likely_close_month || null,
+      updated_at: new Date().toISOString()
+    };
+
+    // Handle both old and new field names for backward compatibility
+    if (iaf_expected !== undefined) {
+      updateData.iaf_expected = iaf_expected;
+    } else if (likely_value !== undefined) {
+      updateData.iaf_expected = likely_value; // Map old field to new field
+    }
+
+    // Add new fields
+    if (business_amount !== undefined) updateData.business_amount = business_amount;
+    if (regular_contribution_type !== undefined) updateData.regular_contribution_type = regular_contribution_type;
+    if (regular_contribution_amount !== undefined) updateData.regular_contribution_amount = regular_contribution_amount;
+
     const { data: updatedClient, error: updateError } = await getSupabase()
       .from('clients')
-      .update({
-        name: name,
-        business_type: business_type || null,
-        likely_value: likely_value || null,
-        likely_close_month: likely_close_month || null,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('advisor_id', advisorId)
       .eq('email', email)
       .select()
@@ -474,7 +533,17 @@ router.put('/:clientId', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const advisorId = decoded.id;
     const clientId = req.params.clientId;
-    const { name, emails, business_type, likely_value, likely_close_month } = req.body;
+    const {
+      name,
+      emails,
+      business_type,
+      likely_value,
+      iaf_expected,
+      business_amount,
+      regular_contribution_type,
+      regular_contribution_amount,
+      likely_close_month
+    } = req.body;
 
     // Check if Supabase is available
     if (!isSupabaseAvailable()) {
@@ -490,8 +559,19 @@ router.put('/:clientId', async (req, res) => {
 
     if (name !== undefined) updateData.name = name;
     if (business_type !== undefined) updateData.business_type = business_type;
-    if (likely_value !== undefined) updateData.likely_value = likely_value;
     if (likely_close_month !== undefined) updateData.likely_close_month = likely_close_month;
+
+    // Handle both old and new field names for backward compatibility
+    if (iaf_expected !== undefined) {
+      updateData.iaf_expected = iaf_expected;
+    } else if (likely_value !== undefined) {
+      updateData.iaf_expected = likely_value; // Map old field to new field
+    }
+
+    // Add new fields
+    if (business_amount !== undefined) updateData.business_amount = business_amount;
+    if (regular_contribution_type !== undefined) updateData.regular_contribution_type = regular_contribution_type;
+    if (regular_contribution_amount !== undefined) updateData.regular_contribution_amount = regular_contribution_amount;
 
     const { data: updatedClient, error: updateError } = await getSupabase()
       .from('clients')
