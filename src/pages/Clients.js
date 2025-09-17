@@ -17,7 +17,10 @@ import {
   Mail,
   Users,
   Building2,
-  CheckCircle2
+  CheckCircle2,
+  ChevronRight,
+  X,
+  Edit3
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Drawer } from '../components/ui/drawer';
@@ -25,13 +28,11 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
-  const [selectedClientIndex, setSelectedClientIndex] = useState(0);
+  const [selectedClient, setSelectedClient] = useState(null);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const debouncedSearch = useDebounce(search, 300);
-  const [tab, setTab] = useState(0);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '',
     email: '',
@@ -43,6 +44,7 @@ export default function Clients() {
   const [editingClient, setEditingClient] = useState(null);
   const [extracting, setExtracting] = useState(false);
   const [clientFilter, setClientFilter] = useState('all'); // 'all', 'with-upcoming', 'no-upcoming'
+  const [detailPanelOpen, setDetailPanelOpen] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -88,7 +90,7 @@ export default function Clients() {
       const endpoint = filter === 'all' ? '/clients' : `/clients?filter=${filter}`;
       const data = await api.request(endpoint);
       setClients(data);
-      setSelectedClientIndex(0); // Always select the first client by default
+      setSelectedClient(null); // Clear selection when data refreshes
     } catch (err) {
       setError(err.message);
       setClients([]);
@@ -114,22 +116,15 @@ export default function Clients() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [fetchClients, clientFilter]);
 
-  // Handle URL parameters for client selection and tab switching
+  // Handle URL parameters for client selection
   useEffect(() => {
     const clientParam = searchParams.get('client');
-    const tabParam = searchParams.get('tab');
 
     if (clientParam && clients.length > 0) {
-      const clientIndex = clients.findIndex(c => c.email === clientParam);
-      if (clientIndex !== -1) {
-        setSelectedClientIndex(clientIndex);
-      }
-    }
-
-    if (tabParam) {
-      const tabIndex = parseInt(tabParam, 10);
-      if (!isNaN(tabIndex) && tabIndex >= 0 && tabIndex <= 2) {
-        setTab(tabIndex);
+      const client = clients.find(c => c.email === clientParam);
+      if (client) {
+        setSelectedClient(client);
+        setDetailPanelOpen(true);
       }
     }
   }, [searchParams, clients]);
@@ -139,7 +134,34 @@ export default function Clients() {
   const filteredClients = clients
     .filter(c => (`${c.name || c.email || ''}`).toLowerCase().includes(debouncedSearch.toLowerCase())); // Show all clients
 
-  const selectedClient = filteredClients[selectedClientIndex] || filteredClients[0];
+  // Helper function to get next meeting date
+  const getNextMeetingDate = (client) => {
+    if (!client.meetings || client.meetings.length === 0) return null;
+
+    const now = new Date();
+    const upcomingMeetings = client.meetings
+      .filter(meeting => new Date(meeting.starttime) > now)
+      .sort((a, b) => new Date(a.starttime) - new Date(b.starttime));
+
+    return upcomingMeetings.length > 0 ? upcomingMeetings[0].starttime : null;
+  };
+
+  // Helper function to format date
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  // Helper function to handle client row click
+  const handleClientClick = (client) => {
+    setSelectedClient(client);
+    setDetailPanelOpen(true);
+  };
 
 
 
@@ -236,20 +258,15 @@ export default function Clients() {
 
   if (loading) {
     return (
-      <div className="h-full flex bg-background">
-        <div className="w-80 border-r border-border/50 p-4">
-          <h1 className="text-2xl font-bold text-foreground mb-6">Clients</h1>
-          <div className="mb-4">
-            <div className="h-10 bg-muted rounded animate-pulse"></div>
-          </div>
-          <ClientSkeleton />
+      <div className="h-full bg-background p-6">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-foreground mb-4">Clients</h1>
+          <div className="h-10 bg-muted rounded animate-pulse mb-4"></div>
         </div>
-        <div className="flex-1 p-6">
-          <div className="h-8 bg-muted rounded animate-pulse mb-4"></div>
-          <div className="space-y-4">
-            <div className="h-32 bg-muted rounded animate-pulse"></div>
-            <div className="h-32 bg-muted rounded animate-pulse"></div>
-          </div>
+        <div className="space-y-2">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="h-12 bg-muted rounded animate-pulse"></div>
+          ))}
         </div>
       </div>
     );
@@ -257,7 +274,7 @@ export default function Clients() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="h-full bg-background p-6 flex items-center justify-center">
         <Card className="w-full max-w-md border-destructive/50">
           <CardContent className="p-6 text-center">
             <div className="text-destructive mb-4">
@@ -272,26 +289,47 @@ export default function Clients() {
   }
 
   return (
-    <div className="h-full flex bg-background">
-      {/* Client List Panel */}
-      <div className="w-80 border-r border-border/50 overflow-y-auto bg-card/30">
-        <div className="p-6">
-          <div className="space-y-4 mb-6">
-            {/* Client Filter Buttons */}
+    <div className="h-full bg-background relative">
+      {/* Main Content */}
+      <div className="h-full flex flex-col">
+        {/* Header */}
+        <div className="border-b border-border/50 p-6 bg-card/50">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-foreground">Clients</h1>
+            <Button
+              onClick={handleExtractClients}
+              disabled={extracting}
+              variant="outline"
+              size="sm"
+            >
+              {extracting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />
+                  Extracting...
+                </>
+              ) : (
+                <>
+                  <Users className="w-4 h-4 mr-2" />
+                  Extract Clients
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Filters and Search */}
+          <div className="flex gap-4 items-center">
             <div className="flex gap-2">
               <Button
                 onClick={() => setClientFilter('all')}
                 variant={clientFilter === 'all' ? 'default' : 'outline'}
                 size="sm"
-                className="flex-1"
               >
-                All Clients
+                All ({clients.length})
               </Button>
               <Button
                 onClick={() => setClientFilter('with-upcoming')}
                 variant={clientFilter === 'with-upcoming' ? 'default' : 'outline'}
                 size="sm"
-                className="flex-1"
               >
                 With Upcoming
               </Button>
@@ -299,13 +337,12 @@ export default function Clients() {
                 onClick={() => setClientFilter('no-upcoming')}
                 variant={clientFilter === 'no-upcoming' ? 'default' : 'outline'}
                 size="sm"
-                className="flex-1"
               >
                 Need Follow-up
               </Button>
             </div>
 
-            <div className="relative">
+            <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Search clients..."
@@ -314,385 +351,289 @@ export default function Clients() {
                 className="pl-10"
               />
             </div>
-
-            {/* Client Extraction Button */}
-            <Button
-              onClick={handleExtractClients}
-              disabled={extracting}
-              variant="outline"
-              size="sm"
-              className="w-full"
-            >
-              {extracting ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />
-                  Extracting Clients...
-                </>
-              ) : (
-                <>
-                  <Users className="w-4 h-4 mr-2" />
-                  Extract Clients from Meetings
-                </>
-              )}
-            </Button>
           </div>
-          
-          <div className="space-y-2">
-            {filteredClients.map((client, idx) => (
-              <Card
-                key={client.email}
-                className={cn(
-                  "cursor-pointer card-hover border-border/50",
-                  idx === selectedClientIndex && "ring-2 ring-primary/20 bg-primary/5 border-primary/30"
-                )}
-                onClick={() => setSelectedClientIndex(idx)}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-10 h-10 bg-primary/10 text-primary">
-                      <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                        {getUserInitials(client.name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-semibold text-foreground truncate">
+        </div>
+
+        {/* Table */}
+        <div className="flex-1 overflow-auto">
+          <div className="min-w-full">
+            {/* Table Header */}
+            <div className="sticky top-0 bg-muted/50 border-b border-border/50 px-6 py-3">
+              <div className="grid grid-cols-12 gap-4 text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <div className="col-span-3">Client Name</div>
+                <div className="col-span-3">Client Email</div>
+                <div className="col-span-1 text-center">Past Meetings</div>
+                <div className="col-span-2">Next Meeting</div>
+                <div className="col-span-2">Business Type</div>
+                <div className="col-span-1">Next IAF</div>
+              </div>
+            </div>
+
+            {/* Table Body */}
+            <div className="divide-y divide-border/50">
+              {filteredClients.map((client) => (
+                <div
+                  key={client.id}
+                  className="px-6 py-3 hover:bg-muted/30 cursor-pointer transition-colors group"
+                  onClick={() => handleClientClick(client)}
+                >
+                  <div className="grid grid-cols-12 gap-4 items-center text-sm">
+                    {/* Client Name */}
+                    <div className="col-span-3 flex items-center gap-3">
+                      <Avatar className="w-8 h-8 bg-primary/10 text-primary">
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                          {getUserInitials(client.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-foreground truncate">
                           {client.name || 'Unnamed Client'}
-                        </h4>
-                        {client.has_upcoming_meetings && (
-                          <div className="flex items-center gap-1 text-green-600">
-                            <Calendar className="w-3 h-3" />
-                            <span className="text-xs font-medium">{client.upcoming_meetings_count}</span>
-                          </div>
-                        )}
-                        {!client.has_upcoming_meetings && (
-                          <div className="flex items-center gap-1 text-orange-500">
-                            <Clock className="w-3 h-3" />
-                            <span className="text-xs">Follow-up</span>
-                          </div>
-                        )}
+                        </div>
                       </div>
-                      <p className="text-sm text-muted-foreground truncate">
-                        {client.email && client.email.includes('@') ? client.email : 'No email address'}
-                      </p>
+                    </div>
+
+                    {/* Client Email */}
+                    <div className="col-span-3 text-muted-foreground truncate">
+                      {client.email && client.email.includes('@') ? client.email : 'No email'}
+                    </div>
+
+                    {/* Past Meetings Count */}
+                    <div className="col-span-1 text-center">
+                      <span className="inline-flex items-center justify-center w-6 h-6 bg-primary/10 text-primary rounded-full text-xs font-medium">
+                        {client.meeting_count || 0}
+                      </span>
+                    </div>
+
+                    {/* Next Meeting Date */}
+                    <div className="col-span-2">
+                      {getNextMeetingDate(client) ? (
+                        <div className="flex items-center gap-1 text-green-600">
+                          <Calendar className="w-3 h-3" />
+                          <span className="text-xs">{formatDate(getNextMeetingDate(client))}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1 text-muted-foreground">
+                          <Clock className="w-3 h-3" />
+                          <span className="text-xs">No upcoming</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Business Type */}
+                    <div className="col-span-2">
+                      {client.business_type ? (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          {client.business_type}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">Not set</span>
+                      )}
+                    </div>
+
+                    {/* Next IAF Expected */}
+                    <div className="col-span-1 text-xs text-muted-foreground">
+                      {client.likely_close_month ? formatDate(client.likely_close_month + '-01') : '-'}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                </div>
+              ))}
+            </div>
+
+            {/* Empty State */}
+            {filteredClients.length === 0 && (
+              <div className="p-12 text-center">
+                <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-foreground mb-2">No clients found</h3>
+                <p className="text-muted-foreground">
+                  {search ? 'Try adjusting your search terms.' : 'Extract clients from meetings to get started.'}
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Main Details Area */}
-      <div className="flex-1 flex flex-col bg-background">
-        {selectedClient ? (
-          <>
-            {/* Client Header */}
-            <div className="border-b border-border/50 p-6 bg-card/50">
+      {/* Client Detail Panel */}
+      {detailPanelOpen && selectedClient && (
+        <div className="fixed inset-0 z-50 flex">
+          {/* Backdrop */}
+          <div
+            className="flex-1 bg-black/20 backdrop-blur-sm"
+            onClick={() => setDetailPanelOpen(false)}
+          />
+
+          {/* Panel */}
+          <div className="w-1/2 bg-background border-l border-border/50 shadow-2xl overflow-y-auto">
+            {/* Panel Header */}
+            <div className="sticky top-0 bg-background border-b border-border/50 p-6 flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <Avatar className="w-16 h-16 bg-primary/10 text-primary">
-                  <AvatarFallback className="bg-primary/10 text-primary text-xl font-semibold">
+                <Avatar className="w-12 h-12 bg-primary/10 text-primary">
+                  <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
                     {getUserInitials(selectedClient.name)}
                   </AvatarFallback>
                 </Avatar>
-                <div className="flex-1">
-                  <h1 className="text-2xl font-bold text-foreground mb-1">
+                <div>
+                  <h2 className="text-xl font-bold text-foreground">
                     {selectedClient.name || 'Unnamed Client'}
-                  </h1>
-                                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Mail className="w-4 h-4" />
-                        <span>{selectedClient.email && selectedClient.email.includes('@') ? selectedClient.email : 'No email address'}</span>
-                      </div>
-                    {selectedClient.meetings && (
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
-                        <span>{selectedClient.meetings.length} meetings</span>
-                      </div>
-                    )}
-                  </div>
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedClient.email}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button onClick={() => handleEditClient(selectedClient)}>
-                    Edit
-                  </Button>
-                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEditClient(selectedClient)}
+                >
+                  <Edit3 className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDetailPanelOpen(false)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
               </div>
             </div>
 
-            {/* Tabs */}
-            <div className="px-6 pt-2 pb-0">
-              <div className="flex gap-4 justify-between">
-                <button
-                  className="tab-btn"
-                  onClick={() => {
-                    // Build comprehensive client context
-                    const clientMeetings = selectedClient.meetings || [];
+            {/* Panel Content */}
+            <div className="p-6 space-y-6">
+              {/* Client Info Cards */}
+              <div className="grid grid-cols-2 gap-4">
+                <Card className="border-border/50">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Calendar className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium">Meetings</span>
+                    </div>
+                    <div className="text-2xl font-bold text-foreground">
+                      {selectedClient.meeting_count || 0}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {selectedClient.has_upcoming_meetings ?
+                        `${selectedClient.upcoming_meetings_count} upcoming` :
+                        'No upcoming meetings'
+                      }
+                    </div>
+                  </CardContent>
+                </Card>
 
-                    const params = new URLSearchParams({
-                      contextType: 'client',
-                      client: selectedClient.id,
-                      clientName: selectedClient.name,
-                      clientEmail: selectedClient.email,
-                      meetingCount: clientMeetings.length.toString(),
-                      pipelineStatus: selectedClient.status || 'Unknown',
-                      likelyValue: selectedClient.likely_value?.toString() || '0'
-                    });
-
-                    if (clientMeetings.length > 0) {
-                      const lastMeeting = clientMeetings.sort((a, b) =>
-                        new Date(b.startTime || b.starttime) - new Date(a.startTime || a.starttime)
-                      )[0];
-                      params.set('lastMeetingDate', lastMeeting.startTime || lastMeeting.starttime);
-                      params.set('lastMeetingTitle', lastMeeting.title);
-                    }
-
-                    navigate(`/ask-advicly?${params.toString()}`);
-                  }}
-                >
-                  <Sparkles className="w-4 h-4 inline mr-2" />
-                  Ask About {selectedClient?.name}
-                </button>
-                <button
-                  className={cn(
-                    "tab-btn",
-                    tab === 0 && "active"
-                  )}
-                  onClick={() => setTab(0)}
-                >
-                  <Calendar className="w-4 h-4 inline mr-2" />
-                  All Meetings
-                </button>
-                <button
-                  className={cn(
-                    "tab-btn",
-                    tab === 1 && "active"
-                  )}
-                  onClick={() => setTab(1)}
-                >
-                  <TrendingUp className="w-4 h-4 inline mr-2" />
-                  Pipeline
-                </button>
+                <Card className="border-border/50">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Building2 className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-medium">Business Type</span>
+                    </div>
+                    <div className="text-lg font-semibold text-foreground">
+                      {selectedClient.business_type || 'Not specified'}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Value: {selectedClient.likely_value ?
+                        `£${parseFloat(selectedClient.likely_value).toLocaleString()}` :
+                        'Not specified'
+                      }
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
-            </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {tab === 0 && (
-                <div className="space-y-6">
-                  <h2 className="text-xl font-semibold text-foreground">All Meetings</h2>
-                  {selectedClient.meetings && selectedClient.meetings.length > 0 ? (
-                    <div className="space-y-4">
-                      {selectedClient.meetings.map(mtg => (
-                        <Card
-                          key={mtg.id}
-                          className="border-border/50"
-                        >
-                          <CardContent className="p-6">
-                            <div className="flex flex-col lg:flex-row gap-6">
-                              {/* Meeting Info */}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between mb-2">
-                                  <h4
-                                    className="font-semibold text-foreground cursor-pointer hover:text-primary"
-                                    onClick={() => navigateToMeeting(mtg.googleeventid || mtg.id)}
-                                  >
-                                    {mtg.title}
-                                  </h4>
-                                  <div className="flex items-center gap-2">
-                                    {/* Completion indicator */}
-                                    {isMeetingComplete(mtg) && (
-                                      <div className="flex items-center gap-1 text-blue-600">
-                                        <CheckCircle2 className="w-4 h-4" />
-                                        <span className="text-xs font-medium">Complete</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                  <div className="flex items-center gap-1">
-                                    <Clock className="w-4 h-4" />
-                                    <span>
-                                      {new Date(mtg.starttime).toLocaleDateString()} - {new Date(mtg.starttime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to {new Date(mtg.endtime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                              {/* Meeting Summary */}
-                              <div className="flex-1 min-w-0">
-                                {mtg.quick_summary ? (
-                                  <div className="space-y-2">
-                                    <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Meeting Summary</h5>
-                                    <div className="text-sm text-foreground">
-                                      {mtg.quick_summary}
-                                    </div>
-                                  </div>
-                                ) : mtg.summary ? (
-                                  <div className="space-y-2">
-                                    <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Meeting Summary</h5>
-                                    <div className="text-sm text-foreground">
-                                      {mtg.summary}
-                                    </div>
-                                  </div>
-                                ) : mtg.summary ? (
-                                  <div className="space-y-2">
-                                    <h5 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</h5>
-                                    <div className="text-sm text-foreground">
-                                      {mtg.summary}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="text-sm text-muted-foreground italic">
-                                    No summary available
+              {/* Ask Advicly Button */}
+              <Button
+                className="w-full"
+                onClick={() => {
+                  const clientMeetings = selectedClient.meetings || [];
+                  const params = new URLSearchParams({
+                    contextType: 'client',
+                    client: selectedClient.id,
+                    clientName: selectedClient.name,
+                    clientEmail: selectedClient.email,
+                    meetingCount: clientMeetings.length.toString(),
+                    pipelineStatus: selectedClient.pipeline_stage || 'Unknown',
+                    likelyValue: selectedClient.likely_value?.toString() || '0'
+                  });
+
+                  if (clientMeetings.length > 0) {
+                    const lastMeeting = clientMeetings.sort((a, b) =>
+                      new Date(b.starttime) - new Date(a.starttime)
+                    )[0];
+                    params.set('lastMeetingDate', lastMeeting.starttime);
+                    params.set('lastMeetingTitle', lastMeeting.title);
+                  }
+
+                  navigate(`/ask-advicly?${params.toString()}`);
+                }}
+              >
+                <Sparkles className="w-4 h-4 mr-2" />
+                Ask About {selectedClient.name}
+              </Button>
+
+              {/* Meeting History */}
+              <div>
+                <h3 className="text-lg font-semibold text-foreground mb-4">Meeting History</h3>
+                {selectedClient.meetings && selectedClient.meetings.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedClient.meetings
+                      .sort((a, b) => new Date(b.starttime) - new Date(a.starttime))
+                      .map(meeting => (
+                        <Card key={meeting.id} className="border-border/50">
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between mb-2">
+                              <h4
+                                className="font-medium text-foreground cursor-pointer hover:text-primary"
+                                onClick={() => navigateToMeeting(meeting.googleeventid || meeting.id)}
+                              >
+                                {meeting.title}
+                              </h4>
+                              <div className="flex items-center gap-2">
+                                {isMeetingComplete(meeting) && (
+                                  <div className="flex items-center gap-1 text-blue-600">
+                                    <CheckCircle2 className="w-3 h-3" />
+                                    <span className="text-xs">Complete</span>
                                   </div>
                                 )}
                               </div>
                             </div>
+                            <div className="text-xs text-muted-foreground mb-2">
+                              {formatDate(meeting.starttime)} • {new Date(meeting.starttime).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </div>
+                            {meeting.quick_summary && (
+                              <div className="text-sm text-foreground">
+                                {meeting.quick_summary}
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
-                      ))}
-                    </div>
-                  ) : (
-                    <Card className="border-border/50">
-                      <CardContent className="p-6 text-center">
-                        <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-foreground mb-2">No meetings found</h3>
-                        <p className="text-muted-foreground">This client doesn't have any meetings yet.</p>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-              )}
-
-              {tab === 1 && (
-                <div className="space-y-6">
-                  <h2 className="text-xl font-semibold text-foreground">Client Pipeline</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <Card className="border-border/50">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                          <TrendingUp className="w-5 h-5 text-primary" />
-                          Business Type
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        {selectedClient.business_type ? (
-                          <p className="text-2xl font-bold text-foreground">{selectedClient.business_type}</p>
-                        ) : (
-                          <p className="text-muted-foreground">Not specified</p>
-                        )}
-                      </CardContent>
-                    </Card>
-                    
-                    <Card className="border-border/50">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                          <Building2 className="w-5 h-5 text-primary" />
-                          Value of Business
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        {selectedClient.likely_value ? (
-                          <p className="text-2xl font-bold text-foreground">£{parseFloat(selectedClient.likely_value).toLocaleString()}</p>
-                        ) : (
-                          <p className="text-muted-foreground">Not specified</p>
-                        )}
-                      </CardContent>
-                    </Card>
-                    
-                    <Card className="border-border/50">
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-lg">
-                          <Calendar className="w-5 h-5 text-primary" />
-                          Expected Close Month
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        {selectedClient.likely_close_month ? (
-                          <p className="text-2xl font-bold text-foreground">
-                            {new Date(selectedClient.likely_close_month + '-01').toLocaleDateString('en-GB', { 
-                              month: 'long', 
-                              year: 'numeric' 
-                            })}
-                          </p>
-                        ) : (
-                          <p className="text-muted-foreground">Not specified</p>
-                        )}
-                      </CardContent>
-                    </Card>
+                      ))
+                    }
                   </div>
-                </div>
-              )}
+                ) : (
+                  <Card className="border-border/50">
+                    <CardContent className="p-6 text-center">
+                      <Calendar className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">No meetings found</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
             </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <Users className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-foreground mb-2">No client selected</h3>
-              <p className="text-muted-foreground">Select a client from the list to view details.</p>
-            </div>
           </div>
-        )}
-      </div>
-      <Drawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title="Edit Client Details">
-        <form className="space-y-4" onSubmit={e => { e.preventDefault(); handleSaveClient(); }}>
-          <div>
-            <label className="block text-sm font-medium mb-1">Client Name</label>
-            <Input
-              value={editForm.name || ''}
-              onChange={e => handleEditChange('name', e.target.value)}
-              placeholder="Enter client name"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Email Address</label>
-            <Input
-              value={editForm.email || ''}
-              disabled
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Business Type</label>
-            <Input
-              value={editForm.business_type || ''}
-              onChange={e => handleEditChange('business_type', e.target.value)}
-              placeholder="Enter business type"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Likely Value</label>
-            <Input
-              value={editForm.likely_value || ''}
-              onChange={e => handleEditChange('likely_value', e.target.value)}
-              placeholder="Enter likely value"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Likely Close Month</label>
-            <Input
-              value={editForm.likely_close_month || ''}
-              onChange={e => handleEditChange('likely_close_month', e.target.value)}
-              placeholder="Enter likely close month"
-            />
-          </div>
-          <div className="flex gap-2 pt-4">
-            <Button type="submit" disabled={saving} className="w-full">
-              {saving ? 'Saving...' : 'Save'}
-            </Button>
-            <Button type="button" variant="outline" onClick={() => setDrawerOpen(false)} className="w-full">
-              Cancel
-            </Button>
-          </div>
-        </form>
-      </Drawer>
+        </div>
+      )}
+
+
 
       {/* Edit Client Modal */}
       {editingClient && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-background p-6 rounded-lg shadow-lg w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">Edit Client Name</h3>
+            <h3 className="text-lg font-semibold mb-4">Edit Client Details</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Client Name</label>
@@ -723,6 +664,10 @@ export default function Clients() {
                   <option value="">Select business type</option>
                   <option value="Pension">Pension</option>
                   <option value="ISA">ISA</option>
+                  <option value="Bond">Bond</option>
+                  <option value="Investment">Investment</option>
+                  <option value="Insurance">Insurance</option>
+                  <option value="Mortgage">Mortgage</option>
                 </select>
               </div>
               <div>
@@ -738,7 +683,7 @@ export default function Clients() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Likely Close Month</label>
+                <label className="block text-sm font-medium mb-2">Next IAF Expected</label>
                 <input
                   type="month"
                   value={editForm.likely_close_month}
