@@ -197,3 +197,19 @@ button, a, [role="button"] {
 .tab-btn:hover {
   @apply bg-primary/20 text-foreground;
 }
+
+/* Client table specific styles */
+.client-table-row {
+  transition: all 0.15s ease-in-out;
+}
+
+.client-table-row:hover {
+  background-color: hsl(var(--muted) / 0.5);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px hsl(var(--border) / 0.3);
+}
+
+/* Detail panel animation */
+.detail-panel-slide {
+  transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+}
