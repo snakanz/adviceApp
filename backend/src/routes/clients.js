@@ -721,4 +721,203 @@ router.post('/extract-clients', async (req, res) => {
   }
 });
 
+// Create pipeline entry for client without future meetings
+router.post('/:clientId/pipeline-entry', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const advisorId = decoded.id;
+    const clientId = req.params.clientId;
+
+    const {
+      pipeline_stage,
+      iaf_expected,
+      business_type,
+      business_amount,
+      regular_contribution_type,
+      regular_contribution_amount,
+      pipeline_notes,
+      likely_close_month,
+      // Optional meeting data
+      create_meeting,
+      meeting_title,
+      meeting_date,
+      meeting_time,
+      meeting_type,
+      meeting_location
+    } = req.body;
+
+    // Validate required pipeline fields
+    if (!pipeline_stage || !business_type) {
+      return res.status(400).json({
+        error: 'Pipeline stage and business type are required'
+      });
+    }
+
+    // Check if Supabase is available
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    // Verify client exists and belongs to advisor
+    const { data: client, error: clientError } = await getSupabase()
+      .from('clients')
+      .select('id, name, email')
+      .eq('id', clientId)
+      .eq('advisor_id', advisorId)
+      .single();
+
+    if (clientError || !client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Check if client has future meetings
+    const now = new Date().toISOString();
+    const { data: futureMeetings, error: meetingsError } = await getSupabase()
+      .from('meetings')
+      .select('id')
+      .eq('client_id', clientId)
+      .eq('userid', advisorId)
+      .gte('starttime', now)
+      .eq('is_deleted', false);
+
+    if (meetingsError) {
+      console.error('Error checking future meetings:', meetingsError);
+      return res.status(500).json({ error: 'Failed to check future meetings' });
+    }
+
+    if (futureMeetings && futureMeetings.length > 0) {
+      return res.status(400).json({
+        error: 'Client already has future meetings scheduled. Pipeline entries are only for clients without upcoming meetings.'
+      });
+    }
+
+    // Update client with pipeline data
+    const updateData = {
+      pipeline_stage,
+      business_type,
+      notes: pipeline_notes || null,
+      likely_close_month: likely_close_month || null,
+      updated_at: new Date().toISOString()
+    };
+
+    if (iaf_expected !== undefined) updateData.iaf_expected = iaf_expected;
+    if (business_amount !== undefined) updateData.business_amount = business_amount;
+    if (regular_contribution_type !== undefined) updateData.regular_contribution_type = regular_contribution_type;
+    if (regular_contribution_amount !== undefined) updateData.regular_contribution_amount = regular_contribution_amount;
+
+    const { data: updatedClient, error: updateError } = await getSupabase()
+      .from('clients')
+      .update(updateData)
+      .eq('id', clientId)
+      .eq('advisor_id', advisorId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating client pipeline:', updateError);
+      return res.status(500).json({ error: 'Failed to update client pipeline' });
+    }
+
+    // Log pipeline activity
+    await getSupabase()
+      .from('pipeline_activities')
+      .insert({
+        client_id: clientId,
+        advisor_id: advisorId,
+        activity_type: 'stage_change',
+        title: `Pipeline entry created - ${pipeline_stage}`,
+        description: `Pipeline entry created with stage: ${pipeline_stage}${pipeline_notes ? `, Notes: ${pipeline_notes}` : ''}`,
+        metadata: {
+          pipeline_stage,
+          business_type,
+          iaf_expected,
+          business_amount,
+          entry_type: 'pipeline_entry_creation'
+        }
+      });
+
+    let createdMeeting = null;
+
+    // Optionally create meeting if requested
+    if (create_meeting && meeting_title && meeting_date && meeting_time) {
+      const meetingDateTime = new Date(`${meeting_date}T${meeting_time}`);
+      const meetingEndTime = new Date(meetingDateTime.getTime() + 60 * 60 * 1000); // 1 hour default
+
+      const meetingData = {
+        userid: advisorId,
+        client_id: clientId,
+        title: meeting_title,
+        starttime: meetingDateTime.toISOString(),
+        endtime: meetingEndTime.toISOString(),
+        summary: `Meeting scheduled via pipeline entry for ${client.name}`,
+        meeting_source: 'manual',
+        location_type: meeting_type || 'video',
+        location_details: meeting_location || null,
+        created_by: advisorId,
+        attendees: JSON.stringify([{
+          email: client.email,
+          displayName: client.name,
+          responseStatus: 'needsAction'
+        }])
+      };
+
+      const { data: newMeeting, error: meetingError } = await getSupabase()
+        .from('meetings')
+        .insert(meetingData)
+        .select()
+        .single();
+
+      if (meetingError) {
+        console.error('Error creating meeting:', meetingError);
+        // Don't fail the pipeline entry creation if meeting creation fails
+        console.warn('Pipeline entry created successfully, but meeting creation failed');
+      } else {
+        createdMeeting = newMeeting;
+
+        // Log meeting creation activity
+        await getSupabase()
+          .from('pipeline_activities')
+          .insert({
+            client_id: clientId,
+            advisor_id: advisorId,
+            activity_type: 'meeting',
+            title: `Meeting scheduled: ${meeting_title}`,
+            description: `Meeting scheduled for ${meetingDateTime.toLocaleDateString()} at ${meetingDateTime.toLocaleTimeString()}`,
+            metadata: {
+              meeting_id: newMeeting.id,
+              meeting_type,
+              created_with_pipeline_entry: true
+            }
+          });
+      }
+    }
+
+    res.json({
+      message: 'Pipeline entry created successfully',
+      client: updatedClient,
+      meeting: createdMeeting,
+      pipeline_entry: {
+        pipeline_stage,
+        business_type,
+        iaf_expected,
+        business_amount,
+        regular_contribution_type,
+        regular_contribution_amount,
+        pipeline_notes,
+        likely_close_month
+      }
+    });
+
+  } catch (error) {
+    console.error('Error creating pipeline entry:', error);
+    res.status(500).json({ error: 'Failed to create pipeline entry', details: error.message });
+  }
+});
+
 module.exports = router;

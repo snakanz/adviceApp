@@ -14,10 +14,12 @@ import {
   Building2,
   CheckCircle2,
   X,
-  Edit3
+  Edit3,
+  Plus
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import PipelineEntryForm from '../components/PipelineEntryForm';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -39,6 +41,9 @@ export default function Clients() {
   const [saving, setSaving] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [extracting, setExtracting] = useState(false);
+  const [showPipelineForm, setShowPipelineForm] = useState(false);
+  const [pipelineClient, setPipelineClient] = useState(null);
+  const [creatingPipeline, setCreatingPipeline] = useState(false);
   const [clientFilter, setClientFilter] = useState('all'); // 'all', 'with-upcoming', 'no-upcoming'
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
   const navigate = useNavigate();
@@ -142,6 +147,11 @@ export default function Clients() {
     return upcomingMeetings.length > 0 ? upcomingMeetings[0].starttime : null;
   };
 
+  // Helper function to check if client has future meetings
+  const hasFutureMeetings = (client) => {
+    return getNextMeetingDate(client) !== null;
+  };
+
   // Helper function to format date
   const formatDate = (dateString) => {
     if (!dateString) return '-';
@@ -229,6 +239,44 @@ export default function Clients() {
       regular_contribution_amount: '',
       likely_close_month: ''
     });
+  };
+
+  const handleCreatePipelineEntry = (client) => {
+    setPipelineClient(client);
+    setShowPipelineForm(true);
+  };
+
+  const handleClosePipelineForm = () => {
+    setShowPipelineForm(false);
+    setPipelineClient(null);
+  };
+
+  const handleSubmitPipelineEntry = async (formData) => {
+    if (!pipelineClient) return;
+
+    setCreatingPipeline(true);
+    try {
+      const response = await api.request(`/clients/${pipelineClient.id}/pipeline-entry`, {
+        method: 'POST',
+        body: JSON.stringify(formData)
+      });
+
+      if (response) {
+        // Refresh clients data to show updated pipeline information
+        await fetchClients();
+
+        // Close the form
+        handleClosePipelineForm();
+
+        // Show success message (you could add a toast notification here)
+        console.log('Pipeline entry created successfully:', response);
+      }
+    } catch (error) {
+      console.error('Error creating pipeline entry:', error);
+      // You could add error handling/toast notification here
+    } finally {
+      setCreatingPipeline(false);
+    }
   };
 
   if (loading) {
@@ -336,11 +384,12 @@ export default function Clients() {
             <div className="sticky top-0 bg-muted/50 border-b border-border/50 px-6 py-3">
               <div className="grid grid-cols-12 gap-4 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 <div className="col-span-3">Client Name</div>
-                <div className="col-span-3">Client Email</div>
+                <div className="col-span-2">Client Email</div>
                 <div className="col-span-1 text-center">Past Meetings</div>
                 <div className="col-span-2">Next Meeting</div>
                 <div className="col-span-2">Business Type</div>
                 <div className="col-span-1">Next IAF</div>
+                <div className="col-span-1">Actions</div>
               </div>
             </div>
 
@@ -368,7 +417,7 @@ export default function Clients() {
                     </div>
 
                     {/* Client Email */}
-                    <div className="col-span-3 text-muted-foreground truncate">
+                    <div className="col-span-2 text-muted-foreground truncate">
                       {client.email && client.email.includes('@') ? client.email : 'No email'}
                     </div>
 
@@ -408,6 +457,24 @@ export default function Clients() {
                     {/* Next IAF Expected */}
                     <div className="col-span-1 text-xs text-muted-foreground">
                       {client.likely_close_month ? formatDate(client.likely_close_month + '-01') : '-'}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="col-span-1 flex items-center justify-center">
+                      {!hasFutureMeetings(client) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent triggering the row click
+                            handleCreatePipelineEntry(client);
+                          }}
+                          className="h-7 px-2 text-xs bg-primary/5 border-primary/20 text-primary hover:bg-primary/10"
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          Pipeline
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -720,6 +787,16 @@ export default function Clients() {
           </div>
         </div>
       )}
+
+      {/* Pipeline Entry Form Modal */}
+      {showPipelineForm && pipelineClient && (
+        <PipelineEntryForm
+          client={pipelineClient}
+          onClose={handleClosePipelineForm}
+          onSubmit={handleSubmitPipelineEntry}
+          isSubmitting={creatingPipeline}
+        />
+      )}
     </div>
   );
-} 
+}

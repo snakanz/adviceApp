@@ -12,6 +12,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
+import { api } from '../services/api';
 
 
 
@@ -45,52 +46,49 @@ export default function Pipeline() {
   const fetchPipelineData = useCallback(async () => {
     setLoading(true);
     try {
-      // Mock pipeline data - will be replaced with API calls
-      const mockPipelineData = [
-        {
-          id: 1,
-          name: 'John Smith',
-          email: 'john.smith@email.com',
-          nextMeetingDate: '2025-09-25',
-          pastMeetingCount: 3,
-          businessStage: 'Waiting on Paraplanning',
-          pipelineNotes: 'Waiting on pension transfer paperwork',
-          likelihood: 85,
-          expectedValue: 15000,
-          expectedMonth: '2025-09',
-          businessType: 'Pension'
-        },
-        {
-          id: 2,
-          name: 'Sarah Johnson',
-          email: 'sarah.johnson@email.com',
-          nextMeetingDate: '2025-10-05',
-          pastMeetingCount: 2,
-          businessStage: 'Need to Book Meeting',
-          pipelineNotes: 'Interested in ISA and pension advice',
-          likelihood: 60,
-          expectedValue: 8000,
-          expectedMonth: '2025-10',
-          businessType: 'ISA'
-        },
-        {
-          id: 3,
-          name: 'Mike Wilson',
-          email: 'mike.wilson@email.com',
-          nextMeetingDate: null,
-          pastMeetingCount: 1,
-          businessStage: 'Can\'t Contact Client',
-          pipelineNotes: 'Need to chase for second meeting',
-          likelihood: 40,
-          expectedValue: 12000,
-          expectedMonth: '2025-11',
-          businessType: 'Investment'
-        }
-      ];
+      // Fetch real client data from API
+      const clientsData = await api.request('/clients');
 
-      // For now, use mock data
-      // In production, this would fetch from API
-      setClients(mockPipelineData);
+      // Transform client data to pipeline format
+      const pipelineData = clientsData.map(client => {
+        // Get next meeting date
+        const now = new Date();
+        const upcomingMeetings = (client.meetings || [])
+          .filter(meeting => new Date(meeting.starttime) > now)
+          .sort((a, b) => new Date(a.starttime) - new Date(b.starttime));
+
+        const nextMeetingDate = upcomingMeetings.length > 0 ? upcomingMeetings[0].starttime : null;
+
+        // Calculate expected month from likely_close_month
+        let expectedMonth = null;
+        if (client.likely_close_month) {
+          const date = new Date(client.likely_close_month + '-01');
+          expectedMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        }
+
+        return {
+          id: client.id,
+          name: client.name || client.email,
+          email: client.email,
+          nextMeetingDate: nextMeetingDate,
+          pastMeetingCount: client.meeting_count || 0,
+          businessStage: client.pipeline_stage || 'Need to Book Meeting',
+          pipelineNotes: client.notes || '',
+          likelihood: 75, // Default likelihood - could be added to client schema later
+          expectedValue: parseFloat(client.iaf_expected || client.likely_value || 0),
+          expectedMonth: expectedMonth,
+          businessType: client.business_type ? client.business_type.charAt(0).toUpperCase() + client.business_type.slice(1) : 'Not Set',
+          // Additional fields for pipeline management
+          business_amount: client.business_amount,
+          regular_contribution_type: client.regular_contribution_type,
+          regular_contribution_amount: client.regular_contribution_amount,
+          priority_level: client.priority_level || 3,
+          last_contact_date: client.last_contact_date,
+          next_follow_up_date: client.next_follow_up_date
+        };
+      });
+
+      setClients(pipelineData);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching pipeline data:', error);
