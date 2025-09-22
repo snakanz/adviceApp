@@ -75,9 +75,16 @@ export default function Pipeline() {
           businessStage: client.pipeline_stage || 'Need to Book Meeting',
           pipelineNotes: client.notes || '',
           likelihood: 75, // Default likelihood - could be added to client schema later
-          expectedValue: parseFloat(client.iaf_expected || client.likely_value || 0),
+          expectedValue: parseFloat(client.total_iaf_expected || client.iaf_expected || client.likely_value || 0),
           expectedMonth: expectedMonth,
           businessType: client.business_type ? client.business_type.charAt(0).toUpperCase() + client.business_type.slice(1) : 'Not Set',
+          businessTypes: client.business_types || [], // Array of business types from new table
+          businessTypesDisplay: client.business_types && client.business_types.length > 0
+            ? client.business_types.join(', ')
+            : (client.business_type ? client.business_type.charAt(0).toUpperCase() + client.business_type.slice(1) : 'Not Set'),
+          contributionMethods: client.contribution_methods || '',
+          totalBusinessAmount: client.total_business_amount || client.business_amount || 0,
+          totalIafExpected: client.total_iaf_expected || client.iaf_expected || client.likely_value || 0,
           // Additional fields for pipeline management
           business_amount: client.business_amount,
           regular_contribution_type: client.regular_contribution_type,
@@ -421,9 +428,24 @@ export default function Pipeline() {
 
                   {/* Business Type */}
                   <div className="col-span-1 flex items-center">
-                    <Badge className={cn("text-xs", getBusinessTypeColor(client.businessType))}>
-                      {client.businessType}
-                    </Badge>
+                    <div className="flex flex-col gap-1">
+                      {client.businessTypes && client.businessTypes.length > 0 ? (
+                        client.businessTypes.slice(0, 2).map((type, index) => (
+                          <Badge key={index} className={cn("text-xs", getBusinessTypeColor(type))}>
+                            {type}
+                          </Badge>
+                        ))
+                      ) : (
+                        <Badge className={cn("text-xs", getBusinessTypeColor(client.businessType))}>
+                          {client.businessType}
+                        </Badge>
+                      )}
+                      {client.businessTypes && client.businessTypes.length > 2 && (
+                        <span className="text-xs text-muted-foreground">
+                          +{client.businessTypes.length - 2} more
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -613,35 +635,41 @@ export default function Pipeline() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Business Type</label>
-                  {editingField === 'businessType' ? (
-                    <div className="mt-1 flex gap-2">
-                      <select
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="flex-1 p-2 border border-border rounded-md text-sm"
-                      >
-                        <option value="Pension">Pension</option>
-                        <option value="ISA">ISA</option>
-                        <option value="Bond">Bond</option>
-                        <option value="Investment">Investment</option>
-                        <option value="Insurance">Insurance</option>
-                        <option value="Mortgage">Mortgage</option>
-                      </select>
-                      <Button onClick={handleSaveField} size="sm">Save</Button>
-                      <Button onClick={() => setEditingField(null)} variant="outline" size="sm">Cancel</Button>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => handleEditField('businessType', selectedClient.businessType)}
-                      className="mt-1 p-3 bg-background border border-border rounded-md text-sm cursor-pointer hover:bg-muted/50 flex items-center justify-between group"
-                    >
-                      <Badge className={getBusinessTypeColor(selectedClient.businessType)}>
-                        {selectedClient.businessType}
-                      </Badge>
-                      <Edit3 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
-                    </div>
-                  )}
+                  <label className="text-sm font-medium text-muted-foreground">Business Types</label>
+                  <div className="mt-1 p-3 bg-background border border-border rounded-md text-sm">
+                    {selectedClient.businessTypes && selectedClient.businessTypes.length > 0 ? (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-1">
+                          {selectedClient.businessTypes.map((type, index) => (
+                            <Badge key={index} className={getBusinessTypeColor(type)}>
+                              {type}
+                            </Badge>
+                          ))}
+                        </div>
+                        {selectedClient.contributionMethods && (
+                          <div className="text-xs text-muted-foreground">
+                            Methods: {selectedClient.contributionMethods}
+                          </div>
+                        )}
+                        {selectedClient.totalBusinessAmount > 0 && (
+                          <div className="text-xs text-muted-foreground">
+                            Total Business Amount: {formatCurrency(selectedClient.totalBusinessAmount)}
+                          </div>
+                        )}
+                        {selectedClient.totalIafExpected > 0 && (
+                          <div className="text-xs text-muted-foreground">
+                            Total IAF Expected: {formatCurrency(selectedClient.totalIafExpected)}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <Badge className={getBusinessTypeColor(selectedClient.businessType)}>
+                          {selectedClient.businessType}
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

@@ -188,7 +188,7 @@ function AttendeeAvatars({ meeting, currentUserEmail, maxVisible = 3 }) {
 }
 
 // Group meetings by month/year for better organization
-function groupMeetingsByDate(meetings) {
+function groupMeetingsByDate(meetings, sortOrder = 'desc') {
   const groups = {};
 
   meetings.forEach(meeting => {
@@ -207,11 +207,28 @@ function groupMeetingsByDate(meetings) {
     groups[monthYear].push(meeting);
   });
 
-  // Sort groups by date (most recent first for past meetings)
+  // Sort groups by date based on the sortOrder parameter
   const sortedGroups = Object.entries(groups).sort(([a], [b]) => {
     const dateA = new Date(a + ' 1');
     const dateB = new Date(b + ' 1');
-    return dateB - dateA; // Most recent first
+    if (sortOrder === 'asc') {
+      return dateA - dateB; // Oldest first (for future meetings)
+    } else {
+      return dateB - dateA; // Most recent first (for past meetings)
+    }
+  });
+
+  // Sort meetings within each group to maintain proper order
+  sortedGroups.forEach(([monthYear, monthMeetings]) => {
+    monthMeetings.sort((a, b) => {
+      const dateA = new Date(a.start?.dateTime || a.startTime || a.starttime);
+      const dateB = new Date(b.start?.dateTime || b.startTime || b.starttime);
+      if (sortOrder === 'asc') {
+        return dateA - dateB; // Soonest first for future meetings
+      } else {
+        return dateB - dateA; // Most recent first for past meetings
+      }
+    });
   });
 
   return sortedGroups;
@@ -339,6 +356,21 @@ export default function Meetings() {
             meetingsData.future.push(meetingData);
           }
         }
+      });
+
+      // Sort meetings properly:
+      // - Future meetings: soonest first (ascending order)
+      // - Past meetings: most recent first (descending order)
+      meetingsData.future.sort((a, b) => {
+        const dateA = new Date(a.starttime || a.startTime);
+        const dateB = new Date(b.starttime || b.startTime);
+        return dateA - dateB; // Ascending: soonest first
+      });
+
+      meetingsData.past.sort((a, b) => {
+        const dateA = new Date(a.starttime || a.startTime);
+        const dateB = new Date(b.starttime || b.startTime);
+        return dateB - dateA; // Descending: most recent first
       });
 
       setMeetings(meetingsData);
@@ -843,7 +875,9 @@ export default function Meetings() {
   };
 
   const renderMeetingsList = (meetings, title) => {
-    const groupedMeetings = groupMeetingsByDate(meetings);
+    // Determine sort order based on meeting type
+    const sortOrder = title.includes('Past') ? 'desc' : 'asc';
+    const groupedMeetings = groupMeetingsByDate(meetings, sortOrder);
 
     return (
       <div className="space-y-6">
@@ -920,11 +954,11 @@ export default function Meetings() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-lg font-medium text-foreground truncate">
+                    <h3 className="text-base font-medium text-foreground line-clamp-1 break-words flex-1 min-w-0">
                       {meeting.summary || meeting.title || 'Untitled Meeting'}
                     </h3>
                     {/* Source badge */}
-                    <div className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                    <div className={`px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${
                       getMeetingSource(meeting) === 'Google Calendar'
                         ? 'bg-blue-100 text-blue-800'
                         : getMeetingSource(meeting) === 'Calendly'
@@ -934,6 +968,31 @@ export default function Meetings() {
                       {getMeetingSource(meeting)}
                     </div>
                   </div>
+
+                  {/* Client information prominently displayed */}
+                  {meeting.attendees && (() => {
+                    try {
+                      const attendees = JSON.parse(meeting.attendees);
+                      const clientAttendee = attendees.find(a => a.email && a.email !== user?.email);
+                      if (clientAttendee) {
+                        return (
+                          <div className="flex items-center mb-2 text-sm">
+                            <Mail className="w-3 h-3 mr-1 text-primary/60 flex-shrink-0" />
+                            <span className="font-medium text-primary truncate">
+                              {clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0]}
+                            </span>
+                            <span className="mx-1 text-muted-foreground flex-shrink-0">•</span>
+                            <span className="text-muted-foreground truncate text-xs">
+                              {clientAttendee.email}
+                            </span>
+                          </div>
+                        );
+                      }
+                    } catch (e) {
+                      return null;
+                    }
+                    return null;
+                  })()}
                   {/* Compact Status Indicators */}
                   <div className="flex items-center gap-1 mt-2">
                     {/* Transcript Status */}

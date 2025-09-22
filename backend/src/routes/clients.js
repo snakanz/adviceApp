@@ -920,4 +920,117 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
   }
 });
 
+// Get client business types
+router.get('/:clientId/business-types', authenticateUser, async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No authorization header' });
+
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const advisorId = decoded.id;
+    const clientId = req.params.clientId;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    // Get client business types
+    const { data: businessTypes, error } = await getSupabase()
+      .from('client_business_types')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching client business types:', error);
+      return res.status(500).json({ error: 'Failed to fetch business types' });
+    }
+
+    res.json(businessTypes || []);
+  } catch (error) {
+    console.error('Error in get client business types:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update client business types
+router.put('/:clientId/business-types', authenticateUser, async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No authorization header' });
+
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const advisorId = decoded.id;
+    const clientId = req.params.clientId;
+    const { businessTypes } = req.body;
+
+    if (!Array.isArray(businessTypes)) {
+      return res.status(400).json({ error: 'businessTypes must be an array' });
+    }
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    // Verify client belongs to advisor
+    const { data: client, error: clientError } = await getSupabase()
+      .from('clients')
+      .select('id')
+      .eq('id', clientId)
+      .eq('advisor_id', advisorId)
+      .single();
+
+    if (clientError || !client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Delete existing business types for this client
+    const { error: deleteError } = await getSupabase()
+      .from('client_business_types')
+      .delete()
+      .eq('client_id', clientId);
+
+    if (deleteError) {
+      console.error('Error deleting existing business types:', deleteError);
+      return res.status(500).json({ error: 'Failed to update business types' });
+    }
+
+    // Insert new business types
+    if (businessTypes.length > 0) {
+      const businessTypeData = businessTypes.map(bt => ({
+        client_id: clientId,
+        business_type: bt.business_type,
+        business_amount: bt.business_amount ? parseFloat(bt.business_amount) : null,
+        contribution_method: bt.contribution_method || null,
+        regular_contribution_amount: bt.regular_contribution_amount || null,
+        iaf_expected: bt.iaf_expected ? parseFloat(bt.iaf_expected) : null,
+        notes: bt.notes || null
+      }));
+
+      const { data: newBusinessTypes, error: insertError } = await getSupabase()
+        .from('client_business_types')
+        .insert(businessTypeData)
+        .select();
+
+      if (insertError) {
+        console.error('Error inserting business types:', insertError);
+        return res.status(500).json({ error: 'Failed to save business types' });
+      }
+
+      res.json({ businessTypes: newBusinessTypes });
+    } else {
+      res.json({ businessTypes: [] });
+    }
+  } catch (error) {
+    console.error('Error in update client business types:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

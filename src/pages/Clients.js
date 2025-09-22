@@ -20,6 +20,7 @@ import {
 import { api } from '../services/api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import PipelineEntryForm from '../components/PipelineEntryForm';
+import BusinessTypeManager from '../components/BusinessTypeManager';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -46,6 +47,9 @@ export default function Clients() {
   const [creatingPipeline, setCreatingPipeline] = useState(false);
   const [clientFilter, setClientFilter] = useState('all'); // 'all', 'with-upcoming', 'no-upcoming'
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
+  const [showBusinessTypeManager, setShowBusinessTypeManager] = useState(false);
+  const [clientBusinessTypes, setClientBusinessTypes] = useState([]);
+  const [savingBusinessTypes, setSavingBusinessTypes] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -182,7 +186,7 @@ export default function Clients() {
   // const removeEmailField = idx => setEditForm(f => ({ ...f, emails: f.emails.filter((_, i) => i !== idx) }));
   // const handleEmailChange = (idx, value) => setEditForm(f => ({ ...f, emails: f.emails.map((e, i) => i === idx ? value : e) }));
 
-  const handleEditClient = (client) => {
+  const handleEditClient = async (client) => {
     setEditingClient(client);
     setEditForm({
       name: client.name || '',
@@ -194,6 +198,58 @@ export default function Clients() {
       regular_contribution_amount: client.regular_contribution_amount || '',
       likely_close_month: client.likely_close_month || ''
     });
+
+    // Load client business types
+    try {
+      const businessTypes = await api.request(`/clients/${client.id}/business-types`);
+      setClientBusinessTypes(businessTypes);
+    } catch (error) {
+      console.error('Error loading business types:', error);
+      setClientBusinessTypes([]);
+    }
+  };
+
+  const handleEditBusinessTypes = async (client) => {
+    setEditingClient(client);
+    try {
+      const businessTypes = await api.request(`/clients/${client.id}/business-types`);
+      setClientBusinessTypes(businessTypes);
+      setShowBusinessTypeManager(true);
+    } catch (error) {
+      console.error('Error loading business types:', error);
+      setClientBusinessTypes([]);
+      setShowBusinessTypeManager(true);
+    }
+  };
+
+  const handleSaveBusinessTypes = async (businessTypes) => {
+    if (!editingClient) return;
+
+    setSavingBusinessTypes(true);
+    try {
+      await api.request(`/clients/${editingClient.id}/business-types`, {
+        method: 'PUT',
+        body: JSON.stringify({ businessTypes })
+      });
+
+      // Refresh clients list to show updated data
+      await fetchClients();
+
+      setShowBusinessTypeManager(false);
+      setEditingClient(null);
+      setClientBusinessTypes([]);
+    } catch (error) {
+      console.error('Error saving business types:', error);
+      // Error handling could be improved with user feedback
+    } finally {
+      setSavingBusinessTypes(false);
+    }
+  };
+
+  const handleCancelBusinessTypes = () => {
+    setShowBusinessTypeManager(false);
+    setEditingClient(null);
+    setClientBusinessTypes([]);
   };
 
   const handleSaveClientName = async () => {
@@ -533,6 +589,14 @@ export default function Clients() {
                   Edit
                 </Button>
                 <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEditBusinessTypes(selectedClient)}
+                >
+                  <Building2 className="w-4 h-4 mr-2" />
+                  Business Types
+                </Button>
+                <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setDetailPanelOpen(false)}
@@ -784,6 +848,24 @@ export default function Clients() {
                 </Button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Business Type Manager Modal */}
+      {showBusinessTypeManager && editingClient && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-background p-6 rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg font-semibold mb-4">
+              Manage Business Types - {editingClient.name}
+            </h3>
+            <BusinessTypeManager
+              clientId={editingClient.id}
+              initialBusinessTypes={clientBusinessTypes}
+              onSave={handleSaveBusinessTypes}
+              onCancel={handleCancelBusinessTypes}
+              saving={savingBusinessTypes}
+            />
           </div>
         </div>
       )}
