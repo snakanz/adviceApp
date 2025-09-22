@@ -799,6 +799,62 @@ router.delete('/meetings/manual/:meetingId', authenticateToken, async (req, res)
   }
 });
 
+// Update meeting transcript (for both manual and Google meetings)
+router.post('/meetings/:meetingId/transcript', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { meetingId } = req.params;
+    const { transcript } = req.body;
+
+    if (transcript === undefined) {
+      return res.status(400).json({ error: 'Transcript is required' });
+    }
+
+    // Verify meeting exists and user has access
+    const { data: existingMeeting, error: fetchError } = await getSupabase()
+      .from('meetings')
+      .select('*')
+      .eq('googleeventid', meetingId)
+      .eq('userid', userId)
+      .single();
+
+    if (fetchError || !existingMeeting) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    // Update transcript
+    const { data: updatedMeeting, error: updateError } = await getSupabase()
+      .from('meetings')
+      .update({
+        transcript: transcript,
+        updatedat: new Date().toISOString()
+      })
+      .eq('googleeventid', meetingId)
+      .eq('userid', userId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating meeting transcript:', updateError);
+      return res.status(500).json({ error: 'Failed to update transcript' });
+    }
+
+    res.json({
+      message: 'Transcript updated successfully',
+      meeting: {
+        ...updatedMeeting,
+        id: updatedMeeting.googleeventid,
+        startTime: updatedMeeting.starttime,
+        googleEventId: updatedMeeting.googleeventid
+      }
+    });
+
+  } catch (error) {
+    console.error('Error updating meeting transcript:', error);
+    res.status(500).json({ error: 'Failed to update transcript' });
+  }
+});
+
 // ============================================================================
 // FILE UPLOAD ENDPOINTS
 // ============================================================================

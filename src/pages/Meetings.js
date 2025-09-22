@@ -19,7 +19,8 @@ import {
   Upload,
   Check,
   Mail,
-  RefreshCw
+  RefreshCw,
+  Edit
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -28,6 +29,7 @@ import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
 import DocumentsTab from '../components/DocumentsTab';
 import CreateMeetingDialog from '../components/CreateMeetingDialog';
+import EditMeetingDialog from '../components/EditMeetingDialog';
 import DataImport from '../components/DataImport';
 import {
   Tooltip,
@@ -241,6 +243,8 @@ export default function Meetings() {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [meetingView, setMeetingView] = useState('past');
+  const [editingMeeting, setEditingMeeting] = useState(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   
   const selectedMeetingIdRef = useRef(null);
   selectedMeetingIdRef.current = selectedMeetingId;
@@ -424,6 +428,27 @@ export default function Meetings() {
       console.log('Auto-generating summaries...'); // Debug log
       await autoGenerateSummaries(meeting.id);
     }
+  };
+
+  const handleEditMeeting = (meeting, event) => {
+    event.stopPropagation(); // Prevent meeting selection
+    setEditingMeeting(meeting);
+    setShowEditDialog(true);
+  };
+
+  const handleMeetingUpdated = (updatedMeeting) => {
+    // Refresh meetings list
+    fetchMeetings();
+
+    // Update selected meeting if it's the one being edited
+    if (selectedMeetingId === updatedMeeting.id) {
+      setSelectedMeetingId(updatedMeeting.id);
+    }
+
+    setShowSnackbar(true);
+    setSnackbarMessage('Meeting updated successfully');
+    setSnackbarSeverity('success');
+    setTimeout(() => setShowSnackbar(false), 3000);
   };
 
   const autoGenerateSummaries = async (meetingId, forceRegenerate = false) => {
@@ -970,6 +995,17 @@ export default function Meetings() {
                     {formatMeetingTime(meeting)}
                   </span>
                 </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => handleEditMeeting(meeting, e)}
+                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    title="Edit meeting"
+                  >
+                    <Edit className="w-3 h-3" />
+                  </Button>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -995,11 +1031,11 @@ export default function Meetings() {
   }
 
   return (
-    <div className="h-full flex bg-background">
+    <div className="h-full w-full flex bg-background overflow-hidden">
       {/* Left Panel - Meetings List */}
       <div className={cn(
-        "flex flex-col bg-background border-r border-border/50 transition-all duration-300",
-        selectedMeeting ? "w-1/2" : "w-full"
+        "flex flex-col bg-background transition-all duration-300 overflow-hidden",
+        selectedMeeting ? "w-1/2 border-r border-border/50" : "w-full"
       )}>
         {/* Header */}
         <div className="border-b border-border/50 p-6 bg-card/50">
@@ -1157,8 +1193,8 @@ export default function Meetings() {
       </div>
 
       {/* Right Panel - Meeting Details */}
-      {selectedMeeting ? (
-        <div className="w-1/2 bg-card border-l border-border/50 flex flex-col">
+      {selectedMeeting && (
+        <div className="w-1/2 bg-card border-l border-border/50 flex flex-col overflow-hidden">
           {/* Header */}
           <div className="border-b border-border/50 p-4 bg-card/50">
             <div className="flex items-start justify-between">
@@ -1218,14 +1254,25 @@ export default function Meetings() {
                   </span>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSelectedMeetingId(null)}
-                className="ml-2 h-8 w-8 p-0"
-              >
-                ×
-              </Button>
+              <div className="flex items-center gap-1 ml-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => handleEditMeeting(selectedMeeting, e)}
+                  className="h-8 w-8 p-0"
+                  title="Edit meeting"
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedMeetingId(null)}
+                  className="h-8 w-8 p-0"
+                >
+                  ×
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -1655,21 +1702,6 @@ Example:
             </div>
           </div>
         </div>
-      ) : (
-        /* Default State - No Meeting Selected */
-        <div className="w-1/2 bg-card border-l border-border/50 flex flex-col items-center justify-center">
-          <div className="text-center space-y-4 p-8">
-            <div className="w-16 h-16 mx-auto bg-muted/20 rounded-full flex items-center justify-center">
-              <MessageSquare className="w-8 h-8 text-muted-foreground" />
-            </div>
-            <div className="space-y-2">
-              <h3 className="text-lg font-medium text-foreground">Select a meeting to view details</h3>
-              <p className="text-sm text-muted-foreground max-w-sm">
-                Choose a meeting from the list to view its transcript, AI summaries, and email drafts.
-              </p>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* AI Adjustment Dialog */}
@@ -1708,6 +1740,14 @@ Example:
           </div>
         </div>
       )}
+
+      {/* Edit Meeting Dialog */}
+      <EditMeetingDialog
+        meeting={editingMeeting}
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        onMeetingUpdated={handleMeetingUpdated}
+      />
 
       {/* Snackbar */}
       {showSnackbar && (
