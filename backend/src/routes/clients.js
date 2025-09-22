@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
 const clientExtractionService = require('../services/clientExtraction');
+const { authenticateUser } = require('../middleware/auth');
 
 const router = express.Router();
 
