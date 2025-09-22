@@ -7,6 +7,7 @@ const { supabase, isSupabaseAvailable, getSupabase } = require('./lib/supabase')
 const CalendlyService = require('./services/calendlyService');
 const clientsRouter = require('./routes/clients');
 const pipelineRouter = require('./routes/pipeline');
+const actionItemsRouter = require('./routes/actionItems');
 const routes = require('./routes/index');
 
 const app = express();
@@ -828,6 +829,7 @@ try {
 
 app.use('/api/clients', clientsRouter);
 app.use('/api/pipeline', pipelineRouter);
+app.use('/api/action-items', actionItemsRouter);
 app.use('/api/calendar', require('./routes/calendar'));
 app.use('/api/notifications', require('./routes/notifications'));
 console.log('🔄 Mounting main routes at /api...');
