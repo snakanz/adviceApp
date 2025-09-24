@@ -73,34 +73,47 @@ class CalendlyService {
       console.log(`📅 Fetching Calendly events from ${timeMin.toISOString()} to ${timeMax.toISOString()}`);
 
       let allEvents = [];
-      let nextPageToken = null;
+      let nextPageUrl = null;
       let pageCount = 0;
 
+      // Build initial request URL
+      const params = new URLSearchParams({
+        user: user.uri,
+        min_start_time: timeMin.toISOString(),
+        max_start_time: timeMax.toISOString(),
+        status: 'active',
+        sort: 'start_time:asc',
+        count: '100' // Maximum allowed by Calendly API
+      });
+
+      let requestUrl = `/scheduled_events?${params}`;
+
       do {
-        const params = new URLSearchParams({
-          user: user.uri,
-          min_start_time: timeMin.toISOString(),
-          max_start_time: timeMax.toISOString(),
-          status: 'active',
-          sort: 'start_time:asc',
-          count: '100' // Maximum allowed by Calendly API
-        });
-
-        if (nextPageToken) {
-          params.set('page_token', nextPageToken);
-        }
-
         console.log(`📄 Fetching page ${pageCount + 1} of Calendly events...`);
-        const data = await this.makeRequest(`/scheduled_events?${params}`);
+
+        // Use the full next page URL if available, otherwise use the initial URL
+        const urlToFetch = nextPageUrl ? nextPageUrl.replace(this.baseURL, '') : requestUrl;
+        const data = await this.makeRequest(urlToFetch);
 
         const events = data.collection || [];
         allEvents = allEvents.concat(events);
-
-        // Check for pagination
-        nextPageToken = data.pagination?.next_page_token || null;
         pageCount++;
 
         console.log(`📊 Page ${pageCount}: Found ${events.length} events (Total: ${allEvents.length})`);
+
+        // Check for pagination - use the full next_page URL
+        const pagination = data.pagination || {};
+
+        // If we got fewer than 100 events, we're at the end
+        if (events.length < 100) {
+          console.log('📄 Received fewer than 100 events, reached end of results');
+          nextPageUrl = null;
+        } else {
+          nextPageUrl = pagination.next_page || null;
+          if (nextPageUrl) {
+            console.log('🔗 Next page URL:', nextPageUrl);
+          }
+        }
 
         // Safety check to prevent infinite loops
         if (pageCount > 50) {
@@ -108,7 +121,7 @@ class CalendlyService {
           break;
         }
 
-      } while (nextPageToken);
+      } while (nextPageUrl);
 
       console.log(`✅ Calendly fetch complete: ${allEvents.length} total events across ${pageCount} pages`);
       return allEvents;
