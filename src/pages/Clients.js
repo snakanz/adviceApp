@@ -21,6 +21,7 @@ import { api } from '../services/api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import PipelineEntryForm from '../components/PipelineEntryForm';
 import BusinessTypeManager from '../components/BusinessTypeManager';
+import CreateClientForm from '../components/CreateClientForm';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -50,6 +51,8 @@ export default function Clients() {
   const [showBusinessTypeManager, setShowBusinessTypeManager] = useState(false);
   const [clientBusinessTypes, setClientBusinessTypes] = useState([]);
   const [savingBusinessTypes, setSavingBusinessTypes] = useState(false);
+  const [showCreateClientForm, setShowCreateClientForm] = useState(false);
+  const [creatingClient, setCreatingClient] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -246,6 +249,32 @@ export default function Clients() {
     }
   };
 
+  const handleCreateClient = async (clientData) => {
+    setCreatingClient(true);
+    try {
+      const response = await api.request('/clients/create', {
+        method: 'POST',
+        body: JSON.stringify(clientData)
+      });
+
+      if (response) {
+        // Refresh clients data
+        await fetchClients();
+        setShowCreateClientForm(false);
+
+        // Optionally select the newly created client
+        if (response.client) {
+          setSelectedClient(response.client);
+        }
+      }
+    } catch (error) {
+      console.error('Error creating client:', error);
+      throw error; // Re-throw to let the form handle the error
+    } finally {
+      setCreatingClient(false);
+    }
+  };
+
   const handleCancelBusinessTypes = () => {
     setShowBusinessTypeManager(false);
     setEditingClient(null);
@@ -375,24 +404,33 @@ export default function Clients() {
         <div className="border-b border-border/50 p-6 bg-card/50">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-foreground">Clients</h1>
-            <Button
-              onClick={handleExtractClients}
-              disabled={extracting}
-              variant="outline"
-              size="sm"
-            >
-              {extracting ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />
-                  Extracting...
-                </>
-              ) : (
-                <>
-                  <Users className="w-4 h-4 mr-2" />
-                  Extract Clients
-                </>
-              )}
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => setShowCreateClientForm(true)}
+                className="flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Create Client
+              </Button>
+              <Button
+                onClick={handleExtractClients}
+                disabled={extracting}
+                variant="outline"
+                size="sm"
+              >
+                {extracting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />
+                    Extracting...
+                  </>
+                ) : (
+                  <>
+                    <Users className="w-4 h-4 mr-2" />
+                    Extract Clients
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
           {/* Filters and Search */}
@@ -877,6 +915,15 @@ export default function Clients() {
           onClose={handleClosePipelineForm}
           onSubmit={handleSubmitPipelineEntry}
           isSubmitting={creatingPipeline}
+        />
+      )}
+
+      {/* Create Client Form Modal */}
+      {showCreateClientForm && (
+        <CreateClientForm
+          onClose={() => setShowCreateClientForm(false)}
+          onSuccess={handleCreateClient}
+          isSubmitting={creatingClient}
         />
       )}
     </div>

@@ -1034,4 +1034,157 @@ router.put('/:clientId/business-types', authenticateUser, async (req, res) => {
   }
 });
 
+// Create new client with pipeline integration and business types
+router.post('/create', authenticateUser, async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No authorization header' });
+
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const advisorId = decoded.id;
+
+    const {
+      // Basic client info
+      name,
+      email,
+      phone,
+      address,
+      // Pipeline info
+      pipeline_stage,
+      likely_close_month,
+      priority_level,
+      notes,
+      source,
+      // Business types array
+      business_types
+    } = req.body;
+
+    // Validation
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Name and email are required' });
+    }
+
+    if (!pipeline_stage) {
+      return res.status(400).json({ error: 'Pipeline stage is required' });
+    }
+
+    if (!business_types || !Array.isArray(business_types) || business_types.length === 0) {
+      return res.status(400).json({ error: 'At least one business type is required' });
+    }
+
+    // Validate business types
+    for (const bt of business_types) {
+      if (!bt.business_type || !bt.contribution_method) {
+        return res.status(400).json({
+          error: 'Each business type must have a type and contribution method'
+        });
+      }
+
+      if (bt.contribution_method === 'Regular Monthly Contribution' && !bt.regular_contribution_amount) {
+        return res.status(400).json({
+          error: 'Regular contribution amount is required for Regular Monthly Contribution'
+        });
+      }
+    }
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    // Check if client already exists
+    const { data: existingClient, error: checkError } = await getSupabase()
+      .from('clients')
+      .select('id')
+      .eq('advisor_id', advisorId)
+      .eq('email', email)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Error checking existing client:', checkError);
+      return res.status(500).json({ error: 'Failed to check existing client' });
+    }
+
+    if (existingClient) {
+      return res.status(400).json({ error: 'Client with this email already exists' });
+    }
+
+    // Create new client
+    const clientData = {
+      advisor_id: advisorId,
+      name,
+      email,
+      phone: phone || null,
+      address: address || null,
+      pipeline_stage,
+      likely_close_month: likely_close_month || null,
+      priority_level: priority_level || 3,
+      notes: notes || null,
+      source: source || 'manual',
+      last_contact_date: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: newClient, error: clientError } = await getSupabase()
+      .from('clients')
+      .insert(clientData)
+      .select()
+      .single();
+
+    if (clientError) {
+      console.error('Error creating client:', clientError);
+      return res.status(500).json({ error: 'Failed to create client' });
+    }
+
+    // Create business types
+    const businessTypeData = business_types.map(bt => ({
+      client_id: newClient.id,
+      business_type: bt.business_type,
+      business_amount: bt.business_amount ? parseFloat(bt.business_amount) : null,
+      contribution_method: bt.contribution_method,
+      regular_contribution_amount: bt.regular_contribution_amount || null,
+      iaf_expected: bt.iaf_expected ? parseFloat(bt.iaf_expected) : null,
+      notes: bt.notes || null
+    }));
+
+    const { data: newBusinessTypes, error: businessTypeError } = await getSupabase()
+      .from('client_business_types')
+      .insert(businessTypeData)
+      .select();
+
+    if (businessTypeError) {
+      console.error('Error creating business types:', businessTypeError);
+      // Don't fail the whole operation, but log the error
+    }
+
+    // Create pipeline activity
+    await getSupabase()
+      .from('pipeline_activities')
+      .insert({
+        client_id: newClient.id,
+        advisor_id: advisorId,
+        activity_type: 'note',
+        title: 'Client created',
+        description: `New client created with pipeline stage: ${pipeline_stage}`,
+        metadata: {
+          source: 'client_creation',
+          business_types: business_types.map(bt => bt.business_type)
+        }
+      });
+
+    res.json({
+      message: 'Client created successfully',
+      client: newClient,
+      business_types: newBusinessTypes
+    });
+
+  } catch (error) {
+    console.error('Error in create client:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

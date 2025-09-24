@@ -7,12 +7,14 @@ import {
   User,
   Search,
   Edit3,
-  X
+  X,
+  Plus
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { api } from '../services/api';
+import CreateClientForm from '../components/CreateClientForm';
 
 
 
@@ -25,6 +27,8 @@ export default function Pipeline() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [editingField, setEditingField] = useState(null);
   const [editValue, setEditValue] = useState('');
+  const [showCreateClientForm, setShowCreateClientForm] = useState(false);
+  const [creatingClient, setCreatingClient] = useState(false);
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -223,6 +227,36 @@ export default function Pipeline() {
     setEditValue('');
   };
 
+  const handleCreateClient = async (clientData) => {
+    setCreatingClient(true);
+    try {
+      const response = await api.request('/clients/create', {
+        method: 'POST',
+        body: JSON.stringify(clientData)
+      });
+
+      if (response) {
+        // Refresh pipeline data
+        await fetchPipelineData();
+        setShowCreateClientForm(false);
+
+        // Optionally select the newly created client
+        if (response.client) {
+          const newClient = clients.find(c => c.id === response.client.id);
+          if (newClient) {
+            setSelectedClient(newClient);
+            setShowDetailPanel(true);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error creating client:', error);
+      throw error; // Re-throw to let the form handle the error
+    } finally {
+      setCreatingClient(false);
+    }
+  };
+
   const getCurrentMonthClients = () => {
     const monthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
     return clients.filter(client => client.expectedMonth === monthKey);
@@ -296,6 +330,13 @@ export default function Pipeline() {
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-foreground">Client Pipeline</h1>
             <div className="flex items-center gap-4">
+              <Button
+                onClick={() => setShowCreateClientForm(true)}
+                className="flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Create Client
+              </Button>
               <div className="text-sm text-muted-foreground">
                 Total Pipeline Value: <span className="font-semibold text-foreground">
                   {formatCurrency(clients.reduce((total, client) => total + (client.expectedValue || 0), 0))}
@@ -686,6 +727,15 @@ export default function Pipeline() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Create Client Form Modal */}
+      {showCreateClientForm && (
+        <CreateClientForm
+          onClose={() => setShowCreateClientForm(false)}
+          onSuccess={handleCreateClient}
+          isSubmitting={creatingClient}
+        />
       )}
     </div>
   );
