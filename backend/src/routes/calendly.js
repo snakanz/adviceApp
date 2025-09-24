@@ -83,7 +83,7 @@ router.get('/status', authenticateUser, async (req, res) => {
   }
 });
 
-// Sync Calendly meetings
+// Enhanced Calendly sync with comprehensive feedback
 router.post('/sync', authenticateUser, async (req, res) => {
   try {
     if (!isSupabaseAvailable()) {
@@ -91,21 +91,83 @@ router.post('/sync', authenticateUser, async (req, res) => {
     }
 
     const calendlyService = new CalendlyService();
-    const result = await calendlyService.syncMeetingsToDatabase(req.user.id);
-    
+    const userId = req.user.id;
+
+    console.log(`🔄 Starting enhanced Calendly sync for user ${userId}`);
+
+    // Get sync status before sync
+    const { data: beforeStatus } = await getSupabase()
+      .rpc('get_calendly_sync_status', { user_id: userId });
+
+    // Perform the sync
+    const syncResult = await calendlyService.syncMeetingsToDatabase(userId);
+
+    // Get sync status after sync
+    const { data: afterStatus } = await getSupabase()
+      .rpc('get_calendly_sync_status', { user_id: userId });
+
+    // Calculate improvements
+    const improvement = {
+      meetings_added: syncResult.synced || 0,
+      total_before: beforeStatus?.total_calendly_meetings || 0,
+      total_after: afterStatus?.total_calendly_meetings || 0,
+      sync_health_before: beforeStatus?.sync_health || 'unknown',
+      sync_health_after: afterStatus?.sync_health || 'unknown'
+    };
+
+    console.log(`✅ Calendly sync completed:`, improvement);
+
     res.json({
       success: true,
-      ...result
+      message: `Successfully synced ${syncResult.synced} Calendly meetings`,
+      sync_result: syncResult,
+      improvement,
+      recommendations: generateSyncRecommendations(afterStatus)
     });
   } catch (error) {
     console.error('Error syncing Calendly meetings:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       error: 'Failed to sync Calendly meetings',
-      details: error.message 
+      details: error.message,
+      troubleshooting: {
+        check_token: 'Verify CALENDLY_PERSONAL_ACCESS_TOKEN is set correctly',
+        check_permissions: 'Ensure token has read access to scheduled events',
+        check_network: 'Verify network connectivity to Calendly API'
+      }
     });
   }
 });
+
+// Helper function to generate sync recommendations
+function generateSyncRecommendations(syncStatus) {
+  const recommendations = [];
+
+  if (!syncStatus) {
+    recommendations.push('Unable to assess sync status - check database connectivity');
+    return recommendations;
+  }
+
+  if (syncStatus.total_calendly_meetings === 0) {
+    recommendations.push('No Calendly meetings found - verify your Calendly account has scheduled events');
+  }
+
+  if (syncStatus.sync_health === 'critical') {
+    recommendations.push('Critical sync issues detected - consider running a full resync');
+  } else if (syncStatus.sync_health === 'warning') {
+    recommendations.push('Some sync issues detected - monitor for recurring problems');
+  }
+
+  if (syncStatus.recent_calendly_meetings === 0) {
+    recommendations.push('No recent Calendly meetings - this may be normal if you haven\'t had meetings recently');
+  }
+
+  if (recommendations.length === 0) {
+    recommendations.push('Calendly sync is healthy - no action needed');
+  }
+
+  return recommendations;
+}
 
 // Get Calendly meetings for user
 router.get('/meetings', authenticateUser, async (req, res) => {

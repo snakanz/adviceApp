@@ -58,29 +58,60 @@ class CalendlyService {
   }
 
   /**
-   * Fetch scheduled events from Calendly
+   * Fetch scheduled events from Calendly with pagination support
    */
   async fetchScheduledEvents(options = {}) {
     try {
       // Get current user first to get their URI
       const user = await this.getCurrentUser();
-      
-      // Calculate time range (default: 3 months back, 6 months forward)
+
+      // Calculate time range (default: 2 years back, 1 year forward for comprehensive sync)
       const now = new Date();
-      const timeMin = options.timeMin || new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-      const timeMax = options.timeMax || new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
+      const timeMin = options.timeMin || new Date(now.getTime() - 730 * 24 * 60 * 60 * 1000); // 2 years back
+      const timeMax = options.timeMax || new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000); // 1 year forward
 
-      const params = new URLSearchParams({
-        user: user.uri,
-        min_start_time: timeMin.toISOString(),
-        max_start_time: timeMax.toISOString(),
-        status: 'active',
-        sort: 'start_time:asc',
-        count: '100' // Maximum allowed by Calendly API
-      });
+      console.log(`📅 Fetching Calendly events from ${timeMin.toISOString()} to ${timeMax.toISOString()}`);
 
-      const data = await this.makeRequest(`/scheduled_events?${params}`);
-      return data.collection || [];
+      let allEvents = [];
+      let nextPageToken = null;
+      let pageCount = 0;
+
+      do {
+        const params = new URLSearchParams({
+          user: user.uri,
+          min_start_time: timeMin.toISOString(),
+          max_start_time: timeMax.toISOString(),
+          status: 'active',
+          sort: 'start_time:asc',
+          count: '100' // Maximum allowed by Calendly API
+        });
+
+        if (nextPageToken) {
+          params.set('page_token', nextPageToken);
+        }
+
+        console.log(`📄 Fetching page ${pageCount + 1} of Calendly events...`);
+        const data = await this.makeRequest(`/scheduled_events?${params}`);
+
+        const events = data.collection || [];
+        allEvents = allEvents.concat(events);
+
+        // Check for pagination
+        nextPageToken = data.pagination?.next_page_token || null;
+        pageCount++;
+
+        console.log(`📊 Page ${pageCount}: Found ${events.length} events (Total: ${allEvents.length})`);
+
+        // Safety check to prevent infinite loops
+        if (pageCount > 50) {
+          console.warn('⚠️  Reached maximum page limit (50), stopping pagination');
+          break;
+        }
+
+      } while (nextPageToken);
+
+      console.log(`✅ Calendly fetch complete: ${allEvents.length} total events across ${pageCount} pages`);
+      return allEvents;
     } catch (error) {
       console.error('Error fetching Calendly events:', error);
       throw error;
@@ -135,9 +166,11 @@ class CalendlyService {
         sync_status: 'active',
         last_calendar_sync: new Date().toISOString(),
         created_at: new Date().toISOString(),
-        updatedat: new Date().toISOString()
-        // Note: Calendly-specific columns (calendly_event_uri, calendly_event_uuid, client_email)
-        // will be added after database migration
+        updatedat: new Date().toISOString(),
+        // Calendly-specific columns
+        calendly_event_uri: calendlyEvent.uri,
+        calendly_event_uuid: calendlyEvent.uri.split('/').pop(),
+        client_email: clientEmail
       };
     } catch (error) {
       console.error('Error transforming Calendly event:', error);
