@@ -376,15 +376,8 @@ app.get('/api/dev/meetings-simple', (req, res) => {
   ]);
 });
 
-// Working meetings endpoint (no auth for now)
-app.get('/api/dev/meetings', (req, res) => {
-  console.log('📅 Meetings endpoint called (simplified)');
-  res.json([]);
-});
-
-// Simple Calendly-only meetings endpoint (v2) - TEMPORARILY DISABLED
-app.get('/api/dev/meetings-disabled', async (req, res) => {
-  console.log('🔍 Meetings endpoint called');
+// Meetings endpoint with auth and basic database query
+app.get('/api/dev/meetings', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) {
     console.log('❌ No auth header');
@@ -398,61 +391,40 @@ app.get('/api/dev/meetings-disabled', async (req, res) => {
     const userId = decoded.id;
     console.log(`✅ Token verified for user ${userId}`);
 
-    console.log(`📅 Simple Calendly meetings fetch for user ${userId}`);
-
-    // Check Supabase
-    console.log('🔍 Checking Supabase availability...');
+    // Check Supabase availability
     if (!isSupabaseAvailable()) {
       console.log('❌ Supabase not available');
       return res.status(503).json({ error: 'Database unavailable' });
     }
-    console.log('✅ Supabase available');
 
-    // Sync Calendly meetings
-    console.log('🔄 Starting Calendly sync...');
-    try {
-      const calendlyService = new CalendlyService();
-      if (calendlyService.isConfigured()) {
-        console.log('✅ Calendly configured, syncing...');
-        await calendlyService.syncMeetingsToDatabase(userId);
-        console.log('✅ Calendly sync completed');
-      } else {
-        console.log('⚠️ Calendly not configured');
-      }
-    } catch (error) {
-      console.error('❌ Calendly sync error:', error);
-    }
-
-    // Get simple meeting data - only essential fields
+    // Simple database query for meetings
     console.log('🔍 Querying database for meetings...');
     const { data: meetings, error } = await getSupabase()
       .from('meetings')
       .select('id, title, starttime, endtime, attendees, location, source, is_deleted')
       .eq('userid', userId)
-      .eq('source', 'calendly')
       .or('is_deleted.is.null,is_deleted.eq.false')
-      .order('starttime', { ascending: false });
+      .order('starttime', { ascending: false })
+      .limit(50); // Limit to prevent large responses
 
     if (error) {
       console.error('❌ Database query error:', error);
-      console.error('❌ Error details:', error);
       return res.status(500).json({ error: 'Database error', details: error.message });
     }
 
-    console.log(`✅ Query successful: ${meetings?.length || 0} Calendly meetings found`);
-    console.log(`✅ Returning ${meetings?.length || 0} Calendly meetings`);
+    console.log(`✅ Query successful: ${meetings?.length || 0} meetings found`);
     res.json(meetings || []);
 
   } catch (error) {
     console.error('❌ Error in meetings endpoint:', error);
-    console.error('❌ Error stack:', error.stack);
     res.status(500).json({
       error: 'Server error',
-      message: error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: error.message
     });
   }
 });
+
+
 
 // Clients endpoint is now handled by the clients router (routes/clients.js)
 
