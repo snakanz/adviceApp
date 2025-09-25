@@ -451,21 +451,9 @@ app.get('/api/dev/meetings', async (req, res) => {
       return res.status(503).json({ error: 'Database unavailable' });
     }
 
-    // Sync Calendly meetings first
-    console.log('🔄 Starting Calendly sync...');
-    try {
-      const calendlyService = new CalendlyService();
-      if (calendlyService.isConfigured()) {
-        console.log('✅ Calendly configured, syncing...');
-        await calendlyService.syncMeetingsToDatabase(userId);
-        console.log('✅ Calendly sync completed');
-      } else {
-        console.log('⚠️ Calendly not configured, skipping sync');
-      }
-    } catch (error) {
-      console.error('❌ Calendly sync error:', error);
-      // Don't fail the request if Calendly sync fails
-    }
+    // TEMPORARY: Skip Calendly sync to fix loading issue
+    console.log('⚠️ Skipping Calendly sync for debugging');
+    // TODO: Re-enable Calendly sync once loading issue is resolved
 
     // Enhanced database query for meetings with more fields
     console.log('🔍 Querying database for meetings...');
