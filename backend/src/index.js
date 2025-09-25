@@ -455,7 +455,7 @@ app.get('/api/dev/meetings', async (req, res) => {
     console.log('⚠️ Calendly sync temporarily disabled to fix 502 errors');
     // TODO: Debug and re-enable Calendly sync
 
-    // Simple database query for meetings with only core fields that definitely exist
+    // Ultra-simple database query with only essential columns
     console.log('🔍 Querying database for meetings...');
     const { data: meetings, error } = await getSupabase()
       .from('meetings')
@@ -464,11 +464,7 @@ app.get('/api/dev/meetings', async (req, res) => {
         title,
         starttime,
         endtime,
-        attendees,
         summary,
-        transcript,
-        created_at,
-        updatedat,
         googleeventid
       `)
       .eq('userid', userId)
@@ -482,22 +478,14 @@ app.get('/api/dev/meetings', async (req, res) => {
 
     console.log(`✅ Query successful: ${meetings?.length || 0} meetings found`);
 
-    // Process meetings data for frontend (simplified)
+    // Process meetings data for frontend (ultra-simplified)
     const processedMeetings = meetings?.map(meeting => ({
       ...meeting,
-      // Set default source since we removed meeting_source column
+      // Set default values
       source: 'google',
-      // Ensure attendees is always an array
-      attendees: Array.isArray(meeting.attendees) ? meeting.attendees :
-                 typeof meeting.attendees === 'string' ? [meeting.attendees] : [],
-      // Add computed fields
-      hasTranscript: !!meeting.transcript,
+      attendees: [],
+      hasTranscript: false,
       hasSummary: !!meeting.summary,
-      // Format dates for frontend
-      starttime: meeting.starttime ? new Date(meeting.starttime).toISOString() : null,
-      endtime: meeting.endtime ? new Date(meeting.endtime).toISOString() : null,
-      // Add updated_at mapping
-      updated_at: meeting.updatedat
     })) || [];
 
     res.json(processedMeetings);
