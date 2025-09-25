@@ -841,6 +841,11 @@ try {
 
 // Duplicate Calendly routes removed - using proper integration above
 
+// Mount auth routes
+console.log('🔄 Mounting auth routes...');
+app.use('/api/auth', require('./routes/auth'));
+console.log('✅ Auth routes mounted');
+
 app.use('/api/clients', clientsRouter);
 app.use('/api/pipeline', pipelineRouter);
 app.use('/api/action-items', actionItemsRouter);

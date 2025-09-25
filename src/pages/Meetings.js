@@ -971,8 +971,8 @@ export default function Meetings() {
             </thead>
             <tbody>
               {meetings.map((meeting) => {
-                const isComplete = meeting.transcript && (meeting.quick_summary || meeting.brief_summary) && meeting.email_summary_draft;
-                const hasPartialData = meeting.transcript || (meeting.quick_summary || meeting.brief_summary) || meeting.email_summary_draft;
+                // const isComplete = meeting.transcript && (meeting.quick_summary || meeting.brief_summary) && meeting.email_summary_draft;
+                // const hasPartialData = meeting.transcript || (meeting.quick_summary || meeting.brief_summary) || meeting.email_summary_draft;
 
                 let clientInfo = null;
                 if (meeting.attendees) {
