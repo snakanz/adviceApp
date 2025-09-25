@@ -465,8 +465,7 @@ app.get('/api/dev/meetings', async (req, res) => {
         starttime,
         endtime,
         attendees,
-        location,
-        source,
+        meeting_source,
         is_deleted,
         transcript,
         summary,
@@ -474,7 +473,7 @@ app.get('/api/dev/meetings', async (req, res) => {
         detailed_summary,
         brief_summary,
         created_at,
-        updated_at
+        updatedat
       `)
       .eq('userid', userId)
       .or('is_deleted.is.null,is_deleted.eq.false')
@@ -491,6 +490,8 @@ app.get('/api/dev/meetings', async (req, res) => {
     // Process meetings data for frontend
     const processedMeetings = meetings?.map(meeting => ({
       ...meeting,
+      // Map database column names to frontend expectations
+      source: meeting.meeting_source, // Frontend expects 'source'
       // Ensure attendees is always an array
       attendees: Array.isArray(meeting.attendees) ? meeting.attendees :
                  typeof meeting.attendees === 'string' ? [meeting.attendees] : [],
@@ -499,7 +500,9 @@ app.get('/api/dev/meetings', async (req, res) => {
       hasSummary: !!(meeting.summary || meeting.quick_summary || meeting.detailed_summary || meeting.brief_summary),
       // Format dates for frontend
       starttime: meeting.starttime ? new Date(meeting.starttime).toISOString() : null,
-      endtime: meeting.endtime ? new Date(meeting.endtime).toISOString() : null
+      endtime: meeting.endtime ? new Date(meeting.endtime).toISOString() : null,
+      // Add updated_at mapping
+      updated_at: meeting.updatedat
     })) || [];
 
     res.json(processedMeetings);
