@@ -376,17 +376,64 @@ app.get('/api/dev/meetings-simple', (req, res) => {
   ]);
 });
 
+// Auth status check endpoint
+app.get('/api/dev/auth-status', (req, res) => {
+  console.log('🔍 Auth status check called');
+  const auth = req.headers.authorization;
+
+  if (!auth) {
+    return res.json({
+      authenticated: false,
+      message: 'No authorization header',
+      hasToken: false
+    });
+  }
+
+  try {
+    const token = auth.split(' ')[1];
+    if (!token) {
+      return res.json({
+        authenticated: false,
+        message: 'No bearer token',
+        hasToken: false
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    return res.json({
+      authenticated: true,
+      message: 'Token valid',
+      hasToken: true,
+      userId: decoded.id,
+      email: decoded.email
+    });
+  } catch (error) {
+    return res.json({
+      authenticated: false,
+      message: `Token invalid: ${error.message}`,
+      hasToken: true,
+      error: error.message
+    });
+  }
+});
+
 // Meetings endpoint with auth and basic database query
 app.get('/api/dev/meetings', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) {
-    console.log('❌ No auth header');
-    return res.status(401).json({ error: 'No token' });
+    console.log('❌ No auth header provided');
+    return res.status(401).json({ error: 'No token', message: 'Authorization header required' });
   }
 
   try {
     console.log('🔑 Verifying token...');
     const token = auth.split(' ')[1];
+    if (!token) {
+      console.log('❌ No token in auth header');
+      return res.status(401).json({ error: 'No token', message: 'Bearer token required' });
+    }
+
+    console.log(`🔍 Token preview: ${token.substring(0, 20)}...`);
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
     console.log(`✅ Token verified for user ${userId}`);
