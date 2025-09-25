@@ -451,11 +451,23 @@ app.get('/api/dev/meetings', async (req, res) => {
       return res.status(503).json({ error: 'Database unavailable' });
     }
 
-    // TEMPORARY: Skip Calendly sync to fix loading issue
-    console.log('⚠️ Skipping Calendly sync for debugging');
-    // TODO: Re-enable Calendly sync once loading issue is resolved
+    // Sync Calendly meetings first (restored)
+    console.log('🔄 Starting Calendly sync...');
+    try {
+      const calendlyService = new CalendlyService();
+      if (calendlyService.isConfigured()) {
+        console.log('✅ Calendly configured, syncing...');
+        await calendlyService.syncMeetingsToDatabase(userId);
+        console.log('✅ Calendly sync completed');
+      } else {
+        console.log('⚠️ Calendly not configured - set CALENDLY_PERSONAL_ACCESS_TOKEN environment variable');
+      }
+    } catch (error) {
+      console.error('❌ Calendly sync error:', error);
+      // Don't fail the request if Calendly sync fails
+    }
 
-    // Enhanced database query for meetings with more fields
+    // Enhanced database query for meetings with core fields
     console.log('🔍 Querying database for meetings...');
     const { data: meetings, error } = await getSupabase()
       .from('meetings')
@@ -470,15 +482,17 @@ app.get('/api/dev/meetings', async (req, res) => {
         transcript,
         summary,
         quick_summary,
-        detailed_summary,
-        brief_summary,
+        email_summary_draft,
         created_at,
-        updatedat
+        updatedat,
+        googleeventid,
+        client_id,
+        notes
       `)
       .eq('userid', userId)
       .or('is_deleted.is.null,is_deleted.eq.false')
       .order('starttime', { ascending: false })
-      .limit(100); // Increased limit for better UX
+      .limit(500); // Increased limit to get all historical data
 
     if (error) {
       console.error('❌ Database query error:', error);
@@ -497,7 +511,7 @@ app.get('/api/dev/meetings', async (req, res) => {
                  typeof meeting.attendees === 'string' ? [meeting.attendees] : [],
       // Add computed fields
       hasTranscript: !!meeting.transcript,
-      hasSummary: !!(meeting.summary || meeting.quick_summary || meeting.detailed_summary || meeting.brief_summary),
+      hasSummary: !!(meeting.summary || meeting.quick_summary || meeting.email_summary_draft),
       // Format dates for frontend
       starttime: meeting.starttime ? new Date(meeting.starttime).toISOString() : null,
       endtime: meeting.endtime ? new Date(meeting.endtime).toISOString() : null,
