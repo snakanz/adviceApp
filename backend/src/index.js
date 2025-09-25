@@ -406,6 +406,20 @@ app.get('/api/dev/meetings', async (req, res) => {
 
     console.log(`✅ Found ${meetings?.length || 0} meetings in database`);
 
+    // DEBUG: Check September 2025 meetings specifically
+    const sept2025Meetings = meetings?.filter(m => {
+      const date = new Date(m.starttime);
+      return date.getFullYear() === 2025 && date.getMonth() === 8;
+    }) || [];
+    console.log(`🎯 DEBUG: September 2025 meetings returned by API: ${sept2025Meetings.length}`);
+
+    if (sept2025Meetings.length > 0) {
+      console.log('🎯 DEBUG: First few September 2025 meetings:');
+      sept2025Meetings.slice(0, 3).forEach(m => {
+        console.log(`  - ${m.starttime}: ${m.title} (userid: ${m.userid}, deleted: ${m.is_deleted})`);
+      });
+    }
+
     // Log summary data for debugging
     if (meetings && meetings.length > 0) {
       meetings.forEach(meeting => {

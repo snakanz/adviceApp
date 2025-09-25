@@ -145,25 +145,69 @@ class CalendlyService {
   }
 
   /**
-   * Transform Calendly event to Advicly meeting format
+   * Transform Calendly event to Advicly meeting format with enhanced data
    */
   async transformEventToMeeting(calendlyEvent, userId) {
     try {
-      // Get invitees for this event
+      // Get invitees for this event with enhanced details
       const invitees = await this.getEventInvitees(calendlyEvent.uri.split('/').pop());
-      
+
       // Extract client email from invitees (first invitee is usually the client)
       const clientEmail = invitees.length > 0 ? invitees[0].email : null;
-      
-      // Create attendees array in the format expected by Advicly
+
+      // Create enhanced attendees array with more details
       const attendees = invitees.map(invitee => ({
         email: invitee.email,
         displayName: invitee.name,
-        responseStatus: 'accepted' // Calendly events are confirmed
+        responseStatus: 'accepted', // Calendly events are confirmed
+        // Enhanced Calendly invitee data
+        calendlyInviteeUri: invitee.uri,
+        calendlyInviteeUuid: invitee.uri ? invitee.uri.split('/').pop() : null,
+        timezone: invitee.timezone,
+        createdAt: invitee.created_at,
+        updatedAt: invitee.updated_at,
+        cancelUrl: invitee.cancel_url,
+        rescheduleUrl: invitee.reschedule_url,
+        // Custom fields and questions/answers
+        questionsAndAnswers: invitee.questions_and_answers || [],
+        trackingData: invitee.tracking || {},
+        paymentInfo: invitee.payment || null
       }));
 
       // Generate unique event ID for Calendly meetings
       const calendlyEventId = `calendly_${calendlyEvent.uri.split('/').pop()}`;
+
+      // Enhanced location parsing
+      let locationDetails = null;
+      let locationType = 'unknown';
+
+      if (calendlyEvent.location) {
+        if (calendlyEvent.location.type === 'physical') {
+          locationType = 'physical';
+          locationDetails = calendlyEvent.location.location;
+        } else if (calendlyEvent.location.type === 'custom') {
+          locationType = 'custom';
+          locationDetails = calendlyEvent.location.location;
+        } else if (calendlyEvent.location.type === 'zoom') {
+          locationType = 'zoom';
+          locationDetails = calendlyEvent.location.join_url || 'Zoom meeting (details in Calendly)';
+        } else if (calendlyEvent.location.type === 'google_meet') {
+          locationType = 'google_meet';
+          locationDetails = calendlyEvent.location.join_url || 'Google Meet (details in Calendly)';
+        } else if (calendlyEvent.location.type === 'microsoft_teams') {
+          locationType = 'microsoft_teams';
+          locationDetails = calendlyEvent.location.join_url || 'Microsoft Teams (details in Calendly)';
+        } else if (calendlyEvent.location.type === 'gotomeeting') {
+          locationType = 'gotomeeting';
+          locationDetails = calendlyEvent.location.join_url || 'GoToMeeting (details in Calendly)';
+        } else if (calendlyEvent.location.type === 'webex') {
+          locationType = 'webex';
+          locationDetails = calendlyEvent.location.join_url || 'Webex (details in Calendly)';
+        } else if (calendlyEvent.location.type === 'phone_call') {
+          locationType = 'phone';
+          locationDetails = 'Phone call (details in Calendly)';
+        }
+      }
 
       return {
         userid: userId,
@@ -174,7 +218,7 @@ class CalendlyService {
         summary: `Calendly meeting: ${calendlyEvent.name}`,
         attendees: JSON.stringify(attendees),
         meeting_source: 'calendly',
-        location: calendlyEvent.location?.location || null,
+        location: locationDetails,
         is_deleted: false,
         sync_status: 'active',
         last_calendar_sync: new Date().toISOString(),
@@ -197,7 +241,7 @@ class CalendlyService {
   async syncMeetingsToDatabase(userId) {
     try {
       console.log(`🔄 Starting Calendly sync for user ${userId}...`);
-      
+
       if (!this.isConfigured()) {
         console.log('⚠️  Calendly not configured, skipping sync');
         return { synced: 0, errors: 0, message: 'Calendly not configured' };
@@ -211,43 +255,71 @@ class CalendlyService {
         return { synced: 0, errors: 0, message: 'No Calendly events found' };
       }
 
-      // Get existing Calendly meetings from database
+      // Get existing Calendly meetings from database using googleeventid (which contains calendly_ prefix)
       const { data: existingMeetings } = await getSupabase()
         .from('meetings')
-        .select('googleeventid, calendly_event_uuid')
+        .select('googleeventid')
         .eq('userid', userId)
         .eq('meeting_source', 'calendly');
 
-      const existingEventUuids = new Set(
-        (existingMeetings || []).map(m => m.calendly_event_uuid).filter(Boolean)
+      const existingEventIds = new Set(
+        (existingMeetings || []).map(m => m.googleeventid).filter(Boolean)
       );
 
       let syncedCount = 0;
       let errorCount = 0;
+      let updatedCount = 0;
 
       // Process each Calendly event
       for (const event of calendlyEvents) {
         try {
           const eventUuid = event.uri.split('/').pop();
-          
-          // Skip if already exists
-          if (existingEventUuids.has(eventUuid)) {
-            continue;
-          }
+          const calendlyEventId = `calendly_${eventUuid}`;
 
-          // Transform and insert meeting
+          // Check if already exists
+          const alreadyExists = existingEventIds.has(calendlyEventId);
+
+          // Transform event to meeting data with enhanced information
           const meetingData = await this.transformEventToMeeting(event, userId);
-          
-          const { error } = await getSupabase()
-            .from('meetings')
-            .insert(meetingData);
 
-          if (error) {
-            console.error(`Error inserting Calendly meeting ${eventUuid}:`, error);
-            errorCount++;
+          if (alreadyExists) {
+            // Update existing meeting with latest data
+            const { error } = await getSupabase()
+              .from('meetings')
+              .update({
+                title: meetingData.title,
+                starttime: meetingData.starttime,
+                endtime: meetingData.endtime,
+                summary: meetingData.summary,
+                attendees: meetingData.attendees,
+                location: meetingData.location,
+                last_calendar_sync: meetingData.last_calendar_sync,
+                updatedat: meetingData.updatedat,
+                client_email: meetingData.client_email
+              })
+              .eq('googleeventid', calendlyEventId)
+              .eq('userid', userId);
+
+            if (error) {
+              console.error(`Error updating Calendly meeting ${eventUuid}:`, error);
+              errorCount++;
+            } else {
+              console.log(`🔄 Updated Calendly meeting: ${meetingData.title}`);
+              updatedCount++;
+            }
           } else {
-            console.log(`✅ Synced Calendly meeting: ${meetingData.title}`);
-            syncedCount++;
+            // Insert new meeting
+            const { error } = await getSupabase()
+              .from('meetings')
+              .insert(meetingData);
+
+            if (error) {
+              console.error(`Error inserting Calendly meeting ${eventUuid}:`, error);
+              errorCount++;
+            } else {
+              console.log(`✅ Synced Calendly meeting: ${meetingData.title}`);
+              syncedCount++;
+            }
           }
         } catch (error) {
           console.error('Error processing Calendly event:', error);
@@ -256,7 +328,7 @@ class CalendlyService {
       }
 
       // After syncing meetings, extract and associate clients
-      if (syncedCount > 0) {
+      if (syncedCount > 0 || updatedCount > 0) {
         try {
           // const clientExtraction = new ClientExtractionService();
           // await clientExtraction.extractClientsFromMeetings(userId);
@@ -266,11 +338,12 @@ class CalendlyService {
         }
       }
 
-      console.log(`🎉 Calendly sync complete: ${syncedCount} synced, ${errorCount} errors`);
+      console.log(`🎉 Calendly sync complete: ${syncedCount} synced, ${updatedCount} updated, ${errorCount} errors`);
       return {
         synced: syncedCount,
+        updated: updatedCount,
         errors: errorCount,
-        message: `Synced ${syncedCount} meetings from Calendly`
+        message: `Synced ${syncedCount} new meetings, updated ${updatedCount} existing meetings from Calendly`
       };
 
     } catch (error) {

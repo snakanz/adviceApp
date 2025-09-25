@@ -20,7 +20,9 @@ import {
   Check,
   Mail,
   RefreshCw,
-  Edit
+  Edit,
+  Grid3X3,
+  List
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -260,6 +262,7 @@ export default function Meetings() {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [meetingView, setMeetingView] = useState('past');
+  const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'table'
   const [editingMeeting, setEditingMeeting] = useState(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   
@@ -314,28 +317,72 @@ export default function Meetings() {
     setLoading(true);
     try {
       const token = localStorage.getItem('jwt');
+      console.log('🔑 Using JWT token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+
+      if (!token) {
+        console.error('❌ No JWT token found in localStorage');
+        setShowSnackbar(true);
+        setSnackbarMessage('Authentication required. Please log in again.');
+        setSnackbarSeverity('error');
+        return;
+      }
+
       // 🔥 FIXED: Always use the database endpoint (dev/meetings) for both localhost and production
       const url = `${API_URL}/api/dev/meetings`;
+      console.log('🌐 Fetching from URL:', url);
+
       const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!res.ok) {
-        if (res.status === 401) {
-          const errorData = await res.json();
-          if (errorData.error && errorData.error.includes('Google Calendar')) {
-            setShowSnackbar(true);
-            setSnackbarMessage('Google Calendar connection issue. Please reconnect your Google account.');
-            setSnackbarSeverity('warning');
-          }
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
-        throw new Error('Failed to fetch meetings');
+      });
+
+      if (!res.ok) {
+        console.error('❌ API Error:', res.status, res.statusText);
+        const errorText = await res.text();
+        console.error('❌ Error details:', errorText);
+
+        if (res.status === 401) {
+          setShowSnackbar(true);
+          setSnackbarMessage('Authentication expired. Please log in again.');
+          setSnackbarSeverity('error');
+          // Clear invalid token
+          localStorage.removeItem('jwt');
+          return;
+        }
+
+        setShowSnackbar(true);
+        setSnackbarMessage(`Failed to load meetings: ${res.status} ${res.statusText}`);
+        setSnackbarSeverity('error');
+        return;
       }
+
       const data = await res.json();
-      console.log('Raw meetings data from API:', data); // Debug log
+      console.log('✅ Raw meetings data from API:', data);
+      console.log(`📊 API returned ${data.length} meetings`);
+
+      if (!Array.isArray(data)) {
+        console.error('❌ API returned non-array data:', data);
+        setShowSnackbar(true);
+        setSnackbarMessage('Invalid data format received from server');
+        setSnackbarSeverity('error');
+        return;
+      }
 
       // 🔥 FIXED: Handle database format (starttime, googleeventid)
       const now = new Date();
       const meetingsData = { past: [], future: [] };
+
+      // Debug: Check September 2025 meetings in API response
+      const sept2025InAPI = data.filter(m => {
+        const startTime = m.starttime || m.startTime;
+        if (!startTime) return false;
+        const date = new Date(startTime);
+        return date.getFullYear() === 2025 && date.getMonth() === 8;
+      });
+      console.log(`🎯 September 2025 meetings in API response: ${sept2025InAPI.length}`);
+
       data.forEach(m => {
         // Handle both database format and API format
         const startTime = m.starttime || m.startTime;
@@ -357,6 +404,18 @@ export default function Meetings() {
           }
         }
       });
+
+      // Debug: Check September 2025 meetings in processed data
+      const sept2025InPast = meetingsData.past.filter(m => {
+        const date = new Date(m.startTime);
+        return date.getFullYear() === 2025 && date.getMonth() === 8;
+      });
+      const sept2025InFuture = meetingsData.future.filter(m => {
+        const date = new Date(m.startTime);
+        return date.getFullYear() === 2025 && date.getMonth() === 8;
+      });
+      console.log(`🎯 September 2025 meetings in past array: ${sept2025InPast.length}`);
+      console.log(`🎯 September 2025 meetings in future array: ${sept2025InFuture.length}`);
 
       // Sort meetings properly:
       // - Future meetings: soonest first (ascending order)
@@ -385,10 +444,13 @@ export default function Meetings() {
       //   }
       // }
     } catch (error) {
-      console.error('Error fetching meetings:', error);
+      console.error('❌ Error fetching meetings:', error);
       setShowSnackbar(true);
-      setSnackbarMessage('Failed to load meetings');
+      setSnackbarMessage(`Failed to load meetings: ${error.message}`);
       setSnackbarSeverity('error');
+
+      // Set empty meetings data to prevent undefined errors
+      setMeetings({ past: [], future: [] });
     } finally {
       setLoading(false);
     }
@@ -874,7 +936,142 @@ export default function Meetings() {
     }
   };
 
+  const renderMeetingsTable = (meetings, title) => {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-foreground">{title}</h2>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-blue-500"></div>
+              <span>Transcript</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-green-500"></div>
+              <span>AI Summary</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+              <span>Email Draft</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="border border-border rounded-lg overflow-hidden">
+          <table className="w-full">
+            <thead className="bg-muted/50 border-b border-border">
+              <tr>
+                <th className="text-left p-3 text-sm font-medium text-muted-foreground">Meeting</th>
+                <th className="text-left p-3 text-sm font-medium text-muted-foreground">Client</th>
+                <th className="text-left p-3 text-sm font-medium text-muted-foreground">Date & Time</th>
+                <th className="text-left p-3 text-sm font-medium text-muted-foreground">Source</th>
+                <th className="text-left p-3 text-sm font-medium text-muted-foreground">Status</th>
+                <th className="text-left p-3 text-sm font-medium text-muted-foreground">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {meetings.map((meeting) => {
+                const isComplete = meeting.transcript && (meeting.quick_summary || meeting.brief_summary) && meeting.email_summary_draft;
+                const hasPartialData = meeting.transcript || (meeting.quick_summary || meeting.brief_summary) || meeting.email_summary_draft;
+
+                let clientInfo = null;
+                if (meeting.attendees) {
+                  try {
+                    const attendees = JSON.parse(meeting.attendees);
+                    const clientAttendee = attendees.find(a => a.email && a.email !== user?.email);
+                    if (clientAttendee) {
+                      clientInfo = {
+                        name: clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0],
+                        email: clientAttendee.email
+                      };
+                    }
+                  } catch (e) {
+                    // Ignore parsing errors
+                  }
+                }
+
+                return (
+                  <tr
+                    key={meeting.id}
+                    onClick={() => handleMeetingSelect(meeting)}
+                    className={cn(
+                      "cursor-pointer hover:bg-muted/30 transition-colors border-b border-border/50 last:border-b-0",
+                      selectedMeetingId === meeting.id && "bg-muted/50"
+                    )}
+                  >
+                    <td className="p-3">
+                      <div className="font-medium text-sm text-foreground line-clamp-2">
+                        {meeting.summary || meeting.title || 'Untitled Meeting'}
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      {clientInfo ? (
+                        <div className="text-sm">
+                          <div className="font-medium text-foreground">{clientInfo.name}</div>
+                          <div className="text-xs text-muted-foreground">{clientInfo.email}</div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">No client</span>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <div className="text-sm">
+                        <div className="font-medium text-foreground">
+                          {formatDate(meeting.start?.dateTime || meeting.startTime || meeting.starttime)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatMeetingTime(meeting)}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-2">
+                        {getMeetingSource(meeting) === 'Google Calendar' ?
+                          <GoogleIcon className="w-4 h-4" /> :
+                          getMeetingSource(meeting) === 'Calendly' ?
+                          <div className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center">
+                            <span className="text-white text-xs font-bold">C</span>
+                          </div> :
+                          <OutlookIcon className="w-4 h-4" />
+                        }
+                        <span className="text-xs text-muted-foreground">
+                          {getMeetingSource(meeting) === 'Google Calendar' ? 'Google' :
+                           getMeetingSource(meeting) === 'Calendly' ? 'Calendly' : 'Manual'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <div className="flex items-center gap-1">
+                        <div className={cn("w-3 h-3 rounded-full", meeting.transcript ? "bg-blue-500" : "bg-gray-300")} title={meeting.transcript ? "Transcript available" : "No transcript"}></div>
+                        <div className={cn("w-3 h-3 rounded-full", (meeting.quick_summary || meeting.brief_summary) ? "bg-green-500" : "bg-gray-300")} title={(meeting.quick_summary || meeting.brief_summary) ? "AI summary available" : "No AI summary"}></div>
+                        <div className={cn("w-3 h-3 rounded-full", meeting.email_summary_draft ? "bg-purple-500" : "bg-gray-300")} title={meeting.email_summary_draft ? "Email draft available" : "No email draft"}></div>
+                      </div>
+                    </td>
+                    <td className="p-3">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => handleEditMeeting(meeting, e)}
+                        className="h-8 px-2 text-xs"
+                      >
+                        <Edit className="w-3 h-3" />
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   const renderMeetingsList = (meetings, title) => {
+    if (viewMode === 'table') {
+      return renderMeetingsTable(meetings, title);
+    }
+
     // Determine sort order based on meeting type
     const sortOrder = title.includes('Past') ? 'desc' : 'asc';
     const groupedMeetings = groupMeetingsByDate(meetings, sortOrder);
@@ -923,147 +1120,162 @@ export default function Meetings() {
             key={meeting.id}
             onClick={() => handleMeetingSelect(meeting)}
             className={cn(
-              "cursor-pointer hover:bg-muted/50 transition-colors min-h-[80px] relative",
+              "cursor-pointer hover:bg-muted/50 transition-colors relative border-l-4",
               // Selected state styling
-              selectedMeetingId === meeting.id && "bg-muted/30 ring-2 ring-primary/20",
-              // Status-based border colors
-              isComplete ? "border-green-200 dark:border-green-800" :
-              hasPartialData ? "border-yellow-200 dark:border-yellow-800" :
-              "border-gray-200 dark:border-gray-700 opacity-75"
+              selectedMeetingId === meeting.id && "bg-muted/30 ring-1 ring-primary/30",
+              // Status-based left border colors for quick visual identification
+              isComplete ? "border-l-green-500 bg-green-50/30 dark:bg-green-950/20" :
+              hasPartialData ? "border-l-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/20" :
+              "border-l-gray-300 dark:border-l-gray-600"
             )}
           >
-            {/* Completion Status Indicator */}
-            <div className={cn(
-              "absolute top-2 right-2 w-3 h-3 rounded-full",
-              isComplete ? "bg-green-500" :
-              hasPartialData ? "bg-yellow-500" :
-              "bg-gray-400"
-            )}></div>
-          <CardContent className="p-4 h-full">
-            <div className="flex items-center justify-between h-full min-h-[48px]">
-              <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className="flex-shrink-0">
-                  {getMeetingSource(meeting) === 'Google Calendar' ?
-                    <GoogleIcon className="w-5 h-5" /> :
-                    getMeetingSource(meeting) === 'Calendly' ?
-                    <div className="w-5 h-5 bg-orange-500 rounded-sm flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">C</span>
-                    </div> :
-                    <OutlookIcon className="w-5 h-5" />
-                  }
+          <CardContent className="p-3">
+            <div className="flex items-start gap-3">
+              {/* Source Icon */}
+              <div className="flex-shrink-0 mt-0.5">
+                {getMeetingSource(meeting) === 'Google Calendar' ?
+                  <GoogleIcon className="w-4 h-4" /> :
+                  getMeetingSource(meeting) === 'Calendly' ?
+                  <div className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">C</span>
+                  </div> :
+                  <OutlookIcon className="w-4 h-4" />
+                }
+              </div>
+
+              {/* Main Content */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <h3 className="text-sm font-medium text-foreground line-clamp-1 break-words flex-1 min-w-0">
+                    {meeting.summary || meeting.title || 'Untitled Meeting'}
+                  </h3>
+
+                  {/* Status Indicator */}
+                  <div className={cn(
+                    "w-2 h-2 rounded-full flex-shrink-0 mt-1",
+                    isComplete ? "bg-green-500" :
+                    hasPartialData ? "bg-yellow-500" :
+                    "bg-gray-400"
+                  )}></div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="text-base font-medium text-foreground line-clamp-1 break-words flex-1 min-w-0">
-                      {meeting.summary || meeting.title || 'Untitled Meeting'}
-                    </h3>
-                    {/* Source badge */}
-                    <div className={`px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0 ${
-                      getMeetingSource(meeting) === 'Google Calendar'
-                        ? 'bg-blue-100 text-blue-800'
-                        : getMeetingSource(meeting) === 'Calendly'
-                        ? 'bg-orange-100 text-orange-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
-                      {getMeetingSource(meeting)}
+
+                {/* Meeting Details Row */}
+                <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      <span>{formatDate(meeting.start?.dateTime || meeting.startTime || meeting.starttime)}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      <span>{formatMeetingTime(meeting)}</span>
                     </div>
                   </div>
 
-                  {/* Client information prominently displayed */}
-                  {meeting.attendees && (() => {
-                    try {
-                      const attendees = JSON.parse(meeting.attendees);
-                      const clientAttendee = attendees.find(a => a.email && a.email !== user?.email);
-                      if (clientAttendee) {
-                        return (
-                          <div className="flex items-center mb-2 text-sm">
-                            <Mail className="w-3 h-3 mr-1 text-primary/60 flex-shrink-0" />
-                            <span className="font-medium text-primary truncate">
-                              {clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0]}
-                            </span>
-                            <span className="mx-1 text-muted-foreground flex-shrink-0">•</span>
-                            <span className="text-muted-foreground truncate text-xs">
-                              {clientAttendee.email}
-                            </span>
-                          </div>
-                        );
-                      }
-                    } catch (e) {
-                      return null;
+                  {/* Source Badge */}
+                  <div className={cn(
+                    "px-1.5 py-0.5 rounded text-xs font-medium",
+                    getMeetingSource(meeting) === 'Google Calendar'
+                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                      : getMeetingSource(meeting) === 'Calendly'
+                      ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'
+                      : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                  )}>
+                    {getMeetingSource(meeting) === 'Google Calendar' ? 'Google' :
+                     getMeetingSource(meeting) === 'Calendly' ? 'Calendly' : 'Manual'}
+                  </div>
+                </div>
+
+                {/* Client Information */}
+                {meeting.attendees && (() => {
+                  try {
+                    const attendees = JSON.parse(meeting.attendees);
+                    const clientAttendee = attendees.find(a => a.email && a.email !== user?.email);
+                    if (clientAttendee) {
+                      return (
+                        <div className="flex items-center gap-1 mb-2 text-xs">
+                          <Mail className="w-3 h-3 text-primary/60 flex-shrink-0" />
+                          <span className="font-medium text-primary truncate">
+                            {clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0]}
+                          </span>
+                          <span className="text-muted-foreground">•</span>
+                          <span className="text-muted-foreground truncate">
+                            {clientAttendee.email}
+                          </span>
+                        </div>
+                      );
                     }
+                  } catch (e) {
                     return null;
-                  })()}
-                  {/* Compact Status Indicators */}
-                  <div className="flex items-center gap-1 mt-2">
-                    {/* Transcript Status */}
-                    <div
-                      className={cn(
-                        "w-4 h-4 rounded-full flex items-center justify-center transition-colors",
-                        meeting.transcript
-                          ? "bg-blue-100 dark:bg-blue-900/30 border border-blue-300 dark:border-blue-700"
-                          : "bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600"
-                      )}
-                      title={meeting.transcript ? "Transcript available" : "No transcript"}
-                    >
-                      {meeting.transcript && <Check className="w-2.5 h-2.5 text-blue-600 dark:text-blue-400" />}
-                    </div>
+                  }
+                  return null;
+                })()}
 
-                    {/* AI Summary Status */}
-                    <div
-                      className={cn(
-                        "w-4 h-4 rounded-full flex items-center justify-center transition-colors",
-                        (meeting.quick_summary || meeting.brief_summary)
-                          ? "bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700"
-                          : "bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600"
-                      )}
-                      title={(meeting.quick_summary || meeting.brief_summary) ? "AI summary available" : "No AI summary"}
-                    >
-                      {(meeting.quick_summary || meeting.brief_summary) && <Check className="w-2.5 h-2.5 text-green-600 dark:text-green-400" />}
-                    </div>
+                {/* Bottom Row: Status Indicators and Actions */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {/* Compact Status Indicators */}
+                    <div className="flex items-center gap-1">
+                      {/* Transcript Status */}
+                      <div
+                        className={cn(
+                          "w-3 h-3 rounded-full flex items-center justify-center",
+                          meeting.transcript
+                            ? "bg-blue-500"
+                            : "bg-gray-300 dark:bg-gray-600"
+                        )}
+                        title={meeting.transcript ? "Transcript available" : "No transcript"}
+                      >
+                        {meeting.transcript && <Check className="w-2 h-2 text-white" />}
+                      </div>
 
-                    {/* Email Draft Status */}
-                    <div
-                      className={cn(
-                        "w-4 h-4 rounded-full flex items-center justify-center transition-colors",
-                        meeting.email_summary_draft
-                          ? "bg-purple-100 dark:bg-purple-900/30 border border-purple-300 dark:border-purple-700"
-                          : "bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600"
-                      )}
-                      title={meeting.email_summary_draft ? "Email draft available" : "No email draft"}
-                    >
-                      {meeting.email_summary_draft && <Check className="w-2.5 h-2.5 text-purple-600 dark:text-purple-400" />}
+                      {/* AI Summary Status */}
+                      <div
+                        className={cn(
+                          "w-3 h-3 rounded-full flex items-center justify-center",
+                          (meeting.quick_summary || meeting.brief_summary)
+                            ? "bg-green-500"
+                            : "bg-gray-300 dark:bg-gray-600"
+                        )}
+                        title={(meeting.quick_summary || meeting.brief_summary) ? "AI summary available" : "No AI summary"}
+                      >
+                        {(meeting.quick_summary || meeting.brief_summary) && <Check className="w-2 h-2 text-white" />}
+                      </div>
+
+                      {/* Email Draft Status */}
+                      <div
+                        className={cn(
+                          "w-3 h-3 rounded-full flex items-center justify-center",
+                          meeting.email_summary_draft
+                            ? "bg-purple-500"
+                            : "bg-gray-300 dark:bg-gray-600"
+                        )}
+                        title={meeting.email_summary_draft ? "Email draft available" : "No email draft"}
+                      >
+                        {meeting.email_summary_draft && <Check className="w-2 h-2 text-white" />}
+                      </div>
                     </div>
 
                     {/* Attendee Avatars */}
                     <AttendeeAvatars
                       meeting={meeting}
                       currentUserEmail={user?.email}
-                      maxVisible={3}
+                      maxVisible={2}
                     />
                   </div>
-                </div>
-              </div>
-              <div className="flex flex-col items-end gap-1 text-sm text-muted-foreground flex-shrink-0 ml-4">
-                <div className="flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  <span>{formatDate(meeting.start?.dateTime || meeting.startTime || meeting.starttime)}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  <span>
-                    {formatMeetingTime(meeting)}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 mt-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => handleEditMeeting(meeting, e)}
-                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                    title="Edit meeting"
-                  >
-                    <Edit className="w-3 h-3" />
-                  </Button>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => handleEditMeeting(meeting, e)}
+                      className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                      title="Edit meeting"
+                    >
+                      <Edit className="w-3 h-3" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1138,6 +1350,26 @@ export default function Meetings() {
                 <RefreshCw className={cn("w-4 h-4", syncing && "animate-spin")} />
                 {syncing ? 'Syncing...' : 'Sync Calendly'}
               </Button>
+
+              {/* View Mode Toggle */}
+              <div className="flex items-center border border-border rounded-lg overflow-hidden">
+                <Button
+                  onClick={() => setViewMode('cards')}
+                  variant={viewMode === 'cards' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="rounded-none border-0 px-3"
+                >
+                  <Grid3X3 className="w-4 h-4" />
+                </Button>
+                <Button
+                  onClick={() => setViewMode('table')}
+                  variant={viewMode === 'table' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="rounded-none border-0 px-3"
+                >
+                  <List className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -1201,8 +1433,38 @@ export default function Meetings() {
               {meetings.past.length === 0 ? (
                 <div className="text-center py-12">
                   <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-foreground mb-2">No past meetings</h3>
-                  <p className="text-muted-foreground">You don't have any past meetings.</p>
+                  <h3 className="text-lg font-medium text-foreground mb-2">No past meetings found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {loading ? 'Loading meetings...' : 'No past meetings are currently visible.'}
+                  </p>
+                  {!loading && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        If you expect to see meetings here, try:
+                      </p>
+                      <div className="flex gap-2 justify-center">
+                        <Button
+                          onClick={syncCalendly}
+                          disabled={syncing}
+                          variant="outline"
+                          size="sm"
+                          className="bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200"
+                        >
+                          <RefreshCw className={cn("w-4 h-4 mr-2", syncing && "animate-spin")} />
+                          Sync Calendly
+                        </Button>
+                        <Button
+                          onClick={syncCalendar}
+                          disabled={syncing}
+                          variant="outline"
+                          size="sm"
+                        >
+                          <RefreshCw className={cn("w-4 h-4 mr-2", syncing && "animate-spin")} />
+                          Sync Google
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 renderMeetingsList(meetings.past, 'Past Meetings')
@@ -1253,21 +1515,21 @@ export default function Meetings() {
 
       {/* Right Panel - Meeting Details */}
       {selectedMeeting && (
-        <div className="w-1/2 bg-card border-l border-border/50 flex flex-col overflow-hidden">
+        <div className="w-full lg:w-1/2 bg-card border-l border-border/50 flex flex-col overflow-hidden">
           {/* Header */}
-          <div className="border-b border-border/50 p-4 bg-card/50">
-            <div className="flex items-start justify-between">
+          <div className="border-b border-border/50 p-3 lg:p-4 bg-card/50">
+            <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-2">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
                   {getMeetingSource(selectedMeeting) === 'Google Calendar' ?
-                    <GoogleIcon className="w-4 h-4" /> :
+                    <GoogleIcon className="w-4 h-4 flex-shrink-0" /> :
                     getMeetingSource(selectedMeeting) === 'Calendly' ?
-                    <div className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center">
+                    <div className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center flex-shrink-0">
                       <span className="text-white text-xs font-bold">C</span>
                     </div> :
-                    <OutlookIcon className="w-4 h-4" />
+                    <OutlookIcon className="w-4 h-4 flex-shrink-0" />
                   }
-                  <h1 className="text-lg font-bold text-foreground truncate">
+                  <h1 className="text-base lg:text-lg font-bold text-foreground line-clamp-2 break-words">
                     {selectedMeeting.summary || selectedMeeting.title || 'Untitled Meeting'}
                   </h1>
                   {/* Meeting source badge */}
