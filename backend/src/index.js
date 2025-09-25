@@ -351,35 +351,60 @@ app.get('/api/calendar/sync-status', async (req, res) => {
   }
 });
 
+// Test endpoint to debug issues
+app.get('/api/dev/test', async (req, res) => {
+  try {
+    console.log('🧪 Test endpoint called');
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  } catch (error) {
+    console.error('❌ Test endpoint error:', error);
+    res.status(500).json({ error: 'Test failed' });
+  }
+});
+
 // Simple Calendly-only meetings endpoint (v2)
 app.get('/api/dev/meetings', async (req, res) => {
+  console.log('🔍 Meetings endpoint called');
   const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
+  if (!auth) {
+    console.log('❌ No auth header');
+    return res.status(401).json({ error: 'No token' });
+  }
 
   try {
+    console.log('🔑 Verifying token...');
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
+    console.log(`✅ Token verified for user ${userId}`);
 
     console.log(`📅 Simple Calendly meetings fetch for user ${userId}`);
 
     // Check Supabase
+    console.log('🔍 Checking Supabase availability...');
     if (!isSupabaseAvailable()) {
+      console.log('❌ Supabase not available');
       return res.status(503).json({ error: 'Database unavailable' });
     }
+    console.log('✅ Supabase available');
 
     // Sync Calendly meetings
+    console.log('🔄 Starting Calendly sync...');
     try {
       const calendlyService = new CalendlyService();
       if (calendlyService.isConfigured()) {
-        console.log('🔄 Syncing Calendly...');
+        console.log('✅ Calendly configured, syncing...');
         await calendlyService.syncMeetingsToDatabase(userId);
+        console.log('✅ Calendly sync completed');
+      } else {
+        console.log('⚠️ Calendly not configured');
       }
     } catch (error) {
-      console.error('Calendly sync error:', error);
+      console.error('❌ Calendly sync error:', error);
     }
 
     // Get simple meeting data - only essential fields
+    console.log('🔍 Querying database for meetings...');
     const { data: meetings, error } = await getSupabase()
       .from('meetings')
       .select('id, title, starttime, endtime, attendees, location, source, is_deleted')
@@ -389,10 +414,12 @@ app.get('/api/dev/meetings', async (req, res) => {
       .order('starttime', { ascending: false });
 
     if (error) {
-      console.error('❌ Query error:', error);
-      return res.status(500).json({ error: 'Database error' });
+      console.error('❌ Database query error:', error);
+      console.error('❌ Error details:', error);
+      return res.status(500).json({ error: 'Database error', details: error.message });
     }
 
+    console.log(`✅ Query successful: ${meetings?.length || 0} Calendly meetings found`);
     console.log(`✅ Returning ${meetings?.length || 0} Calendly meetings`);
     res.json(meetings || []);
 
