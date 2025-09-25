@@ -397,8 +397,13 @@ app.get('/api/dev/meetings', async (req, res) => {
     res.json(meetings || []);
 
   } catch (error) {
-    console.error('❌ Error:', error);
-    res.status(500).json({ error: 'Server error' });
+    console.error('❌ Error in meetings endpoint:', error);
+    console.error('❌ Error stack:', error.stack);
+    res.status(500).json({
+      error: 'Server error',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
