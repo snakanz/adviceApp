@@ -352,18 +352,37 @@ app.get('/api/calendar/sync-status', async (req, res) => {
 });
 
 // Test endpoint to debug issues
-app.get('/api/dev/test', async (req, res) => {
-  try {
-    console.log('🧪 Test endpoint called');
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-  } catch (error) {
-    console.error('❌ Test endpoint error:', error);
-    res.status(500).json({ error: 'Test failed' });
-  }
+app.get('/api/dev/test', (req, res) => {
+  console.log('🧪 Test endpoint called');
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    message: 'Backend is working'
+  });
 });
 
-// Simple Calendly-only meetings endpoint (v2)
-app.get('/api/dev/meetings', async (req, res) => {
+// Ultra simple meetings endpoint for debugging
+app.get('/api/dev/meetings-simple', (req, res) => {
+  console.log('🧪 Simple meetings endpoint called');
+  res.json([
+    {
+      id: 1,
+      title: 'Test Meeting',
+      starttime: '2025-01-15T10:00:00Z',
+      endtime: '2025-01-15T11:00:00Z',
+      source: 'calendly'
+    }
+  ]);
+});
+
+// Working meetings endpoint (no auth for now)
+app.get('/api/dev/meetings', (req, res) => {
+  console.log('📅 Meetings endpoint called (simplified)');
+  res.json([]);
+});
+
+// Simple Calendly-only meetings endpoint (v2) - TEMPORARILY DISABLED
+app.get('/api/dev/meetings-disabled', async (req, res) => {
   console.log('🔍 Meetings endpoint called');
   const auth = req.headers.authorization;
   if (!auth) {
