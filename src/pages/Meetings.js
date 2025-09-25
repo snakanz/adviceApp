@@ -53,9 +53,9 @@ const formatDate = (dateTimeStr) => {
 };
 
 function getMeetingSource(meeting) {
-  // First check if we have an explicit meeting_source field
-  if (meeting.meeting_source) {
-    switch (meeting.meeting_source.toLowerCase()) {
+  // Check the source field directly (simplified)
+  if (meeting.source) {
+    switch (meeting.source.toLowerCase()) {
       case 'google':
         return 'Google Calendar';
       case 'calendly':
@@ -65,24 +65,12 @@ function getMeetingSource(meeting) {
       case 'manual':
         return 'Manual Upload';
       default:
-        return meeting.meeting_source;
+        return meeting.source;
     }
   }
 
-  // Fallback to attendee-based detection for legacy meetings
-  try {
-    let attendees = meeting.attendees;
-    if (typeof attendees === 'string') {
-      attendees = JSON.parse(attendees);
-    }
-    if (Array.isArray(attendees)) {
-      if (attendees.some(a => a.email?.includes('google'))) return 'Google Calendar';
-      if (attendees.some(a => a.email?.includes('outlook'))) return 'Outlook';
-    }
-  } catch (e) {
-    console.log('Could not parse attendees for meeting source detection');
-  }
-  return 'Google Calendar'; // default
+  // For now, default to Calendly since we're focusing on that
+  return 'Calendly';
 }
 
 function formatMeetingTime(meeting) {
@@ -370,7 +358,7 @@ export default function Meetings() {
         return;
       }
 
-      // 🔥 FIXED: Handle database format (starttime, googleeventid)
+      // 🔥 SIMPLIFIED: Handle Calendly meetings with database ID
       const now = new Date();
       const meetingsData = { past: [], future: [] };
 
@@ -384,17 +372,16 @@ export default function Meetings() {
       console.log(`🎯 September 2025 meetings in API response: ${sept2025InAPI.length}`);
 
       data.forEach(m => {
-        // Handle both database format and API format
+        // Handle simplified Calendly data structure
         const startTime = m.starttime || m.startTime;
-        const googleEventId = m.googleeventid || m.googleEventId;
+        const meetingId = m.id; // Use the database ID directly
 
-        if (startTime) {
+        if (startTime && meetingId) {
           const start = new Date(startTime);
           const meetingData = {
             ...m,
-            id: googleEventId,
+            id: meetingId, // Use database ID
             startTime: startTime, // Ensure consistent naming
-            googleEventId: googleEventId
           };
 
           if (start < now) {
@@ -1690,7 +1677,7 @@ export default function Meetings() {
                                   // Build enhanced URL parameters for meeting context
                                   const params = new URLSearchParams({
                                     contextType: 'meeting',
-                                    meetingId: selectedMeeting.googleeventid || selectedMeeting.id,
+                                    meetingId: selectedMeeting.id,
                                     meetingTitle: meetingTitle,
                                     meetingDate: meetingDate,
                                     hasTranscript: (!!selectedMeeting.transcript).toString(),

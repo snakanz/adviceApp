@@ -326,6 +326,34 @@ class CalendlyService {
           errorCount++;
         }
       }
+      // Mark meetings as deleted if they're no longer in Calendly
+      const currentCalendlyEventIds = new Set(
+        calendlyEvents.map(event => `calendly_${event.uri.split('/').pop()}`)
+      );
+
+      let deletedCount = 0;
+      for (const existingEventId of existingEventIds) {
+        if (!currentCalendlyEventIds.has(existingEventId)) {
+          // Meeting no longer exists in Calendly, mark as deleted
+          const { error } = await getSupabase()
+            .from('meetings')
+            .update({
+              is_deleted: true,
+              sync_status: 'deleted',
+              updatedat: new Date().toISOString()
+            })
+            .eq('googleeventid', existingEventId)
+            .eq('userid', userId);
+
+          if (error) {
+            console.error(`Error marking meeting as deleted ${existingEventId}:`, error);
+            errorCount++;
+          } else {
+            console.log(`🗑️  Marked meeting as deleted: ${existingEventId}`);
+            deletedCount++;
+          }
+        }
+      }
 
       // After syncing meetings, extract and associate clients
       if (syncedCount > 0 || updatedCount > 0) {
@@ -362,8 +390,8 @@ class CalendlyService {
       }
 
       const user = await this.getCurrentUser();
-      return { 
-        connected: true, 
+      return {
+        connected: true,
         user: {
           name: user.name,
           email: user.email,

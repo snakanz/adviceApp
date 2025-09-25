@@ -351,7 +351,7 @@ app.get('/api/calendar/sync-status', async (req, res) => {
   }
 });
 
-// 🔥 NEW: Database-only meetings endpoint (simplified with better error handling)
+// Simple Calendly-only meetings endpoint
 app.get('/api/dev/meetings', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
@@ -361,83 +361,44 @@ app.get('/api/dev/meetings', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
 
-    console.log(`📅 Fetching meetings from database for user ${userId}`);
+    console.log(`📅 Simple Calendly meetings fetch for user ${userId}`);
 
-    // Check if Supabase is available
+    // Check Supabase
     if (!isSupabaseAvailable()) {
-      console.error('❌ Supabase not available');
-      return res.status(503).json({ error: 'Database service unavailable' });
+      return res.status(503).json({ error: 'Database unavailable' });
     }
 
-    // Automatically sync Calendly meetings if configured
+    // Sync Calendly meetings
     try {
       const calendlyService = new CalendlyService();
       if (calendlyService.isConfigured()) {
-        console.log('🔄 Auto-syncing Calendly meetings...');
+        console.log('🔄 Syncing Calendly...');
         await calendlyService.syncMeetingsToDatabase(userId);
       }
     } catch (error) {
-      console.error('Error auto-syncing Calendly meetings:', error);
-      // Don't fail the request if Calendly sync fails
+      console.error('Calendly sync error:', error);
     }
 
-    // Query meetings excluding deleted ones
-    console.log('🔍 Fetching active meetings (excluding deleted)...');
+    // Get simple meeting data - only essential fields
     const { data: meetings, error } = await getSupabase()
       .from('meetings')
-      .select('*')
+      .select('id, title, starttime, endtime, attendees, location, source, is_deleted')
       .eq('userid', userId)
-      .or('is_deleted.is.null,is_deleted.eq.false') // Only show non-deleted meetings
+      .eq('source', 'calendly')
+      .or('is_deleted.is.null,is_deleted.eq.false')
       .order('starttime', { ascending: false });
 
     if (error) {
-      console.error('❌ Database query error:', error);
-      console.error('Error details:', {
-        code: error.code,
-        message: error.message,
-        details: error.details,
-        hint: error.hint
-      });
-      return res.status(500).json({
-        error: 'Database query failed',
-        details: error.message
-      });
+      console.error('❌ Query error:', error);
+      return res.status(500).json({ error: 'Database error' });
     }
 
-    console.log(`✅ Found ${meetings?.length || 0} meetings in database`);
-
-    // DEBUG: Check September 2025 meetings specifically
-    const sept2025Meetings = meetings?.filter(m => {
-      const date = new Date(m.starttime);
-      return date.getFullYear() === 2025 && date.getMonth() === 8;
-    }) || [];
-    console.log(`🎯 DEBUG: September 2025 meetings returned by API: ${sept2025Meetings.length}`);
-
-    if (sept2025Meetings.length > 0) {
-      console.log('🎯 DEBUG: First few September 2025 meetings:');
-      sept2025Meetings.slice(0, 3).forEach(m => {
-        console.log(`  - ${m.starttime}: ${m.title} (userid: ${m.userid}, deleted: ${m.is_deleted})`);
-      });
-    }
-
-    // Log summary data for debugging
-    if (meetings && meetings.length > 0) {
-      meetings.forEach(meeting => {
-        if (meeting.brief_summary || meeting.quick_summary) {
-          console.log(`📝 Meeting ${meeting.googleeventid}: brief_summary=${!!meeting.brief_summary}, quick_summary=${!!meeting.quick_summary}`);
-        }
-      });
-    }
-
-    // Return the meetings data
+    console.log(`✅ Returning ${meetings?.length || 0} Calendly meetings`);
     res.json(meetings || []);
 
   } catch (error) {
-    console.error('❌ Unexpected error in meetings endpoint:', error);
-    res.status(500).json({
-      error: 'Internal server error',
-      message: error.message
-    });
+    console.error('❌ Error:', error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
