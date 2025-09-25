@@ -351,14 +351,14 @@ app.get('/api/calendar/sync-status', async (req, res) => {
   }
 });
 
-// Test endpoint to debug issues (v2)
+// Test endpoint to debug issues (v3)
 app.get('/api/dev/test', (req, res) => {
-  console.log('🧪 Test endpoint called v2');
+  console.log('🧪 Test endpoint called v3');
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    message: 'Backend is working v2',
-    version: '2.0'
+    message: 'Backend is working v3 - Fixed meetings query',
+    version: '3.0'
   });
 });
 
