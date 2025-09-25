@@ -315,14 +315,14 @@ export default function Meetings() {
         return;
       }
 
-      // 🔥 FIXED: Always use the database endpoint (dev/meetings) for both localhost and production
-      const url = `${API_URL}/api/dev/meetings`;
-      console.log('🌐 Fetching from URL:', url);
+      // 🔥 TEMPORARY: Use simple endpoint while deployment updates
+      const url = `${API_URL}/api/dev/meetings-simple`;
+      console.log('🌐 Fetching from URL (temporary simple endpoint):', url);
 
       const res = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
+          // Temporarily removed auth for simple endpoint
         }
       });
 
