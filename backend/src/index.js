@@ -351,7 +351,7 @@ app.get('/api/calendar/sync-status', async (req, res) => {
   }
 });
 
-// Simple Calendly-only meetings endpoint
+// Simple Calendly-only meetings endpoint (v2)
 app.get('/api/dev/meetings', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
