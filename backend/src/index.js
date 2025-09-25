@@ -455,7 +455,7 @@ app.get('/api/dev/meetings', async (req, res) => {
     console.log('⚠️ Calendly sync temporarily disabled to fix 502 errors');
     // TODO: Debug and re-enable Calendly sync
 
-    // Enhanced database query for meetings with core fields
+    // Simple database query for meetings with only core fields that definitely exist
     console.log('🔍 Querying database for meetings...');
     const { data: meetings, error } = await getSupabase()
       .from('meetings')
@@ -465,22 +465,15 @@ app.get('/api/dev/meetings', async (req, res) => {
         starttime,
         endtime,
         attendees,
-        meeting_source,
-        is_deleted,
-        transcript,
         summary,
-        quick_summary,
-        email_summary_draft,
+        transcript,
         created_at,
         updatedat,
-        googleeventid,
-        client_id,
-        notes
+        googleeventid
       `)
       .eq('userid', userId)
-      .or('is_deleted.is.null,is_deleted.eq.false')
       .order('starttime', { ascending: false })
-      .limit(500); // Increased limit to get all historical data
+      .limit(100);
 
     if (error) {
       console.error('❌ Database query error:', error);
@@ -489,17 +482,17 @@ app.get('/api/dev/meetings', async (req, res) => {
 
     console.log(`✅ Query successful: ${meetings?.length || 0} meetings found`);
 
-    // Process meetings data for frontend
+    // Process meetings data for frontend (simplified)
     const processedMeetings = meetings?.map(meeting => ({
       ...meeting,
-      // Map database column names to frontend expectations
-      source: meeting.meeting_source, // Frontend expects 'source'
+      // Set default source since we removed meeting_source column
+      source: 'google',
       // Ensure attendees is always an array
       attendees: Array.isArray(meeting.attendees) ? meeting.attendees :
                  typeof meeting.attendees === 'string' ? [meeting.attendees] : [],
       // Add computed fields
       hasTranscript: !!meeting.transcript,
-      hasSummary: !!(meeting.summary || meeting.quick_summary || meeting.email_summary_draft),
+      hasSummary: !!meeting.summary,
       // Format dates for frontend
       starttime: meeting.starttime ? new Date(meeting.starttime).toISOString() : null,
       endtime: meeting.endtime ? new Date(meeting.endtime).toISOString() : null,
