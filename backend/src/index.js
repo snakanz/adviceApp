@@ -419,24 +419,31 @@ app.get('/api/dev/auth-status', (req, res) => {
 
 // Meetings endpoint with auth and basic database query
 app.get('/api/dev/meetings', async (req, res) => {
+  console.log('🔄 Meetings endpoint called');
   const auth = req.headers.authorization;
-  if (!auth) {
-    console.log('❌ No auth header provided');
-    return res.status(401).json({ error: 'No token', message: 'Authorization header required' });
+
+  // TEMPORARY: Allow access without auth for debugging
+  let userId = 1; // Default user ID for testing
+
+  if (auth) {
+    try {
+      console.log('🔑 Verifying token...');
+      const token = auth.split(' ')[1];
+      if (token) {
+        console.log(`🔍 Token preview: ${token.substring(0, 20)}...`);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        userId = decoded.id;
+        console.log(`✅ Token verified for user ${userId}`);
+      }
+    } catch (error) {
+      console.log('⚠️ Token verification failed, using default user:', error.message);
+      // Continue with default userId for debugging
+    }
+  } else {
+    console.log('⚠️ No auth header, using default user for debugging');
   }
 
   try {
-    console.log('🔑 Verifying token...');
-    const token = auth.split(' ')[1];
-    if (!token) {
-      console.log('❌ No token in auth header');
-      return res.status(401).json({ error: 'No token', message: 'Bearer token required' });
-    }
-
-    console.log(`🔍 Token preview: ${token.substring(0, 20)}...`);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
-    console.log(`✅ Token verified for user ${userId}`);
 
     // Check Supabase availability
     if (!isSupabaseAvailable()) {

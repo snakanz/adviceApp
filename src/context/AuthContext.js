@@ -9,29 +9,30 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState(null);
 
-  // Localhost mock user for UI development
+  // Enhanced auth initialization with better debugging
   useEffect(() => {
-    // if (window.location.hostname === 'localhost') {
-    //   setUser({
-    //     id: '7ddad7e1-a221-4e42-bd86-f3ff6f1b6790',
-    //     name: 'Test User',
-    //     email: 'testuser@gmail.com',
-    //     picture: 'https://ui-avatars.com/api/?name=Test+User',
-    //     provider: 'google',
-    //     providerId: 'mock-google-id',
-    //   });
-    //   setIsAuthenticated(true);
-    //   setIsLoading(false);
-    //   return;
-    // }
     const initAuth = async () => {
+      console.log('🔄 Initializing authentication...');
       const token = localStorage.getItem('jwt');
+      console.log('🔑 Token from localStorage:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+
       if (token) {
-        await verifyTokenAndGetUser(token);
+        console.log('✅ Token found, verifying...');
+        const success = await verifyTokenAndGetUser(token);
+        console.log('🔍 Token verification result:', success);
+
+        if (!success) {
+          console.log('❌ Token verification failed, clearing localStorage');
+          localStorage.removeItem('jwt');
+        }
+      } else {
+        console.log('⚠️ No token found in localStorage');
       }
+
       setIsLoading(false);
+      console.log('✅ Auth initialization complete');
     };
-    
+
     initAuth();
   }, []);
 
