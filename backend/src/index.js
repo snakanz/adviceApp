@@ -397,15 +397,47 @@ app.get('/api/dev/meetings', async (req, res) => {
       return res.status(503).json({ error: 'Database unavailable' });
     }
 
-    // Simple database query for meetings
+    // Sync Calendly meetings first
+    console.log('🔄 Starting Calendly sync...');
+    try {
+      const calendlyService = new CalendlyService();
+      if (calendlyService.isConfigured()) {
+        console.log('✅ Calendly configured, syncing...');
+        await calendlyService.syncMeetingsToDatabase(userId);
+        console.log('✅ Calendly sync completed');
+      } else {
+        console.log('⚠️ Calendly not configured, skipping sync');
+      }
+    } catch (error) {
+      console.error('❌ Calendly sync error:', error);
+      // Don't fail the request if Calendly sync fails
+    }
+
+    // Enhanced database query for meetings with more fields
     console.log('🔍 Querying database for meetings...');
     const { data: meetings, error } = await getSupabase()
       .from('meetings')
-      .select('id, title, starttime, endtime, attendees, location, source, is_deleted')
+      .select(`
+        id,
+        title,
+        starttime,
+        endtime,
+        attendees,
+        location,
+        source,
+        is_deleted,
+        transcript,
+        summary,
+        quick_summary,
+        detailed_summary,
+        brief_summary,
+        created_at,
+        updated_at
+      `)
       .eq('userid', userId)
       .or('is_deleted.is.null,is_deleted.eq.false')
       .order('starttime', { ascending: false })
-      .limit(50); // Limit to prevent large responses
+      .limit(100); // Increased limit for better UX
 
     if (error) {
       console.error('❌ Database query error:', error);
@@ -413,7 +445,22 @@ app.get('/api/dev/meetings', async (req, res) => {
     }
 
     console.log(`✅ Query successful: ${meetings?.length || 0} meetings found`);
-    res.json(meetings || []);
+
+    // Process meetings data for frontend
+    const processedMeetings = meetings?.map(meeting => ({
+      ...meeting,
+      // Ensure attendees is always an array
+      attendees: Array.isArray(meeting.attendees) ? meeting.attendees :
+                 typeof meeting.attendees === 'string' ? [meeting.attendees] : [],
+      // Add computed fields
+      hasTranscript: !!meeting.transcript,
+      hasSummary: !!(meeting.summary || meeting.quick_summary || meeting.detailed_summary || meeting.brief_summary),
+      // Format dates for frontend
+      starttime: meeting.starttime ? new Date(meeting.starttime).toISOString() : null,
+      endtime: meeting.endtime ? new Date(meeting.endtime).toISOString() : null
+    })) || [];
+
+    res.json(processedMeetings);
 
   } catch (error) {
     console.error('❌ Error in meetings endpoint:', error);
