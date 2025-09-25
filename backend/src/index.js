@@ -471,7 +471,59 @@ app.get('/api/dev/meetings', async (req, res) => {
   }
 });
 
+// Manual Calendly sync endpoint for testing
+app.post('/api/dev/sync-calendly', async (req, res) => {
+  console.log('🔄 Manual Calendly sync endpoint called');
+  const auth = req.headers.authorization;
+  if (!auth) {
+    console.log('❌ No auth header');
+    return res.status(401).json({ error: 'No token' });
+  }
 
+  try {
+    console.log('🔑 Verifying token...');
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id;
+    console.log(`✅ Token verified for user ${userId}`);
+
+    // Check Supabase availability
+    if (!isSupabaseAvailable()) {
+      console.log('❌ Supabase not available');
+      return res.status(503).json({ error: 'Database unavailable' });
+    }
+
+    // Sync Calendly meetings
+    console.log('🔄 Starting manual Calendly sync...');
+    const calendlyService = new CalendlyService();
+
+    if (!calendlyService.isConfigured()) {
+      console.log('⚠️ Calendly not configured');
+      return res.status(400).json({
+        error: 'Calendly not configured',
+        message: 'CALENDLY_PERSONAL_ACCESS_TOKEN environment variable is required'
+      });
+    }
+
+    console.log('✅ Calendly configured, syncing...');
+    const result = await calendlyService.syncMeetingsToDatabase(userId);
+    console.log('✅ Manual Calendly sync completed');
+
+    res.json({
+      success: true,
+      message: 'Calendly sync completed successfully',
+      result: result || 'Sync completed'
+    });
+
+  } catch (error) {
+    console.error('❌ Error in manual Calendly sync:', error);
+    res.status(500).json({
+      error: 'Sync failed',
+      message: error.message,
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
 
 // Clients endpoint is now handled by the clients router (routes/clients.js)
 
