@@ -156,6 +156,38 @@ button, a, [role="button"] {
   @apply bg-primary/10 text-primary font-semibold border border-primary/20 pointer-events-auto;
 }
 
+/* Custom scrollbar styling */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thumb-muted {
+  scrollbar-color: hsl(var(--muted)) transparent;
+}
+
+.scrollbar-track-transparent {
+  scrollbar-track-color: transparent;
+}
+
+/* Webkit scrollbar styling for better cross-browser support */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 3px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
 /* Prose styles for dark mode */
 .prose-invert {
   @apply text-foreground;

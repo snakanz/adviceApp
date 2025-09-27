@@ -276,68 +276,100 @@ export default function Pipeline() {
 
   if (loading) {
     return (
-      <div className="h-full bg-background p-6">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold text-foreground mb-4">Client Pipeline</h1>
-
-          {/* Pipeline Summary Dashboard */}
-          <div className="bg-card border border-border rounded-lg p-4 mb-6">
-            <h2 className="text-lg font-semibold text-foreground mb-4">Pipeline Summary - Total IAF Expected by Stage</h2>
-            {loading ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="text-center animate-pulse">
-                    <div className="h-6 bg-muted rounded-full mb-2 mx-auto w-24"></div>
-                    <div className="h-6 bg-muted rounded mb-1"></div>
-                    <div className="h-4 bg-muted rounded w-16 mx-auto"></div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                {Object.entries(pipelineSummary).map(([stage, data]) => (
-                  <div key={stage} className="text-center">
-                    <div className={cn("inline-flex items-center px-3 py-1 rounded-full text-xs font-medium mb-2", getStageColor(stage))}>
-                      {stage}
-                    </div>
-                    <div className="text-lg font-bold text-foreground">
-                      £{data.total.toLocaleString()}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {data.count} client{data.count !== 1 ? 's' : ''}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+      <div className="h-screen bg-background flex flex-col overflow-hidden">
+        <div className="flex-shrink-0 border-b border-border/50 p-4 lg:p-6 bg-card/50">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground mb-2">Client Pipeline</h1>
+              <div className="h-4 bg-muted rounded w-64 animate-pulse"></div>
+            </div>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className="h-10 bg-muted rounded w-32 animate-pulse"></div>
+              <div className="h-10 bg-muted rounded w-48 animate-pulse"></div>
+            </div>
           </div>
+
+          {/* Loading Monthly Tabs */}
+          <div className="mb-6">
+            <div className="flex gap-1 overflow-x-auto pb-2">
+              {[...Array(12)].map((_, i) => (
+                <div key={i} className="flex-shrink-0 h-16 bg-muted rounded min-w-[120px] animate-pulse"></div>
+              ))}
+            </div>
+          </div>
+
+          {/* Loading Search */}
+          <div className="h-10 bg-muted rounded animate-pulse"></div>
         </div>
-        <div className="space-y-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="h-16 bg-muted rounded animate-pulse"></div>
-          ))}
+
+        <div className="flex-1 overflow-auto">
+          <div className="min-w-[1200px]">
+            {/* Loading Table Header */}
+            <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-4">
+              <div className="grid grid-cols-12 gap-3 lg:gap-4">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="h-4 bg-muted rounded animate-pulse col-span-2"></div>
+                ))}
+              </div>
+            </div>
+
+            {/* Loading Table Body */}
+            <div className="px-4 lg:px-6 space-y-4 py-4">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="grid grid-cols-12 gap-3 lg:gap-4 py-4">
+                  <div className="col-span-3 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-muted rounded-full animate-pulse flex-shrink-0"></div>
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-muted rounded animate-pulse"></div>
+                      <div className="h-3 bg-muted rounded w-3/4 animate-pulse"></div>
+                      <div className="flex gap-1">
+                        <div className="h-5 bg-muted rounded w-16 animate-pulse"></div>
+                        <div className="h-5 bg-muted rounded w-12 animate-pulse"></div>
+                      </div>
+                    </div>
+                  </div>
+                  {[...Array(5)].map((_, j) => (
+                    <div key={j} className="col-span-2 flex items-center">
+                      <div className="h-4 bg-muted rounded animate-pulse w-full"></div>
+                    </div>
+                  ))}
+                  <div className="col-span-1 flex items-center justify-center">
+                    <div className="h-6 w-12 bg-muted rounded-full animate-pulse"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full bg-background flex">
+    <div className="h-screen bg-background flex overflow-hidden">
       {/* Main Content */}
-      <div className={cn("flex-1 transition-all duration-300", showDetailPanel ? "mr-96" : "")}>
+      <div className={cn(
+        "flex-1 flex flex-col transition-all duration-300 min-w-0",
+        showDetailPanel ? "mr-0 lg:mr-96" : ""
+      )}>
         {/* Header */}
-        <div className="border-b border-border/50 p-6 bg-card/50">
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold text-foreground">Client Pipeline</h1>
-            <div className="flex items-center gap-4">
+        <div className="flex-shrink-0 border-b border-border/50 p-4 lg:p-6 bg-card/50">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground mb-2">Client Pipeline</h1>
+              <p className="text-sm text-muted-foreground">
+                Manage your client pipeline and track business opportunities
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
               <Button
                 onClick={() => setShowCreateClientForm(true)}
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 w-full sm:w-auto"
               >
                 <Plus className="w-4 h-4" />
                 Create Client
               </Button>
-              <div className="text-sm text-muted-foreground">
+              <div className="text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg">
                 Total Pipeline Value: <span className="font-semibold text-foreground">
                   {formatCurrency(clients.reduce((total, client) => total + (client.expectedValue || 0), 0))}
                 </span>
@@ -346,80 +378,102 @@ export default function Pipeline() {
           </div>
 
           {/* Monthly Tabs */}
-          <div className="flex gap-1 mb-6 overflow-x-auto">
-            {months.map((month) => {
-              const monthTotal = getMonthlyTotal(month);
-              const isActive = month.getMonth() === currentMonth.getMonth() &&
-                              month.getFullYear() === currentMonth.getFullYear();
+          <div className="mb-6">
+            <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
+              {months.map((month) => {
+                const monthTotal = getMonthlyTotal(month);
+                const isActive = month.getMonth() === currentMonth.getMonth() &&
+                                month.getFullYear() === currentMonth.getFullYear();
 
-              return (
-                <Button
-                  key={month.toISOString()}
-                  onClick={() => setCurrentMonth(month)}
-                  variant={isActive ? 'default' : 'outline'}
-                  size="sm"
-                  className="flex-shrink-0 flex flex-col items-center gap-1 h-auto py-3 px-4"
-                >
-                  <span className="font-medium">
-                    {month.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                  </span>
-                  <span className="text-xs opacity-75">
-                    {formatCurrency(monthTotal)}
-                  </span>
-                </Button>
-              );
-            })}
+                return (
+                  <Button
+                    key={month.toISOString()}
+                    onClick={() => setCurrentMonth(month)}
+                    variant={isActive ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-shrink-0 flex flex-col items-center gap-1 h-auto py-3 px-4 min-w-[120px]"
+                  >
+                    <span className="font-medium text-xs">
+                      {month.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                    </span>
+                    <span className="text-xs opacity-75 font-semibold">
+                      {formatCurrency(monthTotal)}
+                    </span>
+                  </Button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search clients..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-10"
-            />
+          {/* Search and Filters */}
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search clients by name, email, or stage..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
           </div>
         </div>
 
         {/* Pipeline Table */}
         <div className="flex-1 overflow-auto">
-          <div className="min-w-full">
+          <div className="min-w-[1200px]">
             {/* Table Header */}
-            <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-6 py-3">
-              <div className="grid grid-cols-12 gap-4 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <div className="col-span-2">Client</div>
+            <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-4">
+              <div className="grid grid-cols-12 gap-3 lg:gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                <div className="col-span-3">Client Information</div>
                 <div className="col-span-2">Next Meeting</div>
                 <div className="col-span-2">Business Stage</div>
                 <div className="col-span-2">Pipeline Notes</div>
                 <div className="col-span-1">Likelihood</div>
                 <div className="col-span-2">IAF Expected</div>
-                <div className="col-span-1">Type</div>
               </div>
             </div>
 
             {/* Table Body */}
-            <div className="px-6">
+            <div className="px-4 lg:px-6">
               {filteredClients.map((client) => (
                 <div
                   key={client.id}
                   onClick={() => handleClientClick(client)}
-                  className="grid grid-cols-12 gap-4 py-4 border-b border-border/30 hover:bg-muted/50 cursor-pointer transition-colors group"
+                  className="grid grid-cols-12 gap-3 lg:gap-4 py-4 border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-all duration-200 group rounded-lg hover:shadow-sm"
                 >
-                  {/* Client Name */}
-                  <div className="col-span-2 flex items-center gap-3">
-                    <Avatar className="w-8 h-8">
-                      <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                  {/* Client Information - Enhanced */}
+                  <div className="col-span-3 flex items-center gap-3">
+                    <Avatar className="w-10 h-10 flex-shrink-0">
+                      <AvatarFallback className="text-sm bg-primary/10 text-primary font-semibold">
                         {client.name.split(' ').map(n => n[0]).join('')}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="min-w-0">
-                      <div className="font-medium text-sm text-foreground truncate">
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-sm text-foreground truncate mb-1">
                         {client.name}
                       </div>
-                      <div className="text-xs text-muted-foreground truncate">
+                      <div className="text-xs text-muted-foreground truncate mb-1">
                         {client.email}
+                      </div>
+                      {/* Business Type Tags */}
+                      <div className="flex flex-wrap gap-1">
+                        {client.businessTypes && client.businessTypes.length > 0 ? (
+                          client.businessTypes.slice(0, 2).map((type, index) => (
+                            <Badge key={index} className={cn("text-xs px-2 py-0.5", getBusinessTypeColor(type))}>
+                              {type}
+                            </Badge>
+                          ))
+                        ) : (
+                          <Badge className={cn("text-xs px-2 py-0.5", getBusinessTypeColor(client.businessType))}>
+                            {client.businessType}
+                          </Badge>
+                        )}
+                        {client.businessTypes && client.businessTypes.length > 2 && (
+                          <span className="text-xs text-muted-foreground">
+                            +{client.businessTypes.length - 2}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -428,64 +482,45 @@ export default function Pipeline() {
                   <div className="col-span-2 flex items-center">
                     <div className="text-sm">
                       <div className={cn(
-                        "font-medium",
+                        "font-medium text-xs mb-1",
                         client.nextMeetingDate ? "text-foreground" : "text-muted-foreground"
                       )}>
                         {formatDate(client.nextMeetingDate)}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {client.pastMeetingCount} past meetings
+                        {client.pastMeetingCount} past meeting{client.pastMeetingCount !== 1 ? 's' : ''}
                       </div>
                     </div>
                   </div>
 
                   {/* Business Stage */}
                   <div className="col-span-2 flex items-center">
-                    <Badge className={cn("text-xs", getStageColor(client.businessStage))}>
+                    <Badge className={cn("text-xs px-2 py-1 font-medium", getStageColor(client.businessStage))}>
                       {client.businessStage}
                     </Badge>
                   </div>
 
                   {/* Pipeline Notes */}
                   <div className="col-span-2 flex items-center">
-                    <div className="text-sm text-muted-foreground truncate">
-                      {client.pipelineNotes || 'No notes'}
+                    <div className="text-xs text-muted-foreground truncate max-w-full">
+                      {client.pipelineNotes || 'No notes added'}
                     </div>
                   </div>
 
                   {/* Likelihood */}
-                  <div className="col-span-1 flex items-center">
-                    <div className={cn("text-sm font-medium", getLikelihoodColor(client.likelihood))}>
+                  <div className="col-span-1 flex items-center justify-center">
+                    <div className={cn(
+                      "text-sm font-bold px-2 py-1 rounded-full bg-opacity-20",
+                      getLikelihoodColor(client.likelihood)
+                    )}>
                       {client.likelihood}%
                     </div>
                   </div>
 
                   {/* Expected Value */}
                   <div className="col-span-2 flex items-center">
-                    <div className="text-sm font-medium text-foreground">
+                    <div className="text-sm font-bold text-foreground">
                       {formatCurrency(client.expectedValue)}
-                    </div>
-                  </div>
-
-                  {/* Business Type */}
-                  <div className="col-span-1 flex items-center">
-                    <div className="flex flex-col gap-1">
-                      {client.businessTypes && client.businessTypes.length > 0 ? (
-                        client.businessTypes.slice(0, 2).map((type, index) => (
-                          <Badge key={index} className={cn("text-xs", getBusinessTypeColor(type))}>
-                            {type}
-                          </Badge>
-                        ))
-                      ) : (
-                        <Badge className={cn("text-xs", getBusinessTypeColor(client.businessType))}>
-                          {client.businessType}
-                        </Badge>
-                      )}
-                      {client.businessTypes && client.businessTypes.length > 2 && (
-                        <span className="text-xs text-muted-foreground">
-                          +{client.businessTypes.length - 2} more
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -494,66 +529,118 @@ export default function Pipeline() {
 
             {/* Empty State */}
             {filteredClients.length === 0 && (
-              <div className="text-center py-12">
-                <User className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-foreground mb-2">
-                  No clients in pipeline for {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              <div className="text-center py-16 px-6">
+                <div className="bg-muted/30 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
+                  <User className="w-10 h-10 text-muted-foreground" />
+                </div>
+                <h3 className="text-xl font-semibold text-foreground mb-3">
+                  No clients found
                 </h3>
-                <p className="text-muted-foreground">
-                  {search ? 'Try adjusting your search terms.' : 'No clients are expected to sign up this month.'}
+                <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+                  {search
+                    ? `No clients match your search "${search}" for ${currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}.`
+                    : `No clients are expected to close in ${currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}.`
+                  }
                 </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  {search && (
+                    <Button
+                      onClick={() => setSearch('')}
+                      variant="outline"
+                    >
+                      Clear Search
+                    </Button>
+                  )}
+                  <Button
+                    onClick={() => setShowCreateClientForm(true)}
+                    className="flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create New Client
+                  </Button>
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Detail Panel */}
+      {/* Detail Panel - Responsive Sidebar */}
       {showDetailPanel && selectedClient && (
-        <div className="fixed right-0 top-0 h-full w-96 bg-card border-l border-border shadow-xl z-50 overflow-auto">
-          <div className="p-6">
+        <>
+          {/* Mobile Overlay */}
+          <div
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            onClick={() => setShowDetailPanel(false)}
+          />
+
+          {/* Detail Panel */}
+          <div className="fixed right-0 top-0 h-full w-full max-w-md lg:w-96 bg-card border-l border-border shadow-xl z-50 overflow-hidden flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-foreground">Pipeline Details</h2>
-              <Button
-                onClick={() => setShowDetailPanel(false)}
-                variant="ghost"
-                size="sm"
-              >
-                <X className="w-4 h-4" />
-              </Button>
+            <div className="flex-shrink-0 p-4 lg:p-6 border-b border-border bg-card/95 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Pipeline Details</h2>
+                  <p className="text-sm text-muted-foreground">Client information and pipeline status</p>
+                </div>
+                <Button
+                  onClick={() => setShowDetailPanel(false)}
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
 
-            {/* Client Info */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-4">
-                <Avatar className="w-12 h-12">
-                  <AvatarFallback className="bg-primary/10 text-primary">
-                    {selectedClient.name.split(' ').map(n => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <h3 className="font-semibold text-foreground">{selectedClient.name}</h3>
-                  <p className="text-sm text-muted-foreground">{selectedClient.email}</p>
-                </div>
-              </div>
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-4 lg:p-6">
+              <div className="space-y-6">
 
-              {/* Read-only Fields */}
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Next Meeting Date</label>
-                  <div className="mt-1 p-3 bg-muted/50 rounded-md text-sm">
-                    {formatDate(selectedClient.nextMeetingDate)}
+                {/* Client Info Header */}
+                <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
+                  <div className="flex items-center gap-4">
+                    <Avatar className="w-14 h-14 flex-shrink-0">
+                      <AvatarFallback className="bg-primary/10 text-primary text-lg font-bold">
+                        {selectedClient.name.split(' ').map(n => n[0]).join('')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-bold text-lg text-foreground truncate">{selectedClient.name}</h3>
+                      <p className="text-sm text-muted-foreground truncate mb-2">{selectedClient.email}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedClient.businessTypes && selectedClient.businessTypes.length > 0 ? (
+                          selectedClient.businessTypes.slice(0, 3).map((type, index) => (
+                            <Badge key={index} className={cn("text-xs", getBusinessTypeColor(type))}>
+                              {type}
+                            </Badge>
+                          ))
+                        ) : (
+                          <Badge className={cn("text-xs", getBusinessTypeColor(selectedClient.businessType))}>
+                            {selectedClient.businessType}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Past Meetings</label>
-                  <div className="mt-1 p-3 bg-muted/50 rounded-md text-sm">
-                    {selectedClient.pastMeetingCount} meetings
+                {/* Quick Stats */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-background border border-border rounded-lg p-3">
+                    <div className="text-xs font-medium text-muted-foreground mb-1">Next Meeting</div>
+                    <div className="text-sm font-semibold text-foreground">
+                      {selectedClient.nextMeetingDate ? formatDate(selectedClient.nextMeetingDate) : 'Not scheduled'}
+                    </div>
+                  </div>
+                  <div className="bg-background border border-border rounded-lg p-3">
+                    <div className="text-xs font-medium text-muted-foreground mb-1">Past Meetings</div>
+                    <div className="text-sm font-semibold text-foreground">
+                      {selectedClient.pastMeetingCount} meeting{selectedClient.pastMeetingCount !== 1 ? 's' : ''}
+                    </div>
                   </div>
                 </div>
-              </div>
 
               {/* Editable Fields */}
               <div className="space-y-4">
@@ -714,19 +801,27 @@ export default function Pipeline() {
                 </div>
               </div>
 
-              {/* Actions */}
-              <div className="pt-4 border-t border-border">
-                <Button
-                  onClick={() => navigate(`/clients/${selectedClient.id}`)}
-                  variant="outline"
-                  className="w-full"
-                >
-                  View Full Client Profile
-                </Button>
+                {/* Actions */}
+                <div className="pt-4 border-t border-border space-y-3">
+                  <Button
+                    onClick={() => navigate(`/clients/${selectedClient.id}`)}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    View Full Client Profile
+                  </Button>
+                  <Button
+                    onClick={() => setShowDetailPanel(false)}
+                    variant="ghost"
+                    className="w-full lg:hidden"
+                  >
+                    Close Details
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Create Client Form Modal */}
