@@ -496,23 +496,33 @@ export default function Clients() {
                   onClick={() => handleClientClick(client)}
                 >
                   <div className="grid grid-cols-12 gap-4 items-center text-sm">
-                    {/* Client Name */}
+                    {/* Client Information - Enhanced */}
                     <div className="col-span-3 flex items-center gap-3">
-                      <Avatar className="w-8 h-8 bg-primary/10 text-primary">
-                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                      <Avatar className="w-10 h-10 bg-primary/10 text-primary flex-shrink-0">
+                        <AvatarFallback className="bg-primary/10 text-primary text-sm font-bold">
                           {getUserInitials(client.name)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">
-                        <div className="font-medium text-foreground truncate">
+                        <div className="font-semibold text-foreground truncate mb-1">
                           {client.name || 'Unnamed Client'}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {client.email && client.email.includes('@') ? client.email : 'No email provided'}
                         </div>
                       </div>
                     </div>
 
-                    {/* Client Email */}
-                    <div className="col-span-2 text-muted-foreground truncate">
-                      {client.email && client.email.includes('@') ? client.email : 'No email'}
+                    {/* Contact Information */}
+                    <div className="col-span-2 text-muted-foreground">
+                      <div className="text-sm truncate">
+                        {client.email && client.email.includes('@') ? client.email : 'No email'}
+                      </div>
+                      {client.phone && (
+                        <div className="text-xs text-muted-foreground truncate">
+                          {client.phone}
+                        </div>
+                      )}
                     </div>
 
                     {/* Past Meetings Count */}
@@ -589,17 +599,17 @@ export default function Clients() {
         </div>
       </div>
 
-      {/* Client Detail Panel */}
+      {/* Client Detail Panel - Responsive Sidebar */}
       {detailPanelOpen && selectedClient && (
-        <div className="fixed inset-0 z-50 flex">
-          {/* Backdrop */}
+        <>
+          {/* Mobile Overlay */}
           <div
-            className="flex-1 bg-black/20 backdrop-blur-sm"
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
             onClick={() => setDetailPanelOpen(false)}
           />
 
-          {/* Panel */}
-          <div className="w-1/2 bg-background border-l border-border/50 shadow-2xl overflow-y-auto">
+          {/* Detail Panel */}
+          <div className="fixed right-0 top-0 h-full w-full max-w-md lg:w-96 bg-card border-l border-border shadow-xl z-50 overflow-hidden flex flex-col">
             {/* Panel Header */}
             <div className="sticky top-0 bg-background border-b border-border/50 p-6 flex items-center justify-between">
               <div className="flex items-center gap-4">
