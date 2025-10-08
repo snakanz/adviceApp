@@ -259,7 +259,19 @@ export default function Pipeline() {
 
   const getCurrentMonthClients = () => {
     const monthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
-    return clients.filter(client => client.expectedMonth === monthKey);
+    // Show clients that match the selected month OR clients with pipeline data but no expected month
+    return clients.filter(client => {
+      // If client has an expected month, only show if it matches current month
+      if (client.expectedMonth) {
+        return client.expectedMonth === monthKey;
+      }
+      // If client has pipeline stage set (meaning they're in the pipeline), show them in the current month
+      if (client.businessStage && client.businessStage !== 'Need to Book Meeting') {
+        return true;
+      }
+      // Otherwise, don't show
+      return false;
+    });
   };
 
   const getMonthlyTotal = (month) => {
@@ -479,13 +491,30 @@ export default function Pipeline() {
                   </div>
 
                   {/* Next Meeting */}
-                  <div className="col-span-2 flex items-center">
-                    <div className="text-sm">
+                  <div className="col-span-2 flex items-center gap-2">
+                    {/* Meeting Status Indicator */}
+                    <div className={cn(
+                      "flex-shrink-0 w-2 h-2 rounded-full",
+                      client.nextMeetingDate ? "bg-green-500" : "bg-red-500"
+                    )}
+                    title={client.nextMeetingDate ? "Has upcoming meeting" : "No upcoming meeting"}
+                    />
+                    <div className="text-sm flex-1">
                       <div className={cn(
-                        "font-medium text-xs mb-1",
-                        client.nextMeetingDate ? "text-foreground" : "text-muted-foreground"
+                        "font-medium text-xs mb-1 flex items-center gap-1",
+                        client.nextMeetingDate ? "text-green-700" : "text-red-700"
                       )}>
-                        {formatDate(client.nextMeetingDate)}
+                        {client.nextMeetingDate ? (
+                          <>
+                            <span className="font-semibold">✓</span>
+                            {formatDate(client.nextMeetingDate)}
+                          </>
+                        ) : (
+                          <>
+                            <span className="font-semibold">✗</span>
+                            No meeting scheduled
+                          </>
+                        )}
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {client.pastMeetingCount} past meeting{client.pastMeetingCount !== 1 ? 's' : ''}

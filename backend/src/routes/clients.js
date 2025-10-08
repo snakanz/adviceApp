@@ -777,26 +777,8 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
       return res.status(404).json({ error: 'Client not found' });
     }
 
-    // Check if client has future meetings
-    const now = new Date().toISOString();
-    const { data: futureMeetings, error: meetingsError } = await getSupabase()
-      .from('meetings')
-      .select('id')
-      .eq('client_id', clientId)
-      .eq('userid', advisorId)
-      .gte('starttime', now)
-      .eq('is_deleted', false);
-
-    if (meetingsError) {
-      console.error('Error checking future meetings:', meetingsError);
-      return res.status(500).json({ error: 'Failed to check future meetings' });
-    }
-
-    if (futureMeetings && futureMeetings.length > 0) {
-      return res.status(400).json({
-        error: 'Client already has future meetings scheduled. Pipeline entries are only for clients without upcoming meetings.'
-      });
-    }
+    // Note: We allow adding clients to pipeline regardless of whether they have future meetings
+    // The pipeline is for tracking business opportunities, not just clients without meetings
 
     // Update client with pipeline data
     const updateData = {
