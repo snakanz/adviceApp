@@ -378,7 +378,10 @@ export default function Clients() {
       }
     } catch (error) {
       console.error('Error creating pipeline entry:', error);
-      showSuccess('Failed to create pipeline entry. Please try again.');
+      console.error('Error details:', error.message, error.stack);
+      // Show the actual error message if available
+      const errorMessage = error.message || 'Failed to create pipeline entry. Please try again.';
+      showSuccess(`Failed to create pipeline entry: ${errorMessage}`);
     } finally {
       setCreatingPipeline(false);
     }
