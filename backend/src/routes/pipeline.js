@@ -48,6 +48,26 @@ router.get('/', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch clients' });
     }
 
+    // Get business types for all clients (SINGLE SOURCE OF TRUTH)
+    const { data: allBusinessTypes, error: businessTypesError } = await getSupabase()
+      .from('client_business_types')
+      .select('*')
+      .in('client_id', clients.map(c => c.id));
+
+    if (businessTypesError) {
+      console.error('Error fetching business types:', businessTypesError);
+      // Continue without business types rather than failing
+    }
+
+    // Group business types by client_id
+    const businessTypesByClient = {};
+    (allBusinessTypes || []).forEach(bt => {
+      if (!businessTypesByClient[bt.client_id]) {
+        businessTypesByClient[bt.client_id] = [];
+      }
+      businessTypesByClient[bt.client_id].push(bt);
+    });
+
     // Get meeting counts for each client
     const { data: meetings, error: meetingsError } = await getSupabase()
       .from('meetings')
@@ -91,6 +111,23 @@ router.get('/', async (req, res) => {
     for (const client of clients || []) {
       // Add meeting count
       client.meeting_count = clientMeetingCounts[client.email] || 0;
+
+      // Get business types for this client (SINGLE SOURCE OF TRUTH)
+      const clientBusinessTypes = businessTypesByClient[client.id] || [];
+
+      // Calculate aggregated totals from business types
+      const totalBusinessAmount = clientBusinessTypes.reduce((sum, bt) => sum + (parseFloat(bt.business_amount) || 0), 0);
+      const totalIafExpected = clientBusinessTypes.reduce((sum, bt) => sum + (parseFloat(bt.iaf_expected) || 0), 0);
+      const businessTypesList = clientBusinessTypes.map(bt => bt.business_type);
+      const primaryBusinessType = businessTypesList[0] || client.business_type || null;
+
+      // Enrich client with business type data
+      client.business_type = primaryBusinessType;
+      client.business_types = businessTypesList;
+      client.business_types_data = clientBusinessTypes;
+      client.business_amount = totalBusinessAmount || client.business_amount || null;
+      client.iaf_expected = totalIafExpected || client.iaf_expected || null;
+      client.likely_value = totalIafExpected || client.likely_value || null; // Use iaf_expected as likely_value
 
       // Add to total value if specified
       if (client.likely_value) {

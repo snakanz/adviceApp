@@ -89,6 +89,26 @@ router.get('/', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch clients' });
     }
 
+    // Get business types for all clients
+    const { data: allBusinessTypes, error: businessTypesError } = await getSupabase()
+      .from('client_business_types')
+      .select('*')
+      .in('client_id', clients.map(c => c.id));
+
+    if (businessTypesError) {
+      console.error('Error fetching business types:', businessTypesError);
+      // Continue without business types rather than failing
+    }
+
+    // Group business types by client_id
+    const businessTypesByClient = {};
+    (allBusinessTypes || []).forEach(bt => {
+      if (!businessTypesByClient[bt.client_id]) {
+        businessTypesByClient[bt.client_id] = [];
+      }
+      businessTypesByClient[bt.client_id].push(bt);
+    });
+
     // Format the response and apply filtering based on upcoming meetings
     const now = new Date();
     const formattedClients = (clients || []).map(client => {
@@ -110,12 +130,26 @@ router.get('/', async (req, res) => {
         return meetingDate > now;
       });
 
+      // Get business types for this client (SINGLE SOURCE OF TRUTH)
+      const clientBusinessTypes = businessTypesByClient[client.id] || [];
+
+      // Calculate aggregated totals from business types
+      const totalBusinessAmount = clientBusinessTypes.reduce((sum, bt) => sum + (parseFloat(bt.business_amount) || 0), 0);
+      const totalIafExpected = clientBusinessTypes.reduce((sum, bt) => sum + (parseFloat(bt.iaf_expected) || 0), 0);
+      const businessTypesList = clientBusinessTypes.map(bt => bt.business_type);
+      const primaryBusinessType = businessTypesList[0] || client.business_type || null;
+
       return {
         id: client.id,
         email: client.email,
         name: client.name,
-        business_type: client.business_type,
-        likely_value: client.likely_value,
+        // Use aggregated business type data as SINGLE SOURCE OF TRUTH
+        business_type: primaryBusinessType,
+        business_types: businessTypesList,
+        business_types_data: clientBusinessTypes,
+        business_amount: totalBusinessAmount || client.business_amount || null,
+        iaf_expected: totalIafExpected || client.iaf_expected || null,
+        likely_value: totalIafExpected || client.likely_value || null, // Backward compatibility
         likely_close_month: client.likely_close_month,
         pipeline_stage: client.pipeline_stage,
         priority_level: client.priority_level,
@@ -130,6 +164,7 @@ router.get('/', async (req, res) => {
         last_meeting_date: client.last_meeting_date,
         created_at: client.created_at,
         updated_at: client.updated_at,
+        avatar_url: client.avatar_url,
         meetings: meetings,
         upcoming_meetings_count: upcomingMeetings.length,
         has_upcoming_meetings: upcomingMeetings.length > 0
@@ -406,13 +441,37 @@ router.get('/:clientId', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch client' });
     }
 
+    // Get business types for this client (SINGLE SOURCE OF TRUTH)
+    const { data: clientBusinessTypes, error: businessTypesError } = await getSupabase()
+      .from('client_business_types')
+      .select('*')
+      .eq('client_id', client.id)
+      .order('created_at', { ascending: true });
+
+    if (businessTypesError) {
+      console.error('Error fetching business types:', businessTypesError);
+      // Continue without business types rather than failing
+    }
+
+    // Calculate aggregated totals from business types
+    const businessTypes = clientBusinessTypes || [];
+    const totalBusinessAmount = businessTypes.reduce((sum, bt) => sum + (parseFloat(bt.business_amount) || 0), 0);
+    const totalIafExpected = businessTypes.reduce((sum, bt) => sum + (parseFloat(bt.iaf_expected) || 0), 0);
+    const businessTypesList = businessTypes.map(bt => bt.business_type);
+    const primaryBusinessType = businessTypesList[0] || client.business_type || null;
+
     // Format the response
     const formattedClient = {
       id: client.id,
       email: client.email,
       name: client.name,
-      business_type: client.business_type,
-      likely_value: client.likely_value,
+      // Use aggregated business type data as SINGLE SOURCE OF TRUTH
+      business_type: primaryBusinessType,
+      business_types: businessTypesList,
+      business_types_data: businessTypes,
+      business_amount: totalBusinessAmount || client.business_amount || null,
+      iaf_expected: totalIafExpected || client.iaf_expected || null,
+      likely_value: totalIafExpected || client.likely_value || null, // Backward compatibility
       likely_close_month: client.likely_close_month,
       pipeline_stage: client.pipeline_stage,
       priority_level: client.priority_level,
@@ -427,6 +486,7 @@ router.get('/:clientId', async (req, res) => {
       last_meeting_date: client.last_meeting_date,
       created_at: client.created_at,
       updated_at: client.updated_at,
+      avatar_url: client.avatar_url,
       meetings: (client.meetings || []).map(meeting => ({
         id: meeting.googleeventid,
         title: meeting.title,
@@ -780,46 +840,22 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
     // Note: We allow adding clients to pipeline regardless of whether they have future meetings
     // The pipeline is for tracking business opportunities, not just clients without meetings
 
-    // Update client with pipeline data
-    const updateData = {
+    // Update client with pipeline-level data (stage and close month only)
+    const clientUpdateData = {
       pipeline_stage,
-      business_type,
-      notes: pipeline_notes || null,
       likely_close_month: likely_close_month || null,
+      notes: pipeline_notes || null,
       updated_at: new Date().toISOString()
     };
 
-    // Handle numeric fields - convert empty strings to null, parse valid numbers
-    if (iaf_expected !== undefined && iaf_expected !== '') {
-      const parsedValue = parseFloat(iaf_expected);
-      updateData.iaf_expected = isNaN(parsedValue) ? null : parsedValue;
-    } else if (iaf_expected === '') {
-      updateData.iaf_expected = null;
-    }
-
-    if (business_amount !== undefined && business_amount !== '') {
-      const parsedValue = parseFloat(business_amount);
-      updateData.business_amount = isNaN(parsedValue) ? null : parsedValue;
-    } else if (business_amount === '') {
-      updateData.business_amount = null;
-    }
-
-    // Handle text fields - convert empty strings to null
-    if (regular_contribution_type !== undefined) {
-      updateData.regular_contribution_type = regular_contribution_type || null;
-    }
-    if (regular_contribution_amount !== undefined) {
-      updateData.regular_contribution_amount = regular_contribution_amount || null;
-    }
-
     console.log('📝 Updating client with pipeline data:', {
       clientId,
-      updateData: JSON.stringify(updateData, null, 2)
+      updateData: JSON.stringify(clientUpdateData, null, 2)
     });
 
     const { data: updatedClient, error: updateError } = await getSupabase()
       .from('clients')
-      .update(updateData)
+      .update(clientUpdateData)
       .eq('id', clientId)
       .eq('advisor_id', advisorId)
       .select()
@@ -827,7 +863,7 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
 
     if (updateError) {
       console.error('❌ Error updating client pipeline:', updateError);
-      console.error('Update data that failed:', updateData);
+      console.error('Update data that failed:', clientUpdateData);
       return res.status(500).json({
         error: 'Failed to update client pipeline',
         details: updateError.message,
@@ -836,6 +872,67 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
     }
 
     console.log('✅ Client pipeline updated successfully:', updatedClient.id);
+
+    // Create or update business type entry (SINGLE SOURCE OF TRUTH)
+    // First, check if a business type entry already exists for this client
+    const { data: existingBusinessTypes, error: fetchError } = await getSupabase()
+      .from('client_business_types')
+      .select('*')
+      .eq('client_id', clientId)
+      .eq('business_type', business_type)
+      .maybeSingle();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error('Error fetching existing business type:', fetchError);
+    }
+
+    // Prepare business type data
+    const parsedIafExpected = iaf_expected && iaf_expected !== '' ? parseFloat(iaf_expected) : null;
+    const parsedBusinessAmount = business_amount && business_amount !== '' ? parseFloat(business_amount) : null;
+
+    // Determine contribution method from regular_contribution_type
+    let contributionMethod = null;
+    if (regular_contribution_type && regular_contribution_type !== '') {
+      contributionMethod = 'Regular Monthly Contribution';
+    }
+
+    const businessTypeData = {
+      client_id: clientId,
+      business_type: business_type,
+      business_amount: isNaN(parsedBusinessAmount) ? null : parsedBusinessAmount,
+      iaf_expected: isNaN(parsedIafExpected) ? null : parsedIafExpected,
+      contribution_method: contributionMethod,
+      regular_contribution_amount: regular_contribution_amount || null,
+      notes: pipeline_notes || null,
+      updated_at: new Date().toISOString()
+    };
+
+    if (existingBusinessTypes) {
+      // Update existing business type
+      const { error: updateBTError } = await getSupabase()
+        .from('client_business_types')
+        .update(businessTypeData)
+        .eq('id', existingBusinessTypes.id);
+
+      if (updateBTError) {
+        console.error('❌ Error updating business type:', updateBTError);
+        // Don't fail the whole operation, but log the error
+      } else {
+        console.log('✅ Business type updated successfully');
+      }
+    } else {
+      // Create new business type entry
+      const { error: insertBTError } = await getSupabase()
+        .from('client_business_types')
+        .insert([businessTypeData]);
+
+      if (insertBTError) {
+        console.error('❌ Error creating business type:', insertBTError);
+        // Don't fail the whole operation, but log the error
+      } else {
+        console.log('✅ Business type created successfully');
+      }
+    }
 
     // Log pipeline activity
     await getSupabase()
