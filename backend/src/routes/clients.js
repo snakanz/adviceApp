@@ -906,10 +906,10 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
     // The pipeline is for tracking business opportunities, not just clients without meetings
 
     // Update client with pipeline-level data (stage and close month only)
+    // Note: pipeline_notes are stored in client_business_types table, not clients table
     const clientUpdateData = {
       pipeline_stage,
       likely_close_month: likely_close_month || null,
-      notes: pipeline_notes || null,
       updated_at: new Date().toISOString()
     };
 
