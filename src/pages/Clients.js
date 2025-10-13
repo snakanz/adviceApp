@@ -55,6 +55,7 @@ export default function Clients() {
   const [showCreateClientForm, setShowCreateClientForm] = useState(false);
   const [creatingClient, setCreatingClient] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [generatingSummary, setGeneratingSummary] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -64,6 +65,38 @@ export default function Clients() {
   const showSuccess = (message) => {
     setSuccessMessage(message);
     setTimeout(() => setSuccessMessage(''), 3000);
+  };
+
+  // Generate AI summary for client
+  const handleGenerateSummary = async (clientId) => {
+    setGeneratingSummary(true);
+    try {
+      const response = await api.request(`/clients/${clientId}/generate-summary`, {
+        method: 'POST'
+      });
+
+      if (response.summary) {
+        // Update the selected client with the new summary
+        setSelectedClient(prev => ({
+          ...prev,
+          ai_summary: response.summary
+        }));
+
+        // Also update in the clients list
+        setClients(prev => prev.map(c =>
+          c.id === clientId ? { ...c, ai_summary: response.summary } : c
+        ));
+
+        showSuccess('AI summary generated successfully!');
+      } else {
+        showSuccess(response.message || 'No content available to generate summary');
+      }
+    } catch (error) {
+      console.error('Error generating summary:', error);
+      showSuccess('Failed to generate summary. Please try again.');
+    } finally {
+      setGeneratingSummary(false);
+    }
   };
 
   // Helper function to navigate to meetings page with specific meeting selected
@@ -755,14 +788,35 @@ export default function Clients() {
                   <div className="flex items-start gap-3">
                     <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-foreground mb-2">Client Summary</h3>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-foreground">Client Summary</h3>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleGenerateSummary(selectedClient.id)}
+                          disabled={generatingSummary}
+                          className="h-7 text-xs"
+                        >
+                          {generatingSummary ? (
+                            <>
+                              <div className="w-3 h-3 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mr-1" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3 h-3 mr-1" />
+                              {selectedClient.ai_summary ? 'Refresh' : 'Generate'}
+                            </>
+                          )}
+                        </Button>
+                      </div>
                       {selectedClient.ai_summary ? (
                         <p className="text-sm text-foreground/80 leading-relaxed">
                           {selectedClient.ai_summary}
                         </p>
                       ) : (
                         <p className="text-sm text-muted-foreground italic">
-                          No summary available - add meeting notes to generate insights
+                          No summary available - click "Generate" to create AI insights from meeting notes
                         </p>
                       )}
                     </div>
