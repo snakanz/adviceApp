@@ -28,11 +28,10 @@ export default function Pipeline() {
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [search, setSearch] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [editingField, setEditingField] = useState(null);
-  const [editValue, setEditValue] = useState('');
   const [showCreateClientForm, setShowCreateClientForm] = useState(false);
   const [creatingClient, setCreatingClient] = useState(false);
   const [showOverdueSection, setShowOverdueSection] = useState(true); // Collapsible state for overdue section
+  const [showEditPipelineModal, setShowEditPipelineModal] = useState(false); // Edit pipeline modal state
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -234,25 +233,21 @@ export default function Pipeline() {
     setShowDetailPanel(true);
   };
 
-  const handleEditField = (field, value) => {
-    setEditingField(field);
-    setEditValue(value || '');
+  const handleEditPipeline = () => {
+    setShowEditPipelineModal(true);
   };
 
-  const handleSaveField = () => {
-    if (selectedClient && editingField) {
-      // Update the client data
-      setClients(clients.map(client =>
-        client.id === selectedClient.id
-          ? { ...client, [editingField]: editValue }
-          : client
-      ));
-
-      // Update selected client
-      setSelectedClient({ ...selectedClient, [editingField]: editValue });
-    }
-    setEditingField(null);
-    setEditValue('');
+  const handlePipelineUpdate = async (updatedData) => {
+    // Update the client in the list
+    setClients(clients.map(client =>
+      client.id === selectedClient.id
+        ? { ...client, ...updatedData }
+        : client
+    ));
+    setSelectedClient({ ...selectedClient, ...updatedData });
+    setShowEditPipelineModal(false);
+    // Refresh data
+    await fetchPipelineData();
   };
 
   const handleCreateClient = async (clientData) => {
@@ -315,19 +310,14 @@ export default function Pipeline() {
     const now = new Date();
     const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    // Show clients that match the selected month, excluding overdue/no date clients
+    // Show clients that match the selected month
     return clients.filter(client => {
-      // Skip clients without pipeline stage (not in pipeline)
-      if (!client.businessStage || client.businessStage === 'Need to Book Meeting') {
-        return false;
-      }
-
       // Skip clients with no expected month (they go in overdue section)
       if (!client.expectedMonth) {
         return false;
       }
 
-      // Skip overdue clients (they go in overdue section)
+      // Skip overdue clients (they go in overdue section) - only if before current month
       if (client.expectedMonth < currentMonthKey) {
         return false;
       }
@@ -452,88 +442,115 @@ export default function Pipeline() {
             </div>
           </div>
 
-          {/* Overdue/No Date Section */}
+          {/* Overdue/No Date Section - Redesigned */}
           {(() => {
             const overdueClients = getOverdueOrNoDateClients();
             if (overdueClients.length === 0) return null;
 
+            const totalValue = overdueClients.reduce((total, client) => total + (client.expectedValue || 0), 0);
+
             return (
               <div className="mb-6">
-                <div className="border border-orange-200 dark:border-orange-900 rounded-lg bg-orange-50 dark:bg-orange-950/20 overflow-hidden">
-                  {/* Header */}
-                  <div
-                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
-                    onClick={() => setShowOverdueSection(!showOverdueSection)}
-                  >
+                {/* Compact Header Bar */}
+                <div
+                  className="group bg-gradient-to-r from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/30 border-l-4 border-amber-500 rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer"
+                  onClick={() => setShowOverdueSection(!showOverdueSection)}
+                >
+                  <div className="flex items-center justify-between px-4 py-3">
+                    {/* Left: Icon + Title + Count */}
                     <div className="flex items-center gap-3">
-                      <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
+                        <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                      </div>
                       <div>
-                        <h3 className="font-semibold text-foreground">Overdue or No Date Set</h3>
-                        <p className="text-xs text-muted-foreground">
-                          {overdueClients.length} {overdueClients.length === 1 ? 'client' : 'clients'} requiring attention
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold text-sm text-foreground">Needs Attention</h3>
+                          <Badge variant="secondary" className="bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 text-xs px-2 py-0">
+                            {overdueClients.length}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Overdue or missing expected close date
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">
-                        {formatCurrency(overdueClients.reduce((total, client) => total + (client.expectedValue || 0), 0))}
-                      </span>
-                      {showOverdueSection ? (
-                        <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Collapsible Content */}
-                  {showOverdueSection && (
-                    <div className="border-t border-orange-200 dark:border-orange-900 bg-background/50">
-                      <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
-                        {overdueClients.map((client) => (
-                          <div
-                            key={client.id}
-                            onClick={() => handleClientClick(client)}
-                            className="flex items-center justify-between p-3 bg-card hover:bg-muted/50 rounded-lg border border-border/50 cursor-pointer transition-all group"
-                          >
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              <Avatar className="w-8 h-8 flex-shrink-0">
-                                <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
-                                  {client.name.split(' ').map(n => n[0]).join('')}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="min-w-0 flex-1">
-                                <div className="font-semibold text-sm text-foreground truncate">
-                                  {client.name}
-                                </div>
-                                <div className="text-xs text-muted-foreground truncate">
-                                  {client.email}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3 flex-shrink-0">
-                              <Badge variant="outline" className="text-xs">
-                                {client.businessStage}
-                              </Badge>
-                              {client.expectedMonth ? (
-                                <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-                                  Overdue: {new Date(client.expectedMonth + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                                </span>
-                              ) : (
-                                <span className="text-xs text-muted-foreground font-medium">
-                                  No date set
-                                </span>
-                              )}
-                              <span className="text-sm font-semibold text-foreground">
-                                {formatCurrency(client.expectedValue || 0)}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
+                    {/* Right: Value + Expand Icon */}
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <div className="text-xs text-muted-foreground mb-0.5">Total Value</div>
+                        <div className="text-sm font-bold text-amber-700 dark:text-amber-400">
+                          {formatCurrency(totalValue)}
+                        </div>
+                      </div>
+                      <div className="flex-shrink-0">
+                        {showOverdueSection ? (
+                          <ChevronUp className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                        )}
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
+
+                {/* Collapsible Client List */}
+                {showOverdueSection && (
+                  <div className="mt-3 space-y-2">
+                    {overdueClients.map((client) => (
+                      <div
+                        key={client.id}
+                        onClick={() => handleClientClick(client)}
+                        className="group bg-card hover:bg-accent/50 border border-border rounded-lg p-3 cursor-pointer transition-all hover:shadow-sm"
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          {/* Left: Avatar + Client Info */}
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <Avatar className="w-9 h-9 flex-shrink-0 ring-2 ring-background">
+                              <AvatarFallback className="text-xs bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-semibold">
+                                {client.name.split(' ').map(n => n[0]).join('')}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <div className="font-medium text-sm text-foreground truncate group-hover:text-primary transition-colors">
+                                {client.name}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {client.email}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Right: Stage + Date + Value */}
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <Badge variant="outline" className="text-xs font-normal">
+                              {client.businessStage}
+                            </Badge>
+                            <div className="text-right min-w-[100px]">
+                              {client.expectedMonth ? (
+                                <>
+                                  <div className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                                    Overdue
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {new Date(client.expectedMonth + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="text-xs text-muted-foreground italic">
+                                  No date set
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-sm font-semibold text-foreground min-w-[80px] text-right">
+                              {formatCurrency(client.expectedValue || 0)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })()}
@@ -790,7 +807,7 @@ export default function Pipeline() {
           <div className="fixed right-0 top-0 h-full w-full max-w-md lg:w-96 bg-card border-l border-border shadow-xl z-50 overflow-hidden flex flex-col">
             {/* Header */}
             <div className="flex-shrink-0 p-4 lg:p-6 border-b border-border bg-card/95 backdrop-blur-sm">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-4">
                 <div>
                   <h2 className="text-lg font-semibold text-foreground">Pipeline Details</h2>
                   <p className="text-sm text-muted-foreground">Client information and pipeline status</p>
@@ -804,6 +821,15 @@ export default function Pipeline() {
                   <X className="w-4 h-4" />
                 </Button>
               </div>
+              {/* Edit Pipeline Button */}
+              <Button
+                onClick={handleEditPipeline}
+                className="w-full flex items-center justify-center gap-2"
+                size="sm"
+              >
+                <Edit3 className="w-4 h-4" />
+                Edit Pipeline
+              </Button>
             </div>
 
             {/* Scrollable Content */}
@@ -854,124 +880,54 @@ export default function Pipeline() {
                   </div>
                 </div>
 
-              {/* Editable Fields */}
+              {/* Pipeline Information - Read Only */}
               <div className="space-y-4">
+                {/* Business Stage */}
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Business Stage</label>
-                  {editingField === 'businessStage' ? (
-                    <div className="mt-1 flex gap-2">
-                      <select
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="flex-1 p-2 border border-border rounded-md text-sm"
-                      >
-                        <option value="Client Signed">Client Signed</option>
-                        <option value="Waiting to Sign">Waiting to Sign</option>
-                        <option value="Waiting on Paraplanning">Waiting on Paraplanning</option>
-                        <option value="Have Not Written Advice">Have Not Written Advice</option>
-                        <option value="Need to Book Meeting">Need to Book Meeting</option>
-                        <option value="Can't Contact Client">Can't Contact Client</option>
-                        <option value="Signed">Signed</option>
-                      </select>
-                      <Button onClick={handleSaveField} size="sm">Save</Button>
-                      <Button onClick={() => setEditingField(null)} variant="outline" size="sm">Cancel</Button>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => handleEditField('businessStage', selectedClient.businessStage)}
-                      className="mt-1 p-3 bg-background border border-border rounded-md text-sm cursor-pointer hover:bg-muted/50 flex items-center justify-between group"
-                    >
-                      <Badge className={getStageColor(selectedClient.businessStage)}>
-                        {selectedClient.businessStage}
-                      </Badge>
-                      <Edit3 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
-                    </div>
-                  )}
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pipeline Stage</label>
+                  <div className="mt-2 p-3 bg-muted/30 border border-border rounded-lg">
+                    <Badge className={getStageColor(selectedClient.businessStage)}>
+                      {selectedClient.businessStage}
+                    </Badge>
+                  </div>
                 </div>
 
+                {/* IAF Expected */}
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Pipeline Notes</label>
-                  {editingField === 'pipelineNotes' ? (
-                    <div className="mt-1 space-y-2">
-                      <textarea
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="w-full p-2 border border-border rounded-md text-sm min-h-[80px]"
-                        placeholder="Add pipeline notes..."
-                      />
-                      <div className="flex gap-2">
-                        <Button onClick={handleSaveField} size="sm">Save</Button>
-                        <Button onClick={() => setEditingField(null)} variant="outline" size="sm">Cancel</Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => handleEditField('pipelineNotes', selectedClient.pipelineNotes)}
-                      className="mt-1 p-3 bg-background border border-border rounded-md text-sm cursor-pointer hover:bg-muted/50 min-h-[80px] flex items-start justify-between group"
-                    >
-                      <span className={selectedClient.pipelineNotes ? "text-foreground" : "text-muted-foreground"}>
-                        {selectedClient.pipelineNotes || 'Click to add notes...'}
-                      </span>
-                      <Edit3 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 flex-shrink-0 mt-0.5" />
-                    </div>
-                  )}
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">IAF Expected</label>
+                  <div className="mt-2 p-3 bg-muted/30 border border-border rounded-lg">
+                    <span className="text-lg font-bold text-foreground">
+                      {formatCurrency(selectedClient.expectedValue)}
+                    </span>
+                  </div>
                 </div>
 
+                {/* Likelihood */}
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Likelihood of Sign-up</label>
-                  {editingField === 'likelihood' ? (
-                    <div className="mt-1 flex gap-2">
-                      <Input
-                        type="number"
-                        min="0"
-                        max="100"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="flex-1"
-                        placeholder="0-100%"
-                      />
-                      <Button onClick={handleSaveField} size="sm">Save</Button>
-                      <Button onClick={() => setEditingField(null)} variant="outline" size="sm">Cancel</Button>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => handleEditField('likelihood', selectedClient.likelihood)}
-                      className="mt-1 p-3 bg-background border border-border rounded-md text-sm cursor-pointer hover:bg-muted/50 flex items-center justify-between group"
-                    >
-                      <span className={cn("font-medium", getLikelihoodColor(selectedClient.likelihood))}>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Likelihood of Sign-up</label>
+                  <div className="mt-2 p-3 bg-muted/30 border border-border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <span className={cn("text-lg font-bold", getLikelihoodColor(selectedClient.likelihood))}>
                         {selectedClient.likelihood}%
                       </span>
-                      <Edit3 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
+                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className={cn("h-full transition-all", getLikelihoodColor(selectedClient.likelihood).replace('text-', 'bg-'))}
+                          style={{ width: `${selectedClient.likelihood}%` }}
+                        />
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </div>
 
+                {/* Pipeline Notes */}
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">IAF Expected</label>
-                  {editingField === 'expectedValue' ? (
-                    <div className="mt-1 flex gap-2">
-                      <Input
-                        type="number"
-                        min="0"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="flex-1"
-                        placeholder="Enter amount"
-                      />
-                      <Button onClick={handleSaveField} size="sm">Save</Button>
-                      <Button onClick={() => setEditingField(null)} variant="outline" size="sm">Cancel</Button>
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => handleEditField('expectedValue', selectedClient.expectedValue)}
-                      className="mt-1 p-3 bg-background border border-border rounded-md text-sm cursor-pointer hover:bg-muted/50 flex items-center justify-between group"
-                    >
-                      <span className="font-medium text-foreground">
-                        {formatCurrency(selectedClient.expectedValue)}
-                      </span>
-                      <Edit3 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100" />
-                    </div>
-                  )}
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pipeline Notes</label>
+                  <div className="mt-2 p-3 bg-muted/30 border border-border rounded-lg min-h-[80px]">
+                    <p className={cn("text-sm whitespace-pre-wrap", selectedClient.pipelineNotes ? "text-foreground" : "text-muted-foreground italic")}>
+                      {selectedClient.pipelineNotes || 'No notes added yet'}
+                    </p>
+                  </div>
                 </div>
 
                 <div>
@@ -1043,6 +999,150 @@ export default function Pipeline() {
           onSuccess={handleCreateClient}
           isSubmitting={creatingClient}
         />
+      )}
+
+      {/* Edit Pipeline Modal */}
+      {showEditPipelineModal && selectedClient && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-border">
+              <div>
+                <h2 className="text-xl font-bold text-foreground">Edit Pipeline</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Update pipeline information for {selectedClient.name}
+                </p>
+              </div>
+              <Button
+                onClick={() => setShowEditPipelineModal(false)}
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* Modal Content - Scrollable */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-6">
+                {/* Pipeline Stage */}
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-2 block">
+                    Pipeline Stage <span className="text-destructive">*</span>
+                  </label>
+                  <select
+                    defaultValue={selectedClient.businessStage}
+                    className="w-full p-3 border border-border rounded-lg text-sm bg-background"
+                    id="edit-pipeline-stage"
+                  >
+                    <option value="Client Signed">Client Signed</option>
+                    <option value="Waiting to Sign">Waiting to Sign</option>
+                    <option value="Waiting on Paraplanning">Waiting on Paraplanning</option>
+                    <option value="Have Not Written Advice">Have Not Written Advice</option>
+                    <option value="Need to Book Meeting">Need to Book Meeting</option>
+                    <option value="Can't Contact Client">Can't Contact Client</option>
+                  </select>
+                </div>
+
+                {/* IAF Expected */}
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-2 block">
+                    IAF Expected
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    defaultValue={selectedClient.expectedValue}
+                    placeholder="Enter expected IAF amount"
+                    id="edit-iaf-expected"
+                  />
+                </div>
+
+                {/* Likelihood */}
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-2 block">
+                    Likelihood of Sign-up (%)
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="100"
+                    defaultValue={selectedClient.likelihood}
+                    placeholder="0-100"
+                    id="edit-likelihood"
+                  />
+                </div>
+
+                {/* Pipeline Notes */}
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-2 block">
+                    Pipeline Notes
+                  </label>
+                  <textarea
+                    defaultValue={selectedClient.pipelineNotes}
+                    placeholder="Add notes about this pipeline opportunity..."
+                    className="w-full p-3 border border-border rounded-lg text-sm bg-background min-h-[120px] resize-none"
+                    id="edit-pipeline-notes"
+                  />
+                </div>
+
+                {/* Info Note */}
+                <div className="bg-muted/50 border border-border rounded-lg p-4">
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Note:</strong> To edit business types, expected close dates, and other detailed pipeline information,
+                    please use the Clients page.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-border bg-muted/20">
+              <Button
+                onClick={() => setShowEditPipelineModal(false)}
+                variant="outline"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  const stage = document.getElementById('edit-pipeline-stage').value;
+                  const iaf = parseFloat(document.getElementById('edit-iaf-expected').value) || 0;
+                  const likelihood = parseInt(document.getElementById('edit-likelihood').value) || 75;
+                  const notes = document.getElementById('edit-pipeline-notes').value;
+
+                  try {
+                    // Update via API
+                    await api.request(`/clients/${selectedClient.id}`, {
+                      method: 'PUT',
+                      body: JSON.stringify({
+                        pipeline_stage: stage,
+                        iaf_expected: iaf,
+                        notes: notes
+                      })
+                    });
+
+                    // Update local state
+                    await handlePipelineUpdate({
+                      businessStage: stage,
+                      expectedValue: iaf,
+                      likelihood: likelihood,
+                      pipelineNotes: notes
+                    });
+                  } catch (error) {
+                    console.error('Failed to update pipeline:', error);
+                    alert('Failed to update pipeline. Please try again.');
+                  }
+                }}
+                className="flex items-center gap-2"
+              >
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
