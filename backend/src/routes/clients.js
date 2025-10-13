@@ -1399,4 +1399,149 @@ router.post('/create', authenticateUser, async (req, res) => {
   }
 });
 
+// Generate AI summary for a client
+router.post('/:clientId/generate-summary', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const advisorId = decoded.id;
+    const clientId = req.params.clientId;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    // Get client data
+    const { data: client, error: clientError } = await getSupabase()
+      .from('clients')
+      .select('*')
+      .eq('id', clientId)
+      .eq('advisor_id', advisorId)
+      .single();
+
+    if (clientError || !client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Get client's meetings with transcripts
+    const { data: meetings, error: meetingsError } = await getSupabase()
+      .from('meetings')
+      .select('*')
+      .eq('client_id', clientId)
+      .eq('userid', advisorId)
+      .order('starttime', { ascending: false })
+      .limit(5); // Get last 5 meetings
+
+    if (meetingsError) {
+      console.error('Error fetching meetings:', meetingsError);
+    }
+
+    // Check if we have any meetings with transcripts or summaries
+    const meetingsWithContent = meetings?.filter(m =>
+      m.transcript || m.detailed_summary || m.quick_summary
+    ) || [];
+
+    if (meetingsWithContent.length === 0) {
+      return res.json({
+        summary: null,
+        message: 'No meeting content available to generate summary'
+      });
+    }
+
+    // Get business types
+    const { data: businessTypes } = await getSupabase()
+      .from('client_business_types')
+      .select('*')
+      .eq('client_id', clientId);
+
+    // Prepare context for OpenAI
+    const meetingContext = meetingsWithContent.map(m => ({
+      date: m.starttime,
+      title: m.title,
+      summary: m.detailed_summary || m.quick_summary || 'No summary available',
+      transcript: m.transcript ? m.transcript.substring(0, 1000) : null // Limit transcript length
+    }));
+
+    const businessContext = businessTypes?.map(bt => ({
+      type: bt.business_type,
+      amount: bt.business_amount,
+      iaf: bt.iaf_expected,
+      method: bt.contribution_method
+    })) || [];
+
+    // Generate summary using OpenAI
+    const OpenAI = require('openai');
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+
+    const prompt = `You are a financial advisor's assistant. Generate a brief, professional summary (2-3 sentences) of where we're at with this client based on their recent meetings and business information.
+
+Client: ${client.name}
+Pipeline Stage: ${client.pipeline_stage || 'Not set'}
+
+Recent Meetings:
+${meetingContext.map(m => `- ${new Date(m.date).toLocaleDateString()}: ${m.title}\n  ${m.summary}`).join('\n')}
+
+Business Types:
+${businessContext.map(bt => `- ${bt.type}: £${bt.amount?.toLocaleString() || 0} (IAF: £${bt.iaf?.toLocaleString() || 0})`).join('\n')}
+
+Generate a concise summary that captures:
+1. Current relationship status
+2. Key business opportunities or progress
+3. Next steps or what we're waiting for
+
+Keep it professional, factual, and under 100 words.`;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a professional financial advisor assistant. Generate concise, factual client summaries.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 200
+    });
+
+    const summary = completion.choices[0].message.content.trim();
+
+    // Store summary in database (add ai_summary column if it doesn't exist)
+    const { error: updateError } = await getSupabase()
+      .from('clients')
+      .update({
+        ai_summary: summary,
+        ai_summary_generated_at: new Date().toISOString()
+      })
+      .eq('id', clientId);
+
+    if (updateError) {
+      console.error('Error storing summary:', updateError);
+      // Don't fail the request, just return the summary
+    }
+
+    res.json({
+      summary,
+      generated_at: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error generating client summary:', error);
+    res.status(500).json({
+      error: 'Failed to generate summary',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;
