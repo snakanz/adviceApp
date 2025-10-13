@@ -1557,14 +1557,21 @@ export default function Meetings() {
                   </div>
                 </div>
 
-                {/* Client info display - Enhanced to show linked client or attendee */}
+                {/* Client info display - Enhanced to show linked client or attendee with navigation */}
                 {(() => {
                   // First, check if there's a linked client from the database
                   if (selectedMeeting.client) {
                     return (
-                      <div className="flex items-center mb-2 text-sm">
-                        <Mail className="h-4 w-4 mr-2 text-primary/60" />
-                        <span className="font-medium text-primary">{selectedMeeting.client.name || selectedMeeting.client.email.split('@')[0]}</span>
+                      <div
+                        className="flex items-center mb-2 text-sm cursor-pointer hover:bg-primary/5 -mx-2 px-2 py-1 rounded transition-colors group"
+                        onClick={() => {
+                          // Navigate to Clients page with client parameter
+                          window.location.href = `/clients?client=${encodeURIComponent(selectedMeeting.client.email)}`;
+                        }}
+                        title="Click to view client profile"
+                      >
+                        <Mail className="h-4 w-4 mr-2 text-primary/60 group-hover:text-primary" />
+                        <span className="font-medium text-primary group-hover:underline">{selectedMeeting.client.name || selectedMeeting.client.email.split('@')[0]}</span>
                         <span className="mx-2 text-muted-foreground">•</span>
                         <span className="text-foreground/70">{selectedMeeting.client.email}</span>
                       </div>
