@@ -1206,6 +1206,7 @@ router.put('/:clientId/business-types', authenticateUser, async (req, res) => {
         contribution_method: bt.contribution_method || null,
         regular_contribution_amount: bt.regular_contribution_amount || null,
         iaf_expected: bt.iaf_expected ? parseFloat(bt.iaf_expected) : null,
+        expected_close_date: bt.expected_close_date || null,
         notes: bt.notes || null
       }));
 
@@ -1342,6 +1343,7 @@ router.post('/create', authenticateUser, async (req, res) => {
       contribution_method: bt.contribution_method,
       regular_contribution_amount: bt.regular_contribution_amount || null,
       iaf_expected: bt.iaf_expected ? parseFloat(bt.iaf_expected) : null,
+      expected_close_date: bt.expected_close_date || null,
       notes: bt.notes || null
     }));
 

@@ -50,6 +50,7 @@ export default function BusinessTypeManager({
       contribution_method: '',
       regular_contribution_amount: '',
       iaf_expected: '',
+      expected_close_date: '',
       notes: ''
     };
   }
@@ -209,16 +210,29 @@ export default function BusinessTypeManager({
                 </div>
               )}
 
-              {/* IAF Expected */}
-              <div>
-                <Label htmlFor={`iaf_expected_${index}`}>IAF Expected (£)</Label>
-                <Input
-                  id={`iaf_expected_${index}`}
-                  type="number"
-                  value={businessType.iaf_expected}
-                  onChange={(e) => updateBusinessType(index, 'iaf_expected', e.target.value)}
-                  placeholder="Enter IAF expected in pounds"
-                />
+              {/* IAF Expected and Expected Close Date */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor={`iaf_expected_${index}`}>IAF Expected (£)</Label>
+                  <Input
+                    id={`iaf_expected_${index}`}
+                    type="number"
+                    value={businessType.iaf_expected}
+                    onChange={(e) => updateBusinessType(index, 'iaf_expected', e.target.value)}
+                    placeholder="Enter IAF expected in pounds"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor={`expected_close_date_${index}`}>Expected Close Date</Label>
+                  <Input
+                    id={`expected_close_date_${index}`}
+                    type="date"
+                    value={businessType.expected_close_date || ''}
+                    onChange={(e) => updateBusinessType(index, 'expected_close_date', e.target.value)}
+                    placeholder="Select expected close date"
+                  />
+                </div>
               </div>
 
               {/* Notes */}

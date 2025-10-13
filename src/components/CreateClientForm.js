@@ -88,6 +88,7 @@ export default function CreateClientForm({ onClose, onSuccess, isSubmitting = fa
       business_amount: '',
       regular_contribution_amount: '',
       iaf_expected: '',
+      expected_close_date: '',
       notes: ''
     };
   }
@@ -496,6 +497,16 @@ export default function CreateClientForm({ onClose, onSuccess, isSubmitting = fa
                         placeholder="Initial advice fee expected"
                       />
                     </div>
+                  </div>
+
+                  <div className="mt-4">
+                    <Label>Expected Close Date</Label>
+                    <Input
+                      type="date"
+                      value={businessType.expected_close_date || ''}
+                      onChange={(e) => handleBusinessTypeChange(index, 'expected_close_date', e.target.value)}
+                      placeholder="Select expected close date"
+                    />
                   </div>
 
                   <div className="mt-4">
