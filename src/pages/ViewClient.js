@@ -262,6 +262,14 @@ const ViewClient = () => {
                             <span className="font-semibold">£{parseFloat(bt.iaf_expected).toLocaleString()}</span>
                           </div>
                         )}
+                        {bt.expected_close_date && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Expected Close:</span>
+                            <span className="font-semibold text-primary">
+                              {new Date(bt.expected_close_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </div>
+                        )}
                         {bt.contribution_method && (
                           <div className="flex justify-between text-sm">
                             <span className="text-muted-foreground">Method:</span>
@@ -334,9 +342,26 @@ const ViewClient = () => {
                 </CardHeader>
                 <CardContent>
                   <p className="text-2xl font-bold text-foreground">
-                    {clientData.likely_close_month
-                      ? new Date(clientData.likely_close_month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-                      : 'Not Set'}
+                    {(() => {
+                      // Get earliest expected close date from business types
+                      const businessTypes = clientData.business_types_data || [];
+                      const datesWithValues = businessTypes
+                        .filter(bt => bt.expected_close_date)
+                        .map(bt => new Date(bt.expected_close_date))
+                        .sort((a, b) => a - b);
+
+                      if (datesWithValues.length > 0) {
+                        const earliestDate = datesWithValues[0];
+                        return earliestDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                      }
+
+                      // Fallback to client's likely_close_month if no business type dates
+                      if (clientData.likely_close_month) {
+                        return new Date(clientData.likely_close_month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                      }
+
+                      return 'Not Set';
+                    })()}
                   </p>
                 </CardContent>
               </Card>

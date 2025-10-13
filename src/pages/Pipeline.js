@@ -63,9 +63,23 @@ export default function Pipeline() {
 
         const nextMeetingDate = upcomingMeetings.length > 0 ? upcomingMeetings[0].starttime : null;
 
-        // Calculate expected month from likely_close_month
+        // Calculate expected month from business type expected_close_date (PRIORITY)
+        // Fallback to client's likely_close_month if no business type dates
         let expectedMonth = null;
-        if (client.likely_close_month) {
+        const businessTypesData = client.business_types_data || [];
+
+        // Get earliest expected close date from business types
+        const businessTypeDates = businessTypesData
+          .filter(bt => bt.expected_close_date)
+          .map(bt => new Date(bt.expected_close_date))
+          .sort((a, b) => a - b);
+
+        if (businessTypeDates.length > 0) {
+          // Use earliest business type close date
+          const earliestDate = businessTypeDates[0];
+          expectedMonth = `${earliestDate.getFullYear()}-${String(earliestDate.getMonth() + 1).padStart(2, '0')}`;
+        } else if (client.likely_close_month) {
+          // Fallback to client's likely_close_month
           // Handle both "YYYY-MM" and "YYYY-MM-DD" formats
           const dateStr = client.likely_close_month.includes('-') && client.likely_close_month.split('-').length === 3
             ? client.likely_close_month // Already has day (YYYY-MM-DD)
