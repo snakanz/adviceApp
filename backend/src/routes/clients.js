@@ -789,10 +789,33 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
       updated_at: new Date().toISOString()
     };
 
-    if (iaf_expected !== undefined) updateData.iaf_expected = iaf_expected;
-    if (business_amount !== undefined) updateData.business_amount = business_amount;
-    if (regular_contribution_type !== undefined) updateData.regular_contribution_type = regular_contribution_type;
-    if (regular_contribution_amount !== undefined) updateData.regular_contribution_amount = regular_contribution_amount;
+    // Handle numeric fields - convert empty strings to null, parse valid numbers
+    if (iaf_expected !== undefined && iaf_expected !== '') {
+      const parsedValue = parseFloat(iaf_expected);
+      updateData.iaf_expected = isNaN(parsedValue) ? null : parsedValue;
+    } else if (iaf_expected === '') {
+      updateData.iaf_expected = null;
+    }
+
+    if (business_amount !== undefined && business_amount !== '') {
+      const parsedValue = parseFloat(business_amount);
+      updateData.business_amount = isNaN(parsedValue) ? null : parsedValue;
+    } else if (business_amount === '') {
+      updateData.business_amount = null;
+    }
+
+    // Handle text fields - convert empty strings to null
+    if (regular_contribution_type !== undefined) {
+      updateData.regular_contribution_type = regular_contribution_type || null;
+    }
+    if (regular_contribution_amount !== undefined) {
+      updateData.regular_contribution_amount = regular_contribution_amount || null;
+    }
+
+    console.log('📝 Updating client with pipeline data:', {
+      clientId,
+      updateData: JSON.stringify(updateData, null, 2)
+    });
 
     const { data: updatedClient, error: updateError } = await getSupabase()
       .from('clients')
@@ -803,9 +826,16 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
       .single();
 
     if (updateError) {
-      console.error('Error updating client pipeline:', updateError);
-      return res.status(500).json({ error: 'Failed to update client pipeline' });
+      console.error('❌ Error updating client pipeline:', updateError);
+      console.error('Update data that failed:', updateData);
+      return res.status(500).json({
+        error: 'Failed to update client pipeline',
+        details: updateError.message,
+        hint: updateError.hint || 'Check if all required database columns exist'
+      });
     }
+
+    console.log('✅ Client pipeline updated successfully:', updatedClient.id);
 
     // Log pipeline activity
     await getSupabase()
