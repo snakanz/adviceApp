@@ -66,7 +66,12 @@ export default function Pipeline() {
         // Calculate expected month from likely_close_month
         let expectedMonth = null;
         if (client.likely_close_month) {
-          const date = new Date(client.likely_close_month + '-01');
+          // Handle both "YYYY-MM" and "YYYY-MM-DD" formats
+          const dateStr = client.likely_close_month.includes('-') && client.likely_close_month.split('-').length === 3
+            ? client.likely_close_month // Already has day (YYYY-MM-DD)
+            : `${client.likely_close_month}-01`; // Add day (YYYY-MM -> YYYY-MM-01)
+
+          const date = new Date(dateStr);
           expectedMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         }
 
