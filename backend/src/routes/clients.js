@@ -860,13 +860,9 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
 
     const {
       pipeline_stage,
-      iaf_expected,
-      business_type,
-      business_amount,
-      regular_contribution_type,
-      regular_contribution_amount,
-      pipeline_notes,
       likely_close_month,
+      pipeline_notes,
+      business_types, // Array of business type objects
       // Optional meeting data
       create_meeting,
       meeting_title,
@@ -877,9 +873,24 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
     } = req.body;
 
     // Validate required pipeline fields
-    if (!pipeline_stage || !business_type) {
+    if (!pipeline_stage) {
       return res.status(400).json({
-        error: 'Pipeline stage and business type are required'
+        error: 'Pipeline stage is required'
+      });
+    }
+
+    // Validate business types array
+    if (!business_types || !Array.isArray(business_types) || business_types.length === 0) {
+      return res.status(400).json({
+        error: 'At least one business type is required'
+      });
+    }
+
+    // Check that at least one business type has a type selected
+    const hasValidBusinessType = business_types.some(bt => bt.business_type && bt.business_type.trim() !== '');
+    if (!hasValidBusinessType) {
+      return res.status(400).json({
+        error: 'At least one business type must be selected'
       });
     }
 
@@ -948,68 +959,87 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
 
     console.log('✅ Client pipeline updated successfully:', updatedClient.id);
 
-    // Create or update business type entry (SINGLE SOURCE OF TRUTH)
-    // First, check if a business type entry already exists for this client
-    const { data: existingBusinessTypes, error: fetchError } = await getSupabase()
-      .from('client_business_types')
-      .select('*')
-      .eq('client_id', clientId)
-      .eq('business_type', business_type)
-      .maybeSingle();
+    // Process multiple business types (SINGLE SOURCE OF TRUTH)
+    const businessTypeResults = [];
 
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      console.error('Error fetching existing business type:', fetchError);
-    }
-
-    // Prepare business type data
-    const parsedIafExpected = iaf_expected && iaf_expected !== '' ? parseFloat(iaf_expected) : null;
-    const parsedBusinessAmount = business_amount && business_amount !== '' ? parseFloat(business_amount) : null;
-
-    // Determine contribution method from regular_contribution_type
-    let contributionMethod = null;
-    if (regular_contribution_type && regular_contribution_type !== '') {
-      contributionMethod = 'Regular Monthly Contribution';
-    }
-
-    const businessTypeData = {
-      client_id: clientId,
-      business_type: business_type,
-      business_amount: isNaN(parsedBusinessAmount) ? null : parsedBusinessAmount,
-      iaf_expected: isNaN(parsedIafExpected) ? null : parsedIafExpected,
-      contribution_method: contributionMethod,
-      regular_contribution_amount: regular_contribution_amount || null,
-      notes: pipeline_notes || null,
-      updated_at: new Date().toISOString()
-    };
-
-    if (existingBusinessTypes) {
-      // Update existing business type
-      const { error: updateBTError } = await getSupabase()
-        .from('client_business_types')
-        .update(businessTypeData)
-        .eq('id', existingBusinessTypes.id);
-
-      if (updateBTError) {
-        console.error('❌ Error updating business type:', updateBTError);
-        // Don't fail the whole operation, but log the error
-      } else {
-        console.log('✅ Business type updated successfully');
+    for (const businessType of business_types) {
+      // Skip empty business types
+      if (!businessType.business_type || businessType.business_type.trim() === '') {
+        continue;
       }
-    } else {
-      // Create new business type entry
-      const { error: insertBTError } = await getSupabase()
-        .from('client_business_types')
-        .insert([businessTypeData]);
 
-      if (insertBTError) {
-        console.error('❌ Error creating business type:', insertBTError);
-        // Don't fail the whole operation, but log the error
+      // Check if this business type already exists for this client
+      const { data: existingBusinessType, error: fetchError } = await getSupabase()
+        .from('client_business_types')
+        .select('*')
+        .eq('client_id', clientId)
+        .eq('business_type', businessType.business_type)
+        .maybeSingle();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error fetching existing business type:', fetchError);
+      }
+
+      // Prepare business type data
+      const parsedIafExpected = businessType.iaf_expected && businessType.iaf_expected !== ''
+        ? parseFloat(businessType.iaf_expected)
+        : null;
+      const parsedBusinessAmount = businessType.business_amount && businessType.business_amount !== ''
+        ? parseFloat(businessType.business_amount)
+        : null;
+      const parsedRegularContribution = businessType.regular_contribution_amount && businessType.regular_contribution_amount !== ''
+        ? parseFloat(businessType.regular_contribution_amount)
+        : null;
+
+      const businessTypeData = {
+        client_id: clientId,
+        business_type: businessType.business_type,
+        business_amount: isNaN(parsedBusinessAmount) ? null : parsedBusinessAmount,
+        iaf_expected: isNaN(parsedIafExpected) ? null : parsedIafExpected,
+        contribution_method: businessType.contribution_method || null,
+        regular_contribution_amount: isNaN(parsedRegularContribution) ? null : parsedRegularContribution,
+        notes: businessType.notes || null,
+        updated_at: new Date().toISOString()
+      };
+
+      if (existingBusinessType) {
+        // Update existing business type
+        const { error: updateBTError } = await getSupabase()
+          .from('client_business_types')
+          .update(businessTypeData)
+          .eq('id', existingBusinessType.id);
+
+        if (updateBTError) {
+          console.error('❌ Error updating business type:', updateBTError);
+          businessTypeResults.push({ type: businessType.business_type, status: 'error', error: updateBTError.message });
+        } else {
+          console.log('✅ Business type updated successfully:', businessType.business_type);
+          businessTypeResults.push({ type: businessType.business_type, status: 'updated' });
+        }
       } else {
-        console.log('✅ Business type created successfully');
+        // Create new business type entry
+        const { error: insertBTError } = await getSupabase()
+          .from('client_business_types')
+          .insert([businessTypeData]);
+
+        if (insertBTError) {
+          console.error('❌ Error creating business type:', insertBTError);
+          businessTypeResults.push({ type: businessType.business_type, status: 'error', error: insertBTError.message });
+        } else {
+          console.log('✅ Business type created successfully:', businessType.business_type);
+          businessTypeResults.push({ type: businessType.business_type, status: 'created' });
+        }
       }
     }
+
+    console.log('📊 Business types processing results:', businessTypeResults);
 
     // Log pipeline activity
+    const businessTypeSummary = businessTypeResults
+      .filter(r => r.status !== 'error')
+      .map(r => r.type)
+      .join(', ');
+
     await getSupabase()
       .from('pipeline_activities')
       .insert({
@@ -1017,12 +1047,10 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
         advisor_id: advisorId,
         activity_type: 'stage_change',
         title: `Pipeline entry created - ${pipeline_stage}`,
-        description: `Pipeline entry created with stage: ${pipeline_stage}${pipeline_notes ? `, Notes: ${pipeline_notes}` : ''}`,
+        description: `Pipeline entry created with stage: ${pipeline_stage}. Business types: ${businessTypeSummary}${pipeline_notes ? `. Notes: ${pipeline_notes}` : ''}`,
         metadata: {
           pipeline_stage,
-          business_type,
-          iaf_expected,
-          business_amount,
+          business_types: businessTypeResults,
           entry_type: 'pipeline_entry_creation'
         }
       });
