@@ -479,23 +479,31 @@ export default function Pipeline() {
                       <div className="text-xs text-muted-foreground truncate mb-1">
                         {client.email}
                       </div>
-                      {/* Business Type Tags */}
-                      <div className="flex flex-wrap gap-1">
+                      {/* Business Type Tags - Enhanced */}
+                      <div className="flex flex-wrap gap-1 items-center">
                         {client.businessTypes && client.businessTypes.length > 0 ? (
-                          client.businessTypes.slice(0, 2).map((type, index) => (
-                            <Badge key={index} className={cn("text-xs px-2 py-0.5", getBusinessTypeColor(type))}>
-                              {type}
-                            </Badge>
-                          ))
+                          <>
+                            {client.businessTypes.slice(0, 2).map((type, index) => (
+                              <Badge key={index} className={cn("text-xs px-2 py-0.5", getBusinessTypeColor(type))}>
+                                {type}
+                              </Badge>
+                            ))}
+                            {client.businessTypes.length > 2 && (
+                              <Badge variant="secondary" className="text-xs px-1.5 py-0.5 bg-muted">
+                                +{client.businessTypes.length - 2}
+                              </Badge>
+                            )}
+                            {/* Show count badge if multiple types */}
+                            {client.businessTypes.length > 1 && (
+                              <Badge variant="outline" className="text-xs px-1.5 py-0 h-4 border-primary/30 text-primary">
+                                {client.businessTypes.length} types
+                              </Badge>
+                            )}
+                          </>
                         ) : (
                           <Badge className={cn("text-xs px-2 py-0.5", getBusinessTypeColor(client.businessType))}>
                             {client.businessType}
                           </Badge>
-                        )}
-                        {client.businessTypes && client.businessTypes.length > 2 && (
-                          <span className="text-xs text-muted-foreground">
-                            +{client.businessTypes.length - 2}
-                          </span>
                         )}
                       </div>
                     </div>
@@ -557,10 +565,36 @@ export default function Pipeline() {
                     </div>
                   </div>
 
-                  {/* Expected Value */}
-                  <div className="col-span-2 flex items-center">
-                    <div className="text-sm font-bold text-foreground">
-                      {formatCurrency(client.expectedValue)}
+                  {/* Expected Value - Enhanced with Business Type Breakdown */}
+                  <div className="col-span-2 flex items-center gap-2">
+                    <div className="flex-1">
+                      <div className="text-sm font-bold text-foreground mb-0.5">
+                        {formatCurrency(client.expectedValue)}
+                      </div>
+                      {/* Show breakdown if multiple business types */}
+                      {client.businessTypesData && client.businessTypesData.length > 1 && (
+                        <div className="flex items-center gap-1">
+                          <Badge variant="outline" className="text-xs px-1.5 py-0 h-4">
+                            {client.businessTypesData.length} types
+                          </Badge>
+                        </div>
+                      )}
+                      {/* Show business type breakdown on hover */}
+                      {client.businessTypesData && client.businessTypesData.length > 0 && (
+                        <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                          {client.businessTypesData.slice(0, 2).map((bt, idx) => (
+                            <div key={idx} className="flex items-center gap-1">
+                              <span className="font-medium">{bt.business_type}:</span>
+                              <span>{formatCurrency(parseFloat(bt.iaf_expected || 0))}</span>
+                            </div>
+                          ))}
+                          {client.businessTypesData.length > 2 && (
+                            <div className="text-xs text-muted-foreground/70">
+                              +{client.businessTypesData.length - 2} more...
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
