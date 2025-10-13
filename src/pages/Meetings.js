@@ -1863,6 +1863,49 @@ export default function Meetings() {
                           {(emailSummary || selectedMeeting?.email_summary_draft) ? (
                             <Card className="border-border/50">
                               <CardContent className="p-4">
+                                {/* Client Information Header */}
+                                {(() => {
+                                  // Get client info from linked client or attendees
+                                  let clientInfo = null;
+
+                                  if (selectedMeeting.client) {
+                                    clientInfo = {
+                                      name: selectedMeeting.client.name || selectedMeeting.client.email.split('@')[0],
+                                      email: selectedMeeting.client.email
+                                    };
+                                  } else if (selectedMeeting.attendees) {
+                                    try {
+                                      const attendees = JSON.parse(selectedMeeting.attendees);
+                                      const clientAttendee = attendees.find(a => a.email && a.email !== user?.email);
+                                      if (clientAttendee) {
+                                        clientInfo = {
+                                          name: clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0],
+                                          email: clientAttendee.email
+                                        };
+                                      }
+                                    } catch (e) {
+                                      // Ignore parsing errors
+                                    }
+                                  }
+
+                                  if (clientInfo) {
+                                    return (
+                                      <div className="mb-4 pb-4 border-b border-border/50">
+                                        <div className="text-xs text-muted-foreground mb-1">To:</div>
+                                        <div className="flex items-center gap-2">
+                                          <Mail className="w-4 h-4 text-primary/60" />
+                                          <div>
+                                            <div className="font-medium text-sm text-foreground">{clientInfo.name}</div>
+                                            <div className="text-xs text-muted-foreground">{clientInfo.email}</div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+
+                                {/* Email Body */}
                                 <div className="prose prose-sm max-w-none text-foreground">
                                   <div className="whitespace-pre-line text-sm">{emailSummary || selectedMeeting?.email_summary_draft}</div>
                                 </div>

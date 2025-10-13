@@ -361,10 +361,13 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateToken, async (r
       });
     }
 
-    // Get meeting from database
+    // Get meeting from database with client information
     const { data: meeting, error: fetchError } = await getSupabase()
       .from('meetings')
-      .select('*')
+      .select(`
+        *,
+        client:clients(id, name, email)
+      `)
       .eq('googleeventid', meetingId)
       .eq('userid', userId)
       .single();
@@ -375,6 +378,26 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateToken, async (r
 
     if (!meeting.transcript) {
       return res.status(400).json({ error: 'No transcript available for this meeting' });
+    }
+
+    // Extract client information for email personalization
+    let clientName = 'Client';
+    let clientEmail = null;
+
+    if (meeting.client) {
+      clientName = meeting.client.name || meeting.client.email.split('@')[0];
+      clientEmail = meeting.client.email;
+    } else if (meeting.attendees) {
+      try {
+        const attendees = JSON.parse(meeting.attendees);
+        const clientAttendee = attendees.find(a => a.email && a.email !== req.user.email);
+        if (clientAttendee) {
+          clientName = clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0];
+          clientEmail = clientAttendee.email;
+        }
+      } catch (e) {
+        // Ignore parsing errors
+      }
     }
 
     // Check if summaries already exist and we're not forcing regeneration
@@ -411,23 +434,27 @@ Respond with ONLY the single sentence summary, no additional text.`;
 
     const quickSummary = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: quickSummaryPrompt });
 
-    // Generate Email Summary using Auto template
+    // Generate Email Summary using Auto template with client name
     const autoTemplate = `# SYSTEM PROMPT: Advicly Auto Email Generator
 You are an expert financial advisor drafting a professional email for a client immediately after a meeting. Your role is to generate a **clear, accurate summary email based ONLY on the provided transcript**.
 
+Client Name: ${clientName}
+
 Create a professional email summary that includes:
+• Personalized greeting using the client's name (e.g., "Dear ${clientName},")
 • Meeting overview
 • Key points discussed
 • Decisions made
 • Next steps
 • Action items
+• Professional closing
 
 Keep it professional and client-friendly.
 
 Transcript:
 ${meeting.transcript}
 
-Respond with the **email body only** — no headers or subject lines.`;
+Respond with the **email body only** — no subject line, but include the greeting with the client's name.`;
 
     const emailSummary = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: autoTemplate });
 

@@ -595,6 +595,37 @@ app.post('/api/calendar/meetings/:id/transcript', async (req, res) => {
         const { generateMeetingSummary, isOpenAIAvailable } = require('./services/openai');
 
         if (isOpenAIAvailable()) {
+          // Fetch meeting with client info for personalization
+          const { data: meeting } = await getSupabase()
+            .from('meetings')
+            .select(`
+              *,
+              client:clients(id, name, email)
+            `)
+            .eq('googleeventid', meetingId)
+            .eq('userid', userId)
+            .single();
+
+          // Extract client information for email personalization
+          let clientName = 'Client';
+          let clientEmail = null;
+
+          if (meeting?.client) {
+            clientName = meeting.client.name || meeting.client.email.split('@')[0];
+            clientEmail = meeting.client.email;
+          } else if (meeting?.attendees) {
+            try {
+              const attendees = JSON.parse(meeting.attendees);
+              const clientAttendee = attendees.find(a => a.email && a.email !== decoded.email);
+              if (clientAttendee) {
+                clientName = clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0];
+                clientEmail = clientAttendee.email;
+              }
+            } catch (e) {
+              // Ignore parsing errors
+            }
+          }
+
           // Generate Quick Summary (single sentence for Clients page)
           const quickSummaryPrompt = `# SYSTEM PROMPT: Advicly Quick Summary Generator
 You are an expert financial advisor creating a single-sentence summary of a client meeting.
@@ -639,23 +670,27 @@ ${transcript}`;
 
           const detailedSummary = await generateMeetingSummary(transcript, 'standard', { prompt: detailedSummaryPrompt });
 
-          // Generate Email Summary using Auto template
+          // Generate Email Summary using Auto template with client name
           const autoTemplate = `# SYSTEM PROMPT: Advicly Auto Email Generator
 You are an expert financial advisor drafting a professional email for a client immediately after a meeting. Your role is to generate a **clear, accurate summary email based ONLY on the provided transcript**.
 
+Client Name: ${clientName}
+
 Create a professional email summary that includes:
+• Personalized greeting using the client's name (e.g., "Dear ${clientName},")
 • Meeting overview
 • Key points discussed
 • Decisions made
 • Next steps
 • Action items
+• Professional closing
 
 Keep it professional and client-friendly.
 
 Transcript:
 ${transcript}
 
-Respond with the **email body only** — no headers or subject lines.`;
+Respond with the **email body only** — no subject line, but include the greeting with the client's name.`;
 
           const emailSummary = await generateMeetingSummary(transcript, 'standard', { prompt: autoTemplate });
 
@@ -789,10 +824,13 @@ app.post('/api/meetings/:meetingId/summary', async (req, res) => {
       });
     }
 
-    // Get meeting from database
+    // Get meeting from database with client information
     const { data: meeting, error: fetchError } = await getSupabase()
       .from('meetings')
-      .select('*')
+      .select(`
+        *,
+        client:clients(id, name, email)
+      `)
       .eq('googleeventid', meetingId)
       .eq('userid', userId)
       .single();
@@ -803,6 +841,26 @@ app.post('/api/meetings/:meetingId/summary', async (req, res) => {
 
     if (!meeting.transcript) {
       return res.status(400).json({ error: 'No transcript available for this meeting' });
+    }
+
+    // Extract client information for email personalization
+    let clientName = 'Client';
+    let clientEmail = null;
+
+    if (meeting.client) {
+      clientName = meeting.client.name || meeting.client.email.split('@')[0];
+      clientEmail = meeting.client.email;
+    } else if (meeting.attendees) {
+      try {
+        const attendees = JSON.parse(meeting.attendees);
+        const clientAttendee = attendees.find(a => a.email && a.email !== decoded.email);
+        if (clientAttendee) {
+          clientName = clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0];
+          clientEmail = clientAttendee.email;
+        }
+      } catch (e) {
+        // Ignore parsing errors
+      }
     }
 
     // Import OpenAI service
@@ -859,23 +917,27 @@ ${meeting.transcript}`;
 
     const detailedSummary = await generateMeetingSummary(meeting.transcript, 'standard', { prompt: detailedSummaryPrompt });
 
-    // Generate Email Summary using Auto template
+    // Generate Email Summary using Auto template with client name
     const autoTemplate = `# SYSTEM PROMPT: Advicly Auto Email Generator
 You are an expert financial advisor drafting a professional email for a client immediately after a meeting. Your role is to generate a **clear, accurate summary email based ONLY on the provided transcript**.
 
+Client Name: ${clientName}
+
 Create a professional email summary that includes:
+• Personalized greeting using the client's name (e.g., "Dear ${clientName},")
 • Meeting overview
 • Key points discussed
 • Decisions made
 • Next steps
 • Action items
+• Professional closing
 
 Keep it professional and client-friendly.
 
 Transcript:
 ${meeting.transcript}
 
-Respond with the **email body only** — no headers or subject lines.`;
+Respond with the **email body only** — no subject line, but include the greeting with the client's name.`;
 
     const emailSummary = await generateMeetingSummary(meeting.transcript, 'standard', { prompt: autoTemplate });
 
