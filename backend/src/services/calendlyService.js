@@ -1,5 +1,5 @@
 const { getSupabase } = require('../lib/supabase');
-// const ClientExtractionService = require('./clientExtraction');
+const ClientExtractionService = require('./clientExtraction');
 
 /**
  * Calendly API Service
@@ -358,11 +358,13 @@ class CalendlyService {
       // After syncing meetings, extract and associate clients
       if (syncedCount > 0 || updatedCount > 0) {
         try {
-          // const clientExtraction = new ClientExtractionService();
-          // await clientExtraction.extractClientsFromMeetings(userId);
-          console.log('✅ Client extraction completed for Calendly meetings (disabled for now)');
+          console.log('🔄 Starting client extraction for Calendly meetings...');
+          const clientExtraction = new ClientExtractionService();
+          const extractionResult = await clientExtraction.extractClientsFromMeetings(userId);
+          console.log('✅ Client extraction completed for Calendly meetings:', extractionResult);
         } catch (error) {
-          console.error('Error extracting clients from Calendly meetings:', error);
+          console.error('❌ Error extracting clients from Calendly meetings:', error);
+          // Don't fail the whole sync if client extraction fails
         }
       }
 
