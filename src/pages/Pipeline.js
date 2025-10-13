@@ -169,6 +169,8 @@ export default function Pipeline() {
   };
 
   // Calculate pipeline summary by stage (memoized to prevent flickering)
+  // Currently unused but kept for future analytics features
+  // eslint-disable-next-line no-unused-vars
   const pipelineSummary = useMemo(() => {
     const summary = {};
     const stages = [
