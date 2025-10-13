@@ -481,8 +481,8 @@ export default function Clients() {
                 <div className="col-span-2">Client Email</div>
                 <div className="col-span-1 text-center">Past Meetings</div>
                 <div className="col-span-2">Next Meeting</div>
-                <div className="col-span-2">Business Type</div>
-                <div className="col-span-1">Next IAF</div>
+                <div className="col-span-2">Business Types</div>
+                <div className="col-span-1">Total IAF</div>
                 <div className="col-span-1">Actions</div>
               </div>
             </div>
@@ -547,9 +547,22 @@ export default function Clients() {
                       )}
                     </div>
 
-                    {/* Business Type */}
+                    {/* Business Type - Show all types or primary */}
                     <div className="col-span-2">
-                      {client.business_type ? (
+                      {client.business_types && client.business_types.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {client.business_types.slice(0, 2).map((type, idx) => (
+                            <span key={idx} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {type}
+                            </span>
+                          ))}
+                          {client.business_types.length > 2 && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                              +{client.business_types.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      ) : client.business_type ? (
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                           {client.business_type}
                         </span>
@@ -558,9 +571,15 @@ export default function Clients() {
                       )}
                     </div>
 
-                    {/* Next IAF Expected */}
-                    <div className="col-span-1 text-xs text-muted-foreground">
-                      {client.likely_close_month ? formatDate(client.likely_close_month + '-01') : '-'}
+                    {/* IAF Expected - Show total from all business types */}
+                    <div className="col-span-1 text-xs font-medium text-foreground">
+                      {client.iaf_expected ? (
+                        <span className="text-green-600">
+                          £{parseFloat(client.iaf_expected).toLocaleString()}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
                     </div>
 
                     {/* Actions */}
@@ -680,25 +699,32 @@ export default function Clients() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Building2 className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-medium">Business Type</span>
+                      <span className="text-sm font-medium">Business Types</span>
                     </div>
-                    <div className="text-lg font-semibold text-foreground">
-                      {selectedClient.business_type || 'Not specified'}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      IAF Expected: {(selectedClient.iaf_expected || selectedClient.likely_value) ?
-                        `£${parseFloat(selectedClient.iaf_expected || selectedClient.likely_value).toLocaleString()}` :
-                        'Not specified'
-                      }
-                    </div>
-                    {selectedClient.business_amount && (
-                      <div className="text-xs text-muted-foreground">
-                        Business Amount: £{parseFloat(selectedClient.business_amount).toLocaleString()}
+                    {selectedClient.business_types && selectedClient.business_types.length > 0 ? (
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-1">
+                          {selectedClient.business_types.map((type, idx) => (
+                            <span key={idx} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {type}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Total IAF: {selectedClient.iaf_expected ?
+                            `£${parseFloat(selectedClient.iaf_expected).toLocaleString()}` :
+                            'Not specified'
+                          }
+                        </div>
+                        {selectedClient.business_amount && (
+                          <div className="text-xs text-muted-foreground">
+                            Total Business: £{parseFloat(selectedClient.business_amount).toLocaleString()}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {selectedClient.regular_contribution_type && (
-                      <div className="text-xs text-muted-foreground">
-                        {selectedClient.regular_contribution_type}: {selectedClient.regular_contribution_amount || 'Amount not specified'}
+                    ) : (
+                      <div className="text-sm text-muted-foreground">
+                        No business types set
                       </div>
                     )}
                   </CardContent>

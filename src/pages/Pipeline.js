@@ -79,16 +79,19 @@ export default function Pipeline() {
           businessStage: client.pipeline_stage || 'Need to Book Meeting',
           pipelineNotes: client.notes || '',
           likelihood: 75, // Default likelihood - could be added to client schema later
-          expectedValue: parseFloat(client.total_iaf_expected || client.iaf_expected || client.likely_value || 0),
+          // Use aggregated data from business_types (SINGLE SOURCE OF TRUTH)
+          expectedValue: parseFloat(client.iaf_expected || client.likely_value || 0),
           expectedMonth: expectedMonth,
           businessType: client.business_type ? client.business_type.charAt(0).toUpperCase() + client.business_type.slice(1) : 'Not Set',
-          businessTypes: client.business_types || [], // Array of business types from new table
+          businessTypes: client.business_types || [], // Array of business types from client_business_types table
+          businessTypesData: client.business_types_data || [], // Full business type objects
           businessTypesDisplay: client.business_types && client.business_types.length > 0
-            ? client.business_types.join(', ')
+            ? client.business_types.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')
             : (client.business_type ? client.business_type.charAt(0).toUpperCase() + client.business_type.slice(1) : 'Not Set'),
           contributionMethods: client.contribution_methods || '',
-          totalBusinessAmount: client.total_business_amount || client.business_amount || 0,
-          totalIafExpected: client.total_iaf_expected || client.iaf_expected || client.likely_value || 0,
+          // Use aggregated totals from backend
+          totalBusinessAmount: parseFloat(client.business_amount || 0),
+          totalIafExpected: parseFloat(client.iaf_expected || client.likely_value || 0),
           // Additional fields for pipeline management
           business_amount: client.business_amount,
           regular_contribution_type: client.regular_contribution_type,
