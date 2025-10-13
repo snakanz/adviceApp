@@ -471,7 +471,7 @@ app.get('/api/dev/meetings', async (req, res) => {
         quick_summary,
         email_summary_draft,
         action_points,
-        source,
+        meeting_source,
         client_id,
         client:clients(id, name, email)
       `)
@@ -490,7 +490,7 @@ app.get('/api/dev/meetings', async (req, res) => {
     const processedMeetings = meetings?.map(meeting => ({
       ...meeting,
       // Set default values and flags
-      source: 'google',
+      source: meeting.meeting_source || 'google',
       hasTranscript: !!meeting.transcript,
       hasSummary: !!meeting.summary || !!meeting.quick_summary,
       hasEmailDraft: !!meeting.email_summary_draft,
