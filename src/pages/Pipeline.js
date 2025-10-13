@@ -8,7 +8,10 @@ import {
   Search,
   Edit3,
   X,
-  Plus
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -29,6 +32,7 @@ export default function Pipeline() {
   const [editValue, setEditValue] = useState('');
   const [showCreateClientForm, setShowCreateClientForm] = useState(false);
   const [creatingClient, setCreatingClient] = useState(false);
+  const [showOverdueSection, setShowOverdueSection] = useState(true); // Collapsible state for overdue section
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
@@ -281,21 +285,55 @@ export default function Pipeline() {
     }
   };
 
-  const getCurrentMonthClients = () => {
-    const monthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
+  // Get clients with overdue or no expected close date
+  const getOverdueOrNoDateClients = () => {
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    // Show clients that match the selected month OR clients with pipeline data but no expected month
     return clients.filter(client => {
-      // If client has an expected month, only show if it matches current month
-      if (client.expectedMonth) {
-        return client.expectedMonth === monthKey;
+      // Skip clients without pipeline stage (not in pipeline)
+      if (!client.businessStage || client.businessStage === 'Need to Book Meeting') {
+        return false;
       }
-      // If client has pipeline stage set (meaning they're in the pipeline), show them in the current month
-      if (client.businessStage && client.businessStage !== 'Need to Book Meeting') {
+
+      // No expected month at all
+      if (!client.expectedMonth) {
         return true;
       }
-      // Otherwise, don't show
+
+      // Expected month is before current month (overdue)
+      if (client.expectedMonth < currentMonthKey) {
+        return true;
+      }
+
       return false;
+    });
+  };
+
+  const getCurrentMonthClients = () => {
+    const monthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
+    const now = new Date();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    // Show clients that match the selected month, excluding overdue/no date clients
+    return clients.filter(client => {
+      // Skip clients without pipeline stage (not in pipeline)
+      if (!client.businessStage || client.businessStage === 'Need to Book Meeting') {
+        return false;
+      }
+
+      // Skip clients with no expected month (they go in overdue section)
+      if (!client.expectedMonth) {
+        return false;
+      }
+
+      // Skip overdue clients (they go in overdue section)
+      if (client.expectedMonth < currentMonthKey) {
+        return false;
+      }
+
+      // Show clients that match the selected month
+      return client.expectedMonth === monthKey;
     });
   };
 
@@ -413,6 +451,92 @@ export default function Pipeline() {
               </div>
             </div>
           </div>
+
+          {/* Overdue/No Date Section */}
+          {(() => {
+            const overdueClients = getOverdueOrNoDateClients();
+            if (overdueClients.length === 0) return null;
+
+            return (
+              <div className="mb-6">
+                <div className="border border-orange-200 dark:border-orange-900 rounded-lg bg-orange-50 dark:bg-orange-950/20 overflow-hidden">
+                  {/* Header */}
+                  <div
+                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+                    onClick={() => setShowOverdueSection(!showOverdueSection)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                      <div>
+                        <h3 className="font-semibold text-foreground">Overdue or No Date Set</h3>
+                        <p className="text-xs text-muted-foreground">
+                          {overdueClients.length} {overdueClients.length === 1 ? 'client' : 'clients'} requiring attention
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">
+                        {formatCurrency(overdueClients.reduce((total, client) => total + (client.expectedValue || 0), 0))}
+                      </span>
+                      {showOverdueSection ? (
+                        <ChevronUp className="w-5 h-5 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Collapsible Content */}
+                  {showOverdueSection && (
+                    <div className="border-t border-orange-200 dark:border-orange-900 bg-background/50">
+                      <div className="p-4 space-y-2 max-h-96 overflow-y-auto">
+                        {overdueClients.map((client) => (
+                          <div
+                            key={client.id}
+                            onClick={() => handleClientClick(client)}
+                            className="flex items-center justify-between p-3 bg-card hover:bg-muted/50 rounded-lg border border-border/50 cursor-pointer transition-all group"
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <Avatar className="w-8 h-8 flex-shrink-0">
+                                <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
+                                  {client.name.split(' ').map(n => n[0]).join('')}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-semibold text-sm text-foreground truncate">
+                                  {client.name}
+                                </div>
+                                <div className="text-xs text-muted-foreground truncate">
+                                  {client.email}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                              <Badge variant="outline" className="text-xs">
+                                {client.businessStage}
+                              </Badge>
+                              {client.expectedMonth ? (
+                                <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                                  Overdue: {new Date(client.expectedMonth + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground font-medium">
+                                  No date set
+                                </span>
+                              )}
+                              <span className="text-sm font-semibold text-foreground">
+                                {formatCurrency(client.expectedValue || 0)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Monthly Tabs */}
           <div className="mb-6">
