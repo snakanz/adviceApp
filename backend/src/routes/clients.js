@@ -960,24 +960,33 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
     console.log('✅ Client pipeline updated successfully:', updatedClient.id);
 
     // Process multiple business types (SINGLE SOURCE OF TRUTH)
+    // Strategy: Delete all existing business types for this client and insert new ones
+    // This ensures clean state and allows multiple entries of the same type
     const businessTypeResults = [];
+
+    // First, delete all existing business types for this client
+    const { error: deleteError } = await getSupabase()
+      .from('client_business_types')
+      .delete()
+      .eq('client_id', clientId);
+
+    if (deleteError) {
+      console.error('❌ Error deleting existing business types:', deleteError);
+      return res.status(500).json({
+        error: 'Failed to update business types',
+        details: deleteError.message
+      });
+    }
+
+    console.log('✅ Cleared existing business types for client:', clientId);
+
+    // Now insert all new business types
+    const businessTypesToInsert = [];
 
     for (const businessType of business_types) {
       // Skip empty business types
       if (!businessType.business_type || businessType.business_type.trim() === '') {
         continue;
-      }
-
-      // Check if this business type already exists for this client
-      const { data: existingBusinessType, error: fetchError } = await getSupabase()
-        .from('client_business_types')
-        .select('*')
-        .eq('client_id', clientId)
-        .eq('business_type', businessType.business_type)
-        .maybeSingle();
-
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        console.error('Error fetching existing business type:', fetchError);
       }
 
       // Prepare business type data
@@ -999,37 +1008,32 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
         contribution_method: businessType.contribution_method || null,
         regular_contribution_amount: isNaN(parsedRegularContribution) ? null : parsedRegularContribution,
         notes: businessType.notes || null,
+        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
-      if (existingBusinessType) {
-        // Update existing business type
-        const { error: updateBTError } = await getSupabase()
-          .from('client_business_types')
-          .update(businessTypeData)
-          .eq('id', existingBusinessType.id);
+      businessTypesToInsert.push(businessTypeData);
+      businessTypeResults.push({ type: businessType.business_type, status: 'prepared' });
+    }
 
-        if (updateBTError) {
-          console.error('❌ Error updating business type:', updateBTError);
-          businessTypeResults.push({ type: businessType.business_type, status: 'error', error: updateBTError.message });
-        } else {
-          console.log('✅ Business type updated successfully:', businessType.business_type);
-          businessTypeResults.push({ type: businessType.business_type, status: 'updated' });
-        }
-      } else {
-        // Create new business type entry
-        const { error: insertBTError } = await getSupabase()
-          .from('client_business_types')
-          .insert([businessTypeData]);
+    // Bulk insert all business types
+    if (businessTypesToInsert.length > 0) {
+      const { error: insertError } = await getSupabase()
+        .from('client_business_types')
+        .insert(businessTypesToInsert);
 
-        if (insertBTError) {
-          console.error('❌ Error creating business type:', insertBTError);
-          businessTypeResults.push({ type: businessType.business_type, status: 'error', error: insertBTError.message });
-        } else {
-          console.log('✅ Business type created successfully:', businessType.business_type);
-          businessTypeResults.push({ type: businessType.business_type, status: 'created' });
-        }
+      if (insertError) {
+        console.error('❌ Error inserting business types:', insertError);
+        console.error('Data that failed:', businessTypesToInsert);
+        return res.status(500).json({
+          error: 'Failed to save business types',
+          details: insertError.message,
+          data: businessTypesToInsert
+        });
       }
+
+      console.log(`✅ Successfully inserted ${businessTypesToInsert.length} business types`);
+      businessTypeResults.forEach(r => r.status = 'created');
     }
 
     console.log('📊 Business types processing results:', businessTypeResults);
