@@ -693,8 +693,8 @@ export default function Clients() {
             onClick={() => setDetailPanelOpen(false)}
           />
 
-          {/* Detail Panel */}
-          <div className="fixed right-0 top-0 h-full w-full max-w-md lg:w-96 bg-card border-l border-border shadow-xl z-50 overflow-hidden flex flex-col">
+          {/* Detail Panel - Expanded Width */}
+          <div className="fixed right-0 top-0 h-full w-full lg:w-[45%] xl:w-[40%] bg-card border-l border-border shadow-xl z-50 overflow-hidden flex flex-col">
             {/* Panel Header */}
             <div className="sticky top-0 bg-background border-b border-border/50 p-6 flex items-center justify-between">
               <div className="flex items-center gap-4">
