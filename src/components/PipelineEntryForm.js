@@ -35,12 +35,12 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
   ];
 
   const businessTypes = [
-    'pension',
-    'isa',
-    'bond',
-    'investment',
-    'insurance',
-    'mortgage'
+    'Pension',
+    'ISA',
+    'Bond',
+    'Investment',
+    'Insurance',
+    'Mortgage'
   ];
 
   const meetingTypes = [
@@ -97,10 +97,6 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
-  };
-
-  const formatBusinessType = (type) => {
-    return type.charAt(0).toUpperCase() + type.slice(1);
   };
 
   return (
@@ -171,7 +167,7 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
               >
                 <option value="">Select business type</option>
                 {businessTypes.map(type => (
-                  <option key={type} value={type}>{formatBusinessType(type)}</option>
+                  <option key={type} value={type}>{type}</option>
                 ))}
               </select>
               {errors.business_type && (

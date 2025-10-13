@@ -27,12 +27,6 @@ const formatDateTime = (dateTimeStr) => {
   });
 };
 
-const pipelineMock = {
-  businessExpected: '100K Transfer',
-  value: '14000',
-  closeMonth: 'April'
-};
-
 const ViewClient = () => {
   const navigate = useNavigate();
   const { clientId } = useParams();
@@ -241,31 +235,96 @@ const ViewClient = () => {
         {activeTab === 'pipeline' && (
           <div className="space-y-6">
             <h2 className="text-xl font-semibold text-foreground">Client Pipeline</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+            {/* Business Types */}
+            {clientData.business_types_data && clientData.business_types_data.length > 0 ? (
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium text-foreground">Business Types</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {clientData.business_types_data.map((bt, index) => (
+                    <Card key={index} className="border-border/50">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                          <Building2 className="w-4 h-4 text-primary" />
+                          {bt.business_type}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-2">
+                        {bt.business_amount && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Business Amount:</span>
+                            <span className="font-semibold">£{parseFloat(bt.business_amount).toLocaleString()}</span>
+                          </div>
+                        )}
+                        {bt.iaf_expected && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">IAF Expected:</span>
+                            <span className="font-semibold">£{parseFloat(bt.iaf_expected).toLocaleString()}</span>
+                          </div>
+                        )}
+                        {bt.contribution_method && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Method:</span>
+                            <span className="font-medium">{bt.contribution_method}</span>
+                          </div>
+                        )}
+                        {bt.regular_contribution_amount && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-muted-foreground">Regular Amount:</span>
+                            <span className="font-medium">{bt.regular_contribution_amount}</span>
+                          </div>
+                        )}
+                        {bt.notes && (
+                          <div className="text-sm pt-2 border-t border-border/50">
+                            <span className="text-muted-foreground">Notes:</span>
+                            <p className="text-foreground mt-1">{bt.notes}</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <Card className="border-border/50">
+                <CardContent className="p-6 text-center">
+                  <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-foreground mb-2">No Business Types Set</h3>
+                  <p className="text-muted-foreground">Add business types to track pipeline opportunities.</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <TrendingUp className="w-5 h-5 text-primary" />
-                    Business Expected
+                    Total IAF Expected
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold text-foreground">{pipelineMock.businessExpected}</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    £{clientData.iaf_expected ? parseFloat(clientData.iaf_expected).toLocaleString() : '0'}
+                  </p>
                 </CardContent>
               </Card>
-              
+
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <Building2 className="w-5 h-5 text-primary" />
-                    Value of Business
+                    Total Business Amount
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold text-foreground">${pipelineMock.value}</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    £{clientData.business_amount ? parseFloat(clientData.business_amount).toLocaleString() : '0'}
+                  </p>
                 </CardContent>
               </Card>
-              
+
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
@@ -274,7 +333,11 @@ const ViewClient = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold text-foreground">{pipelineMock.closeMonth}</p>
+                  <p className="text-2xl font-bold text-foreground">
+                    {clientData.likely_close_month
+                      ? new Date(clientData.likely_close_month + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                      : 'Not Set'}
+                  </p>
                 </CardContent>
               </Card>
             </div>

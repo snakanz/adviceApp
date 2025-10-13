@@ -33,6 +33,7 @@ export default function Clients() {
   const [editForm, setEditForm] = useState({
     name: '',
     email: '',
+    pipeline_stage: '',
     business_type: '',
     iaf_expected: '',
     business_amount: '',
@@ -53,10 +54,17 @@ export default function Clients() {
   const [savingBusinessTypes, setSavingBusinessTypes] = useState(false);
   const [showCreateClientForm, setShowCreateClientForm] = useState(false);
   const [creatingClient, setCreatingClient] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
 
+
+  // Helper function to show success message
+  const showSuccess = (message) => {
+    setSuccessMessage(message);
+    setTimeout(() => setSuccessMessage(''), 3000);
+  };
 
   // Helper function to navigate to meetings page with specific meeting selected
   const navigateToMeeting = (meetingId) => {
@@ -194,6 +202,7 @@ export default function Clients() {
     setEditForm({
       name: client.name || '',
       email: client.email || '',
+      pipeline_stage: client.pipeline_stage || '',
       business_type: client.business_type || '',
       iaf_expected: client.iaf_expected || client.likely_value || '', // Handle both old and new field names
       business_amount: client.business_amount || '',
@@ -241,9 +250,12 @@ export default function Clients() {
       setShowBusinessTypeManager(false);
       setEditingClient(null);
       setClientBusinessTypes([]);
+
+      // Show success message
+      showSuccess('Business types updated successfully!');
     } catch (error) {
       console.error('Error saving business types:', error);
-      // Error handling could be improved with user feedback
+      showSuccess('Failed to save business types. Please try again.');
     } finally {
       setSavingBusinessTypes(false);
     }
@@ -266,6 +278,9 @@ export default function Clients() {
         if (response.client) {
           setSelectedClient(response.client);
         }
+
+        // Show success message
+        showSuccess('Client created successfully!');
       }
     } catch (error) {
       console.error('Error creating client:', error);
@@ -292,6 +307,7 @@ export default function Clients() {
         body: JSON.stringify({
           email: editingClient.email,
           name: editForm.name.trim(),
+          pipeline_stage: editForm.pipeline_stage,
           business_type: editForm.business_type,
           iaf_expected: editForm.iaf_expected,
           business_amount: editForm.business_amount,
@@ -306,6 +322,9 @@ export default function Clients() {
       setClients(data);
       setEditingClient(null);
       setSaving(false);
+
+      // Show success message
+      showSuccess('Client details updated successfully!');
     } catch (err) {
       console.error('Error updating client:', err);
       setSaving(false);
@@ -353,12 +372,13 @@ export default function Clients() {
         // Close the form
         handleClosePipelineForm();
 
-        // Show success message (you could add a toast notification here)
+        // Show success message
+        showSuccess('Pipeline entry created successfully!');
         console.log('Pipeline entry created successfully:', response);
       }
     } catch (error) {
       console.error('Error creating pipeline entry:', error);
-      // You could add error handling/toast notification here
+      showSuccess('Failed to create pipeline entry. Please try again.');
     } finally {
       setCreatingPipeline(false);
     }
@@ -398,6 +418,16 @@ export default function Clients() {
 
   return (
     <div className="h-full bg-background relative">
+      {/* Success Message Toast */}
+      {successMessage && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2">
+          <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+            <CheckCircle2 className="w-5 h-5" />
+            <span className="font-medium">{successMessage}</span>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="h-full flex flex-col">
         {/* Header */}
@@ -845,6 +875,22 @@ export default function Clients() {
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium mb-2">Pipeline Stage</label>
+                <select
+                  value={editForm.pipeline_stage}
+                  onChange={(e) => setEditForm({ ...editForm, pipeline_stage: e.target.value })}
+                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
+                >
+                  <option value="">Select pipeline stage</option>
+                  <option value="Client Signed">Client Signed</option>
+                  <option value="Waiting to Sign">Waiting to Sign</option>
+                  <option value="Waiting on Paraplanning">Waiting on Paraplanning</option>
+                  <option value="Have Not Written Advice">Have Not Written Advice</option>
+                  <option value="Need to Book Meeting">Need to Book Meeting</option>
+                  <option value="Can't Contact Client">Can't Contact Client</option>
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium mb-2">Business Type</label>
                 <select
                   value={editForm.business_type}
@@ -852,12 +898,12 @@ export default function Clients() {
                   className="w-full p-2 border border-border rounded-md bg-background text-foreground"
                 >
                   <option value="">Select business type</option>
-                  <option value="pension">Pension</option>
-                  <option value="isa">ISA</option>
-                  <option value="bond">Bond</option>
-                  <option value="investment">Investment</option>
-                  <option value="insurance">Insurance</option>
-                  <option value="mortgage">Mortgage</option>
+                  <option value="Pension">Pension</option>
+                  <option value="ISA">ISA</option>
+                  <option value="Bond">Bond</option>
+                  <option value="Investment">Investment</option>
+                  <option value="Insurance">Insurance</option>
+                  <option value="Mortgage">Mortgage</option>
                 </select>
               </div>
               <div>

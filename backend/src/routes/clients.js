@@ -319,6 +319,7 @@ router.post('/update-name', async (req, res) => {
     const {
       email,
       name,
+      pipeline_stage,
       business_type,
       likely_value,
       iaf_expected,
@@ -339,31 +340,31 @@ router.post('/update-name', async (req, res) => {
       });
     }
 
-    // Find and update the client
-    const updateData = {
+    // Find the client first
+    const { data: client, error: findError } = await getSupabase()
+      .from('clients')
+      .select('id')
+      .eq('advisor_id', advisorId)
+      .eq('email', email)
+      .single();
+
+    if (findError || !client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Update client name, pipeline_stage, and likely_close_month only (not business data)
+    const clientUpdateData = {
       name: name,
-      business_type: business_type || null,
+      pipeline_stage: pipeline_stage || null,
       likely_close_month: likely_close_month || null,
       updated_at: new Date().toISOString()
     };
 
-    // Handle both old and new field names for backward compatibility
-    if (iaf_expected !== undefined) {
-      updateData.iaf_expected = iaf_expected;
-    } else if (likely_value !== undefined) {
-      updateData.iaf_expected = likely_value; // Map old field to new field
-    }
-
-    // Add new fields
-    if (business_amount !== undefined) updateData.business_amount = business_amount;
-    if (regular_contribution_type !== undefined) updateData.regular_contribution_type = regular_contribution_type;
-    if (regular_contribution_amount !== undefined) updateData.regular_contribution_amount = regular_contribution_amount;
-
     const { data: updatedClient, error: updateError } = await getSupabase()
       .from('clients')
-      .update(updateData)
+      .update(clientUpdateData)
+      .eq('id', client.id)
       .eq('advisor_id', advisorId)
-      .eq('email', email)
       .select()
       .single();
 
@@ -372,8 +373,72 @@ router.post('/update-name', async (req, res) => {
       return res.status(500).json({ error: 'Failed to update client' });
     }
 
-    if (!updatedClient) {
-      return res.status(404).json({ error: 'Client not found' });
+    // If business type data is provided, update or create business type entry
+    if (business_type && business_type !== '') {
+      // Check if business type entry already exists
+      const { data: existingBusinessType, error: fetchError } = await getSupabase()
+        .from('client_business_types')
+        .select('*')
+        .eq('client_id', client.id)
+        .eq('business_type', business_type)
+        .maybeSingle();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error fetching existing business type:', fetchError);
+      }
+
+      // Prepare business type data
+      const parsedIafExpected = (iaf_expected !== undefined && iaf_expected !== '')
+        ? parseFloat(iaf_expected)
+        : (likely_value !== undefined && likely_value !== '')
+          ? parseFloat(likely_value)
+          : null;
+      const parsedBusinessAmount = (business_amount !== undefined && business_amount !== '')
+        ? parseFloat(business_amount)
+        : null;
+
+      // Determine contribution method from regular_contribution_type
+      let contributionMethod = null;
+      if (regular_contribution_type && regular_contribution_type !== '') {
+        contributionMethod = 'Regular Monthly Contribution';
+      }
+
+      const businessTypeData = {
+        client_id: client.id,
+        business_type: business_type,
+        business_amount: isNaN(parsedBusinessAmount) ? null : parsedBusinessAmount,
+        iaf_expected: isNaN(parsedIafExpected) ? null : parsedIafExpected,
+        contribution_method: contributionMethod,
+        regular_contribution_amount: regular_contribution_amount || null,
+        updated_at: new Date().toISOString()
+      };
+
+      if (existingBusinessType) {
+        // Update existing business type
+        const { error: updateBTError } = await getSupabase()
+          .from('client_business_types')
+          .update(businessTypeData)
+          .eq('id', existingBusinessType.id);
+
+        if (updateBTError) {
+          console.error('Error updating business type:', updateBTError);
+          // Don't fail the whole operation, but log the error
+        } else {
+          console.log('✅ Business type updated successfully');
+        }
+      } else {
+        // Create new business type entry
+        const { error: insertBTError } = await getSupabase()
+          .from('client_business_types')
+          .insert([businessTypeData]);
+
+        if (insertBTError) {
+          console.error('Error creating business type:', insertBTError);
+          // Don't fail the whole operation, but log the error
+        } else {
+          console.log('✅ Business type created successfully');
+        }
+      }
     }
 
     res.json({ message: 'Client updated successfully', client: updatedClient });
