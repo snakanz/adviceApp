@@ -264,6 +264,21 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
                     </select>
                   </div>
 
+                  {/* Contribution Method - MOVED TO SECOND POSITION */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Contribution Method</label>
+                    <select
+                      value={businessType.contribution_method}
+                      onChange={(e) => handleBusinessTypeChange(index, 'contribution_method', e.target.value)}
+                      className="w-full p-3 border border-border rounded-md bg-background text-foreground"
+                    >
+                      <option value="">Select contribution method</option>
+                      {contributionMethods.map(method => (
+                        <option key={method} value={method}>{method}</option>
+                      ))}
+                    </select>
+                  </div>
+
                   {/* Financial Information */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -297,21 +312,6 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
                         <p className="text-red-500 text-xs mt-1">{errors[`business_type_${index}_iaf`]}</p>
                       )}
                     </div>
-                  </div>
-
-                  {/* Contribution Method */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Contribution Method</label>
-                    <select
-                      value={businessType.contribution_method}
-                      onChange={(e) => handleBusinessTypeChange(index, 'contribution_method', e.target.value)}
-                      className="w-full p-3 border border-border rounded-md bg-background text-foreground"
-                    >
-                      <option value="">Select contribution method</option>
-                      {contributionMethods.map(method => (
-                        <option key={method} value={method}>{method}</option>
-                      ))}
-                    </select>
                   </div>
 
                   {/* Regular Contribution Amount - Only show if relevant */}
