@@ -907,9 +907,19 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
 
     // Update client with pipeline-level data (stage and close month only)
     // Note: pipeline_notes are stored in client_business_types table, not clients table
+
+    // Convert likely_close_month from "YYYY-MM" to "YYYY-MM-01" for DATE column
+    let closeMonthDate = null;
+    if (likely_close_month) {
+      // If it's already a full date, use it; otherwise append "-01"
+      closeMonthDate = likely_close_month.includes('-') && likely_close_month.split('-').length === 2
+        ? `${likely_close_month}-01`
+        : likely_close_month;
+    }
+
     const clientUpdateData = {
       pipeline_stage,
-      likely_close_month: likely_close_month || null,
+      likely_close_month: closeMonthDate,
       updated_at: new Date().toISOString()
     };
 
