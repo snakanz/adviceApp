@@ -1173,29 +1173,55 @@ export default function Meetings() {
                   </div>
                 </div>
 
-                {/* Client Information */}
-                {meeting.attendees && (() => {
-                  try {
-                    const attendees = JSON.parse(meeting.attendees);
-                    const clientAttendee = attendees.find(a => a.email && a.email !== user?.email);
-                    if (clientAttendee) {
-                      return (
-                        <div className="flex items-center gap-1 mb-2 text-xs">
-                          <Mail className="w-3 h-3 text-primary/60 flex-shrink-0" />
-                          <span className="font-medium text-primary truncate">
-                            {clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0]}
-                          </span>
-                          <span className="text-muted-foreground">•</span>
-                          <span className="text-muted-foreground truncate">
-                            {clientAttendee.email}
-                          </span>
-                        </div>
-                      );
-                    }
-                  } catch (e) {
-                    return null;
+                {/* Client Information - Enhanced to show linked client or attendee */}
+                {(() => {
+                  // First, check if there's a linked client from the database
+                  if (meeting.client) {
+                    return (
+                      <div className="flex items-center gap-1 mb-2 text-xs">
+                        <Mail className="w-3 h-3 text-primary/60 flex-shrink-0" />
+                        <span className="font-medium text-primary truncate">
+                          {meeting.client.name || meeting.client.email.split('@')[0]}
+                        </span>
+                        <span className="text-muted-foreground">•</span>
+                        <span className="text-muted-foreground truncate">
+                          {meeting.client.email}
+                        </span>
+                      </div>
+                    );
                   }
-                  return null;
+
+                  // Fallback to attendees if no linked client
+                  if (meeting.attendees) {
+                    try {
+                      const attendees = JSON.parse(meeting.attendees);
+                      const clientAttendee = attendees.find(a => a.email && a.email !== user?.email);
+                      if (clientAttendee) {
+                        return (
+                          <div className="flex items-center gap-1 mb-2 text-xs">
+                            <Mail className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" />
+                            <span className="font-medium text-muted-foreground truncate">
+                              {clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0]}
+                            </span>
+                            <span className="text-muted-foreground/60">•</span>
+                            <span className="text-muted-foreground/80 truncate">
+                              {clientAttendee.email}
+                            </span>
+                          </div>
+                        );
+                      }
+                    } catch (e) {
+                      return null;
+                    }
+                  }
+
+                  // Show "No client linked" if neither exists
+                  return (
+                    <div className="flex items-center gap-1 mb-2 text-xs text-muted-foreground/60">
+                      <Mail className="w-3 h-3 flex-shrink-0" />
+                      <span className="italic">No client linked</span>
+                    </div>
+                  );
                 })()}
 
                 {/* Bottom Row: Status Indicators and Actions */}
@@ -1531,25 +1557,47 @@ export default function Meetings() {
                   </div>
                 </div>
 
-                {/* Client info display */}
-                {selectedMeeting.attendees && (() => {
-                  try {
-                    const attendees = JSON.parse(selectedMeeting.attendees);
-                    const clientAttendee = attendees.find(a => a.email && a.email !== 'simon@greenwood.co.nz');
-                    if (clientAttendee) {
-                      return (
-                        <div className="flex items-center mb-2 text-sm text-gray-600">
-                          <Mail className="h-4 w-4 mr-2 text-gray-400" />
-                          <span className="font-medium text-gray-900">{clientAttendee.displayName || clientAttendee.email.split('@')[0]}</span>
-                          <span className="mx-2 text-gray-400">•</span>
-                          <span className="text-gray-500">{clientAttendee.email}</span>
-                        </div>
-                      );
-                    }
-                  } catch (e) {
-                    return null;
+                {/* Client info display - Enhanced to show linked client or attendee */}
+                {(() => {
+                  // First, check if there's a linked client from the database
+                  if (selectedMeeting.client) {
+                    return (
+                      <div className="flex items-center mb-2 text-sm">
+                        <Mail className="h-4 w-4 mr-2 text-primary/60" />
+                        <span className="font-medium text-primary">{selectedMeeting.client.name || selectedMeeting.client.email.split('@')[0]}</span>
+                        <span className="mx-2 text-muted-foreground">•</span>
+                        <span className="text-foreground/70">{selectedMeeting.client.email}</span>
+                      </div>
+                    );
                   }
-                  return null;
+
+                  // Fallback to attendees if no linked client
+                  if (selectedMeeting.attendees) {
+                    try {
+                      const attendees = JSON.parse(selectedMeeting.attendees);
+                      const clientAttendee = attendees.find(a => a.email && a.email !== user?.email);
+                      if (clientAttendee) {
+                        return (
+                          <div className="flex items-center mb-2 text-sm">
+                            <Mail className="h-4 w-4 mr-2 text-muted-foreground/60" />
+                            <span className="font-medium text-muted-foreground">{clientAttendee.displayName || clientAttendee.email.split('@')[0]}</span>
+                            <span className="mx-2 text-muted-foreground/60">•</span>
+                            <span className="text-muted-foreground/80">{clientAttendee.email}</span>
+                          </div>
+                        );
+                      }
+                    } catch (e) {
+                      return null;
+                    }
+                  }
+
+                  // Show "No client linked" if neither exists
+                  return (
+                    <div className="flex items-center mb-2 text-sm text-muted-foreground/60">
+                      <Mail className="h-4 w-4 mr-2" />
+                      <span className="italic">No client linked</span>
+                    </div>
+                  );
                 })()}
 
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
