@@ -15,7 +15,10 @@ import {
   CheckCircle2,
   X,
   Edit3,
-  Plus
+  Plus,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -48,6 +51,7 @@ export default function Clients() {
   const [pipelineClient, setPipelineClient] = useState(null);
   const [creatingPipeline, setCreatingPipeline] = useState(false);
   const [clientFilter, setClientFilter] = useState('all'); // 'all', 'with-upcoming', 'no-upcoming'
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); // Sorting state
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
   const [showBusinessTypeManager, setShowBusinessTypeManager] = useState(false);
   const [clientBusinessTypes, setClientBusinessTypes] = useState([]);
@@ -178,10 +182,59 @@ export default function Clients() {
     }
   }, [searchParams, clients]);
 
+  // Sorting function
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
 
+  // Get sortable value from client
+  const getSortValue = (client, key) => {
+    switch (key) {
+      case 'name':
+        return (client.name || client.email || '').toLowerCase();
+      case 'email':
+        return (client.email || '').toLowerCase();
+      case 'pipeline_stage':
+        return (client.pipeline_stage || '').toLowerCase();
+      case 'business_types':
+        return (client.businessTypesDisplay || 'Not Set').toLowerCase();
+      case 'iaf_expected':
+        return parseFloat(client.totalIafExpected || client.iaf_expected || 0);
+      case 'business_amount':
+        return parseFloat(client.totalBusinessAmount || client.business_amount || 0);
+      case 'expected_close_date':
+        // Get earliest expected close date from business types
+        const businessTypes = client.business_types_data || [];
+        const dates = businessTypes
+          .filter(bt => bt.expected_close_date)
+          .map(bt => new Date(bt.expected_close_date).getTime());
+        return dates.length > 0 ? Math.min(...dates) : (client.likely_close_month ? new Date(client.likely_close_month).getTime() : 0);
+      case 'last_meeting_date':
+        return client.last_meeting_date ? new Date(client.last_meeting_date).getTime() : 0;
+      case 'meeting_count':
+        return parseInt(client.meeting_count || 0);
+      default:
+        return '';
+    }
+  };
 
   const filteredClients = clients
-    .filter(c => (`${c.name || c.email || ''}`).toLowerCase().includes(debouncedSearch.toLowerCase())); // Show all clients
+    .filter(c => (`${c.name || c.email || ''}`).toLowerCase().includes(debouncedSearch.toLowerCase()))
+    .sort((a, b) => {
+      if (!sortConfig.key) return 0;
+
+      const aValue = getSortValue(a, sortConfig.key);
+      const bValue = getSortValue(b, sortConfig.key);
+
+      if (aValue === bValue) return 0;
+
+      const comparison = aValue < bValue ? -1 : 1;
+      return sortConfig.direction === 'asc' ? comparison : -comparison;
+    });
 
   // Helper function to get next meeting date
   const getNextMeetingDate = (client) => {
@@ -541,14 +594,77 @@ export default function Clients() {
         <div className="flex-1 overflow-auto">
           <div className="min-w-full">
             {/* Table Header */}
-            <div className="sticky top-0 bg-muted/50 border-b border-border/50 px-6 py-3">
+            <div className="sticky top-0 bg-muted/50 border-b border-border/50 px-6 py-3 z-10">
               <div className="grid grid-cols-12 gap-4 text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                <div className="col-span-3">Client Name</div>
-                <div className="col-span-2">Client Email</div>
-                <div className="col-span-1 text-center">Past Meetings</div>
+                {/* Sortable: Client Name */}
+                <div
+                  className="col-span-3 flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort('name')}
+                >
+                  Client Name
+                  {sortConfig.key === 'name' ? (
+                    sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 opacity-40" />
+                  )}
+                </div>
+
+                {/* Sortable: Client Email */}
+                <div
+                  className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort('email')}
+                >
+                  Client Email
+                  {sortConfig.key === 'email' ? (
+                    sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 opacity-40" />
+                  )}
+                </div>
+
+                {/* Sortable: Past Meetings */}
+                <div
+                  className="col-span-1 text-center flex items-center justify-center gap-1 cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort('meeting_count')}
+                >
+                  Past Meetings
+                  {sortConfig.key === 'meeting_count' ? (
+                    sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 opacity-40" />
+                  )}
+                </div>
+
+                {/* Non-sortable: Next Meeting */}
                 <div className="col-span-2">Next Meeting</div>
-                <div className="col-span-2">Business Types</div>
-                <div className="col-span-1">Total IAF</div>
+
+                {/* Sortable: Business Types */}
+                <div
+                  className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort('business_types')}
+                >
+                  Business Types
+                  {sortConfig.key === 'business_types' ? (
+                    sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 opacity-40" />
+                  )}
+                </div>
+
+                {/* Sortable: Total IAF */}
+                <div
+                  className="col-span-1 flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort('iaf_expected')}
+                >
+                  Total IAF
+                  {sortConfig.key === 'iaf_expected' ? (
+                    sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 opacity-40" />
+                  )}
+                </div>
+
+                {/* Non-sortable: Actions */}
                 <div className="col-span-1">Actions</div>
               </div>
             </div>
