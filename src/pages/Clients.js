@@ -732,36 +732,165 @@ export default function Clients() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Building2 className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-medium">Business Types</span>
+                      <span className="text-sm font-medium">Total IAF Expected</span>
                     </div>
-                    {selectedClient.business_types && selectedClient.business_types.length > 0 ? (
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap gap-1">
-                          {selectedClient.business_types.map((type, idx) => (
-                            <span key={idx} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {type}
-                            </span>
-                          ))}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Total IAF: {selectedClient.iaf_expected ?
-                            `£${parseFloat(selectedClient.iaf_expected).toLocaleString()}` :
-                            'Not specified'
-                          }
-                        </div>
-                        {selectedClient.business_amount && (
-                          <div className="text-xs text-muted-foreground">
-                            Total Business: £{parseFloat(selectedClient.business_amount).toLocaleString()}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-muted-foreground">
-                        No business types set
+                    <div className="text-2xl font-bold text-foreground">
+                      {selectedClient.iaf_expected ?
+                        `£${parseFloat(selectedClient.iaf_expected).toLocaleString()}` :
+                        '£0'
+                      }
+                    </div>
+                    {selectedClient.business_amount && (
+                      <div className="text-xs text-muted-foreground">
+                        Total Business: £{parseFloat(selectedClient.business_amount).toLocaleString()}
                       </div>
                     )}
                   </CardContent>
                 </Card>
+              </div>
+
+              {/* AI-Generated Client Summary */}
+              <Card className="border-border/50 bg-blue-50/50 dark:bg-blue-950/20">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold text-foreground mb-2">Client Summary</h3>
+                      {selectedClient.ai_summary ? (
+                        <p className="text-sm text-foreground/80 leading-relaxed">
+                          {selectedClient.ai_summary}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">
+                          No summary available - add meeting notes to generate insights
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Business Types - Inline Editable */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-foreground">Business Types</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleEditBusinessTypes(selectedClient)}
+                  >
+                    <Building2 className="w-4 h-4 mr-2" />
+                    Manage
+                  </Button>
+                </div>
+                {selectedClient.business_types_data && selectedClient.business_types_data.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedClient.business_types_data.map((bt, idx) => (
+                      <Card key={idx} className="border-border/50">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {bt.business_type}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Business Amount:</span>
+                              <div className="font-medium">
+                                {bt.business_amount ? `£${parseFloat(bt.business_amount).toLocaleString()}` : 'Not set'}
+                              </div>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">IAF Expected:</span>
+                              <div className="font-medium">
+                                {bt.iaf_expected ? `£${parseFloat(bt.iaf_expected).toLocaleString()}` : 'Not set'}
+                              </div>
+                            </div>
+                            {bt.contribution_method && (
+                              <div className="col-span-2">
+                                <span className="text-muted-foreground">Method:</span>
+                                <div className="font-medium">{bt.contribution_method}</div>
+                              </div>
+                            )}
+                            {bt.regular_contribution_amount && (
+                              <div className="col-span-2">
+                                <span className="text-muted-foreground">Regular Contribution:</span>
+                                <div className="font-medium">£{parseFloat(bt.regular_contribution_amount).toLocaleString()}/month</div>
+                              </div>
+                            )}
+                            {bt.notes && (
+                              <div className="col-span-2">
+                                <span className="text-muted-foreground">Notes:</span>
+                                <div className="text-sm mt-1">{bt.notes}</div>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <Card className="border-border/50">
+                    <CardContent className="p-6 text-center">
+                      <Building2 className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground mb-3">No business types set</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleCreatePipelineEntry(selectedClient)}
+                      >
+                        Add Business Type
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+
+              {/* Action Items Section */}
+              <div>
+                <h3 className="text-lg font-semibold text-foreground mb-3">Action Items</h3>
+                {selectedClient.action_items && selectedClient.action_items.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedClient.action_items.map((item, idx) => (
+                      <Card key={idx} className="border-border/50">
+                        <CardContent className="p-3">
+                          <div className="flex items-start gap-3">
+                            <input
+                              type="checkbox"
+                              checked={item.completed || false}
+                              onChange={() => {
+                                // TODO: Implement toggle action item completion
+                                console.log('Toggle action item:', item);
+                              }}
+                              className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary"
+                            />
+                            <div className="flex-1">
+                              <p className={`text-sm ${item.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                                {item.text}
+                              </p>
+                              {item.due_date && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  Due: {new Date(item.due_date).toLocaleDateString()}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                ) : (
+                  <Card className="border-border/50">
+                    <CardContent className="p-6 text-center">
+                      <CheckCircle2 className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">
+                        No action items - they'll appear here when extracted from meeting transcripts
+                      </p>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
 
               {/* Ask Advicly Button */}

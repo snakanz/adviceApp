@@ -107,13 +107,6 @@ export default function Pipeline() {
         };
       });
 
-      console.log('📊 Pipeline data loaded:', {
-        totalClients: pipelineData.length,
-        clientsWithExpectedMonth: pipelineData.filter(c => c.expectedMonth).length,
-        clientsWithPipelineStage: pipelineData.filter(c => c.businessStage && c.businessStage !== 'Need to Book Meeting').length,
-        sampleClient: pipelineData.find(c => c.name.includes('Vivek')) || pipelineData[0]
-      });
-
       setClients(pipelineData);
       setLoading(false);
     } catch (error) {
@@ -277,25 +270,11 @@ export default function Pipeline() {
   const getCurrentMonthClients = () => {
     const monthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
 
-    console.log('🔍 Filtering clients for month:', monthKey, {
-      totalClients: clients.length,
-      currentMonth: currentMonth.toISOString()
-    });
-
     // Show clients that match the selected month OR clients with pipeline data but no expected month
-    const filtered = clients.filter(client => {
+    return clients.filter(client => {
       // If client has an expected month, only show if it matches current month
       if (client.expectedMonth) {
-        const matches = client.expectedMonth === monthKey;
-        if (client.name.includes('Vivek')) {
-          console.log('🔍 Vivek filter check:', {
-            clientExpectedMonth: client.expectedMonth,
-            monthKey,
-            matches,
-            businessStage: client.businessStage
-          });
-        }
-        return matches;
+        return client.expectedMonth === monthKey;
       }
       // If client has pipeline stage set (meaning they're in the pipeline), show them in the current month
       if (client.businessStage && client.businessStage !== 'Need to Book Meeting') {
@@ -304,9 +283,6 @@ export default function Pipeline() {
       // Otherwise, don't show
       return false;
     });
-
-    console.log('✅ Filtered clients:', filtered.length);
-    return filtered;
   };
 
   const getMonthlyTotal = (month) => {
