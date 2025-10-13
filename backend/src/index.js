@@ -455,8 +455,8 @@ app.get('/api/dev/meetings', async (req, res) => {
     console.log('⚠️ Calendly sync temporarily disabled to fix 502 errors');
     // TODO: Debug and re-enable Calendly sync
 
-    // Ultra-simple database query with only essential columns
-    console.log('🔍 Querying database for meetings...');
+    // Database query with client information
+    console.log('🔍 Querying database for meetings with client info...');
     const { data: meetings, error } = await getSupabase()
       .from('meetings')
       .select(`
@@ -465,7 +465,15 @@ app.get('/api/dev/meetings', async (req, res) => {
         starttime,
         endtime,
         summary,
-        googleeventid
+        googleeventid,
+        attendees,
+        transcript,
+        quick_summary,
+        email_summary_draft,
+        action_points,
+        source,
+        client_id,
+        client:clients(id, name, email)
       `)
       .eq('userid', userId)
       .order('starttime', { ascending: false })
@@ -478,14 +486,15 @@ app.get('/api/dev/meetings', async (req, res) => {
 
     console.log(`✅ Query successful: ${meetings?.length || 0} meetings found`);
 
-    // Process meetings data for frontend (ultra-simplified)
+    // Process meetings data for frontend with all necessary fields
     const processedMeetings = meetings?.map(meeting => ({
       ...meeting,
-      // Set default values
+      // Set default values and flags
       source: 'google',
-      attendees: [],
-      hasTranscript: false,
-      hasSummary: !!meeting.summary,
+      hasTranscript: !!meeting.transcript,
+      hasSummary: !!meeting.summary || !!meeting.quick_summary,
+      hasEmailDraft: !!meeting.email_summary_draft,
+      // Client info is already included from the join
     })) || [];
 
     res.json(processedMeetings);
