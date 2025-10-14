@@ -22,7 +22,11 @@ import {
   RefreshCw,
   Edit,
   Grid3X3,
-  List
+  List,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -39,6 +43,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '../components/ui/tooltip';
+import { Avatar, AvatarFallback } from '../components/ui/avatar';
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
@@ -122,6 +127,13 @@ function getInitials(nameOrEmail) {
   }
 
   return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+}
+
+// Helper function to check if meeting is complete (has transcript + summaries)
+function isMeetingComplete(meeting) {
+  return meeting.transcript &&
+         meeting.quick_summary &&
+         meeting.email_summary_draft;
 }
 
 // AttendeeAvatars component to display meeting attendees
@@ -250,9 +262,18 @@ export default function Meetings() {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [meetingView, setMeetingView] = useState('past');
-  const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'table'
+  const [viewMode, setViewMode] = useState('calendar'); // 'calendar' or 'list'
   const [editingMeeting, setEditingMeeting] = useState(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+    // Start from the beginning of the current week (Sunday)
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - dayOfWeek);
+    weekStart.setHours(0, 0, 0, 0);
+    return weekStart;
+  });
   
   const selectedMeetingIdRef = useRef(null);
   selectedMeetingIdRef.current = selectedMeetingId;
@@ -289,6 +310,72 @@ export default function Meetings() {
       null
     );
   }, [meetings, selectedMeetingId]);
+
+  // Calendar view helper functions
+  const getWeekDays = () => {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(currentWeekStart);
+      day.setDate(currentWeekStart.getDate() + i);
+      days.push(day);
+    }
+    return days;
+  };
+
+  const goToPreviousWeek = () => {
+    const newWeekStart = new Date(currentWeekStart);
+    newWeekStart.setDate(currentWeekStart.getDate() - 7);
+    setCurrentWeekStart(newWeekStart);
+  };
+
+  const goToNextWeek = () => {
+    const newWeekStart = new Date(currentWeekStart);
+    newWeekStart.setDate(currentWeekStart.getDate() + 7);
+    setCurrentWeekStart(newWeekStart);
+  };
+
+  const goToToday = () => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - dayOfWeek);
+    weekStart.setHours(0, 0, 0, 0);
+    setCurrentWeekStart(weekStart);
+  };
+
+  const getMeetingsForDay = (day) => {
+    const dayStart = new Date(day);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(day);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const allMeetings = [...meetings.past, ...meetings.future];
+    const meetingsOnDay = [];
+
+    allMeetings.forEach(meeting => {
+      const startTime = meeting.start?.dateTime || meeting.startTime || meeting.starttime;
+      if (!startTime) return;
+
+      const meetingDate = new Date(startTime);
+      if (meetingDate >= dayStart && meetingDate <= dayEnd) {
+        meetingsOnDay.push(meeting);
+      }
+    });
+
+    // Sort by time
+    return meetingsOnDay.sort((a, b) => {
+      const aTime = new Date(a.start?.dateTime || a.startTime || a.starttime);
+      const bTime = new Date(b.start?.dateTime || b.startTime || b.starttime);
+      return aTime - bTime;
+    });
+  };
+
+  const isToday = (date) => {
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+           date.getMonth() === today.getMonth() &&
+           date.getFullYear() === today.getFullYear();
+  };
 
   // Load templates on component mount
   useEffect(() => {
@@ -1365,22 +1452,24 @@ export default function Meetings() {
               </Button>
 
               {/* View Mode Toggle */}
-              <div className="flex items-center border border-border rounded-lg overflow-hidden">
+              <div className="flex items-center gap-1 border border-border rounded-lg p-1 bg-background">
                 <Button
-                  onClick={() => setViewMode('cards')}
-                  variant={viewMode === 'cards' ? 'default' : 'ghost'}
+                  onClick={() => setViewMode('calendar')}
+                  variant={viewMode === 'calendar' ? 'default' : 'ghost'}
                   size="sm"
-                  className="rounded-none border-0 px-3"
+                  className="flex items-center gap-2"
                 >
-                  <Grid3X3 className="w-4 h-4" />
+                  <CalendarDays className="w-4 h-4" />
+                  Calendar View
                 </Button>
                 <Button
-                  onClick={() => setViewMode('table')}
-                  variant={viewMode === 'table' ? 'default' : 'ghost'}
+                  onClick={() => setViewMode('list')}
+                  variant={viewMode === 'list' ? 'default' : 'ghost'}
                   size="sm"
-                  className="rounded-none border-0 px-3"
+                  className="flex items-center gap-2"
                 >
                   <List className="w-4 h-4" />
+                  List View
                 </Button>
               </div>
             </div>
@@ -1440,7 +1529,8 @@ export default function Meetings() {
 
         {/* Meetings List */}
         <div className="flex-1 overflow-y-auto">
-          <div className="p-6">
+          {viewMode === 'list' ? (
+            <div className="p-6">
           {meetingView === 'past' && (
             <div className="space-y-6">
               {meetings.past.length === 0 ? (
@@ -1523,6 +1613,169 @@ export default function Meetings() {
             </div>
           )}
           </div>
+          ) : (
+            /* Calendar View */
+            <div className="p-6">
+              {/* Calendar Header */}
+              <div className="mb-6 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-xl font-bold text-foreground">
+                    {currentWeekStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </h2>
+                  <Button onClick={goToToday} variant="outline" size="sm">
+                    Today
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button onClick={goToPreviousWeek} variant="outline" size="sm">
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <Button onClick={goToNextWeek} variant="outline" size="sm">
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Calendar Grid */}
+              <div className="grid grid-cols-7 gap-4">
+                {getWeekDays().map((day, index) => {
+                  const meetingsOnDay = getMeetingsForDay(day);
+                  const dayIsToday = isToday(day);
+
+                  return (
+                    <div key={index} className="flex flex-col">
+                      {/* Day Header */}
+                      <div className={cn(
+                        "text-center p-3 border-b-2 mb-3",
+                        dayIsToday ? "border-primary bg-primary/5" : "border-border"
+                      )}>
+                        <div className="text-xs font-medium text-muted-foreground uppercase">
+                          {day.toLocaleDateString('en-US', { weekday: 'short' })}
+                        </div>
+                        <div className={cn(
+                          "text-2xl font-bold mt-1",
+                          dayIsToday ? "text-primary" : "text-foreground"
+                        )}>
+                          {day.getDate()}
+                        </div>
+                      </div>
+
+                      {/* Meetings for this day */}
+                      <div className="space-y-2 min-h-[200px]">
+                        {meetingsOnDay.length > 0 ? (
+                          meetingsOnDay.map((meeting) => {
+                            const startTime = meeting.start?.dateTime || meeting.startTime || meeting.starttime;
+                            const attendees = extractAttendees(meeting, user?.email);
+                            const clientName = attendees.length > 0 ? attendees[0].name : null;
+                            const source = getMeetingSource(meeting);
+
+                            return (
+                              <Card
+                                key={meeting.id}
+                                className="border-border/50 hover:border-primary/50 cursor-pointer transition-all hover:shadow-md"
+                                onClick={() => setSelectedMeetingId(meeting.id)}
+                              >
+                                <CardContent className="p-3 space-y-2">
+                                  {/* Time */}
+                                  <div className="flex items-center gap-2">
+                                    <Clock className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                                    <div className="text-xs text-muted-foreground font-medium">
+                                      {formatMeetingTime(meeting)}
+                                    </div>
+                                  </div>
+
+                                  {/* Title */}
+                                  <div className="font-semibold text-sm text-foreground line-clamp-2">
+                                    {meeting.summary || meeting.title || 'Untitled Meeting'}
+                                  </div>
+
+                                  {/* Client Name with Avatar */}
+                                  {clientName && (
+                                    <div className="flex items-center gap-2">
+                                      <Avatar className="w-5 h-5 flex-shrink-0">
+                                        <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                                          {getInitials(clientName)}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <div className="text-xs text-muted-foreground truncate">
+                                        {clientName}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Meeting Source Badge */}
+                                  <div className="flex items-center gap-1">
+                                    {source === 'Google Calendar' ? (
+                                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs">
+                                        <GoogleIcon className="w-3 h-3" />
+                                        <span>Google</span>
+                                      </div>
+                                    ) : source === 'Calendly' ? (
+                                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 text-xs">
+                                        <div className="w-3 h-3 bg-orange-500 rounded-sm flex items-center justify-center">
+                                          <span className="text-white text-[8px] font-bold">C</span>
+                                        </div>
+                                        <span>Calendly</span>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 text-gray-700 text-xs">
+                                        <OutlookIcon className="w-3 h-3" />
+                                        <span>Manual</span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Completion Status Indicators */}
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    {meeting.transcript && (
+                                      <div className="flex items-center gap-1 text-green-600">
+                                        <FileText className="w-3 h-3" />
+                                        <span className="text-xs">Transcript</span>
+                                      </div>
+                                    )}
+                                    {meeting.quick_summary && (
+                                      <div className="flex items-center gap-1 text-blue-600">
+                                        <MessageSquare className="w-3 h-3" />
+                                        <span className="text-xs">Summary</span>
+                                      </div>
+                                    )}
+                                    {meeting.email_summary_draft && (
+                                      <div className="flex items-center gap-1 text-purple-600">
+                                        <Mail className="w-3 h-3" />
+                                        <span className="text-xs">Email</span>
+                                      </div>
+                                    )}
+                                    {meeting.action_points && (
+                                      <div className="flex items-center gap-1 text-orange-600">
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        <span className="text-xs">Actions</span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Overall Complete Badge */}
+                                  {isMeetingComplete(meeting) && (
+                                    <div className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-md">
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      <span className="text-xs font-medium">Complete</span>
+                                    </div>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            );
+                          })
+                        ) : (
+                          <div className="text-center py-8 text-muted-foreground text-sm">
+                            No meetings
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

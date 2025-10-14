@@ -18,11 +18,7 @@ import {
   Plus,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown,
-  CalendarDays,
-  List,
-  ChevronLeft,
-  ChevronRight
+  ArrowDown
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -64,16 +60,6 @@ export default function Clients() {
   const [creatingClient, setCreatingClient] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [generatingSummary, setGeneratingSummary] = useState(false);
-  const [viewMode, setViewMode] = useState('calendar'); // 'calendar' or 'list'
-  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
-    // Start from the beginning of the current week (Sunday)
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - dayOfWeek);
-    weekStart.setHours(0, 0, 0, 0);
-    return weekStart;
-  });
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -278,70 +264,7 @@ export default function Clients() {
     });
   };
 
-  // Calendar view helper functions
-  const getWeekDays = () => {
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const day = new Date(currentWeekStart);
-      day.setDate(currentWeekStart.getDate() + i);
-      days.push(day);
-    }
-    return days;
-  };
 
-  const goToPreviousWeek = () => {
-    const newWeekStart = new Date(currentWeekStart);
-    newWeekStart.setDate(currentWeekStart.getDate() - 7);
-    setCurrentWeekStart(newWeekStart);
-  };
-
-  const goToNextWeek = () => {
-    const newWeekStart = new Date(currentWeekStart);
-    newWeekStart.setDate(currentWeekStart.getDate() + 7);
-    setCurrentWeekStart(newWeekStart);
-  };
-
-  const goToToday = () => {
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - dayOfWeek);
-    weekStart.setHours(0, 0, 0, 0);
-    setCurrentWeekStart(weekStart);
-  };
-
-  const getMeetingsForDay = (day) => {
-    const dayStart = new Date(day);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(day);
-    dayEnd.setHours(23, 59, 59, 999);
-
-    const meetingsOnDay = [];
-
-    filteredClients.forEach(client => {
-      if (client.meetings && client.meetings.length > 0) {
-        client.meetings.forEach(meeting => {
-          const meetingDate = new Date(meeting.starttime);
-          if (meetingDate >= dayStart && meetingDate <= dayEnd) {
-            meetingsOnDay.push({
-              ...meeting,
-              client: client
-            });
-          }
-        });
-      }
-    });
-
-    // Sort by time
-    return meetingsOnDay.sort((a, b) => new Date(a.starttime) - new Date(b.starttime));
-  };
-
-  const isToday = (date) => {
-    const today = new Date();
-    return date.getDate() === today.getDate() &&
-           date.getMonth() === today.getMonth() &&
-           date.getFullYear() === today.getFullYear();
-  };
 
   // Helper function to handle client row click
   const handleClientClick = (client) => {
@@ -603,28 +526,6 @@ export default function Clients() {
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-foreground">Clients</h1>
             <div className="flex items-center gap-3">
-              {/* View Toggle Buttons */}
-              <div className="flex items-center gap-1 border border-border rounded-lg p-1 bg-background">
-                <Button
-                  onClick={() => setViewMode('calendar')}
-                  variant={viewMode === 'calendar' ? 'default' : 'ghost'}
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  <CalendarDays className="w-4 h-4" />
-                  Calendar View
-                </Button>
-                <Button
-                  onClick={() => setViewMode('list')}
-                  variant={viewMode === 'list' ? 'default' : 'ghost'}
-                  size="sm"
-                  className="flex items-center gap-2"
-                >
-                  <List className="w-4 h-4" />
-                  List View
-                </Button>
-              </div>
-
               <Button
                 onClick={() => setShowCreateClientForm(true)}
                 className="flex items-center gap-2"
@@ -691,10 +592,8 @@ export default function Clients() {
           </div>
         </div>
 
-        {/* Conditional View: Calendar or List */}
-        {viewMode === 'list' ? (
-          /* List View (Table) */
-          <div className="flex-1 overflow-auto">
+        {/* List View (Table) */}
+        <div className="flex-1 overflow-auto">
             <div className="min-w-full">
               {/* Table Header */}
               <div className="sticky top-0 bg-muted/50 border-b border-border/50 px-6 py-3 z-10">
@@ -901,109 +800,7 @@ export default function Clients() {
               )}
             </div>
           </div>
-        ) : (
-          /* Calendar View */
-          <div className="flex-1 overflow-auto p-6">
-            {/* Calendar Header */}
-            <div className="mb-6 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <h2 className="text-xl font-bold text-foreground">
-                  {currentWeekStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                </h2>
-                <Button onClick={goToToday} variant="outline" size="sm">
-                  Today
-                </Button>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button onClick={goToPreviousWeek} variant="outline" size="sm">
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <Button onClick={goToNextWeek} variant="outline" size="sm">
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Calendar Grid */}
-            <div className="grid grid-cols-7 gap-4">
-              {getWeekDays().map((day, index) => {
-                const meetingsOnDay = getMeetingsForDay(day);
-                const dayIsToday = isToday(day);
-
-                return (
-                  <div key={index} className="flex flex-col">
-                    {/* Day Header */}
-                    <div className={cn(
-                      "text-center p-3 border-b-2 mb-3",
-                      dayIsToday ? "border-primary bg-primary/5" : "border-border"
-                    )}>
-                      <div className="text-xs font-medium text-muted-foreground uppercase">
-                        {day.toLocaleDateString('en-US', { weekday: 'short' })}
-                      </div>
-                      <div className={cn(
-                        "text-2xl font-bold mt-1",
-                        dayIsToday ? "text-primary" : "text-foreground"
-                      )}>
-                        {day.getDate()}
-                      </div>
-                    </div>
-
-                    {/* Meetings for this day */}
-                    <div className="space-y-2 min-h-[200px]">
-                      {meetingsOnDay.length > 0 ? (
-                        meetingsOnDay.map((meeting) => (
-                          <Card
-                            key={meeting.id}
-                            className="border-border/50 hover:border-primary/50 cursor-pointer transition-all hover:shadow-md"
-                            onClick={() => {
-                              setSelectedClient(meeting.client);
-                              setDetailPanelOpen(true);
-                            }}
-                          >
-                            <CardContent className="p-3">
-                              <div className="flex items-start gap-2 mb-2">
-                                <Clock className="w-3 h-3 text-muted-foreground mt-0.5 flex-shrink-0" />
-                                <div className="text-xs text-muted-foreground">
-                                  {new Date(meeting.starttime).toLocaleTimeString([], {
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </div>
-                              </div>
-                              <div className="font-medium text-sm text-foreground mb-1 line-clamp-2">
-                                {meeting.title}
-                              </div>
-                              <div className="flex items-center gap-2 mt-2">
-                                <Avatar className="w-6 h-6 flex-shrink-0">
-                                  <AvatarFallback className="text-xs bg-primary/10 text-primary">
-                                    {getUserInitials(meeting.client.name)}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="text-xs text-muted-foreground truncate">
-                                  {meeting.client.name}
-                                </div>
-                              </div>
-                              {isMeetingComplete(meeting) && (
-                                <div className="flex items-center gap-1 text-blue-600 mt-2">
-                                  <CheckCircle2 className="w-3 h-3" />
-                                  <span className="text-xs">Complete</span>
-                                </div>
-                              )}
-                            </CardContent>
-                          </Card>
-                        ))
-                      ) : (
-                        <div className="text-center py-8 text-muted-foreground text-sm">
-                          No meetings
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
 
       {/* Client Detail Panel - Responsive Sidebar */}
