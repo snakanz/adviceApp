@@ -34,7 +34,7 @@ export default function Pipeline() {
   const [showOverdueSection, setShowOverdueSection] = useState(false); // Collapsible state for overdue section - DEFAULT COLLAPSED
   const [showEditPipelineModal, setShowEditPipelineModal] = useState(false); // Edit pipeline modal state
   const [generatingPipelineSummary, setGeneratingPipelineSummary] = useState(false); // AI summary generation state
-  const [pipelineSummary, setPipelineSummary] = useState(null); // AI-generated next steps summary
+  const [nextStepsSummary, setNextStepsSummary] = useState(null); // AI-generated next steps summary
   const { isAuthenticated} = useAuth();
   const navigate = useNavigate();
 
@@ -234,7 +234,7 @@ export default function Pipeline() {
   const handleClientClick = async (client) => {
     setSelectedClient(client);
     setShowDetailPanel(true);
-    setPipelineSummary(null); // Reset summary when switching clients
+    setNextStepsSummary(null); // Reset summary when switching clients
 
     // Auto-generate pipeline summary if not already generated or if stale (older than 1 hour)
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
@@ -242,7 +242,7 @@ export default function Pipeline() {
 
     if (client.pipeline_next_steps && summaryDate && summaryDate > oneHourAgo) {
       // Use cached summary if fresh
-      setPipelineSummary(client.pipeline_next_steps);
+      setNextStepsSummary(client.pipeline_next_steps);
     } else {
       // Generate new summary
       await handleGeneratePipelineSummary(client.id);
@@ -257,7 +257,7 @@ export default function Pipeline() {
       });
 
       if (response.summary) {
-        setPipelineSummary(response.summary);
+        setNextStepsSummary(response.summary);
 
         // Update the client in the list with the new summary
         setClients(prev => prev.map(c =>
@@ -271,7 +271,7 @@ export default function Pipeline() {
       }
     } catch (error) {
       console.error('Error generating pipeline summary:', error);
-      setPipelineSummary('Unable to generate summary at this time.');
+      setNextStepsSummary('Unable to generate summary at this time.');
     } finally {
       setGeneratingPipelineSummary(false);
     }
@@ -956,16 +956,16 @@ export default function Pipeline() {
                           <div className="h-3 bg-blue-200/50 dark:bg-blue-800/30 rounded animate-pulse w-5/6" />
                           <div className="h-3 bg-blue-200/50 dark:bg-blue-800/30 rounded animate-pulse w-4/6" />
                         </div>
-                      ) : pipelineSummary ? (
+                      ) : nextStepsSummary ? (
                         <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
-                          {pipelineSummary}
+                          {nextStepsSummary}
                         </p>
                       ) : (
                         <p className="text-sm text-blue-700 dark:text-blue-300 italic">
                           Generating next steps...
                         </p>
                       )}
-                      {!generatingPipelineSummary && pipelineSummary && (
+                      {!generatingPipelineSummary && nextStepsSummary && (
                         <button
                           onClick={() => handleGeneratePipelineSummary(selectedClient.id)}
                           className="mt-3 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1"
