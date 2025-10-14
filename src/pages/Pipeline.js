@@ -30,7 +30,7 @@ export default function Pipeline() {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [showCreateClientForm, setShowCreateClientForm] = useState(false);
   const [creatingClient, setCreatingClient] = useState(false);
-  const [showOverdueSection, setShowOverdueSection] = useState(true); // Collapsible state for overdue section
+  const [showOverdueSection, setShowOverdueSection] = useState(false); // Collapsible state for overdue section - DEFAULT COLLAPSED
   const [showEditPipelineModal, setShowEditPipelineModal] = useState(false); // Edit pipeline modal state
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -442,7 +442,35 @@ export default function Pipeline() {
             </div>
           </div>
 
-          {/* Overdue/No Date Section - Redesigned */}
+          {/* Monthly Tabs */}
+          <div className="mb-6">
+            <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
+              {months.map((month) => {
+                const monthTotal = getMonthlyTotal(month);
+                const isActive = month.getMonth() === currentMonth.getMonth() &&
+                                month.getFullYear() === currentMonth.getFullYear();
+
+                return (
+                  <Button
+                    key={month.toISOString()}
+                    onClick={() => setCurrentMonth(month)}
+                    variant={isActive ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-shrink-0 flex flex-col items-center gap-1 h-auto py-3 px-4 min-w-[120px]"
+                  >
+                    <span className="font-medium text-xs">
+                      {month.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                    </span>
+                    <span className="text-xs opacity-75 font-semibold">
+                      {formatCurrency(monthTotal)}
+                    </span>
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Overdue/No Date Section - Moved Below Monthly Tabs */}
           {(() => {
             const overdueClients = getOverdueOrNoDateClients();
             if (overdueClients.length === 0) return null;
@@ -554,34 +582,6 @@ export default function Pipeline() {
               </div>
             );
           })()}
-
-          {/* Monthly Tabs */}
-          <div className="mb-6">
-            <div className="flex gap-1 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent">
-              {months.map((month) => {
-                const monthTotal = getMonthlyTotal(month);
-                const isActive = month.getMonth() === currentMonth.getMonth() &&
-                                month.getFullYear() === currentMonth.getFullYear();
-
-                return (
-                  <Button
-                    key={month.toISOString()}
-                    onClick={() => setCurrentMonth(month)}
-                    variant={isActive ? 'default' : 'outline'}
-                    size="sm"
-                    className="flex-shrink-0 flex flex-col items-center gap-1 h-auto py-3 px-4 min-w-[120px]"
-                  >
-                    <span className="font-medium text-xs">
-                      {month.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                    </span>
-                    <span className="text-xs opacity-75 font-semibold">
-                      {formatCurrency(monthTotal)}
-                    </span>
-                  </Button>
-                );
-              })}
-            </div>
-          </div>
 
           {/* Search and Filters */}
           <div className="flex flex-col sm:flex-row gap-3">
@@ -845,7 +845,16 @@ export default function Pipeline() {
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
-                      <h3 className="font-bold text-lg text-foreground truncate">{selectedClient.name}</h3>
+                      <h3
+                        className="font-bold text-lg text-foreground truncate hover:text-primary cursor-pointer transition-colors underline decoration-transparent hover:decoration-primary"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/clients?clientId=${selectedClient.id}`);
+                        }}
+                        title="View client details"
+                      >
+                        {selectedClient.name}
+                      </h3>
                       <p className="text-sm text-muted-foreground truncate mb-2">{selectedClient.email}</p>
                       <div className="flex flex-wrap gap-1">
                         {selectedClient.businessTypes && selectedClient.businessTypes.length > 0 ? (
