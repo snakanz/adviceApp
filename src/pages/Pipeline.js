@@ -11,7 +11,8 @@ import {
   Plus,
   ChevronDown,
   ChevronUp,
-  AlertCircle
+  AlertCircle,
+  Sparkles
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -32,7 +33,9 @@ export default function Pipeline() {
   const [creatingClient, setCreatingClient] = useState(false);
   const [showOverdueSection, setShowOverdueSection] = useState(false); // Collapsible state for overdue section - DEFAULT COLLAPSED
   const [showEditPipelineModal, setShowEditPipelineModal] = useState(false); // Edit pipeline modal state
-  const { isAuthenticated } = useAuth();
+  const [generatingPipelineSummary, setGeneratingPipelineSummary] = useState(false); // AI summary generation state
+  const [pipelineSummary, setPipelineSummary] = useState(null); // AI-generated next steps summary
+  const { isAuthenticated} = useAuth();
   const navigate = useNavigate();
 
   // Generate months for tabs (current month + next 11 months)
@@ -228,9 +231,50 @@ export default function Pipeline() {
     return summary;
   }, [clients, loading]); // Only recalculate when clients or loading state changes
 
-  const handleClientClick = (client) => {
+  const handleClientClick = async (client) => {
     setSelectedClient(client);
     setShowDetailPanel(true);
+    setPipelineSummary(null); // Reset summary when switching clients
+
+    // Auto-generate pipeline summary if not already generated or if stale (older than 1 hour)
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const summaryDate = client.pipeline_next_steps_generated_at ? new Date(client.pipeline_next_steps_generated_at) : null;
+
+    if (client.pipeline_next_steps && summaryDate && summaryDate > oneHourAgo) {
+      // Use cached summary if fresh
+      setPipelineSummary(client.pipeline_next_steps);
+    } else {
+      // Generate new summary
+      await handleGeneratePipelineSummary(client.id);
+    }
+  };
+
+  const handleGeneratePipelineSummary = async (clientId) => {
+    setGeneratingPipelineSummary(true);
+    try {
+      const response = await api.request(`/clients/${clientId}/generate-pipeline-summary`, {
+        method: 'POST'
+      });
+
+      if (response.summary) {
+        setPipelineSummary(response.summary);
+
+        // Update the client in the list with the new summary
+        setClients(prev => prev.map(c =>
+          c.id === clientId ? { ...c, pipeline_next_steps: response.summary, pipeline_next_steps_generated_at: response.generated_at } : c
+        ));
+
+        // Update selected client if it's the same one
+        if (selectedClient && selectedClient.id === clientId) {
+          setSelectedClient(prev => ({ ...prev, pipeline_next_steps: response.summary, pipeline_next_steps_generated_at: response.generated_at }));
+        }
+      }
+    } catch (error) {
+      console.error('Error generating pipeline summary:', error);
+      setPipelineSummary('Unable to generate summary at this time.');
+    } finally {
+      setGeneratingPipelineSummary(false);
+    }
   };
 
   const handleEditPipeline = () => {
@@ -248,6 +292,10 @@ export default function Pipeline() {
     setShowEditPipelineModal(false);
     // Refresh data
     await fetchPipelineData();
+    // Regenerate pipeline summary after update
+    if (selectedClient) {
+      await handleGeneratePipelineSummary(selectedClient.id);
+    }
   };
 
   const handleCreateClient = async (clientData) => {
@@ -885,6 +933,47 @@ export default function Pipeline() {
                     <div className="text-xs font-medium text-muted-foreground mb-1">Past Meetings</div>
                     <div className="text-sm font-semibold text-foreground">
                       {selectedClient.pastMeetingCount} meeting{selectedClient.pastMeetingCount !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI-Generated Next Steps to Close */}
+                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
+                      <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center gap-2">
+                        Next Steps to Close
+                        {generatingPipelineSummary && (
+                          <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                        )}
+                      </h4>
+                      {generatingPipelineSummary ? (
+                        <div className="space-y-2">
+                          <div className="h-3 bg-blue-200/50 dark:bg-blue-800/30 rounded animate-pulse" />
+                          <div className="h-3 bg-blue-200/50 dark:bg-blue-800/30 rounded animate-pulse w-5/6" />
+                          <div className="h-3 bg-blue-200/50 dark:bg-blue-800/30 rounded animate-pulse w-4/6" />
+                        </div>
+                      ) : pipelineSummary ? (
+                        <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
+                          {pipelineSummary}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-blue-700 dark:text-blue-300 italic">
+                          Generating next steps...
+                        </p>
+                      )}
+                      {!generatingPipelineSummary && pipelineSummary && (
+                        <button
+                          onClick={() => handleGeneratePipelineSummary(selectedClient.id)}
+                          className="mt-3 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          Regenerate
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

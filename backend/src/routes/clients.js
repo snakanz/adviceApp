@@ -1529,4 +1529,145 @@ Keep it professional, factual, and under 100 words.`;
   }
 });
 
+// Generate AI "Next Steps to Close" summary for pipeline
+router.post('/:clientId/generate-pipeline-summary', async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No token' });
+
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const advisorId = decoded.id;
+    const clientId = req.params.clientId;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    // Get client data with pipeline information
+    const { data: client, error: clientError } = await getSupabase()
+      .from('clients')
+      .select('*')
+      .eq('id', clientId)
+      .eq('advisor_id', advisorId)
+      .single();
+
+    if (clientError || !client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Get business types with expected close dates
+    const { data: businessTypes } = await getSupabase()
+      .from('client_business_types')
+      .select('*')
+      .eq('client_id', clientId);
+
+    // Get recent meetings
+    const { data: meetings } = await getSupabase()
+      .from('meetings')
+      .select('*')
+      .eq('client_id', clientId)
+      .eq('userid', advisorId)
+      .order('starttime', { ascending: false })
+      .limit(3);
+
+    // Get action points from recent meetings
+    const actionPoints = meetings?.filter(m => m.action_points).map(m => m.action_points).join('\n') || 'None';
+
+    // Check if we have enough context
+    if (!client.pipeline_stage && (!businessTypes || businessTypes.length === 0)) {
+      return res.json({
+        summary: 'No pipeline information available yet. Add pipeline stage and business types to get AI-generated next steps.',
+        generated_at: new Date().toISOString()
+      });
+    }
+
+    // Prepare context for OpenAI
+    const businessContext = businessTypes?.map(bt => ({
+      type: bt.business_type,
+      amount: bt.business_amount,
+      iaf: bt.iaf_expected,
+      expectedClose: bt.expected_close_date,
+      notes: bt.notes
+    })) || [];
+
+    // Generate "Next Steps to Close" summary using OpenAI
+    const OpenAI = require('openai');
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+
+    const prompt = `You are a financial advisor's assistant. Generate a brief, actionable summary (2-3 sentences maximum) explaining what needs to happen to finalize this business deal.
+
+Client: ${client.name}
+Pipeline Stage: ${client.pipeline_stage || 'Not set'}
+IAF Expected: £${client.iaf_expected?.toLocaleString() || 0}
+Likelihood: ${client.likelihood || 'Unknown'}%
+
+Business Types:
+${businessContext.map(bt => `- ${bt.type}: £${bt.amount?.toLocaleString() || 0} (IAF: £${bt.iaf?.toLocaleString() || 0})
+  Expected Close: ${bt.expectedClose || 'Not set'}
+  ${bt.notes ? 'Notes: ' + bt.notes : ''}`).join('\n')}
+
+Recent Action Points:
+${actionPoints}
+
+Pipeline Notes:
+${client.pipeline_notes || 'None'}
+
+Generate a concise, actionable summary that explains:
+1. What specific actions or documents are needed to close this deal
+2. Any blockers or pending items that need attention
+3. The immediate next step the advisor should take
+
+Be specific and actionable. Focus on what needs to happen NOW to move this forward. Maximum 3 sentences.`;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a professional financial advisor assistant. Generate concise, actionable next steps for closing business deals.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 150
+    });
+
+    const summary = completion.choices[0].message.content.trim();
+
+    // Store summary in database
+    const { error: updateError } = await getSupabase()
+      .from('clients')
+      .update({
+        pipeline_next_steps: summary,
+        pipeline_next_steps_generated_at: new Date().toISOString()
+      })
+      .eq('id', clientId);
+
+    if (updateError) {
+      console.error('Error storing pipeline summary:', updateError);
+      // Don't fail the request, just return the summary
+    }
+
+    res.json({
+      summary,
+      generated_at: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Error generating pipeline summary:', error);
+    res.status(500).json({
+      error: 'Failed to generate pipeline summary',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;
