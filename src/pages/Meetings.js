@@ -21,7 +21,6 @@ import {
   Mail,
   RefreshCw,
   Edit,
-  Grid3X3,
   List,
   CalendarDays,
   ChevronLeft,
@@ -1664,7 +1663,6 @@ export default function Meetings() {
                       <div className="space-y-2 min-h-[200px]">
                         {meetingsOnDay.length > 0 ? (
                           meetingsOnDay.map((meeting) => {
-                            const startTime = meeting.start?.dateTime || meeting.startTime || meeting.starttime;
                             const attendees = extractAttendees(meeting, user?.email);
                             const clientName = attendees.length > 0 ? attendees[0].name : null;
                             const source = getMeetingSource(meeting);
