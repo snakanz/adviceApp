@@ -800,7 +800,6 @@ export default function Clients() {
               )}
             </div>
           </div>
-        </div>
       </div>
 
       {/* Client Detail Panel - Responsive Sidebar */}
