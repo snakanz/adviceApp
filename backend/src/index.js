@@ -11,13 +11,46 @@ const actionItemsRouter = require('./routes/actionItems');
 const routes = require('./routes/index');
 
 const app = express();
-app.use(cors({
-  origin: ['https://adviceapp.pages.dev', 'http://localhost:3000'],
+
+// CORS configuration - Allow Cloudflare Pages and localhost
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    const allowedOrigins = [
+      'https://adviceapp.pages.dev',
+      'http://localhost:3000',
+      'http://localhost:3001'
+    ];
+
+    // Allow all Cloudflare Pages preview URLs (*.pages.dev)
+    if (origin.endsWith('.pages.dev') || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
+
 app.use(express.json());
+
+// Log all requests for debugging
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
+  next();
+});
 
 // Test routes removed - using proper Calendly integration below
 
