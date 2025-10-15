@@ -217,16 +217,19 @@ export default function BusinessTypeManager({
                   </Select>
                 </div>
 
-                <div>
-                  <Label htmlFor={`business_amount_${index}`}>Business Amount (£)</Label>
-                  <Input
-                    id={`business_amount_${index}`}
-                    type="number"
-                    value={businessType.business_amount}
-                    onChange={(e) => updateBusinessType(index, 'business_amount', e.target.value)}
-                    placeholder="Enter business amount"
-                  />
-                </div>
+                {/* Business Amount - hide when Regular Monthly Contribution is selected */}
+                {businessType.contribution_method !== 'Regular Monthly Contribution' && (
+                  <div>
+                    <Label htmlFor={`business_amount_${index}`}>Business Amount (£)</Label>
+                    <Input
+                      id={`business_amount_${index}`}
+                      type="number"
+                      value={businessType.business_amount}
+                      onChange={(e) => updateBusinessType(index, 'business_amount', e.target.value)}
+                      placeholder="Enter business amount"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Contribution Method */}
