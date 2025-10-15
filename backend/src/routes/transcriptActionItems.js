@@ -263,6 +263,101 @@ router.get('/meetings/:meetingId/pending', authenticateToken, async (req, res) =
   }
 });
 
+// Get ALL pending action items for the advisor (across all meetings)
+router.get('/pending/all', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    console.log(`📋 Fetching all pending action items for advisor ${userId}`);
+
+    // Fetch all pending action items with client and meeting info
+    const { data: pendingItems, error } = await getSupabase()
+      .from('pending_transcript_action_items')
+      .select(`
+        *,
+        meeting:meetings!inner(
+          id,
+          title,
+          starttime,
+          googleeventid
+        ),
+        client:clients(
+          id,
+          name,
+          email
+        )
+      `)
+      .eq('advisor_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching all pending action items:', error);
+      return res.status(500).json({ error: 'Failed to fetch pending action items' });
+    }
+
+    // Group by client
+    const groupedByClient = {};
+
+    pendingItems.forEach(item => {
+      const clientId = item.client_id || 'no-client';
+      const clientName = item.client?.name || 'Unknown Client';
+      const clientEmail = item.client?.email || '';
+
+      if (!groupedByClient[clientId]) {
+        groupedByClient[clientId] = {
+          clientId,
+          clientName,
+          clientEmail,
+          meetings: {}
+        };
+      }
+
+      const meetingId = item.meeting_id;
+      if (!groupedByClient[clientId].meetings[meetingId]) {
+        groupedByClient[clientId].meetings[meetingId] = {
+          meetingId,
+          meetingTitle: item.meeting.title,
+          meetingStartTime: item.meeting.starttime,
+          googleEventId: item.meeting.googleeventid,
+          pendingItems: []
+        };
+      }
+
+      groupedByClient[clientId].meetings[meetingId].pendingItems.push({
+        id: item.id,
+        actionText: item.action_text,
+        displayOrder: item.display_order,
+        createdAt: item.created_at
+      });
+    });
+
+    // Convert to array format
+    const clientsArray = Object.values(groupedByClient).map(client => ({
+      clientId: client.clientId,
+      clientName: client.clientName,
+      clientEmail: client.clientEmail,
+      meetings: Object.values(client.meetings)
+    })).sort((a, b) => a.clientName.localeCompare(b.clientName));
+
+    // Calculate total count
+    const totalPendingCount = pendingItems.length;
+
+    console.log(`✅ Found ${totalPendingCount} pending action items across ${clientsArray.length} clients`);
+
+    res.json({
+      clients: clientsArray,
+      totalCount: totalPendingCount
+    });
+  } catch (error) {
+    console.error('Error in get all pending action items:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Approve selected action items (move from pending to approved)
 router.post('/approve', authenticateToken, async (req, res) => {
   try {

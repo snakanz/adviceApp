@@ -11,7 +11,10 @@ import {
   ChevronDown,
   ChevronUp,
   Star,
-  FileText
+  FileText,
+  Check,
+  X,
+  AlertCircle
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -23,14 +26,21 @@ export default function ActionItems() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [activeTab, setActiveTab] = useState('action-items'); // 'action-items' or 'review-meetings'
+  const [activeTab, setActiveTab] = useState('action-items'); // 'action-items', 'pending-approval', or 'review-meetings'
   const [filter, setFilter] = useState('all'); // 'all', 'pending', 'completed'
   const [expandedClients, setExpandedClients] = useState(new Set());
   const navigate = useNavigate();
 
+  // Pending approval state
+  const [pendingApprovalClients, setPendingApprovalClients] = useState([]);
+  const [loadingPendingApproval, setLoadingPendingApproval] = useState(false);
+  const [selectedPendingItems, setSelectedPendingItems] = useState([]);
+  const [totalPendingApprovalCount, setTotalPendingApprovalCount] = useState(0);
+
   useEffect(() => {
     fetchActionItems();
     fetchStarredMeetings();
+    fetchPendingApprovalItems();
   }, []);
 
   const fetchActionItems = async () => {
@@ -87,6 +97,143 @@ export default function ActionItems() {
     } catch (error) {
       console.error('Error fetching starred meetings:', error);
       // Don't show error for starred meetings, just log it
+    }
+  };
+
+  const fetchPendingApprovalItems = async () => {
+    try {
+      setLoadingPendingApproval(true);
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/api/transcript-action-items/pending/all`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch pending approval items');
+      }
+
+      const data = await response.json();
+      setPendingApprovalClients(data.clients || []);
+      setTotalPendingApprovalCount(data.totalCount || 0);
+
+      // Auto-select all pending items by default
+      const allPendingIds = [];
+      data.clients?.forEach(client => {
+        client.meetings?.forEach(meeting => {
+          meeting.pendingItems?.forEach(item => {
+            allPendingIds.push(item.id);
+          });
+        });
+      });
+      setSelectedPendingItems(allPendingIds);
+    } catch (error) {
+      console.error('Error fetching pending approval items:', error);
+      // Don't show error, just log it
+    } finally {
+      setLoadingPendingApproval(false);
+    }
+  };
+
+  const approvePendingItems = async () => {
+    if (selectedPendingItems.length === 0) {
+      setError('Please select at least one action item to approve');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/api/transcript-action-items/approve`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ pendingItemIds: selectedPendingItems })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to approve action items');
+      }
+
+      const data = await response.json();
+
+      setSuccess(`Successfully approved ${data.approvedCount} action item${data.approvedCount > 1 ? 's' : ''}!`);
+      setTimeout(() => setSuccess(''), 3000);
+
+      // Refresh all data
+      await fetchPendingApprovalItems();
+      await fetchActionItems();
+    } catch (error) {
+      console.error('Error approving action items:', error);
+      setError('Failed to approve action items');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const rejectPendingItems = async () => {
+    if (selectedPendingItems.length === 0) {
+      setError('Please select at least one action item to reject');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/api/transcript-action-items/pending`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ pendingItemIds: selectedPendingItems })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reject action items');
+      }
+
+      const data = await response.json();
+
+      setSuccess(`Rejected ${data.rejectedCount} action item${data.rejectedCount > 1 ? 's' : ''}`);
+      setTimeout(() => setSuccess(''), 3000);
+
+      // Refresh pending items
+      await fetchPendingApprovalItems();
+    } catch (error) {
+      console.error('Error rejecting action items:', error);
+      setError('Failed to reject action items');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const togglePendingItemSelection = (itemId) => {
+    setSelectedPendingItems(prev => {
+      if (prev.includes(itemId)) {
+        return prev.filter(id => id !== itemId);
+      } else {
+        return [...prev, itemId];
+      }
+    });
+  };
+
+  const toggleSelectAllPending = () => {
+    const allPendingIds = [];
+    pendingApprovalClients.forEach(client => {
+      client.meetings?.forEach(meeting => {
+        meeting.pendingItems?.forEach(item => {
+          allPendingIds.push(item.id);
+        });
+      });
+    });
+
+    if (selectedPendingItems.length === allPendingIds.length) {
+      setSelectedPendingItems([]);
+    } else {
+      setSelectedPendingItems(allPendingIds);
     }
   };
 
@@ -203,6 +350,20 @@ export default function ActionItems() {
         {/* Tabs */}
         <div className="flex gap-2 mb-4">
           <Button
+            onClick={() => setActiveTab('pending-approval')}
+            variant={activeTab === 'pending-approval' ? 'default' : 'outline'}
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <AlertCircle className="w-4 h-4" />
+            Pending Approval
+            {totalPendingApprovalCount > 0 && (
+              <Badge variant="secondary" className="ml-1 bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300">
+                {totalPendingApprovalCount}
+              </Badge>
+            )}
+          </Button>
+          <Button
             onClick={() => setActiveTab('action-items')}
             variant={activeTab === 'action-items' ? 'default' : 'outline'}
             size="sm"
@@ -302,7 +463,140 @@ export default function ActionItems() {
 
       {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-6">
-        {activeTab === 'action-items' ? (
+        {activeTab === 'pending-approval' ? (
+          // Pending Approval Tab Content
+          <>
+            {loadingPendingApproval ? (
+              <Card className="border-border/50">
+                <CardContent className="p-12 text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent mx-auto mb-4"></div>
+                  <p className="text-sm text-muted-foreground">Loading pending items...</p>
+                </CardContent>
+              </Card>
+            ) : totalPendingApprovalCount === 0 ? (
+              <Card className="border-border/50">
+                <CardContent className="p-12 text-center">
+                  <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-green-500" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">All Caught Up!</h3>
+                  <p className="text-sm text-muted-foreground">
+                    No pending action items awaiting approval
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* Bulk Action Controls */}
+                <div className="mb-4 flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg p-4">
+                  <div className="flex items-center gap-4">
+                    <AlertCircle className="w-5 h-5 text-orange-600" />
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">
+                        {totalPendingApprovalCount} Action Item{totalPendingApprovalCount > 1 ? 's' : ''} Awaiting Approval
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedPendingItems.length} selected • Review and approve AI-extracted action items from your meetings
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={toggleSelectAllPending}
+                      className="h-8 text-xs"
+                    >
+                      {selectedPendingItems.length === totalPendingApprovalCount ? 'Deselect All' : 'Select All'}
+                    </Button>
+                    <Button
+                      onClick={approvePendingItems}
+                      disabled={selectedPendingItems.length === 0}
+                      className="bg-green-600 hover:bg-green-700 text-white h-8"
+                      size="sm"
+                    >
+                      <Check className="w-4 h-4 mr-2" />
+                      Approve Selected ({selectedPendingItems.length})
+                    </Button>
+                    <Button
+                      onClick={rejectPendingItems}
+                      disabled={selectedPendingItems.length === 0}
+                      variant="outline"
+                      className="border-red-300 text-red-600 hover:bg-red-50 h-8"
+                      size="sm"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Reject ({selectedPendingItems.length})
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Pending Items by Client */}
+                <div className="space-y-4">
+                  {pendingApprovalClients.map((client) => (
+                    <Card key={client.clientId} className="border-orange-200 bg-orange-50/30">
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-lg">{client.clientName}</CardTitle>
+                            <p className="text-sm text-muted-foreground">{client.clientEmail}</p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate(`/clients?client=${encodeURIComponent(client.clientEmail)}`)}
+                          >
+                            <User className="w-4 h-4 mr-1" />
+                            View Client
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {client.meetings.map((meeting) => (
+                          <div key={meeting.meetingId} className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-sm">
+                                <FileText className="w-4 h-4 text-muted-foreground" />
+                                <span className="font-medium text-foreground">{meeting.meetingTitle}</span>
+                                <span className="text-muted-foreground">•</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(meeting.meetingStartTime).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300">
+                                {meeting.pendingItems.length} pending
+                              </Badge>
+                            </div>
+
+                            <div className="space-y-2 pl-6">
+                              {meeting.pendingItems.map((item) => (
+                                <Card key={item.id} className="border-orange-200 bg-white">
+                                  <CardContent className="p-3">
+                                    <div className="flex items-start gap-3">
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedPendingItems.includes(item.id)}
+                                        onChange={() => togglePendingItemSelection(item.id)}
+                                        className="mt-1 w-4 h-4 text-orange-600 border-orange-300 rounded focus:ring-orange-500 cursor-pointer"
+                                      />
+                                      <div className="flex-1">
+                                        <p className="text-sm text-foreground">
+                                          {item.actionText}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        ) : activeTab === 'action-items' ? (
           // Action Items Tab Content
           <>
             {filteredClients.length === 0 ? (
