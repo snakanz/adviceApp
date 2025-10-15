@@ -438,10 +438,6 @@ export default function Pipeline() {
 
     // Show clients that match the selected month
     return clients.filter(client => {
-      // FIX ISSUE 1: Show clients with business types even if no pipeline stage is set
-      // Only skip clients that have NO business types AND no expected month
-      const hasBusinessTypes = client.businessTypes && client.businessTypes.length > 0;
-
       // Skip clients with no expected month (they go in overdue section)
       if (!client.expectedMonth) {
         return false;
