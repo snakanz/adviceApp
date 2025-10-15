@@ -15,20 +15,23 @@ import {
   Calendar,
   User,
   Trash2,
-  Edit3
+  Edit3,
+  Star
 } from 'lucide-react';
 
 export default function ActionItems() {
   const [actionItems, setActionItems] = useState({
     transcriptNeeded: [],
     emailPending: [],
-    adHocTasks: []
+    adHocTasks: [],
+    annualReviews: []
   });
   const [loading, setLoading] = useState(true);
   const [selectedItems, setSelectedItems] = useState({
     transcriptNeeded: [],
     emailPending: [],
-    adHocTasks: []
+    adHocTasks: [],
+    annualReviews: []
   });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -167,7 +170,7 @@ export default function ActionItems() {
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
         {/* Section 1: Past Meetings Without Transcripts */}
         <Card className="border-orange-200">
           <CardHeader className="pb-3">
@@ -389,10 +392,105 @@ export default function ActionItems() {
             )}
           </CardContent>
         </Card>
+
+        {/* Section 4: Annual Reviews */}
+        <Card className="border-amber-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-amber-800">
+              <Star className="w-5 h-5" />
+              Annual Reviews
+              <Badge className="bg-amber-100 text-amber-800">
+                {actionItems.annualReviews.length}
+              </Badge>
+            </CardTitle>
+            <div className="flex items-center gap-2 text-sm">
+              <Checkbox
+                checked={selectedItems.annualReviews.length === actionItems.annualReviews.length && actionItems.annualReviews.length > 0}
+                onCheckedChange={(checked) => handleSelectAll('annualReviews', checked)}
+              />
+              <span className="text-muted-foreground">Select All</span>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3 max-h-96 overflow-y-auto">
+            {actionItems.annualReviews.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-500" />
+                <p>All caught up!</p>
+                <p className="text-sm">All annual reviews completed</p>
+              </div>
+            ) : (
+              actionItems.annualReviews.map((item) => {
+                const isOverdue = item.computed_status === 'overdue';
+                const isPending = item.computed_status === 'pending';
+                const isScheduled = item.computed_status === 'scheduled';
+
+                return (
+                  <div key={item.client_id} className={`border rounded-lg p-3 hover:bg-muted/50 ${isOverdue ? 'border-red-300 bg-red-50/50' : ''}`}>
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        checked={selectedItems.annualReviews.includes(item.client_id)}
+                        onCheckedChange={(checked) => handleItemSelection('annualReviews', item.client_id, checked)}
+                        className="mt-1"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <User className="w-4 h-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">{item.client_name}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge className={
+                            isOverdue ? 'bg-red-100 text-red-800 border-red-200' :
+                            isPending ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                            isScheduled ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                            'bg-green-100 text-green-800 border-green-200'
+                          }>
+                            {item.computed_status}
+                          </Badge>
+                          {item.review_date && (
+                            <span className="text-xs text-muted-foreground">
+                              {formatDate(item.review_date)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {item.client_email}
+                        </p>
+                        {item.review_notes && (
+                          <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                            {item.review_notes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => window.location.href = `/clients?client=${encodeURIComponent(item.client_email)}`}
+                      >
+                        <User className="w-3 h-3 mr-1" />
+                        View Client
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-amber-600 hover:bg-amber-700"
+                        onClick={() => window.location.href = `/meetings`}
+                      >
+                        <Star className="w-3 h-3 mr-1" />
+                        Schedule
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Summary Stats */}
-      <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
         <Card className="bg-orange-50 border-orange-200">
           <CardContent className="p-4 text-center">
             <div className="text-2xl font-bold text-orange-800">
@@ -415,6 +513,14 @@ export default function ActionItems() {
               {actionItems.adHocTasks.length}
             </div>
             <div className="text-sm text-green-600">Active Tasks</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-amber-50 border-amber-200">
+          <CardContent className="p-4 text-center">
+            <div className="text-2xl font-bold text-amber-800">
+              {actionItems.annualReviews.length}
+            </div>
+            <div className="text-sm text-amber-600">Annual Reviews Due</div>
           </CardContent>
         </Card>
       </div>
