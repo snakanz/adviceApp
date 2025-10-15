@@ -26,7 +26,8 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
-  Star
+  Star,
+  X
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -594,7 +595,8 @@ export default function Meetings() {
 
     if (meeting.transcript && (!hasQuickSummary || !hasEmailSummary)) {
       console.log('Auto-generating summaries...'); // Debug log
-      await autoGenerateSummaries(meeting.id);
+      // Use googleeventid for API calls (backend expects this field)
+      await autoGenerateSummaries(meeting.googleeventid || meeting.id);
     }
   };
 
@@ -718,7 +720,11 @@ export default function Meetings() {
         }
       }, 1000);
 
-      const res = await fetch(`${API_URL}/api/calendar/meetings/${selectedMeeting.id}/transcript`, {
+      // Use googleeventid for the API call (backend expects this field)
+      const meetingIdentifier = selectedMeeting.googleeventid || selectedMeeting.id;
+      console.log('📤 Uploading transcript for meeting:', meetingIdentifier);
+
+      const res = await fetch(`${API_URL}/api/calendar/meetings/${meetingIdentifier}/transcript`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -730,6 +736,7 @@ export default function Meetings() {
       if (!res.ok) throw new Error('Failed to upload transcript');
 
       const responseData = await res.json();
+      console.log('📥 Transcript upload response:', responseData);
 
       // Update local state with transcript and any auto-generated summaries
       const meetingUpdate = {
@@ -740,6 +747,12 @@ export default function Meetings() {
       if (responseData.summaries) {
         meetingUpdate.quick_summary = responseData.summaries.quickSummary;
         meetingUpdate.email_summary_draft = responseData.summaries.emailSummary;
+
+        // Include action points if they were generated
+        if (responseData.summaries.actionPoints) {
+          meetingUpdate.action_points = responseData.summaries.actionPoints;
+          console.log('✅ Action points extracted:', responseData.summaries.actionPoints);
+        }
 
         // Also update the local state variables immediately
         // Use detailedSummary from response for Meetings page display (not saved to DB yet)
@@ -767,6 +780,11 @@ export default function Meetings() {
 
       setTranscriptUpload('');
       setShowTranscriptUpload(false);
+
+      // Force a refresh from the database to ensure transcript is persisted
+      // This prevents the transcript from disappearing on auto-refresh
+      await fetchMeetings();
+
       setShowSnackbar(true);
 
       // Show different message based on whether summaries were generated
@@ -1453,14 +1471,11 @@ export default function Meetings() {
   }
 
   return (
-    <div className="h-full w-full flex bg-background overflow-hidden">
-      {/* Left Panel - Meetings List */}
-      <div className={cn(
-        "flex flex-col bg-background transition-all duration-300 overflow-hidden",
-        selectedMeeting ? "w-1/2 border-r border-border/50" : "w-full"
-      )}>
+    <div className="h-full w-full bg-background relative">
+      {/* Main Content - Meetings List */}
+      <div className="h-full flex flex-col bg-background overflow-hidden">
         {/* Header */}
-        <div className="border-b border-border/50 p-6 bg-card/50">
+        <div className="border-b border-border/50 p-6 bg-card/50 flex-shrink-0">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-foreground">Meetings</h1>
             <div className="flex items-center gap-2">
@@ -1835,11 +1850,19 @@ export default function Meetings() {
         </div>
       </div>
 
-      {/* Right Panel - Meeting Details */}
+      {/* Meeting Detail Panel - Full Screen Overlay */}
       {selectedMeeting && (
-        <div className="w-full lg:w-1/2 bg-card border-l border-border/50 flex flex-col overflow-hidden">
-          {/* Header */}
-          <div className="border-b border-border/50 p-3 lg:p-4 bg-card/50">
+        <>
+          {/* Mobile Overlay */}
+          <div
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            onClick={() => setSelectedMeetingId(null)}
+          />
+
+          {/* Detail Panel - Expanded Width */}
+          <div className="fixed right-0 top-0 h-full w-full lg:w-[45%] xl:w-[40%] bg-card border-l border-border shadow-xl z-50 overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="sticky top-0 bg-background border-b border-border/50 p-6 flex-shrink-0">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
@@ -1968,16 +1991,17 @@ export default function Meetings() {
                   size="sm"
                   onClick={() => setSelectedMeetingId(null)}
                   className="h-8 w-8 p-0"
+                  title="Close"
                 >
-                  ×
+                  <X className="w-4 h-4" />
                 </Button>
               </div>
             </div>
           </div>
 
-          {/* Meeting Content */}
+          {/* Meeting Content - Scrollable */}
           <div className="flex-1 overflow-y-auto">
-            <div className="p-4">
+            <div className="p-6 space-y-6">
               {/* Tabs */}
               <div className="flex border-b border-border/50 mb-4">
                 <button
@@ -2089,7 +2113,7 @@ export default function Meetings() {
                               </Button>
                               {(quickSummary || emailSummary) && (
                                 <Button
-                                  onClick={() => autoGenerateSummaries(selectedMeeting.id, true)}
+                                  onClick={() => autoGenerateSummaries(selectedMeeting.googleeventid || selectedMeeting.id, true)}
                                   disabled={autoGenerating}
                                   size="sm"
                                   variant="outline"
@@ -2444,6 +2468,7 @@ Example:
             </div>
           </div>
         </div>
+        </>
       )}
 
       {/* AI Adjustment Dialog */}
