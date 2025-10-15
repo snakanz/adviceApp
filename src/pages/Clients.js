@@ -140,6 +140,31 @@ export default function Clients() {
     }
   };
 
+  // Toggle action item completion
+  const toggleActionItemCompletion = async (actionItemId, currentCompleted) => {
+    try {
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com'}/api/transcript-action-items/action-items/${actionItemId}/toggle`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle action item');
+      }
+
+      // Refresh action items after toggle
+      if (selectedClient?.id) {
+        await fetchClientActionItems(selectedClient.id);
+      }
+    } catch (error) {
+      console.error('Error toggling action item:', error);
+    }
+  };
+
   // Extract clients from meeting attendees
   const handleExtractClients = async () => {
     setExtracting(true);
@@ -1057,35 +1082,71 @@ export default function Clients() {
               {/* Action Items Section */}
               <div>
                 <h3 className="text-lg font-semibold text-foreground mb-3">Action Items</h3>
-                {selectedClient.action_items && selectedClient.action_items.length > 0 ? (
-                  <div className="space-y-2">
-                    {selectedClient.action_items.map((item, idx) => (
-                      <Card key={idx} className="border-border/50">
-                        <CardContent className="p-3">
-                          <div className="flex items-start gap-3">
-                            <input
-                              type="checkbox"
-                              checked={item.completed || false}
-                              onChange={() => {
-                                // TODO: Implement toggle action item completion
-                                console.log('Toggle action item:', item);
-                              }}
-                              className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary"
-                            />
-                            <div className="flex-1">
-                              <p className={`text-sm ${item.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                                {item.text}
-                              </p>
-                              {item.due_date && (
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  Due: {new Date(item.due_date).toLocaleDateString()}
-                                </p>
-                              )}
-                            </div>
+                {clientActionItems && clientActionItems.length > 0 && clientActionItems.some(m => m.actionItems.length > 0) ? (
+                  <div className="space-y-3">
+                    {clientActionItems.map(meeting => {
+                      const pendingItems = meeting.actionItems.filter(item => !item.completed);
+                      const completedItems = meeting.actionItems.filter(item => item.completed);
+
+                      if (meeting.actionItems.length === 0) return null;
+
+                      return (
+                        <div key={meeting.meetingId} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-medium text-muted-foreground">
+                              {meeting.meetingTitle}
+                            </p>
+                            {pendingItems.length > 0 && (
+                              <span className="text-xs text-orange-600">
+                                {pendingItems.length} pending
+                              </span>
+                            )}
                           </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+
+                          {/* Pending Items */}
+                          {pendingItems.map((item) => (
+                            <Card key={item.id} className="border-border/50">
+                              <CardContent className="p-3">
+                                <div className="flex items-start gap-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={false}
+                                    onChange={() => toggleActionItemCompletion(item.id, item.completed)}
+                                    className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
+                                  />
+                                  <div className="flex-1">
+                                    <p className="text-sm text-foreground">
+                                      {item.actionText}
+                                    </p>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+
+                          {/* Completed Items */}
+                          {completedItems.map((item) => (
+                            <Card key={item.id} className="border-border/50 bg-muted/30">
+                              <CardContent className="p-3">
+                                <div className="flex items-start gap-3">
+                                  <input
+                                    type="checkbox"
+                                    checked={true}
+                                    onChange={() => toggleActionItemCompletion(item.id, item.completed)}
+                                    className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
+                                  />
+                                  <div className="flex-1">
+                                    <p className="text-sm line-through text-muted-foreground">
+                                      {item.actionText}
+                                    </p>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <Card className="border-border/50">

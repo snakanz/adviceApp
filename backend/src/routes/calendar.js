@@ -596,33 +596,32 @@ Return only the JSON array:`;
       return res.status(500).json({ error: 'Failed to save summaries' });
     }
 
-    // Save individual action items to transcript_action_items table
+    // Save individual action items to PENDING table (awaiting approval)
     if (actionPointsArray.length > 0) {
-      // First, delete existing action items for this meeting
+      // First, delete existing pending action items for this meeting
       await getSupabase()
-        .from('transcript_action_items')
+        .from('pending_transcript_action_items')
         .delete()
         .eq('meeting_id', meeting.id);
 
-      // Insert new action items
+      // Insert new pending action items
       const actionItemsToInsert = actionPointsArray.map((actionText, index) => ({
         meeting_id: meeting.id,
         client_id: meeting.client_id,
         advisor_id: userId,
         action_text: actionText,
-        display_order: index,
-        completed: false
+        display_order: index
       }));
 
       const { error: actionItemsError } = await getSupabase()
-        .from('transcript_action_items')
+        .from('pending_transcript_action_items')
         .insert(actionItemsToInsert);
 
       if (actionItemsError) {
-        console.error('Error saving action items:', actionItemsError);
+        console.error('Error saving pending action items:', actionItemsError);
         // Don't fail the whole request, just log the error
       } else {
-        console.log(`✅ Saved ${actionPointsArray.length} action items for meeting ${meeting.id}`);
+        console.log(`✅ Saved ${actionPointsArray.length} PENDING action items for meeting ${meeting.id} (awaiting approval)`);
       }
     }
 

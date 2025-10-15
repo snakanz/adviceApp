@@ -233,5 +233,153 @@ router.get('/clients/:clientId/action-items', authenticateToken, async (req, res
   }
 });
 
+// Get pending action items for a specific meeting (awaiting approval)
+router.get('/meetings/:meetingId/pending', authenticateToken, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const userId = req.user.id;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    // Fetch pending action items for the meeting
+    const { data: pendingItems, error } = await getSupabase()
+      .from('pending_transcript_action_items')
+      .select('*')
+      .eq('meeting_id', meetingId)
+      .eq('advisor_id', userId)
+      .order('display_order', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching pending action items:', error);
+      return res.status(500).json({ error: 'Failed to fetch pending action items' });
+    }
+
+    res.json({ pendingItems: pendingItems || [] });
+  } catch (error) {
+    console.error('Error in get pending action items:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Approve selected action items (move from pending to approved)
+router.post('/approve', authenticateToken, async (req, res) => {
+  try {
+    const { pendingItemIds } = req.body;
+    const userId = req.user.id;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    if (!pendingItemIds || !Array.isArray(pendingItemIds) || pendingItemIds.length === 0) {
+      return res.status(400).json({ error: 'pendingItemIds array is required' });
+    }
+
+    console.log(`📋 Approving ${pendingItemIds.length} action items for user ${userId}`);
+
+    // Fetch the pending items to approve
+    const { data: pendingItems, error: fetchError } = await getSupabase()
+      .from('pending_transcript_action_items')
+      .select('*')
+      .in('id', pendingItemIds)
+      .eq('advisor_id', userId);
+
+    if (fetchError) {
+      console.error('Error fetching pending items:', fetchError);
+      return res.status(500).json({ error: 'Failed to fetch pending items' });
+    }
+
+    if (!pendingItems || pendingItems.length === 0) {
+      return res.status(404).json({ error: 'No pending items found' });
+    }
+
+    // Transform pending items to approved action items
+    const approvedItems = pendingItems.map(item => ({
+      meeting_id: item.meeting_id,
+      client_id: item.client_id,
+      advisor_id: item.advisor_id,
+      action_text: item.action_text,
+      display_order: item.display_order,
+      completed: false
+    }));
+
+    // Insert into transcript_action_items table
+    const { data: insertedItems, error: insertError } = await getSupabase()
+      .from('transcript_action_items')
+      .insert(approvedItems)
+      .select();
+
+    if (insertError) {
+      console.error('Error inserting approved items:', insertError);
+      return res.status(500).json({ error: 'Failed to approve action items' });
+    }
+
+    // Delete from pending table
+    const { error: deleteError } = await getSupabase()
+      .from('pending_transcript_action_items')
+      .delete()
+      .in('id', pendingItemIds)
+      .eq('advisor_id', userId);
+
+    if (deleteError) {
+      console.error('Error deleting pending items:', deleteError);
+      // Don't fail the request - items are already approved
+    }
+
+    console.log(`✅ Successfully approved ${insertedItems.length} action items`);
+
+    res.json({
+      success: true,
+      approvedCount: insertedItems.length,
+      actionItems: insertedItems
+    });
+  } catch (error) {
+    console.error('Error in approve action items:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Reject/delete pending action items
+router.delete('/pending', authenticateToken, async (req, res) => {
+  try {
+    const { pendingItemIds } = req.body;
+    const userId = req.user.id;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    if (!pendingItemIds || !Array.isArray(pendingItemIds) || pendingItemIds.length === 0) {
+      return res.status(400).json({ error: 'pendingItemIds array is required' });
+    }
+
+    console.log(`🗑️  Rejecting ${pendingItemIds.length} pending action items for user ${userId}`);
+
+    // Delete from pending table
+    const { error: deleteError } = await getSupabase()
+      .from('pending_transcript_action_items')
+      .delete()
+      .in('id', pendingItemIds)
+      .eq('advisor_id', userId);
+
+    if (deleteError) {
+      console.error('Error deleting pending items:', deleteError);
+      return res.status(500).json({ error: 'Failed to reject pending items' });
+    }
+
+    console.log(`✅ Successfully rejected ${pendingItemIds.length} pending action items`);
+
+    res.json({
+      success: true,
+      rejectedCount: pendingItemIds.length
+    });
+  } catch (error) {
+    console.error('Error in reject pending items:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;
 

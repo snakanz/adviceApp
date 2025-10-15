@@ -306,6 +306,11 @@ export default function Meetings() {
   const [actionItems, setActionItems] = useState([]);
   const [loadingActionItems, setLoadingActionItems] = useState(false);
 
+  // Add pending action items state (for approval workflow)
+  const [pendingActionItems, setPendingActionItems] = useState([]);
+  const [loadingPendingItems, setLoadingPendingItems] = useState(false);
+  const [selectedPendingItems, setSelectedPendingItems] = useState([]);
+
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
   const selectedMeeting = React.useMemo(() => {
@@ -1103,6 +1108,142 @@ export default function Meetings() {
     }
   };
 
+  // Fetch pending action items for a meeting (awaiting approval)
+  const fetchPendingActionItems = async (meetingId) => {
+    if (!meetingId) return;
+
+    setLoadingPendingItems(true);
+    try {
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/api/transcript-action-items/meetings/${meetingId}/pending`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch pending action items');
+      }
+
+      const data = await response.json();
+      setPendingActionItems(data.pendingItems || []);
+      // Select all by default
+      setSelectedPendingItems((data.pendingItems || []).map(item => item.id));
+    } catch (error) {
+      console.error('Error fetching pending action items:', error);
+      setPendingActionItems([]);
+      setSelectedPendingItems([]);
+    } finally {
+      setLoadingPendingItems(false);
+    }
+  };
+
+  // Approve selected pending action items
+  const approvePendingActionItems = async () => {
+    if (selectedPendingItems.length === 0) {
+      setShowSnackbar(true);
+      setSnackbarMessage('Please select at least one action item to approve');
+      setSnackbarSeverity('warning');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/api/transcript-action-items/approve`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ pendingItemIds: selectedPendingItems })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to approve action items');
+      }
+
+      const data = await response.json();
+
+      setShowSnackbar(true);
+      setSnackbarMessage(`Successfully approved ${data.approvedCount} action item${data.approvedCount > 1 ? 's' : ''}`);
+      setSnackbarSeverity('success');
+
+      // Refresh both pending and approved action items
+      if (selectedMeetingId) {
+        await fetchPendingActionItems(selectedMeetingId);
+        await fetchActionItems(selectedMeetingId);
+      }
+    } catch (error) {
+      console.error('Error approving action items:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to approve action items');
+      setSnackbarSeverity('error');
+    }
+  };
+
+  // Reject/delete pending action items
+  const rejectPendingActionItems = async () => {
+    if (selectedPendingItems.length === 0) {
+      setShowSnackbar(true);
+      setSnackbarMessage('Please select at least one action item to reject');
+      setSnackbarSeverity('warning');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/api/transcript-action-items/pending`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ pendingItemIds: selectedPendingItems })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reject action items');
+      }
+
+      const data = await response.json();
+
+      setShowSnackbar(true);
+      setSnackbarMessage(`Rejected ${data.rejectedCount} action item${data.rejectedCount > 1 ? 's' : ''}`);
+      setSnackbarSeverity('success');
+
+      // Refresh pending action items
+      if (selectedMeetingId) {
+        await fetchPendingActionItems(selectedMeetingId);
+      }
+    } catch (error) {
+      console.error('Error rejecting action items:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to reject action items');
+      setSnackbarSeverity('error');
+    }
+  };
+
+  // Toggle selection of a pending action item
+  const togglePendingItemSelection = (itemId) => {
+    setSelectedPendingItems(prev => {
+      if (prev.includes(itemId)) {
+        return prev.filter(id => id !== itemId);
+      } else {
+        return [...prev, itemId];
+      }
+    });
+  };
+
+  // Select/deselect all pending items
+  const toggleSelectAllPending = () => {
+    if (selectedPendingItems.length === pendingActionItems.length) {
+      setSelectedPendingItems([]);
+    } else {
+      setSelectedPendingItems(pendingActionItems.map(item => item.id));
+    }
+  };
+
   // Toggle action item completion
   const toggleActionItem = async (actionItemId) => {
     try {
@@ -1139,12 +1280,15 @@ export default function Meetings() {
     }
   };
 
-  // Fetch action items when selected meeting changes
+  // Fetch action items and pending items when selected meeting changes
   useEffect(() => {
     if (selectedMeetingId) {
       fetchActionItems(selectedMeetingId);
+      fetchPendingActionItems(selectedMeetingId);
     } else {
       setActionItems([]);
+      setPendingActionItems([]);
+      setSelectedPendingItems([]);
     }
   }, [selectedMeetingId]);
 
@@ -2222,9 +2366,97 @@ export default function Meetings() {
                           ) : null}
                         </div>
 
+                        {/* Pending Action Items Section - Awaiting Approval */}
+                        {pendingActionItems.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <h3 className="text-sm font-semibold text-foreground">
+                                Pending Action Items
+                                <span className="ml-2 text-xs font-normal text-orange-600">
+                                  ({pendingActionItems.length} awaiting approval)
+                                </span>
+                              </h3>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={toggleSelectAllPending}
+                                  className="h-7 text-xs"
+                                >
+                                  {selectedPendingItems.length === pendingActionItems.length ? 'Deselect All' : 'Select All'}
+                                </Button>
+                              </div>
+                            </div>
+
+                            {loadingPendingItems ? (
+                              <Card className="border-orange-200 bg-orange-50/50">
+                                <CardContent className="p-3">
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
+                                    Loading pending items...
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ) : (
+                              <>
+                                <div className="space-y-2">
+                                  {pendingActionItems.map((item) => (
+                                    <Card key={item.id} className="border-orange-200 bg-orange-50/30">
+                                      <CardContent className="p-3">
+                                        <div className="flex items-start gap-3">
+                                          <input
+                                            type="checkbox"
+                                            checked={selectedPendingItems.includes(item.id)}
+                                            onChange={() => togglePendingItemSelection(item.id)}
+                                            className="mt-1 w-4 h-4 text-orange-600 border-orange-300 rounded focus:ring-orange-500 cursor-pointer"
+                                          />
+                                          <div className="flex-1">
+                                            <p className="text-sm text-foreground">
+                                              {item.action_text}
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </CardContent>
+                                    </Card>
+                                  ))}
+                                </div>
+
+                                <div className="flex items-center gap-2 pt-2">
+                                  <Button
+                                    onClick={approvePendingActionItems}
+                                    disabled={selectedPendingItems.length === 0}
+                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                                    size="sm"
+                                  >
+                                    <Check className="w-4 h-4 mr-2" />
+                                    Approve Selected ({selectedPendingItems.length})
+                                  </Button>
+                                  <Button
+                                    onClick={rejectPendingActionItems}
+                                    disabled={selectedPendingItems.length === 0}
+                                    variant="outline"
+                                    className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
+                                    size="sm"
+                                  >
+                                    <X className="w-4 h-4 mr-2" />
+                                    Reject Selected ({selectedPendingItems.length})
+                                  </Button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+
                         {/* Action Points Section - Checkbox To-Do List */}
                         <div className="space-y-2">
-                          <h3 className="text-sm font-semibold text-foreground">Action Points</h3>
+                          <h3 className="text-sm font-semibold text-foreground">
+                            Action Points
+                            {actionItems.length > 0 && (
+                              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                                ({actionItems.filter(i => !i.completed).length} pending, {actionItems.filter(i => i.completed).length} completed)
+                              </span>
+                            )}
+                          </h3>
                           {loadingActionItems ? (
                             <Card>
                               <CardContent className="p-3">
