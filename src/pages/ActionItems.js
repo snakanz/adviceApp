@@ -9,7 +9,9 @@ import {
   Calendar,
   User,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Star,
+  FileText
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -17,15 +19,18 @@ const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.on
 
 export default function ActionItems() {
   const [clients, setClients] = useState([]);
+  const [starredMeetings, setStarredMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [activeTab, setActiveTab] = useState('action-items'); // 'action-items' or 'review-meetings'
   const [filter, setFilter] = useState('all'); // 'all', 'pending', 'completed'
   const [expandedClients, setExpandedClients] = useState(new Set());
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchActionItems();
+    fetchStarredMeetings();
   }, []);
 
   const fetchActionItems = async () => {
@@ -45,7 +50,7 @@ export default function ActionItems() {
 
       const data = await response.json();
       setClients(data.clients || []);
-      
+
       // Auto-expand clients with pending items
       const clientsWithPending = new Set();
       data.clients?.forEach(client => {
@@ -60,6 +65,28 @@ export default function ActionItems() {
       setError('Failed to load action items');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStarredMeetings = async () => {
+    try {
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/api/calendar/meetings/starred`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch starred meetings');
+      }
+
+      const data = await response.json();
+      setStarredMeetings(data || []);
+    } catch (error) {
+      console.error('Error fetching starred meetings:', error);
+      // Don't show error for starred meetings, just log it
     }
   };
 
@@ -167,36 +194,70 @@ export default function ActionItems() {
               Track and manage action items from client meetings
             </p>
           </div>
-          <Button onClick={fetchActionItems} variant="outline" size="sm">
+          <Button onClick={() => { fetchActionItems(); fetchStarredMeetings(); }} variant="outline" size="sm">
             <Clock className="w-4 h-4 mr-2" />
             Refresh
           </Button>
         </div>
 
-        {/* Statistics */}
-        <div className="grid grid-cols-3 gap-4">
-          <Card className="border-border/50">
-            <CardContent className="p-4">
-              <div className="text-2xl font-bold text-foreground">{totalItems}</div>
-              <div className="text-xs text-muted-foreground">Total Items</div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/50">
-            <CardContent className="p-4">
-              <div className="text-2xl font-bold text-orange-600">{pendingItems}</div>
-              <div className="text-xs text-muted-foreground">Pending</div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/50">
-            <CardContent className="p-4">
-              <div className="text-2xl font-bold text-green-600">{completedItems}</div>
-              <div className="text-xs text-muted-foreground">Completed</div>
-            </CardContent>
-          </Card>
+        {/* Tabs */}
+        <div className="flex gap-2 mb-4">
+          <Button
+            onClick={() => setActiveTab('action-items')}
+            variant={activeTab === 'action-items' ? 'default' : 'outline'}
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            Action Items
+            {pendingItems > 0 && (
+              <Badge variant="secondary" className="ml-1 bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300">
+                {pendingItems}
+              </Badge>
+            )}
+          </Button>
+          <Button
+            onClick={() => setActiveTab('review-meetings')}
+            variant={activeTab === 'review-meetings' ? 'default' : 'outline'}
+            size="sm"
+            className="flex items-center gap-2"
+          >
+            <Star className="w-4 h-4" />
+            Review Meetings
+            {starredMeetings.length > 0 && (
+              <Badge variant="secondary" className="ml-1 bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                {starredMeetings.length}
+              </Badge>
+            )}
+          </Button>
         </div>
 
-        {/* Filter Buttons */}
-        <div className="flex gap-2 mt-4">
+        {/* Statistics - Only show for Action Items tab */}
+        {activeTab === 'action-items' && (
+          <>
+            <div className="grid grid-cols-3 gap-4">
+              <Card className="border-border/50">
+                <CardContent className="p-4">
+                  <div className="text-2xl font-bold text-foreground">{totalItems}</div>
+                  <div className="text-xs text-muted-foreground">Total Items</div>
+                </CardContent>
+              </Card>
+              <Card className="border-border/50">
+                <CardContent className="p-4">
+                  <div className="text-2xl font-bold text-orange-600">{pendingItems}</div>
+                  <div className="text-xs text-muted-foreground">Pending</div>
+                </CardContent>
+              </Card>
+              <Card className="border-border/50">
+                <CardContent className="p-4">
+                  <div className="text-2xl font-bold text-green-600">{completedItems}</div>
+                  <div className="text-xs text-muted-foreground">Completed</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Filter Buttons */}
+            <div className="flex gap-2 mt-4">
           <Button
             variant={filter === 'all' ? 'default' : 'outline'}
             size="sm"
@@ -220,7 +281,9 @@ export default function ActionItems() {
             <CheckCircle2 className="w-3 h-3 mr-1" />
             Completed
           </Button>
-        </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Alerts */}
@@ -237,9 +300,11 @@ export default function ActionItems() {
         </Alert>
       )}
 
-      {/* Action Items Grouped by Client */}
+      {/* Content Area */}
       <div className="flex-1 overflow-y-auto p-6">
-        {filteredClients.length === 0 ? (
+        {activeTab === 'action-items' ? (
+          // Action Items Tab Content
+          filteredClients.length === 0 ? (
           <Card className="border-border/50">
             <CardContent className="p-12 text-center">
               <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-green-500" />
@@ -351,6 +416,102 @@ export default function ActionItems() {
               );
             })}
           </div>
+        ) : (
+          // Review Meetings Tab Content
+          starredMeetings.length === 0 ? (
+            <Card className="border-border/50">
+              <CardContent className="p-12 text-center">
+                <Star className="w-12 h-12 mx-auto mb-4 text-amber-500" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">No Review Meetings</h3>
+                <p className="text-sm text-muted-foreground">
+                  Star meetings in the Meetings page to flag them for review
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {starredMeetings.map((meeting) => (
+                <Card key={meeting.id} className="border-border/50 hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Star className="w-4 h-4 text-amber-500 fill-amber-500" />
+                          <CardTitle className="text-base">{meeting.title}</CardTitle>
+                        </div>
+                        {meeting.client && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <User className="w-3 h-3" />
+                            <span
+                              className="hover:text-primary cursor-pointer"
+                              onClick={() => navigate(`/clients/${meeting.client.id}`)}
+                            >
+                              {meeting.client.name}
+                            </span>
+                            <span>•</span>
+                            <span>{meeting.client.email}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
+                          <Calendar className="w-3 h-3" />
+                          <span>{formatDate(meeting.startTime)}</span>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate('/meetings')}
+                        className="ml-2"
+                      >
+                        <FileText className="w-3 h-3 mr-1" />
+                        View Meeting
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-4 text-xs">
+                      <div className="flex items-center gap-1">
+                        {meeting.hasTranscript ? (
+                          <CheckCircle2 className="w-3 h-3 text-green-600" />
+                        ) : (
+                          <Clock className="w-3 h-3 text-muted-foreground" />
+                        )}
+                        <span className={meeting.hasTranscript ? 'text-green-600' : 'text-muted-foreground'}>
+                          Transcript
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {meeting.hasQuickSummary ? (
+                          <CheckCircle2 className="w-3 h-3 text-green-600" />
+                        ) : (
+                          <Clock className="w-3 h-3 text-muted-foreground" />
+                        )}
+                        <span className={meeting.hasQuickSummary ? 'text-green-600' : 'text-muted-foreground'}>
+                          Summary
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {meeting.hasEmailSummary ? (
+                          <CheckCircle2 className="w-3 h-3 text-green-600" />
+                        ) : (
+                          <Clock className="w-3 h-3 text-muted-foreground" />
+                        )}
+                        <span className={meeting.hasEmailSummary ? 'text-green-600' : 'text-muted-foreground'}>
+                          Email Draft
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                      <p className="text-xs text-amber-800 dark:text-amber-200">
+                        <strong>Note:</strong> This meeting has been flagged for review.
+                        You may need to create custom emails or add specific action items for this client.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )
         )}
       </div>
     </div>

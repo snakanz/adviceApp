@@ -609,7 +609,7 @@ export default function Pipeline() {
 
                 {/* Collapsible Client List */}
                 {showOverdueSection && (
-                  <div className="mt-3 space-y-2">
+                  <div className="mt-3 space-y-2 max-h-96 overflow-y-auto">
                     {overdueClients.map((client) => (
                       <div
                         key={client.id}
