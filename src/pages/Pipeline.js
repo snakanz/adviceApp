@@ -19,6 +19,7 @@ import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { api } from '../services/api';
 import CreateClientForm from '../components/CreateClientForm';
+import BusinessTypeManager from '../components/BusinessTypeManager';
 
 
 
@@ -33,6 +34,8 @@ export default function Pipeline() {
   const [creatingClient, setCreatingClient] = useState(false);
   const [showOverdueSection, setShowOverdueSection] = useState(false); // Collapsible state for overdue section - DEFAULT COLLAPSED
   const [showEditPipelineModal, setShowEditPipelineModal] = useState(false); // Edit pipeline modal state
+  const [clientBusinessTypes, setClientBusinessTypes] = useState([]); // Business types for editing
+  const [savingBusinessTypes, setSavingBusinessTypes] = useState(false); // Saving state for business types
   const [generatingPipelineSummary, setGeneratingPipelineSummary] = useState(false); // AI summary generation state
   const [nextStepsSummary, setNextStepsSummary] = useState(null); // AI-generated next steps summary
   const { isAuthenticated} = useAuth();
@@ -281,25 +284,55 @@ export default function Pipeline() {
     }
   };
 
-  const handleEditPipeline = () => {
-    setShowEditPipelineModal(true);
+  const handleEditPipeline = async () => {
+    if (!selectedClient) return;
+
+    try {
+      // Fetch business types for the selected client
+      const businessTypes = await api.request(`/clients/${selectedClient.id}/business-types`);
+      setClientBusinessTypes(businessTypes || []);
+      setShowEditPipelineModal(true);
+    } catch (error) {
+      console.error('Error loading business types:', error);
+      // Show modal anyway with empty business types
+      setClientBusinessTypes([]);
+      setShowEditPipelineModal(true);
+    }
   };
 
-  const handlePipelineUpdate = async (updatedData) => {
-    // Update the client in the list
-    setClients(clients.map(client =>
-      client.id === selectedClient.id
-        ? { ...client, ...updatedData }
-        : client
-    ));
-    setSelectedClient({ ...selectedClient, ...updatedData });
-    setShowEditPipelineModal(false);
-    // Refresh data
-    await fetchPipelineData();
-    // Regenerate pipeline summary after update
-    if (selectedClient) {
-      await handleGeneratePipelineSummary(selectedClient.id);
+  const handleSaveBusinessTypes = async (businessTypes) => {
+    if (!selectedClient) return;
+
+    setSavingBusinessTypes(true);
+    try {
+      // Save business types via API
+      await api.request(`/clients/${selectedClient.id}/business-types`, {
+        method: 'PUT',
+        body: JSON.stringify({ businessTypes })
+      });
+
+      // Refresh pipeline data to show updated information
+      await fetchPipelineData();
+
+      // Close modal
+      setShowEditPipelineModal(false);
+      setClientBusinessTypes([]);
+
+      // Regenerate pipeline summary after update
+      if (selectedClient) {
+        await handleGeneratePipelineSummary(selectedClient.id);
+      }
+    } catch (error) {
+      console.error('Error saving business types:', error);
+      alert('Failed to save business types. Please try again.');
+    } finally {
+      setSavingBusinessTypes(false);
     }
+  };
+
+  const handleCancelBusinessTypes = () => {
+    setShowEditPipelineModal(false);
+    setClientBusinessTypes([]);
   };
 
   const handleCreateClient = async (clientData) => {
@@ -1103,145 +1136,34 @@ export default function Pipeline() {
         />
       )}
 
-      {/* Edit Pipeline Modal */}
+      {/* Edit Pipeline Modal - Business Type Manager */}
       {showEditPipelineModal && selectedClient && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-          <div className="bg-card rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between p-6 border-b border-border">
-              <div>
-                <h2 className="text-xl font-bold text-foreground">Edit Pipeline</h2>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Update pipeline information for {selectedClient.name}
-                </p>
-              </div>
-              <Button
-                onClick={() => setShowEditPipelineModal(false)}
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-              >
-                <X className="w-4 h-4" />
-              </Button>
-            </div>
-
-            {/* Modal Content - Scrollable */}
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="space-y-6">
-                {/* Pipeline Stage */}
+          <div className="bg-background rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
                 <div>
-                  <label className="text-sm font-medium text-foreground mb-2 block">
-                    Pipeline Stage <span className="text-destructive">*</span>
-                  </label>
-                  <select
-                    defaultValue={selectedClient.businessStage}
-                    className="w-full p-3 border border-border rounded-lg text-sm bg-background"
-                    id="edit-pipeline-stage"
-                  >
-                    <option value="Client Signed">Client Signed</option>
-                    <option value="Waiting to Sign">Waiting to Sign</option>
-                    <option value="Waiting on Paraplanning">Waiting on Paraplanning</option>
-                    <option value="Have Not Written Advice">Have Not Written Advice</option>
-                    <option value="Need to Book Meeting">Need to Book Meeting</option>
-                    <option value="Can't Contact Client">Can't Contact Client</option>
-                  </select>
-                </div>
-
-                {/* IAF Expected */}
-                <div>
-                  <label className="text-sm font-medium text-foreground mb-2 block">
-                    IAF Expected
-                  </label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    defaultValue={selectedClient.expectedValue}
-                    placeholder="Enter expected IAF amount"
-                    id="edit-iaf-expected"
-                  />
-                </div>
-
-                {/* Likelihood */}
-                <div>
-                  <label className="text-sm font-medium text-foreground mb-2 block">
-                    Likelihood of Sign-up (%)
-                  </label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="100"
-                    defaultValue={selectedClient.likelihood}
-                    placeholder="0-100"
-                    id="edit-likelihood"
-                  />
-                </div>
-
-                {/* Pipeline Notes */}
-                <div>
-                  <label className="text-sm font-medium text-foreground mb-2 block">
-                    Pipeline Notes
-                  </label>
-                  <textarea
-                    defaultValue={selectedClient.pipelineNotes}
-                    placeholder="Add notes about this pipeline opportunity..."
-                    className="w-full p-3 border border-border rounded-lg text-sm bg-background min-h-[120px] resize-none"
-                    id="edit-pipeline-notes"
-                  />
-                </div>
-
-                {/* Info Note */}
-                <div className="bg-muted/50 border border-border rounded-lg p-4">
-                  <p className="text-xs text-muted-foreground">
-                    <strong>Note:</strong> To edit business types, expected close dates, and other detailed pipeline information,
-                    please use the Clients page.
+                  <h2 className="text-xl font-bold text-foreground">Manage Business Types</h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Update business types and pipeline information for {selectedClient.name}
                   </p>
                 </div>
+                <Button
+                  onClick={handleCancelBusinessTypes}
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
               </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="flex items-center justify-end gap-3 p-6 border-t border-border bg-muted/20">
-              <Button
-                onClick={() => setShowEditPipelineModal(false)}
-                variant="outline"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={async () => {
-                  const stage = document.getElementById('edit-pipeline-stage').value;
-                  const iaf = parseFloat(document.getElementById('edit-iaf-expected').value) || 0;
-                  const likelihood = parseInt(document.getElementById('edit-likelihood').value) || 75;
-                  const notes = document.getElementById('edit-pipeline-notes').value;
-
-                  try {
-                    // Update via API
-                    await api.request(`/clients/${selectedClient.id}`, {
-                      method: 'PUT',
-                      body: JSON.stringify({
-                        pipeline_stage: stage,
-                        iaf_expected: iaf,
-                        notes: notes
-                      })
-                    });
-
-                    // Update local state
-                    await handlePipelineUpdate({
-                      businessStage: stage,
-                      expectedValue: iaf,
-                      likelihood: likelihood,
-                      pipelineNotes: notes
-                    });
-                  } catch (error) {
-                    console.error('Failed to update pipeline:', error);
-                    alert('Failed to update pipeline. Please try again.');
-                  }
-                }}
-                className="flex items-center gap-2"
-              >
-                Save Changes
-              </Button>
+              <BusinessTypeManager
+                clientId={selectedClient.id}
+                initialBusinessTypes={clientBusinessTypes}
+                onSave={handleSaveBusinessTypes}
+                onCancel={handleCancelBusinessTypes}
+                saving={savingBusinessTypes}
+              />
             </div>
           </div>
         </div>
