@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import {
@@ -262,6 +262,7 @@ export default function Meetings() {
   const [activeTab, setActiveTab] = useState('summary');
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [meetingView, setMeetingView] = useState('past');
   const [viewMode, setViewMode] = useState('calendar'); // 'calendar' or 'list'
   const [editingMeeting, setEditingMeeting] = useState(null);
@@ -566,6 +567,44 @@ export default function Meetings() {
 
     return () => clearInterval(interval);
   }, [isAuthenticated, fetchMeetings]);
+
+  // Handle URL parameter to auto-select a meeting
+  useEffect(() => {
+    const selectedParam = searchParams.get('selected');
+    if (selectedParam && (meetings.past.length > 0 || meetings.future.length > 0)) {
+      // Try to find the meeting by ID (database ID)
+      let meeting = meetings.past.find(m => m.id === parseInt(selectedParam));
+
+      // If not found by ID, try by googleeventid
+      if (!meeting) {
+        meeting = meetings.past.find(m => m.googleeventid === selectedParam);
+      }
+
+      // If not found in past, check future meetings
+      if (!meeting && meetings.future.length > 0) {
+        meeting = meetings.future.find(m => m.id === parseInt(selectedParam));
+        if (!meeting) {
+          meeting = meetings.future.find(m => m.googleeventid === selectedParam);
+        }
+      }
+
+      if (meeting) {
+        // Just set the selected meeting ID - the handleMeetingSelect will be called when user interaction happens
+        setSelectedMeetingId(meeting.id);
+        setActiveTab('summary');
+
+        // Set existing summaries if available
+        setQuickSummary(meeting.quick_summary || '');
+        setEmailSummary(meeting.email_summary_draft || '');
+        setSummaryContent(meeting.email_summary_draft || meeting.meetingSummary || '');
+
+        // Clear the URL parameter after selecting
+        const newSearchParams = new URLSearchParams(searchParams);
+        newSearchParams.delete('selected');
+        navigate({ search: newSearchParams.toString() }, { replace: true });
+      }
+    }
+  }, [meetings, searchParams, navigate, setSelectedMeetingId, setActiveTab, setQuickSummary, setEmailSummary, setSummaryContent]);
 
   const handleMeetingSelect = async (meeting) => {
     console.log('Meeting selected:', meeting); // Debug log
