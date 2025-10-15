@@ -622,7 +622,7 @@ Return only the JSON array:`;
         console.error('Error saving action items:', actionItemsError);
         // Don't fail the whole request, just log the error
       } else {
-        console.log(`✅ Saved ${actionItemsArray.length} action items for meeting ${meeting.id}`);
+        console.log(`✅ Saved ${actionPointsArray.length} action items for meeting ${meeting.id}`);
       }
     }
 
