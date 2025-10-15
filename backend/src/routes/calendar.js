@@ -883,6 +883,165 @@ router.post('/meetings/:meetingId/transcript', authenticateToken, async (req, re
 });
 
 // ============================================================================
+// ANNUAL REVIEW ENDPOINTS
+// ============================================================================
+
+// Toggle annual review flag for a meeting
+router.patch('/meetings/:meetingId/annual-review', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { meetingId } = req.params;
+    const { isAnnualReview } = req.body;
+
+    if (typeof isAnnualReview !== 'boolean') {
+      return res.status(400).json({ error: 'isAnnualReview must be a boolean' });
+    }
+
+    // Verify meeting exists and user has access
+    const { data: existingMeeting, error: fetchError } = await getSupabase()
+      .from('meetings')
+      .select('*')
+      .eq('id', meetingId)
+      .eq('userid', userId)
+      .single();
+
+    if (fetchError || !existingMeeting) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    // Update the annual review flag
+    const { data: updatedMeeting, error: updateError } = await getSupabase()
+      .from('meetings')
+      .update({ is_annual_review: isAnnualReview })
+      .eq('id', meetingId)
+      .eq('userid', userId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating annual review flag:', updateError);
+      return res.status(500).json({ error: 'Failed to update annual review flag' });
+    }
+
+    res.json({
+      success: true,
+      meeting: updatedMeeting,
+      message: isAnnualReview ? 'Meeting marked as annual review' : 'Annual review flag removed'
+    });
+  } catch (error) {
+    console.error('Error toggling annual review:', error);
+    res.status(500).json({ error: 'Failed to toggle annual review flag' });
+  }
+});
+
+// Get annual review dashboard for current user
+router.get('/annual-reviews/dashboard', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get annual review dashboard data
+    const { data: reviews, error } = await getSupabase()
+      .from('annual_review_dashboard')
+      .select('*')
+      .eq('advisor_id', userId)
+      .order('computed_status', { ascending: true })
+      .order('client_name', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching annual review dashboard:', error);
+      return res.status(500).json({ error: 'Failed to fetch annual review dashboard' });
+    }
+
+    res.json(reviews || []);
+  } catch (error) {
+    console.error('Error fetching annual review dashboard:', error);
+    res.status(500).json({ error: 'Failed to fetch annual review dashboard' });
+  }
+});
+
+// Get annual review status for a specific client
+router.get('/clients/:clientId/annual-review', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { clientId } = req.params;
+    const currentYear = new Date().getFullYear();
+
+    // Get annual review record for current year
+    const { data: review, error } = await getSupabase()
+      .from('client_annual_reviews')
+      .select('*')
+      .eq('client_id', clientId)
+      .eq('advisor_id', userId)
+      .eq('review_year', currentYear)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.error('Error fetching annual review:', error);
+      return res.status(500).json({ error: 'Failed to fetch annual review' });
+    }
+
+    res.json(review || null);
+  } catch (error) {
+    console.error('Error fetching annual review:', error);
+    res.status(500).json({ error: 'Failed to fetch annual review' });
+  }
+});
+
+// Update annual review status for a client
+router.put('/clients/:clientId/annual-review', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { clientId } = req.params;
+    const { reviewYear, reviewDate, meetingId, status, notes } = req.body;
+    const currentYear = reviewYear || new Date().getFullYear();
+
+    // Verify client exists and belongs to user
+    const { data: client, error: clientError } = await getSupabase()
+      .from('clients')
+      .select('id')
+      .eq('id', clientId)
+      .eq('userid', userId)
+      .single();
+
+    if (clientError || !client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Upsert annual review record
+    const { data: review, error: upsertError } = await getSupabase()
+      .from('client_annual_reviews')
+      .upsert({
+        client_id: clientId,
+        advisor_id: userId,
+        review_year: currentYear,
+        review_date: reviewDate || null,
+        meeting_id: meetingId || null,
+        status: status || 'pending',
+        notes: notes || null,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'client_id,review_year'
+      })
+      .select()
+      .single();
+
+    if (upsertError) {
+      console.error('Error updating annual review:', upsertError);
+      return res.status(500).json({ error: 'Failed to update annual review' });
+    }
+
+    res.json({
+      success: true,
+      review,
+      message: 'Annual review updated successfully'
+    });
+  } catch (error) {
+    console.error('Error updating annual review:', error);
+    res.status(500).json({ error: 'Failed to update annual review' });
+  }
+});
+
+// ============================================================================
 // FILE UPLOAD ENDPOINTS
 // ============================================================================
 

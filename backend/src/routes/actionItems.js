@@ -33,11 +33,25 @@ router.get('/dashboard', authenticateUser, async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch action items' });
     }
 
+    // Get annual review dashboard data
+    const { data: annualReviews, error: reviewError } = await getSupabase()
+      .from('annual_review_dashboard')
+      .select('*')
+      .eq('advisor_id', advisorId)
+      .order('computed_status', { ascending: true })
+      .order('client_name', { ascending: true });
+
+    if (reviewError) {
+      console.error('Error fetching annual reviews:', reviewError);
+      // Continue without annual reviews rather than failing completely
+    }
+
     // Group action items by type for easier frontend processing
     const groupedItems = {
       transcriptNeeded: actionItems.filter(item => item.action_type === 'transcript_needed'),
       emailPending: actionItems.filter(item => item.action_type === 'email_pending'),
-      adHocTasks: actionItems.filter(item => item.action_type === 'ad_hoc_task')
+      adHocTasks: actionItems.filter(item => item.action_type === 'ad_hoc_task'),
+      annualReviews: annualReviews || []
     };
 
     res.json(groupedItems);

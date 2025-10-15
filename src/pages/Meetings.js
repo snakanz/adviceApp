@@ -25,7 +25,8 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  CheckCircle2
+  CheckCircle2,
+  Star
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -1009,6 +1010,49 @@ export default function Meetings() {
     }
   };
 
+  // Toggle annual review flag for a meeting
+  const toggleAnnualReview = async (meetingId, currentValue) => {
+    try {
+      const token = localStorage.getItem('jwt');
+      const newValue = !currentValue;
+
+      const response = await fetch(`${API_URL}/api/calendar/meetings/${meetingId}/annual-review`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ isAnnualReview: newValue })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update annual review status');
+      }
+
+      // Update local state
+      const updatedMeetings = {
+        ...meetings,
+        past: meetings.past.map(m =>
+          m.id === meetingId ? { ...m, is_annual_review: newValue } : m
+        ),
+        future: meetings.future.map(m =>
+          m.id === meetingId ? { ...m, is_annual_review: newValue } : m
+        )
+      };
+      setMeetings(updatedMeetings);
+
+      setShowSnackbar(true);
+      setSnackbarMessage(newValue ? 'Meeting marked as Annual Review' : 'Annual Review flag removed');
+      setSnackbarSeverity('success');
+    } catch (error) {
+      console.error('Error toggling annual review:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage(error.message || 'Failed to update annual review status');
+      setSnackbarSeverity('error');
+    }
+  };
+
   const renderMeetingsTable = (meetings, title) => {
     return (
       <div className="space-y-4">
@@ -1245,17 +1289,25 @@ export default function Meetings() {
                     </div>
                   </div>
 
-                  {/* Source Badge */}
-                  <div className={cn(
-                    "px-1.5 py-0.5 rounded text-xs font-medium",
-                    getMeetingSource(meeting) === 'Google Calendar'
-                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                      : getMeetingSource(meeting) === 'Calendly'
-                      ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'
-                      : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-                  )}>
-                    {getMeetingSource(meeting) === 'Google Calendar' ? 'Google' :
-                     getMeetingSource(meeting) === 'Calendly' ? 'Calendly' : 'Manual'}
+                  {/* Source Badge and Annual Review */}
+                  <div className="flex items-center gap-1">
+                    <div className={cn(
+                      "px-1.5 py-0.5 rounded text-xs font-medium",
+                      getMeetingSource(meeting) === 'Google Calendar'
+                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                        : getMeetingSource(meeting) === 'Calendly'
+                        ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'
+                        : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+                    )}>
+                      {getMeetingSource(meeting) === 'Google Calendar' ? 'Google' :
+                       getMeetingSource(meeting) === 'Calendly' ? 'Calendly' : 'Manual'}
+                    </div>
+                    {meeting.is_annual_review && (
+                      <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 text-xs font-medium">
+                        <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                        <span>Annual</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1701,8 +1753,8 @@ export default function Meetings() {
                                     </div>
                                   )}
 
-                                  {/* Meeting Source Badge */}
-                                  <div className="flex items-center gap-1">
+                                  {/* Meeting Source Badge and Annual Review */}
+                                  <div className="flex items-center gap-1 flex-wrap">
                                     {source === 'Google Calendar' ? (
                                       <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs">
                                         <GoogleIcon className="w-3 h-3" />
@@ -1719,6 +1771,12 @@ export default function Meetings() {
                                       <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 text-gray-700 text-xs">
                                         <OutlookIcon className="w-3 h-3" />
                                         <span>Manual</span>
+                                      </div>
+                                    )}
+                                    {meeting.is_annual_review && (
+                                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-xs font-medium">
+                                        <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                                        <span>Annual Review</span>
                                       </div>
                                     )}
                                   </div>
@@ -1869,6 +1927,33 @@ export default function Meetings() {
                 </div>
               </div>
               <div className="flex items-center gap-1 ml-2">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={selectedMeeting.is_annual_review ? "default" : "ghost"}
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleAnnualReview(selectedMeeting.id, selectedMeeting.is_annual_review);
+                        }}
+                        className={cn(
+                          "h-8 w-8 p-0",
+                          selectedMeeting.is_annual_review && "bg-amber-500 hover:bg-amber-600 text-white"
+                        )}
+                        title={selectedMeeting.is_annual_review ? "Remove Annual Review flag" : "Mark as Annual Review"}
+                      >
+                        <Star className={cn(
+                          "w-4 h-4",
+                          selectedMeeting.is_annual_review && "fill-white"
+                        )} />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{selectedMeeting.is_annual_review ? "Remove Annual Review flag" : "Mark as Annual Review"}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <Button
                   variant="ghost"
                   size="sm"
