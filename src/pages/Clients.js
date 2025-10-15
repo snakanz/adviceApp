@@ -856,8 +856,8 @@ export default function Clients() {
               </div>
             </div>
 
-            {/* Panel Content */}
-            <div className="p-6 space-y-6">
+            {/* Panel Content - Scrollable */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {/* Client Info Cards */}
               <div className="grid grid-cols-2 gap-4">
                 <Card className="border-border/50">

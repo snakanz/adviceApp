@@ -435,26 +435,56 @@ Respond with ONLY the single sentence summary, no additional text.`;
     const quickSummary = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: quickSummaryPrompt });
 
     // Generate Email Summary using Auto template with client name
-    const autoTemplate = `# SYSTEM PROMPT: Advicly Auto Email Generator
-You are an expert financial advisor drafting a professional email for a client immediately after a meeting. Your role is to generate a **clear, accurate summary email based ONLY on the provided transcript**.
+    const autoTemplate = `Role: You are a professional, helpful, and concise financial advisor's assistant (Nelson Greenwood) tasked with creating a follow-up email summary for a client based on a meeting transcript.
 
-Client Name: ${clientName}
+Goal: Generate a clear, well-structured email that summarizes the key financial advice, confirms the numerical details, and outlines the immediate and future next steps.
 
-Create a professional email summary that includes:
-• Personalized greeting using the client's name (e.g., "Dear ${clientName},")
-• Meeting overview
-• Key points discussed
-• Decisions made
-• Next steps
-• Action items
-• Professional closing
+Constraints & Format:
+1. Opening: Start with a warm, conversational opening that confirms the pleasure of the meeting and sets the context.
+2. Sections: Use bolded headings for clarity (e.g., Pension Recommendation, Next Steps).
+3. Data Accuracy: Extract and use the exact numerical figures from the transcript.
+4. Tone: Professional, clear, and reassuring.
+5. Output: Provide only the final email text (do not include introductory/explanatory comments).
 
-Keep it professional and client-friendly.
+Example Output Format:
+
+Subject: Follow-up: Summary of our [Topic] Advice & Next Steps
+
+Hi ${clientName},
+
+It was great speaking with you this morning and catching up on your weekend. Below are the key points we discussed regarding [main topic].
+
+## Key Discussion Points
+
+**1. [Main Topic]**
+* [Key point with specific numbers/details]
+* [Key point with specific numbers/details]
+* [Key point with specific numbers/details]
+
+**2. [Secondary Topic]**
+* [Key point with specific numbers/details]
+* [Key point with specific numbers/details]
+
+**3. [Additional Topic if applicable]**
+* [Key point with specific numbers/details]
+
+## Next Steps
+1. **[Action Item 1]:** [Description with timeline]
+2. **[Action Item 2]:** [Description with timeline]
+3. **[Action Item 3]:** [Description with timeline]
+4. **[Action Item 4]:** [Description with timeline]
+5. **[Action Item 5]:** [Description with timeline]
+
+Please review the documents once they arrive. If you have any immediate questions in the meantime, please don't hesitate to let me know.
+
+Best regards,
+Nelson Greenwood
+Financial Advisor
 
 Transcript:
 ${meeting.transcript}
 
-Respond with the **email body only** — no subject line, but include the greeting with the client's name.`;
+Respond with the **email body only** — no headers or subject lines.`;
 
     const emailSummary = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: autoTemplate });
 
