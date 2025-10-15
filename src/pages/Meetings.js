@@ -302,6 +302,10 @@ export default function Meetings() {
   // Add import dialog state
   const [showImportDialog, setShowImportDialog] = useState(false);
 
+  // Add action items state
+  const [actionItems, setActionItems] = useState([]);
+  const [loadingActionItems, setLoadingActionItems] = useState(false);
+
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
   const selectedMeeting = React.useMemo(() => {
@@ -1070,6 +1074,79 @@ export default function Meetings() {
       setSnackbarSeverity('error');
     }
   };
+
+  // Fetch action items for a meeting
+  const fetchActionItems = async (meetingId) => {
+    if (!meetingId) return;
+
+    setLoadingActionItems(true);
+    try {
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/api/transcript-action-items/meetings/${meetingId}/action-items`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch action items');
+      }
+
+      const data = await response.json();
+      setActionItems(data.actionItems || []);
+    } catch (error) {
+      console.error('Error fetching action items:', error);
+      setActionItems([]);
+    } finally {
+      setLoadingActionItems(false);
+    }
+  };
+
+  // Toggle action item completion
+  const toggleActionItem = async (actionItemId) => {
+    try {
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/api/transcript-action-items/action-items/${actionItemId}/toggle`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle action item');
+      }
+
+      const data = await response.json();
+
+      // Update local state
+      setActionItems(prevItems =>
+        prevItems.map(item =>
+          item.id === actionItemId ? data.actionItem : item
+        )
+      );
+
+      setShowSnackbar(true);
+      setSnackbarMessage(data.actionItem.completed ? 'Action item completed' : 'Action item reopened');
+      setSnackbarSeverity('success');
+    } catch (error) {
+      console.error('Error toggling action item:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to update action item');
+      setSnackbarSeverity('error');
+    }
+  };
+
+  // Fetch action items when selected meeting changes
+  useEffect(() => {
+    if (selectedMeetingId) {
+      fetchActionItems(selectedMeetingId);
+    } else {
+      setActionItems([]);
+    }
+  }, [selectedMeetingId]);
 
   const renderMeetingsTable = (meetings, title) => {
     return (
@@ -2145,17 +2222,45 @@ export default function Meetings() {
                           ) : null}
                         </div>
 
-                        {/* Action Points Section */}
+                        {/* Action Points Section - Checkbox To-Do List */}
                         <div className="space-y-2">
                           <h3 className="text-sm font-semibold text-foreground">Action Points</h3>
-                          {selectedMeeting?.action_points ? (
+                          {loadingActionItems ? (
                             <Card>
                               <CardContent className="p-3">
-                                <div className="text-sm text-foreground whitespace-pre-wrap">
-                                  {selectedMeeting.action_points}
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
+                                  Loading action items...
                                 </div>
                               </CardContent>
                             </Card>
+                          ) : actionItems.length > 0 ? (
+                            <div className="space-y-2">
+                              {actionItems.map((item) => (
+                                <Card key={item.id} className="border-border/50">
+                                  <CardContent className="p-3">
+                                    <div className="flex items-start gap-3">
+                                      <input
+                                        type="checkbox"
+                                        checked={item.completed || false}
+                                        onChange={() => toggleActionItem(item.id)}
+                                        className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
+                                      />
+                                      <div className="flex-1">
+                                        <p className={`text-sm ${item.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                                          {item.action_text}
+                                        </p>
+                                        {item.completed_at && (
+                                          <p className="text-xs text-muted-foreground mt-1">
+                                            Completed: {new Date(item.completed_at).toLocaleDateString()}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </div>
                           ) : (
                             <Card>
                               <CardContent className="p-3">

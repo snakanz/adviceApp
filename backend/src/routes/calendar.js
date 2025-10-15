@@ -488,7 +488,7 @@ Respond with the **email body only** — no headers or subject lines.`;
 
     const emailSummary = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: autoTemplate });
 
-    // Generate action points
+    // Generate action points as structured JSON array
     const actionPointsPrompt = `Extract key action items from this meeting transcript that the user (financial advisor) needs to complete or follow up on.
 
 Focus on:
@@ -499,12 +499,36 @@ Focus on:
 • Research to conduct
 • Client requests to fulfill
 
-Format as a clean, scannable list. Be specific and actionable. If no clear action items exist, respond with "No specific action items identified."
+IMPORTANT: Respond with a JSON array of action items. Each item should be a simple string.
+Format: ["Action item 1", "Action item 2", "Action item 3"]
+
+If no clear action items exist, respond with an empty array: []
+
+Be specific and actionable. Keep each action item concise (1-2 sentences max).
 
 Transcript:
 ${meeting.transcript}`;
 
-    const actionPoints = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: actionPointsPrompt });
+    const actionPointsResponse = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: actionPointsPrompt });
+
+    // Parse action points JSON
+    let actionPointsArray = [];
+    let actionPoints = actionPointsResponse;
+    try {
+      // Try to parse as JSON array
+      const parsed = JSON.parse(actionPointsResponse.trim());
+      if (Array.isArray(parsed)) {
+        actionPointsArray = parsed;
+        actionPoints = parsed.join('\n• '); // Convert to bullet list for display
+        if (actionPoints) actionPoints = '• ' + actionPoints;
+      }
+    } catch (e) {
+      // If parsing fails, treat as plain text and try to extract bullet points
+      console.log('Action points not in JSON format, using plain text');
+      const lines = actionPointsResponse.split('\n').filter(line => line.trim());
+      actionPointsArray = lines.map(line => line.replace(/^[•\-\*]\s*/, '').trim()).filter(line => line);
+      actionPoints = actionPointsResponse;
+    }
 
     // Save summaries to database
     const { error: updateError } = await getSupabase()
@@ -525,10 +549,41 @@ ${meeting.transcript}`;
       return res.status(500).json({ error: 'Failed to save summaries' });
     }
 
+    // Save individual action items to transcript_action_items table
+    if (actionPointsArray.length > 0) {
+      // First, delete existing action items for this meeting
+      await getSupabase()
+        .from('transcript_action_items')
+        .delete()
+        .eq('meeting_id', meeting.id);
+
+      // Insert new action items
+      const actionItemsToInsert = actionPointsArray.map((actionText, index) => ({
+        meeting_id: meeting.id,
+        client_id: meeting.client_id,
+        advisor_id: userId,
+        action_text: actionText,
+        display_order: index,
+        completed: false
+      }));
+
+      const { error: actionItemsError } = await getSupabase()
+        .from('transcript_action_items')
+        .insert(actionItemsToInsert);
+
+      if (actionItemsError) {
+        console.error('Error saving action items:', actionItemsError);
+        // Don't fail the whole request, just log the error
+      } else {
+        console.log(`✅ Saved ${actionItemsArray.length} action items for meeting ${meeting.id}`);
+      }
+    }
+
     res.json({
       quickSummary,
       emailSummary,
       actionPoints,
+      actionItemsCount: actionPointsArray.length,
       templateId: 'auto-template',
       lastSummarizedAt: new Date().toISOString(),
       generated: true
