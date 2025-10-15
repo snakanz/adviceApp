@@ -720,6 +720,13 @@ export default function Meetings() {
       setCurrentSummaryTemplate(template);
       setSelectedTemplate(template);
 
+      // Refresh action items to show newly generated action points
+      // This ensures the action points section updates immediately
+      if (selectedMeetingId) {
+        await fetchActionItems(selectedMeetingId);
+        await fetchPendingActionItems(selectedMeetingId);
+      }
+
       if (data.generated) {
         setShowSnackbar(true);
         setSnackbarMessage('Summaries generated successfully');
@@ -832,6 +839,13 @@ export default function Meetings() {
       // Force a refresh from the database to ensure transcript is persisted
       // This prevents the transcript from disappearing on auto-refresh
       await fetchMeetings();
+
+      // Refresh action items to show newly generated action points
+      // This ensures the action points section updates without requiring panel close/reopen
+      if (selectedMeetingId) {
+        await fetchActionItems(selectedMeetingId);
+        await fetchPendingActionItems(selectedMeetingId);
+      }
 
       setShowSnackbar(true);
 
