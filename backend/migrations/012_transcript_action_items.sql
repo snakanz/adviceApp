@@ -5,7 +5,7 @@
 CREATE TABLE IF NOT EXISTS transcript_action_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
-    client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+    client_id UUID REFERENCES clients(id) ON DELETE CASCADE,
     advisor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     action_text TEXT NOT NULL,
     completed BOOLEAN DEFAULT FALSE,
