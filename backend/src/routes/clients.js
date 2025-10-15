@@ -1018,26 +1018,32 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
 
     console.log('📊 Business types processing results:', businessTypeResults);
 
-    // Log pipeline activity
-    const businessTypeSummary = businessTypeResults
-      .filter(r => r.status !== 'error')
-      .map(r => r.type)
-      .join(', ');
+    // Log pipeline activity (optional - don't fail if table doesn't exist)
+    try {
+      const businessTypeSummary = businessTypeResults
+        .filter(r => r.status !== 'error')
+        .map(r => r.type)
+        .join(', ');
 
-    await getSupabase()
-      .from('pipeline_activities')
-      .insert({
-        client_id: clientId,
-        advisor_id: advisorId,
-        activity_type: 'stage_change',
-        title: `Pipeline entry created - ${pipeline_stage}`,
-        description: `Pipeline entry created with stage: ${pipeline_stage}. Business types: ${businessTypeSummary}${pipeline_notes ? `. Notes: ${pipeline_notes}` : ''}`,
-        metadata: {
-          pipeline_stage,
-          business_types: businessTypeResults,
-          entry_type: 'pipeline_entry_creation'
-        }
-      });
+      await getSupabase()
+        .from('pipeline_activities')
+        .insert({
+          client_id: clientId,
+          advisor_id: advisorId,
+          activity_type: 'stage_change',
+          title: `Pipeline entry created - ${pipeline_stage}`,
+          description: `Pipeline entry created with stage: ${pipeline_stage}. Business types: ${businessTypeSummary}${pipeline_notes ? `. Notes: ${pipeline_notes}` : ''}`,
+          metadata: {
+            pipeline_stage,
+            business_types: businessTypeResults,
+            entry_type: 'pipeline_entry_creation'
+          }
+        });
+      console.log('✅ Pipeline activity logged successfully');
+    } catch (activityError) {
+      // Don't fail the whole operation if activity logging fails
+      console.warn('⚠️ Failed to log pipeline activity (table may not exist):', activityError.message);
+    }
 
     let createdMeeting = null;
 
@@ -1077,21 +1083,26 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
       } else {
         createdMeeting = newMeeting;
 
-        // Log meeting creation activity
-        await getSupabase()
-          .from('pipeline_activities')
-          .insert({
-            client_id: clientId,
-            advisor_id: advisorId,
-            activity_type: 'meeting',
-            title: `Meeting scheduled: ${meeting_title}`,
-            description: `Meeting scheduled for ${meetingDateTime.toLocaleDateString()} at ${meetingDateTime.toLocaleTimeString()}`,
-            metadata: {
-              meeting_id: newMeeting.id,
-              meeting_type,
-              created_with_pipeline_entry: true
-            }
-          });
+        // Log meeting creation activity (optional - don't fail if table doesn't exist)
+        try {
+          await getSupabase()
+            .from('pipeline_activities')
+            .insert({
+              client_id: clientId,
+              advisor_id: advisorId,
+              activity_type: 'meeting',
+              title: `Meeting scheduled: ${meeting_title}`,
+              description: `Meeting scheduled for ${meetingDateTime.toLocaleDateString()} at ${meetingDateTime.toLocaleTimeString()}`,
+              metadata: {
+                meeting_id: newMeeting.id,
+                meeting_type,
+                created_with_pipeline_entry: true
+              }
+            });
+          console.log('✅ Meeting activity logged successfully');
+        } catch (activityError) {
+          console.warn('⚠️ Failed to log meeting activity (table may not exist):', activityError.message);
+        }
       }
     }
 
@@ -1437,20 +1448,25 @@ router.post('/create', authenticateUser, async (req, res) => {
       // Don't fail the whole operation, but log the error
     }
 
-    // Create pipeline activity
-    await getSupabase()
-      .from('pipeline_activities')
-      .insert({
-        client_id: newClient.id,
-        advisor_id: advisorId,
-        activity_type: 'note',
-        title: 'Client created',
-        description: `New client created with pipeline stage: ${pipeline_stage}`,
-        metadata: {
-          source: 'client_creation',
-          business_types: business_types.map(bt => bt.business_type)
-        }
-      });
+    // Create pipeline activity (optional - don't fail if table doesn't exist)
+    try {
+      await getSupabase()
+        .from('pipeline_activities')
+        .insert({
+          client_id: newClient.id,
+          advisor_id: advisorId,
+          activity_type: 'note',
+          title: 'Client created',
+          description: `New client created with pipeline stage: ${pipeline_stage}`,
+          metadata: {
+            source: 'client_creation',
+            business_types: business_types.map(bt => bt.business_type)
+          }
+        });
+      console.log('✅ Client creation activity logged successfully');
+    } catch (activityError) {
+      console.warn('⚠️ Failed to log client creation activity (table may not exist):', activityError.message);
+    }
 
     res.json({
       message: 'Client created successfully',
