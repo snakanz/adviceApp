@@ -5,9 +5,37 @@ const jwt = require('jsonwebtoken');
 const { google } = require('googleapis');
 const { supabase, isSupabaseAvailable, getSupabase } = require('./lib/supabase');
 const CalendlyService = require('./services/calendlyService');
-const clientsRouter = require('./routes/clients');
-const pipelineRouter = require('./routes/pipeline');
-const actionItemsRouter = require('./routes/actionItems');
+
+// Load route modules with error handling to identify problematic routes
+let clientsRouter, pipelineRouter, actionItemsRouter;
+
+try {
+  console.log('Loading clients router...');
+  clientsRouter = require('./routes/clients');
+  console.log('✅ Clients router loaded');
+} catch (error) {
+  console.error('❌ Error loading clients router:', error.message);
+  throw error;
+}
+
+try {
+  console.log('Loading pipeline router...');
+  pipelineRouter = require('./routes/pipeline');
+  console.log('✅ Pipeline router loaded');
+} catch (error) {
+  console.error('❌ Error loading pipeline router:', error.message);
+  throw error;
+}
+
+try {
+  console.log('Loading actionItems router...');
+  actionItemsRouter = require('./routes/actionItems');
+  console.log('✅ ActionItems router loaded');
+} catch (error) {
+  console.error('❌ Error loading actionItems router:', error.message);
+  throw error;
+}
+
 // DISABLED: Not using routes/index.js anymore - routes are mounted directly
 // const routes = require('./routes/index');
 
