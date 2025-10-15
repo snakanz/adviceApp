@@ -59,6 +59,8 @@ export default function Clients() {
   const [creatingClient, setCreatingClient] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [generatingSummary, setGeneratingSummary] = useState(false);
+  const [clientActionItems, setClientActionItems] = useState([]);
+  const [loadingActionItems, setLoadingActionItems] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -112,6 +114,34 @@ export default function Clients() {
     return meeting.transcript &&
            meeting.quick_summary &&
            meeting.email_summary_draft;
+  };
+
+  // Fetch action items for a client
+  const fetchClientActionItems = async (clientId) => {
+    if (!clientId) return;
+
+    setLoadingActionItems(true);
+    try {
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com'}/api/transcript-action-items/clients/${clientId}/action-items`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch action items');
+      }
+
+      const data = await response.json();
+      setClientActionItems(data.meetings || []);
+    } catch (error) {
+      console.error('Error fetching client action items:', error);
+      setClientActionItems([]);
+    } finally {
+      setLoadingActionItems(false);
+    }
   };
 
   // Extract clients from meeting attendees
@@ -180,6 +210,15 @@ export default function Clients() {
       }
     }
   }, [searchParams, clients]);
+
+  // Fetch action items when client is selected
+  useEffect(() => {
+    if (selectedClient?.id) {
+      fetchClientActionItems(selectedClient.id);
+    } else {
+      setClientActionItems([]);
+    }
+  }, [selectedClient?.id]);
 
   // Sorting function
   const handleSort = (key) => {
@@ -1101,39 +1140,80 @@ export default function Clients() {
                   <div className="space-y-3">
                     {selectedClient.meetings
                       .sort((a, b) => new Date(b.starttime) - new Date(a.starttime))
-                      .map(meeting => (
-                        <Card key={meeting.id} className="border-border/50">
-                          <CardContent className="p-4">
-                            <div className="flex items-start justify-between mb-2">
-                              <h4
-                                className="font-medium text-foreground cursor-pointer hover:text-primary"
-                                onClick={() => navigateToMeeting(meeting.googleeventid || meeting.id)}
-                              >
-                                {meeting.title}
-                              </h4>
-                              <div className="flex items-center gap-2">
-                                {isMeetingComplete(meeting) && (
-                                  <div className="flex items-center gap-1 text-blue-600">
-                                    <CheckCircle2 className="w-3 h-3" />
-                                    <span className="text-xs">Complete</span>
+                      .map(meeting => {
+                        // Find action items for this meeting
+                        const meetingActionItems = clientActionItems.find(m => m.meetingId === meeting.id);
+                        const pendingItems = meetingActionItems?.actionItems.filter(item => !item.completed) || [];
+                        const completedItems = meetingActionItems?.actionItems.filter(item => item.completed) || [];
+
+                        return (
+                          <Card key={meeting.id} className="border-border/50">
+                            <CardContent className="p-4">
+                              <div className="flex items-start justify-between mb-2">
+                                <h4
+                                  className="font-medium text-foreground cursor-pointer hover:text-primary"
+                                  onClick={() => navigateToMeeting(meeting.googleeventid || meeting.id)}
+                                >
+                                  {meeting.title}
+                                </h4>
+                                <div className="flex items-center gap-2">
+                                  {isMeetingComplete(meeting) && (
+                                    <div className="flex items-center gap-1 text-blue-600">
+                                      <CheckCircle2 className="w-3 h-3" />
+                                      <span className="text-xs">Complete</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="text-xs text-muted-foreground mb-2">
+                                {formatDate(meeting.starttime)} • {new Date(meeting.starttime).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </div>
+                              {meeting.quick_summary && (
+                                <div className="text-sm text-foreground mb-3">
+                                  {meeting.quick_summary}
+                                </div>
+                              )}
+
+                              {/* Action Items Summary */}
+                              {meetingActionItems && meetingActionItems.actionItems.length > 0 && (
+                                <div className="mt-3 pt-3 border-t border-border/50">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-xs font-medium text-muted-foreground">Action Items</span>
+                                    <div className="flex items-center gap-2 text-xs">
+                                      {pendingItems.length > 0 && (
+                                        <span className="text-orange-600 font-medium">
+                                          {pendingItems.length} pending
+                                        </span>
+                                      )}
+                                      {completedItems.length > 0 && (
+                                        <span className="text-green-600">
+                                          {completedItems.length} completed
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
-                                )}
-                              </div>
-                            </div>
-                            <div className="text-xs text-muted-foreground mb-2">
-                              {formatDate(meeting.starttime)} • {new Date(meeting.starttime).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </div>
-                            {meeting.quick_summary && (
-                              <div className="text-sm text-foreground">
-                                {meeting.quick_summary}
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      ))
+                                  <div className="space-y-1">
+                                    {pendingItems.slice(0, 3).map((item, idx) => (
+                                      <div key={idx} className="text-xs text-foreground flex items-start gap-2">
+                                        <span className="text-orange-600 mt-0.5">•</span>
+                                        <span className="flex-1">{item.actionText}</span>
+                                      </div>
+                                    ))}
+                                    {pendingItems.length > 3 && (
+                                      <div className="text-xs text-muted-foreground italic">
+                                        +{pendingItems.length - 3} more action items
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        );
+                      })
                     }
                   </div>
                 ) : (
