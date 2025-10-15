@@ -1230,9 +1230,13 @@ app.use('/api/action-items', actionItemsRouter);
 app.use('/api/transcript-action-items', require('./routes/transcriptActionItems'));
 app.use('/api/calendar', require('./routes/calendar'));
 app.use('/api/notifications', require('./routes/notifications'));
-console.log('🔄 Mounting main routes at /api...');
-app.use('/api', routes);
-console.log('✅ Main routes mounted at /api');
+console.log('✅ All API routes mounted');
+
+// DISABLED: Routes are already mounted directly above
+// This was causing duplicate route mounting and potential conflicts
+// console.log('🔄 Mounting main routes at /api...');
+// app.use('/api', routes);
+// console.log('✅ Main routes mounted at /api');
 
 const port = process.env.PORT || 8787;
 app.listen(port, () => {
