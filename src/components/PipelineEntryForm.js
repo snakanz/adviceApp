@@ -12,6 +12,7 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
     iaf_expected: '',
     contribution_method: '',
     regular_contribution_amount: '',
+    expected_close_date: '',
     notes: ''
   });
 
@@ -282,39 +283,53 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
                   {/* Financial Information - Conditional based on Contribution Method */}
                   {businessType.contribution_method === 'Regular Monthly Contribution' ? (
                     // For Regular Monthly Contribution: Show ONLY Regular Contribution Amount and IAF Expected
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Regular Contribution Amount (£)</label>
-                        <Input
-                          type="number"
-                          value={businessType.regular_contribution_amount}
-                          onChange={(e) => handleBusinessTypeChange(index, 'regular_contribution_amount', e.target.value)}
-                          placeholder="e.g., 3000"
-                          min="0"
-                          step="0.01"
-                          className={errors[`business_type_${index}_contribution`] ? "border-red-500" : ""}
-                        />
-                        {errors[`business_type_${index}_contribution`] && (
-                          <p className="text-red-500 text-xs mt-1">{errors[`business_type_${index}_contribution`]}</p>
-                        )}
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-2">Regular Contribution Amount (£)</label>
+                          <Input
+                            type="number"
+                            value={businessType.regular_contribution_amount}
+                            onChange={(e) => handleBusinessTypeChange(index, 'regular_contribution_amount', e.target.value)}
+                            placeholder="e.g., 3000"
+                            min="0"
+                            step="0.01"
+                            className={errors[`business_type_${index}_contribution`] ? "border-red-500" : ""}
+                          />
+                          {errors[`business_type_${index}_contribution`] && (
+                            <p className="text-red-500 text-xs mt-1">{errors[`business_type_${index}_contribution`]}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium mb-2">IAF Expected (£)</label>
+                          <Input
+                            type="number"
+                            value={businessType.iaf_expected}
+                            onChange={(e) => handleBusinessTypeChange(index, 'iaf_expected', e.target.value)}
+                            placeholder="Enter expected IAF"
+                            min="0"
+                            step="0.01"
+                            className={errors[`business_type_${index}_iaf`] ? "border-red-500" : ""}
+                          />
+                          {errors[`business_type_${index}_iaf`] && (
+                            <p className="text-red-500 text-xs mt-1">{errors[`business_type_${index}_iaf`]}</p>
+                          )}
+                        </div>
                       </div>
 
+                      {/* Expected Close Date */}
                       <div>
-                        <label className="block text-sm font-medium mb-2">IAF Expected (£)</label>
+                        <label className="block text-sm font-medium mb-2">Expected Close Date</label>
                         <Input
-                          type="number"
-                          value={businessType.iaf_expected}
-                          onChange={(e) => handleBusinessTypeChange(index, 'iaf_expected', e.target.value)}
-                          placeholder="Enter expected IAF"
-                          min="0"
-                          step="0.01"
-                          className={errors[`business_type_${index}_iaf`] ? "border-red-500" : ""}
+                          type="date"
+                          value={businessType.expected_close_date}
+                          onChange={(e) => handleBusinessTypeChange(index, 'expected_close_date', e.target.value)}
+                          className="w-full"
                         />
-                        {errors[`business_type_${index}_iaf`] && (
-                          <p className="text-red-500 text-xs mt-1">{errors[`business_type_${index}_iaf`]}</p>
-                        )}
                       </div>
-                    </div>
+                    </>
+                  )
                   ) : (
                     // For other methods: Show Business Amount and IAF Expected
                     <>
@@ -370,6 +385,17 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
                           )}
                         </div>
                       )}
+
+                      {/* Expected Close Date */}
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Expected Close Date</label>
+                        <Input
+                          type="date"
+                          value={businessType.expected_close_date}
+                          onChange={(e) => handleBusinessTypeChange(index, 'expected_close_date', e.target.value)}
+                          className="w-full"
+                        />
+                      </div>
                     </>
                   )}
 
