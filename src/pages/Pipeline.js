@@ -292,11 +292,15 @@ export default function Pipeline() {
       const businessTypes = await api.request(`/clients/${selectedClient.id}/business-types`);
       setClientBusinessTypes(businessTypes || []);
       setShowEditPipelineModal(true);
+      // FIX ISSUE 3: Hide the detail panel when opening the modal to prevent old "Add Pipeline" screen appearing behind
+      setShowDetailPanel(false);
     } catch (error) {
       console.error('Error loading business types:', error);
       // Show modal anyway with empty business types
       setClientBusinessTypes([]);
       setShowEditPipelineModal(true);
+      // FIX ISSUE 3: Hide the detail panel even on error
+      setShowDetailPanel(false);
     }
   };
 
@@ -311,12 +315,47 @@ export default function Pipeline() {
         body: JSON.stringify({ businessTypes })
       });
 
-      // Refresh pipeline data to show updated information
+      // FIX ISSUE 1 & 2: Refresh pipeline data to show updated information with correct month and amounts
       await fetchPipelineData();
 
       // Close modal
       setShowEditPipelineModal(false);
       setClientBusinessTypes([]);
+
+      // FIX ISSUE 1 & 2: Update selected client with fresh data from the refreshed clients list
+      // This ensures the detail panel shows updated business amounts and expected close dates
+      const updatedClientData = await api.request(`/clients/${selectedClient.id}`);
+      if (updatedClientData) {
+        // Transform to match pipeline format
+        const businessTypesData = updatedClientData.business_types_data || [];
+        const businessTypeDates = businessTypesData
+          .filter(bt => bt.expected_close_date)
+          .map(bt => new Date(bt.expected_close_date))
+          .sort((a, b) => a - b);
+
+        let expectedMonth = null;
+        if (businessTypeDates.length > 0) {
+          const earliestDate = businessTypeDates[0];
+          expectedMonth = `${earliestDate.getFullYear()}-${String(earliestDate.getMonth() + 1).padStart(2, '0')}`;
+        } else if (updatedClientData.likely_close_month) {
+          const dateStr = updatedClientData.likely_close_month.includes('-') && updatedClientData.likely_close_month.split('-').length === 3
+            ? updatedClientData.likely_close_month
+            : `${updatedClientData.likely_close_month}-01`;
+          const date = new Date(dateStr);
+          expectedMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        }
+
+        setSelectedClient({
+          ...selectedClient,
+          businessTypes: updatedClientData.business_types || [],
+          businessTypesData: businessTypesData,
+          totalBusinessAmount: parseFloat(updatedClientData.business_amount || 0),
+          totalIafExpected: parseFloat(updatedClientData.iaf_expected || updatedClientData.likely_value || 0),
+          expectedValue: parseFloat(updatedClientData.iaf_expected || updatedClientData.likely_value || 0),
+          expectedMonth: expectedMonth,
+          contributionMethods: updatedClientData.contribution_methods || ''
+        });
+      }
 
       // Regenerate pipeline summary after update
       if (selectedClient) {
@@ -371,8 +410,10 @@ export default function Pipeline() {
     const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     return clients.filter(client => {
-      // Skip clients without pipeline stage (not in pipeline)
-      if (!client.businessStage || client.businessStage === 'Need to Book Meeting') {
+      // FIX ISSUE 1: Show clients with business types even if no pipeline stage is set
+      // Only skip clients that have NO business types AND no pipeline stage
+      const hasBusinessTypes = client.businessTypes && client.businessTypes.length > 0;
+      if (!hasBusinessTypes && (!client.businessStage || client.businessStage === 'Need to Book Meeting')) {
         return false;
       }
 
@@ -397,6 +438,10 @@ export default function Pipeline() {
 
     // Show clients that match the selected month
     return clients.filter(client => {
+      // FIX ISSUE 1: Show clients with business types even if no pipeline stage is set
+      // Only skip clients that have NO business types AND no expected month
+      const hasBusinessTypes = client.businessTypes && client.businessTypes.length > 0;
+
       // Skip clients with no expected month (they go in overdue section)
       if (!client.expectedMonth) {
         return false;
@@ -655,8 +700,19 @@ export default function Pipeline() {
                                 </div>
                               )}
                             </div>
-                            <div className="text-sm font-semibold text-foreground min-w-[80px] text-right">
-                              {formatCurrency(client.expectedValue || 0)}
+                            <div className="text-sm font-semibold text-foreground min-w-[100px] text-right">
+                              {/* FIX ISSUE 2: Show Total Business Amount in overdue section */}
+                              {client.totalBusinessAmount > 0 && (
+                                <div className="text-sm font-bold">
+                                  {formatCurrency(client.totalBusinessAmount)}
+                                </div>
+                              )}
+                              <div className={cn(
+                                client.totalBusinessAmount > 0 ? "text-xs text-muted-foreground" : "text-sm font-bold"
+                              )}>
+                                {formatCurrency(client.expectedValue || 0)}
+                                {client.totalBusinessAmount > 0 && <span className="ml-1">IAF</span>}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -808,12 +864,24 @@ export default function Pipeline() {
                   {/* Expected Value - Enhanced with Business Type Breakdown */}
                   <div className="col-span-2 flex items-center gap-2">
                     <div className="flex-1">
-                      <div className="text-sm font-bold text-foreground mb-0.5">
+                      {/* FIX ISSUE 2: Show Total Business Amount prominently */}
+                      {client.totalBusinessAmount > 0 && (
+                        <div className="text-sm font-bold text-foreground mb-0.5">
+                          {formatCurrency(client.totalBusinessAmount)}
+                          <span className="text-xs text-muted-foreground font-normal ml-1">Business</span>
+                        </div>
+                      )}
+                      {/* Show IAF Expected */}
+                      <div className={cn(
+                        "text-sm font-bold text-foreground",
+                        client.totalBusinessAmount > 0 ? "text-xs text-muted-foreground font-normal" : "mb-0.5"
+                      )}>
                         {formatCurrency(client.expectedValue)}
+                        {client.totalBusinessAmount > 0 && <span className="ml-1">IAF</span>}
                       </div>
                       {/* Show breakdown if multiple business types */}
                       {client.businessTypesData && client.businessTypesData.length > 1 && (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 mt-1">
                           <Badge variant="outline" className="text-xs px-1.5 py-0 h-4">
                             {client.businessTypesData.length} types
                           </Badge>
@@ -825,7 +893,7 @@ export default function Pipeline() {
                           {client.businessTypesData.slice(0, 2).map((bt, idx) => (
                             <div key={idx} className="flex items-center gap-1">
                               <span className="font-medium">{bt.business_type}:</span>
-                              <span>{formatCurrency(parseFloat(bt.iaf_expected || 0))}</span>
+                              <span>{formatCurrency(parseFloat(bt.business_amount || 0))} / {formatCurrency(parseFloat(bt.iaf_expected || 0))} IAF</span>
                             </div>
                           ))}
                           {client.businessTypesData.length > 2 && (
