@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
 import { Textarea } from './ui/textarea';
-import { Plus, Trash2, AlertCircle, XCircle, CheckCircle } from 'lucide-react';
+import { Plus, Trash2, AlertCircle, XCircle } from 'lucide-react';
 import { api } from '../services/api';
 
 
