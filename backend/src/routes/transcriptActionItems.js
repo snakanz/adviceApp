@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getSupabase, isSupabaseAvailable } = require('../config/supabase');
+const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 const { authenticateToken } = require('../middleware/auth');
 
 // Get action items for a specific meeting
