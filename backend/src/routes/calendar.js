@@ -435,47 +435,32 @@ Respond with ONLY the single sentence summary, no additional text.`;
     const quickSummary = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: quickSummaryPrompt });
 
     // Generate Email Summary using Auto template with client name
-    const autoTemplate = `Role: You are a professional, helpful, and concise financial advisor's assistant (Nelson Greenwood) tasked with creating a follow-up email summary for a client based on a meeting transcript.
+    const autoTemplate = `Role: You are Nelson Greenwood, a professional financial advisor creating a concise follow-up email for a client.
 
-Goal: Generate a clear, well-structured email that summarizes the key financial advice, confirms the numerical details, and outlines the immediate and future next steps.
+Goal: Generate a brief, clean email (NO markdown formatting) that summarizes the meeting and confirms next steps.
 
-Constraints & Format:
-1. Opening: Start with a warm, conversational opening that confirms the pleasure of the meeting and sets the context.
-2. Sections: Use bolded headings for clarity (e.g., Pension Recommendation, Next Steps).
-3. Data Accuracy: Extract and use the exact numerical figures from the transcript.
-4. Tone: Professional, clear, and reassuring.
-5. Output: Provide only the final email text (do not include introductory/explanatory comments).
+Constraints:
+1. NO markdown symbols (no **, ##, *, or bullet points)
+2. Keep it SHORT - maximum 200 words total
+3. Use plain text with simple numbered lists
+4. Professional but warm tone
+5. Include specific numbers/dates from the transcript
+6. Focus on what matters most to the client
 
-Example Output Format:
-
-Subject: Follow-up: Summary of our [Topic] Advice & Next Steps
+Format:
 
 Hi ${clientName},
 
-It was great speaking with you this morning and catching up on your weekend. Below are the key points we discussed regarding [main topic].
+[One sentence: pleasure meeting + main topic discussed]
 
-## Key Discussion Points
+[2-3 short paragraphs covering the key points with specific numbers/details]
 
-**1. [Main Topic]**
-* [Key point with specific numbers/details]
-* [Key point with specific numbers/details]
-* [Key point with specific numbers/details]
+Next Steps:
+1. [Action item with timeline]
+2. [Action item with timeline]
+3. [Action item with timeline]
 
-**2. [Secondary Topic]**
-* [Key point with specific numbers/details]
-* [Key point with specific numbers/details]
-
-**3. [Additional Topic if applicable]**
-* [Key point with specific numbers/details]
-
-## Next Steps
-1. **[Action Item 1]:** [Description with timeline]
-2. **[Action Item 2]:** [Description with timeline]
-3. **[Action Item 3]:** [Description with timeline]
-4. **[Action Item 4]:** [Description with timeline]
-5. **[Action Item 5]:** [Description with timeline]
-
-Please review the documents once they arrive. If you have any immediate questions in the meantime, please don't hesitate to let me know.
+[One sentence: invitation to ask questions]
 
 Best regards,
 Nelson Greenwood
@@ -484,27 +469,30 @@ Financial Advisor
 Transcript:
 ${meeting.transcript}
 
-Respond with the **email body only** — no headers or subject lines.`;
+Respond with the email body only - no subject line, no markdown formatting.`;
 
     const emailSummary = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: autoTemplate });
 
     // Generate action points as structured JSON array
-    const actionPointsPrompt = `Extract key action items from this meeting transcript that the user (financial advisor) needs to complete or follow up on.
+    const actionPointsPrompt = `Extract concrete action items from this meeting transcript.
 
-Focus on:
-• Tasks the advisor committed to doing
-• Follow-up actions required
-• Documents to prepare or send
-• Meetings to schedule
-• Research to conduct
-• Client requests to fulfill
+ONLY include items that are:
+- Specific, actionable tasks with clear deliverables
+- Client-facing actions (things the client or advisor must DO, not discuss)
+- Follow-up meetings to schedule
+- Documents to send, sign, or complete
+- Account setups or administrative tasks
 
-IMPORTANT: Respond with a JSON array of action items. Each item should be a simple string.
-Format: ["Action item 1", "Action item 2", "Action item 3"]
+DO NOT include:
+- Advisor preparation work (e.g., "Research...", "Prepare information...")
+- Discussion topics (e.g., "Discuss...", "Review options...")
+- General notes or meeting agenda items
+- Vague or exploratory items
 
-If no clear action items exist, respond with an empty array: []
+Format: Return a JSON array of strings, each being one clear action item.
+Example: ["Schedule follow-up meeting with client after budget announcement", "Complete internal BA check and send written advice documents", "Set up client's online wealth account logins"]
 
-Be specific and actionable. Keep each action item concise (1-2 sentences max).
+Limit to the 5-7 most important action items only.
 
 Transcript:
 ${meeting.transcript}`;
