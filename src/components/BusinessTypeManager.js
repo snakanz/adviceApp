@@ -5,7 +5,9 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
-import { Plus, Trash2, AlertCircle } from 'lucide-react';
+import { Textarea } from './ui/textarea';
+import { Plus, Trash2, AlertCircle, XCircle, CheckCircle } from 'lucide-react';
+import { api } from '../services/api';
 
 
 const BUSINESS_TYPES = [
@@ -23,15 +25,19 @@ const CONTRIBUTION_METHODS = [
   'Lump Sum'
 ];
 
-export default function BusinessTypeManager({ 
-  clientId, 
-  initialBusinessTypes = [], 
-  onSave, 
+export default function BusinessTypeManager({
+  clientId,
+  initialBusinessTypes = [],
+  onSave,
   onCancel,
-  saving = false 
+  saving = false
 }) {
   const [businessTypes, setBusinessTypes] = useState([]);
   const [error, setError] = useState('');
+  const [markingNotProceeding, setMarkingNotProceeding] = useState(null); // ID of business type being marked
+  const [notProceedingReason, setNotProceedingReason] = useState('');
+  const [showNotProceedingDialog, setShowNotProceedingDialog] = useState(false);
+  const [selectedBusinessTypeId, setSelectedBusinessTypeId] = useState(null);
 
   useEffect(() => {
     if (initialBusinessTypes.length > 0) {
@@ -72,11 +78,43 @@ export default function BusinessTypeManager({
     setBusinessTypes(updated);
   };
 
+  const handleMarkAsNotProceeding = (businessTypeId) => {
+    setSelectedBusinessTypeId(businessTypeId);
+    setNotProceedingReason('');
+    setShowNotProceedingDialog(true);
+  };
+
+  const handleConfirmNotProceeding = async () => {
+    if (!selectedBusinessTypeId) return;
+
+    setMarkingNotProceeding(selectedBusinessTypeId);
+    try {
+      await api.request(`/clients/business-types/${selectedBusinessTypeId}/not-proceeding`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          not_proceeding: true,
+          not_proceeding_reason: notProceedingReason
+        })
+      });
+
+      // Remove the business type from the list (it will be filtered out on refresh)
+      setBusinessTypes(businessTypes.filter(bt => bt.id !== selectedBusinessTypeId));
+      setShowNotProceedingDialog(false);
+      setSelectedBusinessTypeId(null);
+      setNotProceedingReason('');
+    } catch (error) {
+      console.error('Error marking business type as not proceeding:', error);
+      setError('Failed to mark business type as not proceeding. Please try again.');
+    } finally {
+      setMarkingNotProceeding(null);
+    }
+  };
+
   const handleSave = () => {
     setError('');
-    
+
     // Validate that at least one business type is properly filled
-    const validBusinessTypes = businessTypes.filter(bt => 
+    const validBusinessTypes = businessTypes.filter(bt =>
       bt.business_type && bt.business_type.trim() !== ''
     );
 
@@ -87,7 +125,7 @@ export default function BusinessTypeManager({
 
     // Validate contribution methods for regular contributions
     for (const bt of validBusinessTypes) {
-      if (bt.contribution_method === 'Regular Monthly Contribution' && 
+      if (bt.contribution_method === 'Regular Monthly Contribution' &&
           (!bt.regular_contribution_amount || bt.regular_contribution_amount.trim() === '')) {
         setError('Please specify the regular contribution amount for all Regular Monthly Contribution entries.');
         return;
@@ -128,17 +166,33 @@ export default function BusinessTypeManager({
                 <CardTitle className="text-base">
                   Business Type {index + 1}
                 </CardTitle>
-                {businessTypes.length > 1 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeBusinessType(index)}
-                    className="text-destructive hover:text-destructive"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  {/* Mark as Not Proceeding button - only show for existing business types */}
+                  {businessType.id && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleMarkAsNotProceeding(businessType.id)}
+                      className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 border-orange-300"
+                      title="Mark this business opportunity as not proceeding"
+                    >
+                      <XCircle className="w-4 h-4 mr-1" />
+                      Not Proceeding
+                    </Button>
+                  )}
+                  {businessTypes.length > 1 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeBusinessType(index)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -258,6 +312,60 @@ export default function BusinessTypeManager({
           {saving ? 'Saving...' : 'Save Business Types'}
         </Button>
       </div>
+
+      {/* Not Proceeding Confirmation Dialog */}
+      {showNotProceedingDialog && (
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4">
+          <div className="bg-background rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="flex-shrink-0 w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                <XCircle className="w-6 h-6 text-orange-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-foreground mb-1">
+                  Mark as Not Proceeding
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  This business opportunity will be removed from the pipeline view. You can optionally provide a reason.
+                </p>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <Label htmlFor="not_proceeding_reason">Reason (Optional)</Label>
+              <Textarea
+                id="not_proceeding_reason"
+                value={notProceedingReason}
+                onChange={(e) => setNotProceedingReason(e.target.value)}
+                placeholder="e.g., Client decided not to proceed, went with another advisor, deal fell through..."
+                rows={3}
+                className="mt-1"
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowNotProceedingDialog(false);
+                  setSelectedBusinessTypeId(null);
+                  setNotProceedingReason('');
+                }}
+                disabled={markingNotProceeding}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmNotProceeding}
+                disabled={markingNotProceeding}
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+              >
+                {markingNotProceeding ? 'Marking...' : 'Mark as Not Proceeding'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

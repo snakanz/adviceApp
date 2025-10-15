@@ -68,11 +68,12 @@ router.get('/', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch clients' });
     }
 
-    // Get business types for all clients
+    // Get business types for all clients (exclude not proceeding by default)
     const { data: allBusinessTypes, error: businessTypesError } = await getSupabase()
       .from('client_business_types')
       .select('*')
-      .in('client_id', clients.map(c => c.id));
+      .in('client_id', clients.map(c => c.id))
+      .or('not_proceeding.is.null,not_proceeding.eq.false');
 
     if (businessTypesError) {
       console.error('Error fetching business types:', businessTypesError);
@@ -1226,6 +1227,85 @@ router.put('/:clientId/business-types', authenticateUser, async (req, res) => {
     }
   } catch (error) {
     console.error('Error in update client business types:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Mark a business type as not proceeding
+router.patch('/business-types/:businessTypeId/not-proceeding', authenticateUser, async (req, res) => {
+  const auth = req.headers.authorization;
+  if (!auth) return res.status(401).json({ error: 'No authorization header' });
+
+  try {
+    const token = auth.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const advisorId = decoded.id;
+    const businessTypeId = req.params.businessTypeId;
+    const { not_proceeding, not_proceeding_reason } = req.body;
+
+    console.log('🔄 Marking business type as not proceeding:', {
+      businessTypeId,
+      not_proceeding,
+      reason: not_proceeding_reason
+    });
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    // Verify business type exists and belongs to advisor's client
+    const { data: businessType, error: fetchError } = await getSupabase()
+      .from('client_business_types')
+      .select(`
+        *,
+        client:clients!inner(
+          id,
+          advisor_id
+        )
+      `)
+      .eq('id', businessTypeId)
+      .single();
+
+    if (fetchError || !businessType) {
+      console.error('❌ Business type not found:', fetchError);
+      return res.status(404).json({ error: 'Business type not found' });
+    }
+
+    if (businessType.client.advisor_id !== advisorId) {
+      console.error('❌ Unauthorized access attempt');
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // Update not_proceeding status
+    const updateData = {
+      not_proceeding: not_proceeding === true,
+      not_proceeding_reason: not_proceeding_reason || null,
+      not_proceeding_date: not_proceeding === true ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: updatedBusinessType, error: updateError } = await getSupabase()
+      .from('client_business_types')
+      .update(updateData)
+      .eq('id', businessTypeId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('❌ Error updating business type:', updateError);
+      return res.status(500).json({ error: 'Failed to update business type' });
+    }
+
+    console.log('✅ Business type updated successfully:', updatedBusinessType.id);
+
+    res.json({
+      message: not_proceeding ? 'Business type marked as not proceeding' : 'Business type marked as proceeding',
+      businessType: updatedBusinessType
+    });
+  } catch (error) {
+    console.error('Error in mark business type as not proceeding:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

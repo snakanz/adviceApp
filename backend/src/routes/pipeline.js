@@ -49,10 +49,12 @@ router.get('/', async (req, res) => {
     }
 
     // Get business types for all clients (SINGLE SOURCE OF TRUTH)
+    // Exclude not proceeding items from pipeline view by default
     const { data: allBusinessTypes, error: businessTypesError } = await getSupabase()
       .from('client_business_types')
       .select('*')
-      .in('client_id', clients.map(c => c.id));
+      .in('client_id', clients.map(c => c.id))
+      .or('not_proceeding.is.null,not_proceeding.eq.false');
 
     if (businessTypesError) {
       console.error('Error fetching business types:', businessTypesError);

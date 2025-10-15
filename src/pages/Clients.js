@@ -1017,13 +1017,18 @@ export default function Clients() {
                 {selectedClient.business_types_data && selectedClient.business_types_data.length > 0 ? (
                   <div className="space-y-3">
                     {selectedClient.business_types_data.map((bt, idx) => (
-                      <Card key={idx} className="border-border/50">
+                      <Card key={idx} className={`border-border/50 ${bt.not_proceeding ? 'bg-gray-50 opacity-75' : ''}`}>
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between mb-2">
                             <div className="flex items-center gap-2">
                               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                                 {bt.business_type}
                               </span>
+                              {bt.not_proceeding && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-300">
+                                  Not Proceeding
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-3 text-sm">
@@ -1055,6 +1060,20 @@ export default function Clients() {
                               <div className="col-span-2">
                                 <span className="text-muted-foreground">Notes:</span>
                                 <div className="text-sm mt-1">{bt.notes}</div>
+                              </div>
+                            )}
+                            {bt.not_proceeding && bt.not_proceeding_reason && (
+                              <div className="col-span-2">
+                                <span className="text-muted-foreground">Not Proceeding Reason:</span>
+                                <div className="text-sm mt-1 text-orange-700">{bt.not_proceeding_reason}</div>
+                              </div>
+                            )}
+                            {bt.not_proceeding && bt.not_proceeding_date && (
+                              <div className="col-span-2">
+                                <span className="text-muted-foreground">Marked Not Proceeding:</span>
+                                <div className="text-sm mt-1 text-muted-foreground">
+                                  {new Date(bt.not_proceeding_date).toLocaleDateString()}
+                                </div>
                               </div>
                             )}
                           </div>
