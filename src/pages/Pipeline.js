@@ -1138,8 +1138,8 @@ export default function Pipeline() {
 
       {/* Edit Pipeline Modal - Business Type Manager */}
       {showEditPipelineModal && selectedClient && (
-        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
-          <div className="bg-background rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+          <div className="bg-background rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto relative z-[100]">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>

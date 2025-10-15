@@ -120,12 +120,12 @@ DECLARE
     client_record RECORD;
 BEGIN
     -- Loop through all clients and create annual review records if they don't exist
-    FOR client_record IN 
-        SELECT DISTINCT c.id as client_id, c.userid as advisor_id
+    FOR client_record IN
+        SELECT DISTINCT c.id as client_id, c.advisor_id as advisor_id
         FROM clients c
         WHERE NOT EXISTS (
-            SELECT 1 FROM client_annual_reviews car 
-            WHERE car.client_id = c.id 
+            SELECT 1 FROM client_annual_reviews car
+            WHERE car.client_id = c.id
             AND car.review_year = target_year
         )
     LOOP

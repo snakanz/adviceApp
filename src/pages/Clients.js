@@ -1277,8 +1277,8 @@ export default function Clients() {
 
       {/* Business Type Manager Modal */}
       {showBusinessTypeManager && editingClient && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-background p-6 rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
+          <div className="bg-background p-6 rounded-lg shadow-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-[100]">
             <h3 className="text-lg font-semibold mb-4">
               Manage Business Types - {editingClient.name}
             </h3>
