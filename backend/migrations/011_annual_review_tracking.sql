@@ -158,17 +158,17 @@ COMMENT ON FUNCTION create_annual_review_records_for_year IS 'Creates annual rev
 CREATE OR REPLACE FUNCTION update_annual_review_on_meeting_flag()
 RETURNS TRIGGER AS $$
 DECLARE
-    review_year INTEGER;
-    client_uuid UUID;
+    v_review_year INTEGER;
+    v_client_uuid UUID;
 BEGIN
     -- Only proceed if is_annual_review is being set to TRUE
     IF NEW.is_annual_review = TRUE AND (OLD.is_annual_review IS NULL OR OLD.is_annual_review = FALSE) THEN
         -- Get the year from the meeting start time
-        review_year := EXTRACT(YEAR FROM NEW.starttime)::INTEGER;
-        client_uuid := NEW.client_id;
-        
+        v_review_year := EXTRACT(YEAR FROM NEW.starttime)::INTEGER;
+        v_client_uuid := NEW.client_id;
+
         -- Only proceed if we have a client_id
-        IF client_uuid IS NOT NULL THEN
+        IF v_client_uuid IS NOT NULL THEN
             -- Insert or update the annual review record
             INSERT INTO client_annual_reviews (
                 client_id,
@@ -178,14 +178,14 @@ BEGIN
                 meeting_id,
                 status
             ) VALUES (
-                client_uuid,
+                v_client_uuid,
                 NEW.userid::INTEGER,
-                review_year,
+                v_review_year,
                 NEW.starttime::DATE,
                 NEW.id,
                 'completed'
             )
-            ON CONFLICT (client_id, review_year) 
+            ON CONFLICT (client_id, review_year)
             DO UPDATE SET
                 review_date = NEW.starttime::DATE,
                 meeting_id = NEW.id,
@@ -193,7 +193,7 @@ BEGIN
                 updated_at = NOW();
         END IF;
     END IF;
-    
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
