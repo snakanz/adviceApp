@@ -329,7 +329,6 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
                         />
                       </div>
                     </>
-                  )
                   ) : (
                     // For other methods: Show Business Amount and IAF Expected
                     <>
