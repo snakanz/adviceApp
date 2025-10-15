@@ -61,10 +61,14 @@ export default function Pipeline() {
 
       // Transform client data to pipeline format
       const pipelineData = clientsData.map(client => {
-        // Get next meeting date
+        // Get next meeting date (excluding annual review meetings)
         const now = new Date();
         const upcomingMeetings = (client.meetings || [])
-          .filter(meeting => new Date(meeting.starttime) > now)
+          .filter(meeting => {
+            // Exclude annual review meetings from pipeline view
+            if (meeting.is_annual_review) return false;
+            return new Date(meeting.starttime) > now;
+          })
           .sort((a, b) => new Date(a.starttime) - new Date(b.starttime));
 
         const nextMeetingDate = upcomingMeetings.length > 0 ? upcomingMeetings[0].starttime : null;
