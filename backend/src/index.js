@@ -8,7 +8,8 @@ const CalendlyService = require('./services/calendlyService');
 const clientsRouter = require('./routes/clients');
 const pipelineRouter = require('./routes/pipeline');
 const actionItemsRouter = require('./routes/actionItems');
-const routes = require('./routes/index');
+// DISABLED: Not using routes/index.js anymore - routes are mounted directly
+// const routes = require('./routes/index');
 
 const app = express();
 
