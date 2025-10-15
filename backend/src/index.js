@@ -1224,12 +1224,30 @@ console.log('🔄 Mounting auth routes...');
 app.use('/api/auth', require('./routes/auth'));
 console.log('✅ Auth routes mounted');
 
+console.log('🔄 Mounting clients routes...');
 app.use('/api/clients', clientsRouter);
+console.log('✅ Clients routes mounted');
+
+console.log('🔄 Mounting pipeline routes...');
 app.use('/api/pipeline', pipelineRouter);
+console.log('✅ Pipeline routes mounted');
+
+console.log('🔄 Mounting action-items routes...');
 app.use('/api/action-items', actionItemsRouter);
+console.log('✅ Action-items routes mounted');
+
+console.log('🔄 Mounting transcript-action-items routes...');
 app.use('/api/transcript-action-items', require('./routes/transcriptActionItems'));
+console.log('✅ Transcript-action-items routes mounted');
+
+console.log('🔄 Mounting calendar routes...');
 app.use('/api/calendar', require('./routes/calendar'));
+console.log('✅ Calendar routes mounted');
+
+console.log('🔄 Mounting notifications routes...');
 app.use('/api/notifications', require('./routes/notifications'));
+console.log('✅ Notifications routes mounted');
+
 console.log('✅ All API routes mounted');
 
 // DISABLED: Routes are already mounted directly above
