@@ -60,7 +60,6 @@ export default function Clients() {
   const [successMessage, setSuccessMessage] = useState('');
   const [generatingSummary, setGeneratingSummary] = useState(false);
   const [clientActionItems, setClientActionItems] = useState([]);
-  const [loadingActionItems, setLoadingActionItems] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -120,7 +119,6 @@ export default function Clients() {
   const fetchClientActionItems = async (clientId) => {
     if (!clientId) return;
 
-    setLoadingActionItems(true);
     try {
       const token = localStorage.getItem('jwt');
       const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com'}/api/transcript-action-items/clients/${clientId}/action-items`, {
@@ -139,8 +137,6 @@ export default function Clients() {
     } catch (error) {
       console.error('Error fetching client action items:', error);
       setClientActionItems([]);
-    } finally {
-      setLoadingActionItems(false);
     }
   };
 
