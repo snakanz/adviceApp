@@ -39,7 +39,9 @@ try {
 // DISABLED: Not using routes/index.js anymore - routes are mounted directly
 // const routes = require('./routes/index');
 
+console.log('Creating Express app...');
 const app = express();
+console.log('✅ Express app created');
 
 // CORS configuration - Allow Cloudflare Pages and localhost
 const corsOptions = {
@@ -68,28 +70,34 @@ const corsOptions = {
   optionsSuccessStatus: 204
 };
 
+console.log('Setting up CORS...');
 app.use(cors(corsOptions));
 
 // Handle preflight requests explicitly
 app.options('*', cors(corsOptions));
 
 app.use(express.json());
+console.log('✅ CORS and middleware configured');
 
 // Log all requests for debugging
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
   next();
 });
+console.log('✅ Request logging middleware added');
 
 // Test routes removed - using proper Calendly integration below
 
+console.log('Setting up Google OAuth2...');
 // Google OAuth2 setup
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
   process.env.GOOGLE_REDIRECT_URI
 );
+console.log('✅ Google OAuth2 configured');
 
+console.log('Defining inline routes...');
 // Health check with database connectivity - Updated for deployment
 app.get('/api/health', async (req, res) => {
   try {
