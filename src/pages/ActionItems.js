@@ -304,19 +304,20 @@ export default function ActionItems() {
       <div className="flex-1 overflow-y-auto p-6">
         {activeTab === 'action-items' ? (
           // Action Items Tab Content
-          filteredClients.length === 0 ? (
-          <Card className="border-border/50">
-            <CardContent className="p-12 text-center">
-              <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-green-500" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">All Caught Up!</h3>
-              <p className="text-sm text-muted-foreground">
-                {filter === 'pending' ? 'No pending action items' : 
-                 filter === 'completed' ? 'No completed action items' : 
-                 'No action items found'}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
+          <>
+            {filteredClients.length === 0 ? (
+              <Card className="border-border/50">
+                <CardContent className="p-12 text-center">
+                  <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-green-500" />
+                  <h3 className="text-lg font-semibold text-foreground mb-2">All Caught Up!</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {filter === 'pending' ? 'No pending action items' :
+                     filter === 'completed' ? 'No completed action items' :
+                     'No action items found'}
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
           <div className="space-y-4">
             {filteredClients.map((client) => {
               const isExpanded = expandedClients.has(client.clientId);
@@ -415,10 +416,13 @@ export default function ActionItems() {
                 </Card>
               );
             })}
-          </div>
+              </div>
+            )}
+          </>
         ) : (
           // Review Meetings Tab Content
-          starredMeetings.length === 0 ? (
+          <>
+            {starredMeetings.length === 0 ? (
             <Card className="border-border/50">
               <CardContent className="p-12 text-center">
                 <Star className="w-12 h-12 mx-auto mb-4 text-amber-500" />
@@ -511,7 +515,8 @@ export default function ActionItems() {
                 </Card>
               ))}
             </div>
-          )
+            )}
+          </>
         )}
       </div>
     </div>
