@@ -474,48 +474,107 @@ Respond with the email body only - no subject line, no markdown formatting.`;
     const emailSummary = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: autoTemplate });
 
     // Generate action points as structured JSON array
-    const actionPointsPrompt = `Extract concrete action items from this meeting transcript.
+    const actionPointsPrompt = `You are an AI assistant that extracts action items from meeting transcripts.
 
-ONLY include items that are:
-- Specific, actionable tasks with clear deliverables
-- Client-facing actions (things the client or advisor must DO, not discuss)
-- Follow-up meetings to schedule
-- Documents to send, sign, or complete
-- Account setups or administrative tasks
+Extract ONLY concrete, actionable tasks from this meeting transcript.
 
-DO NOT include:
+INCLUDE ONLY:
+- Specific tasks with clear deliverables (e.g., "Send the updated Suitability Letter")
+- Follow-up meetings to schedule (e.g., "Schedule follow-up meeting after budget")
+- Documents to send, sign, or complete (e.g., "Complete internal BA check")
+- Account setups or administrative tasks (e.g., "Set up online account logins")
+- Client-facing actions that must be DONE (not discussed)
+
+EXCLUDE:
 - Advisor preparation work (e.g., "Research...", "Prepare information...")
 - Discussion topics (e.g., "Discuss...", "Review options...")
 - General notes or meeting agenda items
 - Vague or exploratory items
+- Anything that is not a concrete action
 
-Format: Return a JSON array of strings, each being one clear action item.
-Example: ["Schedule follow-up meeting with client after budget announcement", "Complete internal BA check and send written advice documents", "Set up client's online wealth account logins"]
-
-Limit to the 5-7 most important action items only.
+CRITICAL: Return ONLY a valid JSON array of strings. No markdown, no code blocks, no explanations.
+Format: ["action 1", "action 2", "action 3"]
+Limit: Maximum 5-7 most important action items.
 
 Transcript:
-${meeting.transcript}`;
+${meeting.transcript}
+
+Return only the JSON array:`;
 
     const actionPointsResponse = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: actionPointsPrompt });
 
-    // Parse action points JSON
+    // Parse action points JSON with robust error handling
     let actionPointsArray = [];
     let actionPoints = actionPointsResponse;
+
     try {
-      // Try to parse as JSON array
-      const parsed = JSON.parse(actionPointsResponse.trim());
+      // Clean the response - remove markdown code blocks if present
+      let cleanedResponse = actionPointsResponse.trim();
+
+      // Remove markdown code block markers
+      cleanedResponse = cleanedResponse.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '');
+
+      // Try to extract JSON array from the response
+      const jsonMatch = cleanedResponse.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        cleanedResponse = jsonMatch[0];
+      }
+
+      // Parse the JSON
+      const parsed = JSON.parse(cleanedResponse);
+
       if (Array.isArray(parsed)) {
-        actionPointsArray = parsed;
-        actionPoints = parsed.join('\n• '); // Convert to bullet list for display
+        // Filter out invalid entries (empty strings, non-strings, broken JSON fragments)
+        actionPointsArray = parsed
+          .filter(item => typeof item === 'string' && item.trim().length > 0)
+          .filter(item => {
+            // Exclude broken JSON artifacts
+            const trimmed = item.trim();
+            return trimmed !== 'json' &&
+                   trimmed !== '[' &&
+                   trimmed !== ']' &&
+                   trimmed !== '"""' &&
+                   trimmed !== '"' &&
+                   trimmed !== '{' &&
+                   trimmed !== '}' &&
+                   !trimmed.match(/^["'\[\]{}]+$/);
+          })
+          .map(item => item.trim())
+          .slice(0, 7); // Enforce max 7 items
+
+        // Convert to bullet list for display
+        actionPoints = actionPointsArray.join('\n• ');
         if (actionPoints) actionPoints = '• ' + actionPoints;
+      } else {
+        console.warn('Action points response is not an array:', parsed);
+        actionPointsArray = [];
+        actionPoints = '';
       }
     } catch (e) {
-      // If parsing fails, treat as plain text and try to extract bullet points
-      console.log('Action points not in JSON format, using plain text');
-      const lines = actionPointsResponse.split('\n').filter(line => line.trim());
-      actionPointsArray = lines.map(line => line.replace(/^[•\-\*]\s*/, '').trim()).filter(line => line);
-      actionPoints = actionPointsResponse;
+      console.error('Failed to parse action points JSON:', e.message);
+      console.error('Raw response:', actionPointsResponse);
+
+      // Fallback: try to extract clean bullet points from plain text
+      const lines = actionPointsResponse
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
+        .map(line => line.replace(/^[•\-\*\d]+[\.\)]\s*/, '').trim())
+        .filter(line => {
+          // Exclude broken JSON artifacts and invalid entries
+          return line.length > 10 && // Minimum length for valid action item
+                 line !== 'json' &&
+                 line !== '[' &&
+                 line !== ']' &&
+                 line !== '"""' &&
+                 !line.match(/^["'\[\]{}]+$/) &&
+                 !line.toLowerCase().startsWith('research') &&
+                 !line.toLowerCase().startsWith('prepare to discuss');
+        })
+        .slice(0, 7);
+
+      actionPointsArray = lines;
+      actionPoints = lines.length > 0 ? '• ' + lines.join('\n• ') : '';
     }
 
     // Save summaries to database
