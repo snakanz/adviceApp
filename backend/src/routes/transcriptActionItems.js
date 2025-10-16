@@ -704,13 +704,14 @@ router.post('/approve', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'No pending items found' });
     }
 
-    // Transform pending items to approved action items
+    // Transform pending items to approved action items (preserve priority)
     const approvedItems = pendingItems.map(item => ({
       meeting_id: item.meeting_id,
       client_id: item.client_id,
       advisor_id: item.advisor_id,
       action_text: item.action_text,
       display_order: item.display_order,
+      priority: item.priority || 3,  // Preserve user-selected priority or default to Medium
       completed: false
     }));
 
@@ -746,6 +747,51 @@ router.post('/approve', authenticateToken, async (req, res) => {
     });
   } catch (error) {
     console.error('Error in approve action items:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update priority of a pending action item
+router.patch('/pending/:pendingItemId/priority', authenticateToken, async (req, res) => {
+  try {
+    const { pendingItemId } = req.params;
+    const { priority } = req.body;
+    const userId = req.user.id;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    if (!priority || priority < 1 || priority > 4) {
+      return res.status(400).json({ error: 'Priority must be between 1 and 4' });
+    }
+
+    console.log(`🎯 Updating priority for pending item ${pendingItemId} to ${priority}`);
+
+    // Update priority
+    const { data: updatedItem, error: updateError } = await getSupabase()
+      .from('pending_transcript_action_items')
+      .update({ priority })
+      .eq('id', pendingItemId)
+      .eq('advisor_id', userId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating pending item priority:', updateError);
+      return res.status(500).json({ error: 'Failed to update priority' });
+    }
+
+    if (!updatedItem) {
+      return res.status(404).json({ error: 'Pending item not found' });
+    }
+
+    res.json({
+      success: true,
+      pendingItem: updatedItem
+    });
+  } catch (error) {
+    console.error('Error in update pending item priority:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

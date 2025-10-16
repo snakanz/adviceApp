@@ -45,8 +45,17 @@ import {
   TooltipTrigger,
 } from '../components/ui/tooltip';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
+
+// Priority options for dropdown
+const priorityOptions = [
+  { value: 1, label: 'Urgent', icon: '🔴' },
+  { value: 2, label: 'High', icon: '🟠' },
+  { value: 3, label: 'Medium', icon: '🟡' },
+  { value: 4, label: 'Low', icon: '🟢' }
+];
 
 const formatDate = (dateTimeStr) => {
   const date = new Date(dateTimeStr);
@@ -311,6 +320,7 @@ export default function Meetings() {
   const [pendingActionItems, setPendingActionItems] = useState([]);
   const [loadingPendingItems, setLoadingPendingItems] = useState(false);
   const [selectedPendingItems, setSelectedPendingItems] = useState([]);
+  const [pendingItemPriorities, setPendingItemPriorities] = useState({}); // { itemId: priority }
 
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
@@ -1181,14 +1191,50 @@ export default function Meetings() {
 
       const data = await response.json();
       setPendingActionItems(data.pendingItems || []);
-      // Select all by default
-      setSelectedPendingItems((data.pendingItems || []).map(item => item.id));
+      // Select all by default and initialize priorities
+      const items = data.pendingItems || [];
+      setSelectedPendingItems(items.map(item => item.id));
+      const priorities = {};
+      items.forEach(item => {
+        priorities[item.id] = item.priority || 3; // Default to Medium if not set
+      });
+      setPendingItemPriorities(priorities);
     } catch (error) {
       console.error('Error fetching pending action items:', error);
       setPendingActionItems([]);
       setSelectedPendingItems([]);
     } finally {
       setLoadingPendingItems(false);
+    }
+  };
+
+  // Update priority of a pending action item
+  const updatePendingItemPriority = async (itemId, priority) => {
+    try {
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/api/transcript-action-items/pending/${itemId}/priority`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ priority })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update priority');
+      }
+
+      // Update local state
+      setPendingItemPriorities(prev => ({
+        ...prev,
+        [itemId]: priority
+      }));
+    } catch (error) {
+      console.error('Error updating pending item priority:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to update priority');
+      setSnackbarSeverity('error');
     }
   };
 
@@ -2465,10 +2511,31 @@ export default function Meetings() {
                                             onChange={() => togglePendingItemSelection(item.id)}
                                             className="mt-1 w-4 h-4 text-orange-600 border-orange-300 rounded focus:ring-orange-500 cursor-pointer"
                                           />
-                                          <div className="flex-1">
+                                          <div className="flex-1 space-y-2">
                                             <p className="text-sm text-foreground">
                                               {item.action_text}
                                             </p>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-xs text-muted-foreground">Priority:</span>
+                                              <Select
+                                                value={String(pendingItemPriorities[item.id] || 3)}
+                                                onValueChange={(value) => updatePendingItemPriority(item.id, parseInt(value))}
+                                              >
+                                                <SelectTrigger className="w-32 h-7 text-xs">
+                                                  <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  {priorityOptions.map(option => (
+                                                    <SelectItem key={option.value} value={String(option.value)}>
+                                                      <span className="flex items-center gap-1">
+                                                        <span>{option.icon}</span>
+                                                        <span>{option.label}</span>
+                                                      </span>
+                                                    </SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                            </div>
                                           </div>
                                         </div>
                                       </CardContent>

@@ -45,6 +45,7 @@ export default function ActionItems() {
   const [loadingPendingApproval, setLoadingPendingApproval] = useState(false);
   const [selectedPendingItems, setSelectedPendingItems] = useState([]);
   const [totalPendingApprovalCount, setTotalPendingApprovalCount] = useState(0);
+  const [pendingItemPriorities, setPendingItemPriorities] = useState({}); // { itemId: priority }
 
   // Priority and filtering state
   const [priorityFilter, setPriorityFilter] = useState('all'); // 'all', '1', '2', '3', '4'
@@ -178,16 +179,19 @@ export default function ActionItems() {
       setPendingApprovalClients(data.clients || []);
       setTotalPendingApprovalCount(data.totalCount || 0);
 
-      // Auto-select all pending items by default
+      // Auto-select all pending items by default and initialize priorities
       const allPendingIds = [];
+      const priorities = {};
       data.clients?.forEach(client => {
         client.meetings?.forEach(meeting => {
           meeting.pendingItems?.forEach(item => {
             allPendingIds.push(item.id);
+            priorities[item.id] = item.priority || 3; // Default to Medium if not set
           });
         });
       });
       setSelectedPendingItems(allPendingIds);
+      setPendingItemPriorities(priorities);
     } catch (error) {
       console.error('Error fetching pending approval items:', error);
       // Don't show error, just log it
@@ -229,6 +233,34 @@ export default function ActionItems() {
     } catch (error) {
       console.error('Error approving action items:', error);
       setError('Failed to approve action items');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  const updatePendingItemPriority = async (itemId, priority) => {
+    try {
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/api/transcript-action-items/pending/${itemId}/priority`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ priority })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update priority');
+      }
+
+      // Update local state
+      setPendingItemPriorities(prev => ({
+        ...prev,
+        [itemId]: priority
+      }));
+    } catch (error) {
+      console.error('Error updating pending item priority:', error);
+      setError('Failed to update priority');
       setTimeout(() => setError(''), 3000);
     }
   };
@@ -469,6 +501,14 @@ export default function ActionItems() {
         return { label: 'Medium', color: 'bg-gray-100 text-gray-800 border-gray-300', icon: '⚪' };
     }
   };
+
+  // Priority options for dropdown
+  const priorityOptions = [
+    { value: 1, label: 'Urgent', icon: '🔴' },
+    { value: 2, label: 'High', icon: '🟠' },
+    { value: 3, label: 'Medium', icon: '🟡' },
+    { value: 4, label: 'Low', icon: '🟢' }
+  ];
 
   const PriorityBadge = ({ priority }) => {
     const config = getPriorityConfig(priority);
@@ -831,10 +871,31 @@ export default function ActionItems() {
                                         onChange={() => togglePendingItemSelection(item.id)}
                                         className="mt-1 w-4 h-4 text-orange-600 border-orange-300 rounded focus:ring-orange-500 cursor-pointer"
                                       />
-                                      <div className="flex-1">
+                                      <div className="flex-1 space-y-2">
                                         <p className="text-sm text-foreground">
                                           {item.actionText}
                                         </p>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs text-muted-foreground">Priority:</span>
+                                          <Select
+                                            value={String(pendingItemPriorities[item.id] || 3)}
+                                            onValueChange={(value) => updatePendingItemPriority(item.id, parseInt(value))}
+                                          >
+                                            <SelectTrigger className="w-32 h-7 text-xs">
+                                              <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                              {priorityOptions.map(option => (
+                                                <SelectItem key={option.value} value={String(option.value)}>
+                                                  <span className="flex items-center gap-1">
+                                                    <span>{option.icon}</span>
+                                                    <span>{option.label}</span>
+                                                  </span>
+                                                </SelectItem>
+                                              ))}
+                                            </SelectContent>
+                                          </Select>
+                                        </div>
                                       </div>
                                     </div>
                                   </CardContent>
