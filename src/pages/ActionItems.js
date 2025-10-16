@@ -29,6 +29,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
+// Priority options for action items
+const priorityOptions = [
+  { value: 1, label: 'Urgent', icon: '🔴' },
+  { value: 2, label: 'High', icon: '🟠' },
+  { value: 3, label: 'Medium', icon: '🟡' },
+  { value: 4, label: 'Low', icon: '🟢' }
+];
+
 export default function ActionItems() {
   const [clients, setClients] = useState([]);
   const [allActionItems, setAllActionItems] = useState([]); // For "All Items" view
@@ -631,13 +639,7 @@ export default function ActionItems() {
     }
   };
 
-  // Priority options for dropdown
-  const priorityOptions = [
-    { value: 1, label: 'Urgent', icon: '🔴' },
-    { value: 2, label: 'High', icon: '🟠' },
-    { value: 3, label: 'Medium', icon: '🟡' },
-    { value: 4, label: 'Low', icon: '🟢' }
-  ];
+
 
   const PriorityBadge = ({ priority }) => {
     const config = getPriorityConfig(priority);
