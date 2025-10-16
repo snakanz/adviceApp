@@ -466,8 +466,8 @@ export default function ActionItems() {
       }
 
       const data = await response.json();
-      
-      // Update local state
+
+      // Update local state for by-client view
       setClients(prevClients =>
         prevClients.map(client => ({
           ...client,
@@ -475,6 +475,13 @@ export default function ActionItems() {
             item.id === actionItemId ? data.actionItem : item
           )
         }))
+      );
+
+      // Update local state for all-items view
+      setAllActionItems(prevItems =>
+        prevItems.map(item =>
+          item.id === actionItemId ? data.actionItem : item
+        )
       );
 
       setSuccess(data.actionItem.completed ? 'Action item completed!' : 'Action item reopened');
