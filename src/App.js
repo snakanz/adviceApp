@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './Layout';
 import Clients from './pages/Clients';
-import ViewClient from './pages/ViewClient';
 import Meetings from './pages/Meetings';
 import Pipeline from './pages/Pipeline';
 import ActionItems from './pages/ActionItems';
@@ -43,7 +42,6 @@ function App() {
               <Route index element={<Navigate to="/meetings" replace />} />
               <Route path="meetings" element={<Meetings />} />
               <Route path="clients" element={<Clients />} />
-              <Route path="clients/:clientId" element={<ViewClient />} />
               <Route path="pipeline" element={<Pipeline />} />
               <Route path="action-items" element={<ActionItems />} />
               <Route path="templates" element={<Templates />} />

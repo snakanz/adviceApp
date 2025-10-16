@@ -117,35 +117,6 @@ router.post('/upload', authenticateToken, clientDocumentsService.upload.array('f
 });
 
 /**
- * GET /api/client-documents/:clientId
- * Get all documents for a specific client
- */
-router.get('/:clientId', authenticateToken, async (req, res) => {
-  try {
-    const advisorId = req.user.id;
-    const { clientId } = req.params;
-
-    if (!isSupabaseAvailable()) {
-      return res.status(503).json({
-        error: 'Database service unavailable. Please contact support.'
-      });
-    }
-
-    const documents = await clientDocumentsService.getClientDocuments(clientId, advisorId);
-
-    res.json({
-      clientId,
-      count: documents.length,
-      documents
-    });
-
-  } catch (error) {
-    console.error('Error fetching client documents:', error);
-    res.status(500).json({ error: 'Failed to fetch documents' });
-  }
-});
-
-/**
  * GET /api/client-documents/unassigned/list
  * Get all unassigned documents (for auto-detection review)
  */
@@ -321,6 +292,36 @@ router.post('/:documentId/analyze', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error queuing document for analysis:', error);
     res.status(500).json({ error: 'Failed to queue document for analysis' });
+  }
+});
+
+/**
+ * GET /api/client-documents/client/:clientId
+ * Get all documents for a specific client
+ * NOTE: This route must come LAST to avoid conflicts with specific routes above
+ */
+router.get('/client/:clientId', authenticateToken, async (req, res) => {
+  try {
+    const advisorId = req.user.id;
+    const { clientId } = req.params;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    const documents = await clientDocumentsService.getClientDocuments(clientId, advisorId);
+
+    res.json({
+      clientId,
+      count: documents.length,
+      documents
+    });
+
+  } catch (error) {
+    console.error('Error fetching client documents:', error);
+    res.status(500).json({ error: 'Failed to fetch documents' });
   }
 });
 

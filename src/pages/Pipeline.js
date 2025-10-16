@@ -1416,11 +1416,11 @@ export default function Pipeline() {
                 {/* Actions */}
                 <div className="pt-4 border-t border-border space-y-3">
                   <Button
-                    onClick={() => navigate(`/clients/${selectedClient.id}`)}
+                    onClick={() => navigate(`/clients?clientId=${selectedClient.id}`)}
                     variant="outline"
                     className="w-full"
                   >
-                    View Full Client Profile
+                    View in Clients Page
                   </Button>
                   <Button
                     onClick={() => setShowDetailPanel(false)}

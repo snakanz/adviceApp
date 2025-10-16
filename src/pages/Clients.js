@@ -24,6 +24,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import PipelineEntryForm from '../components/PipelineEntryForm';
 import BusinessTypeManager from '../components/BusinessTypeManager';
 import CreateClientForm from '../components/CreateClientForm';
+import ClientDocumentsSection from '../components/ClientDocumentsSection';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -1306,6 +1307,15 @@ export default function Clients() {
                     </CardContent>
                   </Card>
                 )}
+              </div>
+
+              {/* Documents Section */}
+              <div>
+                <ClientDocumentsSection
+                  clientId={selectedClient.id}
+                  clientName={selectedClient.name}
+                  meetings={selectedClient.meetings || []}
+                />
               </div>
             </div>
           </div>

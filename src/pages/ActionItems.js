@@ -1545,7 +1545,7 @@ export default function ActionItems() {
                             <User className="w-3 h-3" />
                             <span
                               className="hover:text-primary cursor-pointer"
-                              onClick={() => navigate(`/clients/${meeting.client.id}`)}
+                              onClick={() => navigate(`/clients?client=${encodeURIComponent(meeting.client.email)}`)}
                             >
                               {meeting.client.name}
                             </span>
