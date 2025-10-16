@@ -12,7 +12,6 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
     iaf_expected: '',
     contribution_method: '',
     regular_contribution_amount: '',
-    expected_close_date: '',
     notes: ''
   });
 
@@ -317,17 +316,6 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
                           )}
                         </div>
                       </div>
-
-                      {/* Expected Close Date */}
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Expected Close Date</label>
-                        <Input
-                          type="date"
-                          value={businessType.expected_close_date}
-                          onChange={(e) => handleBusinessTypeChange(index, 'expected_close_date', e.target.value)}
-                          className="w-full"
-                        />
-                      </div>
                     </>
                   ) : (
                     // For other methods: Show Business Amount and IAF Expected
@@ -384,17 +372,6 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
                           )}
                         </div>
                       )}
-
-                      {/* Expected Close Date */}
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Expected Close Date</label>
-                        <Input
-                          type="date"
-                          value={businessType.expected_close_date}
-                          onChange={(e) => handleBusinessTypeChange(index, 'expected_close_date', e.target.value)}
-                          className="w-full"
-                        />
-                      </div>
                     </>
                   )}
 
