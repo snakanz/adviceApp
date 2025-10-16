@@ -14,14 +14,23 @@ import {
   FileText,
   Check,
   X,
-  AlertCircle
+  AlertCircle,
+  Sparkles,
+  Filter,
+  ArrowUpDown,
+  Edit2,
+  Save,
+  List,
+  Users
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
 export default function ActionItems() {
   const [clients, setClients] = useState([]);
+  const [allActionItems, setAllActionItems] = useState([]); // For "All Items" view
   const [starredMeetings, setStarredMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -37,33 +46,81 @@ export default function ActionItems() {
   const [selectedPendingItems, setSelectedPendingItems] = useState([]);
   const [totalPendingApprovalCount, setTotalPendingApprovalCount] = useState(0);
 
+  // Priority and filtering state
+  const [priorityFilter, setPriorityFilter] = useState('all'); // 'all', '1', '2', '3', '4'
+  const [sortBy, setSortBy] = useState('date'); // 'date' or 'priority'
+  const [viewMode, setViewMode] = useState('by-client'); // 'by-client' or 'all-items'
+  const [assigningPriorities, setAssigningPriorities] = useState(false);
+
+  // Inline editing state
+  const [editingItemId, setEditingItemId] = useState(null);
+  const [editingText, setEditingText] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
   useEffect(() => {
     fetchActionItems();
     fetchStarredMeetings();
     fetchPendingApprovalItems();
   }, []);
 
+  // Refetch when filters change
+  useEffect(() => {
+    if (!loading) {
+      fetchActionItems();
+    }
+  }, [priorityFilter, sortBy]);
+
   const fetchActionItems = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('jwt');
-      const response = await fetch(`${API_URL}/api/transcript-action-items/action-items/by-client`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
 
-      if (!response.ok) {
+      // Build query params
+      const params = new URLSearchParams();
+      if (priorityFilter !== 'all') {
+        params.append('priorityFilter', priorityFilter);
+      }
+      if (sortBy === 'priority') {
+        params.append('sortBy', 'priority');
+      }
+
+      // Fetch by-client view
+      const byClientResponse = await fetch(
+        `${API_URL}/api/transcript-action-items/action-items/by-client?${params.toString()}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!byClientResponse.ok) {
         throw new Error('Failed to fetch action items');
       }
 
-      const data = await response.json();
-      setClients(data.clients || []);
+      const byClientData = await byClientResponse.json();
+      setClients(byClientData.clients || []);
+
+      // Fetch all items view
+      const allItemsResponse = await fetch(
+        `${API_URL}/api/transcript-action-items/action-items/all?${params.toString()}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (allItemsResponse.ok) {
+        const allItemsData = await allItemsResponse.json();
+        setAllActionItems(allItemsData.actionItems || []);
+      }
 
       // Auto-expand clients with pending items
       const clientsWithPending = new Set();
-      data.clients?.forEach(client => {
+      byClientData.clients?.forEach(client => {
         const hasPending = client.actionItems.some(item => !item.completed);
         if (hasPending) {
           clientsWithPending.add(client.clientId);
@@ -285,6 +342,105 @@ export default function ActionItems() {
     });
   };
 
+  // Inline editing functions
+  const startEditing = (item) => {
+    setEditingItemId(item.id);
+    setEditingText(item.actionText);
+  };
+
+  const cancelEditing = () => {
+    setEditingItemId(null);
+    setEditingText('');
+  };
+
+  const saveEdit = async (actionItemId) => {
+    if (!editingText.trim()) {
+      setError('Action item text cannot be empty');
+      return;
+    }
+
+    try {
+      setSavingEdit(true);
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/api/transcript-action-items/action-items/${actionItemId}/text`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ actionText: editingText.trim() })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update action item');
+      }
+
+      const data = await response.json();
+
+      // Update local state for by-client view
+      setClients(prevClients =>
+        prevClients.map(client => ({
+          ...client,
+          actionItems: client.actionItems.map(item =>
+            item.id === actionItemId ? { ...item, actionText: data.actionItem.action_text } : item
+          )
+        }))
+      );
+
+      // Update local state for all-items view
+      setAllActionItems(prevItems =>
+        prevItems.map(item =>
+          item.id === actionItemId ? { ...item, actionText: data.actionItem.action_text } : item
+        )
+      );
+
+      setSuccess('Action item updated successfully');
+      setTimeout(() => setSuccess(''), 3000);
+      cancelEditing();
+    } catch (error) {
+      console.error('Error updating action item:', error);
+      setError('Failed to update action item');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // AI Priority Assignment
+  const assignPriorities = async () => {
+    try {
+      setAssigningPriorities(true);
+      setError('');
+      const token = localStorage.getItem('jwt');
+
+      const response = await fetch(`${API_URL}/api/transcript-action-items/action-items/assign-priorities`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ actionItemIds: [] }) // Empty array = process all items
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to assign priorities');
+      }
+
+      const data = await response.json();
+      setSuccess(`Successfully assigned priorities to ${data.updatedCount} action items using AI`);
+      setTimeout(() => setSuccess(''), 5000);
+
+      // Refetch action items to get updated priorities
+      await fetchActionItems();
+    } catch (error) {
+      console.error('Error assigning priorities:', error);
+      setError('Failed to assign priorities. Please try again.');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setAssigningPriorities(false);
+    }
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return 'No date';
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -294,6 +450,32 @@ export default function ActionItems() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  // Priority badge helper
+  const getPriorityConfig = (priority) => {
+    switch (priority) {
+      case 1:
+        return { label: 'Urgent', color: 'bg-red-100 text-red-800 border-red-300', icon: '🔴' };
+      case 2:
+        return { label: 'High', color: 'bg-orange-100 text-orange-800 border-orange-300', icon: '🟠' };
+      case 3:
+        return { label: 'Medium', color: 'bg-yellow-100 text-yellow-800 border-yellow-300', icon: '🟡' };
+      case 4:
+        return { label: 'Low', color: 'bg-green-100 text-green-800 border-green-300', icon: '🟢' };
+      default:
+        return { label: 'Medium', color: 'bg-gray-100 text-gray-800 border-gray-300', icon: '⚪' };
+    }
+  };
+
+  const PriorityBadge = ({ priority }) => {
+    const config = getPriorityConfig(priority);
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${config.color}`}>
+        <span>{config.icon}</span>
+        <span>{config.label}</span>
+      </span>
+    );
   };
 
   // Filter clients based on selected filter
@@ -442,6 +624,76 @@ export default function ActionItems() {
             <CheckCircle2 className="w-3 h-3 mr-1" />
             Completed
           </Button>
+            </div>
+
+            {/* Priority Filters and Controls */}
+            <div className="flex items-center justify-between gap-4 mt-4 p-4 bg-muted/30 rounded-lg border border-border/50">
+              <div className="flex items-center gap-3 flex-1">
+                {/* View Mode Toggle */}
+                <div className="flex items-center gap-2 border border-border rounded-lg p-1 bg-background">
+                  <Button
+                    onClick={() => setViewMode('by-client')}
+                    variant={viewMode === 'by-client' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="flex items-center gap-1.5"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    By Client
+                  </Button>
+                  <Button
+                    onClick={() => setViewMode('all-items')}
+                    variant={viewMode === 'all-items' ? 'default' : 'ghost'}
+                    size="sm"
+                    className="flex items-center gap-1.5"
+                  >
+                    <List className="w-3.5 h-3.5" />
+                    All Items
+                  </Button>
+                </div>
+
+                {/* Priority Filter */}
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-muted-foreground" />
+                  <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                    <SelectTrigger className="w-[140px] h-9">
+                      <SelectValue placeholder="Priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Priorities</SelectItem>
+                      <SelectItem value="1">🔴 Urgent</SelectItem>
+                      <SelectItem value="2">🟠 High</SelectItem>
+                      <SelectItem value="3">🟡 Medium</SelectItem>
+                      <SelectItem value="4">🟢 Low</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Sort Toggle */}
+                <div className="flex items-center gap-2">
+                  <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
+                  <Select value={sortBy} onValueChange={setSortBy}>
+                    <SelectTrigger className="w-[130px] h-9">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date">By Date</SelectItem>
+                      <SelectItem value="priority">By Priority</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* AI Priority Assignment Button */}
+              <Button
+                onClick={assignPriorities}
+                disabled={assigningPriorities || totalItems === 0}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2 border-primary/50 hover:bg-primary/10"
+              >
+                <Sparkles className={`w-4 h-4 ${assigningPriorities ? 'animate-spin' : ''}`} />
+                {assigningPriorities ? 'Assigning...' : 'AI Assign Priorities'}
+              </Button>
             </div>
           </>
         )}
@@ -599,21 +851,24 @@ export default function ActionItems() {
         ) : activeTab === 'action-items' ? (
           // Action Items Tab Content
           <>
-            {filteredClients.length === 0 ? (
-              <Card className="border-border/50">
-                <CardContent className="p-12 text-center">
-                  <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-green-500" />
-                  <h3 className="text-lg font-semibold text-foreground mb-2">All Caught Up!</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {filter === 'pending' ? 'No pending action items' :
-                     filter === 'completed' ? 'No completed action items' :
-                     'No action items found'}
-                  </p>
-                </CardContent>
-              </Card>
-            ) : (
-          <div className="space-y-4">
-            {filteredClients.map((client) => {
+            {viewMode === 'by-client' ? (
+              // By Client View
+              <>
+                {filteredClients.length === 0 ? (
+                  <Card className="border-border/50">
+                    <CardContent className="p-12 text-center">
+                      <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-green-500" />
+                      <h3 className="text-lg font-semibold text-foreground mb-2">All Caught Up!</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {filter === 'pending' ? 'No pending action items' :
+                         filter === 'completed' ? 'No completed action items' :
+                         'No action items found'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredClients.map((client) => {
               const isExpanded = expandedClients.has(client.clientId);
               const pendingCount = client.actionItems.filter(item => !item.completed).length;
               const completedCount = client.actionItems.filter(item => item.completed).length;
@@ -666,7 +921,7 @@ export default function ActionItems() {
                     <CardContent className="pt-0">
                       <div className="space-y-3">
                         {client.actionItems.map((item) => (
-                          <div key={item.id} className="border border-border/50 rounded-lg p-4">
+                          <div key={item.id} className="border border-border/50 rounded-lg p-4 hover:border-primary/30 transition-colors">
                             <div className="flex items-start gap-3">
                               <input
                                 type="checkbox"
@@ -675,10 +930,67 @@ export default function ActionItems() {
                                 className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
                               />
                               <div className="flex-1">
-                                <p className={`text-sm mb-2 ${item.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                                  {item.actionText}
-                                </p>
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                {/* Inline Editing */}
+                                {editingItemId === item.id ? (
+                                  <div className="mb-2">
+                                    <input
+                                      type="text"
+                                      value={editingText}
+                                      onChange={(e) => setEditingText(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') saveEdit(item.id);
+                                        if (e.key === 'Escape') cancelEditing();
+                                      }}
+                                      className="w-full px-3 py-2 text-sm border border-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                                      autoFocus
+                                      disabled={savingEdit}
+                                    />
+                                    <div className="flex items-center gap-2 mt-2">
+                                      <Button
+                                        onClick={() => saveEdit(item.id)}
+                                        disabled={savingEdit}
+                                        size="sm"
+                                        className="h-7"
+                                      >
+                                        <Save className="w-3 h-3 mr-1" />
+                                        {savingEdit ? 'Saving...' : 'Save'}
+                                      </Button>
+                                      <Button
+                                        onClick={cancelEditing}
+                                        disabled={savingEdit}
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7"
+                                      >
+                                        <X className="w-3 h-3 mr-1" />
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="group">
+                                    <div className="flex items-start gap-2 mb-2">
+                                      <p className={`text-sm flex-1 ${item.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                                        {item.actionText}
+                                      </p>
+                                      {!item.completed && (
+                                        <Button
+                                          onClick={() => startEditing(item)}
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                          <Edit2 className="w-3 h-3" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                                  {/* Priority Badge */}
+                                  {item.priority && <PriorityBadge priority={item.priority} />}
+
                                   <div className="flex items-center gap-1">
                                     <Calendar className="w-3 h-3" />
                                     <span
@@ -710,7 +1022,149 @@ export default function ActionItems() {
                 </Card>
               );
             })}
-              </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              // All Items View
+              <>
+                {allActionItems.length === 0 ? (
+                  <Card className="border-border/50">
+                    <CardContent className="p-12 text-center">
+                      <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-green-500" />
+                      <h3 className="text-lg font-semibold text-foreground mb-2">All Caught Up!</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {filter === 'pending' ? 'No pending action items' :
+                         filter === 'completed' ? 'No completed action items' :
+                         'No action items found'}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-3">
+                    {allActionItems
+                      .filter(item => {
+                        if (filter === 'pending') return !item.completed;
+                        if (filter === 'completed') return item.completed;
+                        return true;
+                      })
+                      .map((item) => (
+                        <Card key={item.id} className="border-border/50 hover:border-primary/30 transition-colors">
+                          <CardContent className="p-4">
+                            <div className="flex items-start gap-3">
+                              <input
+                                type="checkbox"
+                                checked={item.completed || false}
+                                onChange={() => toggleActionItem(item.id)}
+                                className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
+                              />
+                              <div className="flex-1">
+                                {/* Inline Editing */}
+                                {editingItemId === item.id ? (
+                                  <div className="mb-2">
+                                    <input
+                                      type="text"
+                                      value={editingText}
+                                      onChange={(e) => setEditingText(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') saveEdit(item.id);
+                                        if (e.key === 'Escape') cancelEditing();
+                                      }}
+                                      className="w-full px-3 py-2 text-sm border border-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
+                                      autoFocus
+                                      disabled={savingEdit}
+                                    />
+                                    <div className="flex items-center gap-2 mt-2">
+                                      <Button
+                                        onClick={() => saveEdit(item.id)}
+                                        disabled={savingEdit}
+                                        size="sm"
+                                        className="h-7"
+                                      >
+                                        <Save className="w-3 h-3 mr-1" />
+                                        {savingEdit ? 'Saving...' : 'Save'}
+                                      </Button>
+                                      <Button
+                                        onClick={cancelEditing}
+                                        disabled={savingEdit}
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7"
+                                      >
+                                        <X className="w-3 h-3 mr-1" />
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="group">
+                                    <div className="flex items-start gap-2 mb-2">
+                                      <p className={`text-sm flex-1 ${item.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                                        {item.actionText}
+                                      </p>
+                                      {!item.completed && (
+                                        <Button
+                                          onClick={() => startEditing(item)}
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                          <Edit2 className="w-3 h-3" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                                  {/* Priority Badge */}
+                                  {item.priority && <PriorityBadge priority={item.priority} />}
+
+                                  {/* Client Info */}
+                                  {item.client && (
+                                    <>
+                                      <div className="flex items-center gap-1">
+                                        <User className="w-3 h-3" />
+                                        <span
+                                          className="cursor-pointer hover:text-primary hover:underline"
+                                          onClick={() => navigate(`/clients?client=${encodeURIComponent(item.client.email)}`)}
+                                        >
+                                          {item.client.name}
+                                        </span>
+                                      </div>
+                                      <span>•</span>
+                                    </>
+                                  )}
+
+                                  <div className="flex items-center gap-1">
+                                    <Calendar className="w-3 h-3" />
+                                    <span
+                                      className="cursor-pointer hover:text-primary hover:underline"
+                                      onClick={() => navigate(`/meetings?selected=${item.meeting.googleEventId || item.meeting.id}`)}
+                                    >
+                                      {item.meeting.title}
+                                    </span>
+                                  </div>
+                                  <span>•</span>
+                                  <span>{formatDate(item.meeting.startTime)}</span>
+                                  {item.completedAt && (
+                                    <>
+                                      <span>•</span>
+                                      <div className="flex items-center gap-1 text-green-600">
+                                        <CheckCircle2 className="w-3 h-3" />
+                                        <span>Completed {formatDate(item.completedAt)}</span>
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                  </div>
+                )}
+              </>
             )}
           </>
         ) : (
