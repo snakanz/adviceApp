@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
@@ -17,7 +17,6 @@ import {
   AlertCircle,
   Clock
 } from 'lucide-react';
-import { api } from '../services/api';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
@@ -87,14 +86,7 @@ export default function ClientDocumentsManager({ clientId, clientName }) {
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState(null);
 
-  // Fetch documents on mount
-  useEffect(() => {
-    if (clientId) {
-      fetchDocuments();
-    }
-  }, [clientId]);
-
-  const fetchDocuments = async () => {
+  const fetchDocuments = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -117,7 +109,14 @@ export default function ClientDocumentsManager({ clientId, clientName }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [clientId]);
+
+  // Fetch documents on mount
+  useEffect(() => {
+    if (clientId) {
+      fetchDocuments();
+    }
+  }, [clientId, fetchDocuments]);
 
   const handleFileUpload = async (selectedFiles) => {
     if (!selectedFiles || selectedFiles.length === 0) return;
