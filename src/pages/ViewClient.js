@@ -4,17 +4,19 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { cn } from '../lib/utils';
-import { 
-  ArrowLeft, 
-  Calendar, 
-  TrendingUp, 
-  Sparkles, 
+import {
+  ArrowLeft,
+  Calendar,
+  TrendingUp,
+  Sparkles,
   Clock,
   Mail,
   Users,
-  Building2
+  Building2,
+  FileText
 } from 'lucide-react';
 import { api } from '../services/api';
+import ClientDocumentsManager from '../components/ClientDocumentsManager';
 
 const formatDateTime = (dateTimeStr) => {
   const date = new Date(dateTimeStr);
@@ -157,6 +159,16 @@ const ViewClient = () => {
           <button
             className={cn(
               "tab-btn",
+              activeTab === 'documents' && "active"
+            )}
+            onClick={() => setActiveTab('documents')}
+          >
+            <FileText className="w-4 h-4 inline mr-2" />
+            Documents
+          </button>
+          <button
+            className={cn(
+              "tab-btn",
               activeTab === 'pipeline' && "active"
             )}
             onClick={() => setActiveTab('pipeline')}
@@ -229,6 +241,16 @@ const ViewClient = () => {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'documents' && (
+          <div className="space-y-6">
+            <h2 className="text-xl font-semibold text-foreground">Documents</h2>
+            <ClientDocumentsManager
+              clientId={clientId}
+              clientName={clientData.name}
+            />
           </div>
         )}
 

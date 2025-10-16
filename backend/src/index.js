@@ -1285,6 +1285,10 @@ console.log('🔄 Mounting notifications routes...');
 app.use('/api/notifications', require('./routes/notifications'));
 console.log('✅ Notifications routes mounted');
 
+console.log('🔄 Mounting client-documents routes...');
+app.use('/api/client-documents', require('./routes/clientDocuments'));
+console.log('✅ Client-documents routes mounted');
+
 console.log('✅ All API routes mounted');
 
 // DISABLED: Routes are already mounted directly above

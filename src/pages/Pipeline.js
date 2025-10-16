@@ -744,14 +744,14 @@ export default function Pipeline() {
 
                 {/* Collapsible Client List */}
                 {showOverdueSection && (
-                  <div className="mt-3 space-y-2 max-h-96 overflow-y-auto">
+                  <div className="mt-3 space-y-2 max-h-[40vh] lg:max-h-96 overflow-y-auto overflow-x-hidden">
                     {overdueClients.map((client) => (
                       <div
                         key={client.id}
                         onClick={() => handleClientClick(client)}
                         className="group bg-card hover:bg-accent/50 border border-border rounded-lg p-3 cursor-pointer transition-all hover:shadow-sm"
                       >
-                        <div className="flex items-center justify-between gap-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                           {/* Left: Avatar + Client Info */}
                           <div className="flex items-center gap-3 flex-1 min-w-0">
                             <Avatar className="w-9 h-9 flex-shrink-0 ring-2 ring-background">
@@ -770,11 +770,11 @@ export default function Pipeline() {
                           </div>
 
                           {/* Right: Stage + Date + Value */}
-                          <div className="flex items-center gap-3 flex-shrink-0">
-                            <Badge variant="outline" className="text-xs font-normal">
+                          <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap sm:flex-shrink-0">
+                            <Badge variant="outline" className="text-xs font-normal whitespace-nowrap">
                               {client.businessStage}
                             </Badge>
-                            <div className="text-right min-w-[100px]">
+                            <div className="text-right min-w-[90px] sm:min-w-[100px]">
                               {client.expectedMonth ? (
                                 <>
                                   <div className="text-xs font-medium text-amber-600 dark:text-amber-400">
@@ -790,7 +790,7 @@ export default function Pipeline() {
                                 </div>
                               )}
                             </div>
-                            <div className="text-sm font-semibold text-foreground min-w-[100px] text-right">
+                            <div className="text-sm font-semibold text-foreground min-w-[90px] sm:min-w-[100px] text-right">
                               {/* FIX ISSUE 2: Show Total Business Amount in overdue section */}
                               {client.totalBusinessAmount > 0 && (
                                 <div className="text-sm font-bold">
