@@ -102,8 +102,22 @@ router.patch('/action-items/:actionItemId/toggle', authenticateToken, async (req
 
     console.log(`✅ Successfully toggled action item ${actionItemId} to completed=${updatedItem.completed}`);
 
+    // Transform to camelCase format to match frontend expectations
+    const formattedItem = {
+      id: updatedItem.id,
+      actionText: updatedItem.action_text,
+      completed: updatedItem.completed,
+      completedAt: updatedItem.completed_at,
+      displayOrder: updatedItem.display_order,
+      priority: updatedItem.priority || 3,
+      createdAt: updatedItem.created_at,
+      meetingId: updatedItem.meeting_id,
+      clientId: updatedItem.client_id,
+      advisorId: updatedItem.advisor_id
+    };
+
     // Ensure we're sending the response
-    return res.status(200).json({ actionItem: updatedItem });
+    return res.status(200).json({ actionItem: formattedItem });
   } catch (error) {
     console.error('❌ EXCEPTION in toggle action item:', error);
     console.error('Stack trace:', error.stack);
@@ -143,7 +157,21 @@ router.patch('/action-items/:actionItemId/text', authenticateToken, async (req, 
       return res.status(404).json({ error: 'Action item not found' });
     }
 
-    res.json({ actionItem: updatedItem });
+    // Transform to camelCase format to match frontend expectations
+    const formattedItem = {
+      id: updatedItem.id,
+      actionText: updatedItem.action_text,
+      completed: updatedItem.completed,
+      completedAt: updatedItem.completed_at,
+      displayOrder: updatedItem.display_order,
+      priority: updatedItem.priority || 3,
+      createdAt: updatedItem.created_at,
+      meetingId: updatedItem.meeting_id,
+      clientId: updatedItem.client_id,
+      advisorId: updatedItem.advisor_id
+    };
+
+    res.json({ actionItem: formattedItem });
   } catch (error) {
     console.error('Error in update action item text:', error);
     res.status(500).json({ error: 'Internal server error' });
