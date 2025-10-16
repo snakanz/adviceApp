@@ -68,12 +68,12 @@ router.get('/', async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch clients' });
     }
 
-    // Get business types for all clients (exclude not proceeding by default)
+    // Get business types for all clients
+    // Note: We fetch all business types and filter in application code if needed
     const { data: allBusinessTypes, error: businessTypesError } = await getSupabase()
       .from('client_business_types')
       .select('*')
-      .in('client_id', clients.map(c => c.id))
-      .or('not_proceeding.is.null,not_proceeding.eq.false');
+      .in('client_id', clients.map(c => c.id));
 
     if (businessTypesError) {
       console.error('Error fetching business types:', businessTypesError);
@@ -1112,13 +1112,9 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
       meeting: createdMeeting,
       pipeline_entry: {
         pipeline_stage,
-        business_type,
-        iaf_expected,
-        business_amount,
-        regular_contribution_type,
-        regular_contribution_amount,
+        likely_close_month,
         pipeline_notes,
-        likely_close_month
+        business_types: businessTypeResults
       }
     });
 
