@@ -30,11 +30,20 @@ router.post('/upload', authenticateToken, clientDocumentsService.upload.array('f
     const { clientId } = req.body; // Optional client ID
     const files = req.files;
 
+    console.log('📤 Client document upload request:', {
+      advisorId,
+      clientId,
+      fileCount: files?.length || 0,
+      files: files?.map(f => ({ name: f.originalname, size: f.size, type: f.mimetype }))
+    });
+
     if (!files || files.length === 0) {
+      console.error('❌ No files in upload request');
       return res.status(400).json({ error: 'No files uploaded' });
     }
 
     if (!isSupabaseAvailable()) {
+      console.error('❌ Supabase not available');
       return res.status(503).json({
         error: 'Database service unavailable. Please contact support.'
       });
@@ -42,6 +51,7 @@ router.post('/upload', authenticateToken, clientDocumentsService.upload.array('f
 
     // If clientId provided, verify it belongs to advisor
     if (clientId) {
+      console.log('🔍 Verifying client access:', { clientId, advisorId });
       const { data: client, error: clientError } = await getSupabase()
         .from('clients')
         .select('id, name')
@@ -50,8 +60,10 @@ router.post('/upload', authenticateToken, clientDocumentsService.upload.array('f
         .single();
 
       if (clientError || !client) {
+        console.error('❌ Client not found or access denied:', clientError);
         return res.status(404).json({ error: 'Client not found' });
       }
+      console.log('✅ Client verified:', client.name);
     }
 
     const uploadedFiles = [];
@@ -60,11 +72,16 @@ router.post('/upload', authenticateToken, clientDocumentsService.upload.array('f
     // Process each file
     for (const file of files) {
       try {
+        console.log(`📄 Processing file: ${file.originalname}`);
+
         // Generate unique filename
         const fileName = clientDocumentsService.generateFileName(file.originalname, clientId);
+        console.log(`  Generated filename: ${fileName}`);
 
         // Upload to storage
+        console.log(`  Uploading to storage...`);
         const storageResult = await clientDocumentsService.uploadToStorage(file, fileName, advisorId);
+        console.log(`  ✅ Storage upload successful:`, storageResult.path);
 
         // Save metadata to database
         const fileData = {
@@ -81,9 +98,12 @@ router.post('/upload', authenticateToken, clientDocumentsService.upload.array('f
           analysis_status: 'pending'
         };
 
+        console.log(`  Saving metadata to database...`);
         const savedFile = await clientDocumentsService.saveFileMetadata(fileData);
+        console.log(`  ✅ Metadata saved, ID: ${savedFile.id}`);
 
         // Queue for AI analysis
+        console.log(`  Queueing for AI analysis...`);
         await clientDocumentsService.queueDocumentForAnalysis(
           savedFile.id,
           'client_document',
@@ -95,14 +115,21 @@ router.post('/upload', authenticateToken, clientDocumentsService.upload.array('f
         savedFile.download_url = await clientDocumentsService.getFileDownloadUrl(storageResult.path);
 
         uploadedFiles.push(savedFile);
+        console.log(`  ✅ File processed successfully: ${file.originalname}`);
       } catch (fileError) {
-        console.error(`Error uploading file ${file.originalname}:`, fileError);
+        console.error(`❌ Error uploading file ${file.originalname}:`, fileError);
+        console.error(`   Error details:`, {
+          message: fileError.message,
+          stack: fileError.stack
+        });
         errors.push({
           filename: file.originalname,
           error: fileError.message
         });
       }
     }
+
+    console.log(`✅ Upload complete: ${uploadedFiles.length} successful, ${errors.length} failed`);
 
     res.json({
       message: `Successfully uploaded ${uploadedFiles.length} file(s)`,
@@ -111,7 +138,11 @@ router.post('/upload', authenticateToken, clientDocumentsService.upload.array('f
     });
 
   } catch (error) {
-    console.error('Error in file upload:', error);
+    console.error('❌ Error in file upload:', error);
+    console.error('   Error details:', {
+      message: error.message,
+      stack: error.stack
+    });
     res.status(500).json({ error: 'Failed to upload files' });
   }
 });
