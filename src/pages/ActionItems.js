@@ -480,7 +480,7 @@ export default function ActionItems() {
         prevClients.map(client => ({
           ...client,
           actionItems: client.actionItems.map(item =>
-            item.id === actionItemId ? data.actionItem : item
+            item.id === actionItemId ? { ...item, ...data.actionItem } : item
           )
         }))
       );
@@ -488,7 +488,7 @@ export default function ActionItems() {
       // Update local state for all-items view (fixes white screen in all-items mode)
       setAllActionItems(prevItems =>
         prevItems.map(item =>
-          item.id === actionItemId ? data.actionItem : item
+          item.id === actionItemId ? { ...item, ...data.actionItem } : item
         )
       );
 
@@ -553,7 +553,7 @@ export default function ActionItems() {
         prevClients.map(client => ({
           ...client,
           actionItems: client.actionItems.map(item =>
-            item.id === actionItemId ? { ...item, actionText: data.actionItem.action_text } : item
+            item.id === actionItemId ? { ...item, actionText: data.actionItem.actionText } : item
           )
         }))
       );
@@ -561,7 +561,7 @@ export default function ActionItems() {
       // Update local state for all-items view
       setAllActionItems(prevItems =>
         prevItems.map(item =>
-          item.id === actionItemId ? { ...item, actionText: data.actionItem.action_text } : item
+          item.id === actionItemId ? { ...item, actionText: data.actionItem.actionText } : item
         )
       );
 
