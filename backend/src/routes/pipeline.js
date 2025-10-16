@@ -32,9 +32,11 @@ router.get('/', async (req, res) => {
         email,
         business_type,
         likely_value,
+        iaf_expected,
         likely_close_month,
         pipeline_stage,
         priority_level,
+        likelihood,
         last_contact_date,
         next_follow_up_date,
         created_at,
@@ -182,7 +184,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Update client pipeline stage and close month (for drag and drop)
+// Update client pipeline stage and close month (for drag and drop and inline editing)
 router.put('/client/:clientId', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
@@ -192,7 +194,7 @@ router.put('/client/:clientId', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
     const { clientId } = req.params;
-    const { likely_close_month, pipeline_stage, priority_level } = req.body;
+    const { likely_close_month, pipeline_stage, priority_level, likelihood, iaf_expected } = req.body;
 
     if (!isSupabaseAvailable()) {
       return res.status(503).json({
@@ -203,7 +205,7 @@ router.put('/client/:clientId', async (req, res) => {
     // Verify client belongs to advisor
     const { data: client, error: clientError } = await getSupabase()
       .from('clients')
-      .select('id')
+      .select('id, pipeline_stage')
       .eq('id', clientId)
       .eq('advisor_id', userId)
       .single();
@@ -217,6 +219,22 @@ router.put('/client/:clientId', async (req, res) => {
     if (likely_close_month !== undefined) updateData.likely_close_month = likely_close_month;
     if (pipeline_stage !== undefined) updateData.pipeline_stage = pipeline_stage;
     if (priority_level !== undefined) updateData.priority_level = priority_level;
+    if (likelihood !== undefined) {
+      // Validate likelihood is between 0 and 100
+      const likelihoodValue = parseInt(likelihood);
+      if (isNaN(likelihoodValue) || likelihoodValue < 0 || likelihoodValue > 100) {
+        return res.status(400).json({ error: 'Likelihood must be between 0 and 100' });
+      }
+      updateData.likelihood = likelihoodValue;
+    }
+    if (iaf_expected !== undefined) {
+      // Validate iaf_expected is a valid number
+      const iafValue = parseFloat(iaf_expected);
+      if (isNaN(iafValue) || iafValue < 0) {
+        return res.status(400).json({ error: 'IAF Expected must be a positive number' });
+      }
+      updateData.iaf_expected = iafValue;
+    }
 
     const { data: updatedClient, error: updateError } = await getSupabase()
       .from('clients')
@@ -233,16 +251,21 @@ router.put('/client/:clientId', async (req, res) => {
 
     // Log activity
     if (pipeline_stage !== undefined) {
-      await getSupabase()
-        .from('pipeline_activities')
-        .insert({
-          client_id: clientId,
-          advisor_id: userId,
-          activity_type: 'stage_change',
-          title: `Pipeline stage changed to ${pipeline_stage}`,
-          description: `Client pipeline stage updated to ${pipeline_stage}`,
-          metadata: { old_stage: client.pipeline_stage, new_stage: pipeline_stage }
-        });
+      try {
+        await getSupabase()
+          .from('pipeline_activities')
+          .insert({
+            client_id: clientId,
+            advisor_id: userId,
+            activity_type: 'stage_change',
+            title: `Pipeline stage changed to ${pipeline_stage}`,
+            description: `Client pipeline stage updated to ${pipeline_stage}`,
+            metadata: { old_stage: client.pipeline_stage, new_stage: pipeline_stage }
+          });
+      } catch (activityError) {
+        // Don't fail the whole operation if activity logging fails
+        console.warn('Failed to log pipeline activity:', activityError.message);
+      }
     }
 
     res.json(updatedClient);

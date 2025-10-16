@@ -12,7 +12,8 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  Check
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -20,6 +21,13 @@ import { cn } from '../lib/utils';
 import { api } from '../services/api';
 import CreateClientForm from '../components/CreateClientForm';
 import BusinessTypeManager from '../components/BusinessTypeManager';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 
 
 
@@ -38,6 +46,12 @@ export default function Pipeline() {
   const [savingBusinessTypes, setSavingBusinessTypes] = useState(false); // Saving state for business types
   const [generatingPipelineSummary, setGeneratingPipelineSummary] = useState(false); // AI summary generation state
   const [nextStepsSummary, setNextStepsSummary] = useState(null); // AI-generated next steps summary
+
+  // Inline editing state
+  const [editingField, setEditingField] = useState(null); // { clientId, field }
+  const [editingValue, setEditingValue] = useState('');
+  const [savingInlineEdit, setSavingInlineEdit] = useState(false);
+
   const { isAuthenticated} = useAuth();
   const navigate = useNavigate();
 
@@ -54,7 +68,87 @@ export default function Pipeline() {
 
   const months = generateMonths();
 
+  // Pipeline stages for dropdown
+  const pipelineStages = [
+    'Client Signed',
+    'Waiting to Sign',
+    'Waiting on Paraplanning',
+    'Have Not Written Advice',
+    'Need to Book Meeting',
+    "Can't Contact Client"
+  ];
 
+  // Inline editing handlers
+  const handleStartEdit = (clientId, field, currentValue) => {
+    setEditingField({ clientId, field });
+    setEditingValue(currentValue);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingField(null);
+    setEditingValue('');
+  };
+
+  const handleSaveInlineEdit = async (clientId, field, value) => {
+    setSavingInlineEdit(true);
+    try {
+      const updateData = {};
+
+      if (field === 'pipeline_stage') {
+        updateData.pipeline_stage = value;
+      } else if (field === 'iaf_expected') {
+        const numValue = parseFloat(value);
+        if (isNaN(numValue) || numValue < 0) {
+          alert('Please enter a valid positive number for IAF Expected');
+          setSavingInlineEdit(false);
+          return;
+        }
+        updateData.iaf_expected = numValue;
+      } else if (field === 'likelihood') {
+        const numValue = parseInt(value);
+        if (isNaN(numValue) || numValue < 0 || numValue > 100) {
+          alert('Please enter a number between 0 and 100 for Likelihood');
+          setSavingInlineEdit(false);
+          return;
+        }
+        updateData.likelihood = numValue;
+      }
+
+      // Update via API
+      await api.request(`/pipeline/client/${clientId}`, {
+        method: 'PUT',
+        body: JSON.stringify(updateData)
+      });
+
+      // Update local state
+      setClients(prevClients =>
+        prevClients.map(client => {
+          if (client.id === clientId) {
+            const updated = { ...client };
+            if (field === 'pipeline_stage') {
+              updated.businessStage = value;
+            } else if (field === 'iaf_expected') {
+              updated.expectedValue = parseFloat(value);
+              updated.totalIafExpected = parseFloat(value);
+            } else if (field === 'likelihood') {
+              updated.likelihood = parseInt(value);
+            }
+            return updated;
+          }
+          return client;
+        })
+      );
+
+      // Clear editing state
+      setEditingField(null);
+      setEditingValue('');
+    } catch (error) {
+      console.error('Error updating client:', error);
+      alert('Failed to update client. Please try again.');
+    } finally {
+      setSavingInlineEdit(false);
+    }
+  };
 
   const fetchPipelineData = useCallback(async () => {
     setLoading(true);
@@ -110,7 +204,7 @@ export default function Pipeline() {
           pastMeetingCount: client.meeting_count || 0,
           businessStage: client.pipeline_stage || 'Need to Book Meeting',
           pipelineNotes: client.notes || '',
-          likelihood: 75, // Default likelihood - could be added to client schema later
+          likelihood: client.likelihood !== null && client.likelihood !== undefined ? client.likelihood : 75, // Use database value or default to 75
           // Use aggregated data from business_types (SINGLE SOURCE OF TRUTH)
           expectedValue: parseFloat(client.iaf_expected || client.likely_value || 0),
           expectedMonth: expectedMonth,
@@ -833,11 +927,53 @@ export default function Pipeline() {
                     </div>
                   </div>
 
-                  {/* Business Stage */}
-                  <div className="col-span-2 flex items-center">
-                    <Badge className={cn("text-xs px-2 py-1 font-medium", getStageColor(client.businessStage))}>
-                      {client.businessStage}
-                    </Badge>
+                  {/* Business Stage - Inline Editable */}
+                  <div
+                    className="col-span-2 flex items-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!editingField || editingField.clientId !== client.id || editingField.field !== 'pipeline_stage') {
+                        handleStartEdit(client.id, 'pipeline_stage', client.businessStage);
+                      }
+                    }}
+                  >
+                    {editingField?.clientId === client.id && editingField?.field === 'pipeline_stage' ? (
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <Select
+                          value={editingValue}
+                          onValueChange={(value) => {
+                            setEditingValue(value);
+                            handleSaveInlineEdit(client.id, 'pipeline_stage', value);
+                          }}
+                        >
+                          <SelectTrigger className="h-7 text-xs w-[180px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {pipelineStages.map((stage) => (
+                              <SelectItem key={stage} value={stage} className="text-xs">
+                                {stage}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCancelEdit();
+                          }}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Badge className={cn("text-xs px-2 py-1 font-medium cursor-pointer hover:opacity-80", getStageColor(client.businessStage))}>
+                        {client.businessStage}
+                      </Badge>
+                    )}
                   </div>
 
                   {/* Pipeline Notes */}
@@ -847,18 +983,80 @@ export default function Pipeline() {
                     </div>
                   </div>
 
-                  {/* Likelihood */}
-                  <div className="col-span-1 flex items-center justify-center">
-                    <div className={cn(
-                      "text-sm font-bold px-2 py-1 rounded-full bg-opacity-20",
-                      getLikelihoodColor(client.likelihood)
-                    )}>
-                      {client.likelihood}%
-                    </div>
+                  {/* Likelihood - Inline Editable */}
+                  <div
+                    className="col-span-1 flex items-center justify-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!editingField || editingField.clientId !== client.id || editingField.field !== 'likelihood') {
+                        handleStartEdit(client.id, 'likelihood', client.likelihood);
+                      }
+                    }}
+                  >
+                    {editingField?.clientId === client.id && editingField?.field === 'likelihood' ? (
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={editingValue}
+                          onChange={(e) => setEditingValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              handleSaveInlineEdit(client.id, 'likelihood', editingValue);
+                            } else if (e.key === 'Escape') {
+                              handleCancelEdit();
+                            }
+                          }}
+                          className="h-7 w-16 text-xs"
+                          autoFocus
+                          disabled={savingInlineEdit}
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSaveInlineEdit(client.id, 'likelihood', editingValue);
+                          }}
+                          disabled={savingInlineEdit}
+                        >
+                          <Check className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCancelEdit();
+                          }}
+                          disabled={savingInlineEdit}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className={cn(
+                        "text-sm font-bold px-2 py-1 rounded-full bg-opacity-20 cursor-pointer hover:opacity-80",
+                        getLikelihoodColor(client.likelihood)
+                      )}>
+                        {client.likelihood}%
+                      </div>
+                    )}
                   </div>
 
-                  {/* Expected Value - Enhanced with Business Type Breakdown */}
-                  <div className="col-span-2 flex items-center gap-2">
+                  {/* Expected Value - Enhanced with Business Type Breakdown - Inline Editable IAF */}
+                  <div
+                    className="col-span-2 flex items-center gap-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!editingField || editingField.clientId !== client.id || editingField.field !== 'iaf_expected') {
+                        handleStartEdit(client.id, 'iaf_expected', client.expectedValue);
+                      }
+                    }}
+                  >
                     <div className="flex-1">
                       {/* FIX ISSUE 2: Show Total Business Amount prominently */}
                       {client.totalBusinessAmount > 0 && (
@@ -867,14 +1065,61 @@ export default function Pipeline() {
                           <span className="text-xs text-muted-foreground font-normal ml-1">Business</span>
                         </div>
                       )}
-                      {/* Show IAF Expected */}
-                      <div className={cn(
-                        "text-sm font-bold text-foreground",
-                        client.totalBusinessAmount > 0 ? "text-xs text-muted-foreground font-normal" : "mb-0.5"
-                      )}>
-                        {formatCurrency(client.expectedValue)}
-                        {client.totalBusinessAmount > 0 && <span className="ml-1">IAF</span>}
-                      </div>
+                      {/* Show IAF Expected - Inline Editable */}
+                      {editingField?.clientId === client.id && editingField?.field === 'iaf_expected' ? (
+                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <span className="text-xs text-muted-foreground">£</span>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="100"
+                            value={editingValue}
+                            onChange={(e) => setEditingValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleSaveInlineEdit(client.id, 'iaf_expected', editingValue);
+                              } else if (e.key === 'Escape') {
+                                handleCancelEdit();
+                              }
+                            }}
+                            className="h-7 w-24 text-xs"
+                            autoFocus
+                            disabled={savingInlineEdit}
+                          />
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSaveInlineEdit(client.id, 'iaf_expected', editingValue);
+                            }}
+                            disabled={savingInlineEdit}
+                          >
+                            <Check className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 w-6 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCancelEdit();
+                            }}
+                            disabled={savingInlineEdit}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className={cn(
+                          "text-sm font-bold text-foreground cursor-pointer hover:opacity-80",
+                          client.totalBusinessAmount > 0 ? "text-xs text-muted-foreground font-normal" : "mb-0.5"
+                        )}>
+                          {formatCurrency(client.expectedValue)}
+                          {client.totalBusinessAmount > 0 && <span className="ml-1">IAF</span>}
+                        </div>
+                      )}
                       {/* Show breakdown if multiple business types */}
                       {client.businessTypesData && client.businessTypesData.length > 1 && (
                         <div className="flex items-center gap-1 mt-1">
