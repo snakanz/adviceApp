@@ -98,7 +98,7 @@ const oauth2Client = new google.auth.OAuth2(
 console.log('✅ Google OAuth2 configured');
 
 console.log('Defining inline routes...');
-// Health check with database connectivity - Updated for deployment
+// Health check with database connectivity
 app.get('/api/health', async (req, res) => {
   try {
     let dbStatus = false;
