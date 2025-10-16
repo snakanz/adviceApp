@@ -19,7 +19,7 @@ import {
   Files
 } from 'lucide-react';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
 // File category icons
 const getCategoryIcon = (category) => {
@@ -93,8 +93,14 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
       const token = localStorage.getItem('jwt');
       const allMeetingDocs = [];
 
-      // Fetch documents for each meeting
-      for (const meeting of meetings) {
+      // Only fetch documents for Google Calendar meetings (not Calendly)
+      // Calendly meetings have IDs starting with 'calendly_'
+      const googleMeetings = meetings.filter(meeting =>
+        meeting.id && !meeting.id.toString().startsWith('calendly_')
+      );
+
+      // Fetch documents for each Google Calendar meeting
+      for (const meeting of googleMeetings) {
         try {
           const response = await fetch(`${API_URL}/api/calendar/meetings/${meeting.id}/documents`, {
             headers: {
@@ -114,6 +120,9 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
               }));
               allMeetingDocs.push(...docsWithMeeting);
             }
+          } else if (response.status !== 404) {
+            // Only log non-404 errors (404 just means no documents)
+            console.warn(`Failed to fetch documents for meeting ${meeting.id}: ${response.status}`);
           }
         } catch (err) {
           console.error(`Error fetching documents for meeting ${meeting.id}:`, err);
@@ -157,6 +166,10 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
       formData.append('clientId', clientId);
 
       const token = localStorage.getItem('jwt');
+      console.log('Uploading to:', `${API_URL}/api/client-documents/upload`);
+      console.log('Client ID:', clientId);
+      console.log('Files:', Array.from(selectedFiles).map(f => f.name));
+
       const response = await fetch(`${API_URL}/api/client-documents/upload`, {
         method: 'POST',
         headers: {
@@ -165,14 +178,25 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
         body: formData
       });
 
+      console.log('Upload response status:', response.status);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Upload failed');
+        let errorMessage = 'Upload failed';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          errorMessage = `Upload failed with status ${response.status}`;
+        }
+        throw new Error(errorMessage);
       }
+
+      const result = await response.json();
+      console.log('Upload successful:', result);
 
       // Refresh client documents list
       await fetchClientDocuments();
-      
+
     } catch (err) {
       console.error('Error uploading files:', err);
       setError(err.message || 'Failed to upload files');
