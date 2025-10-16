@@ -13,10 +13,7 @@ import {
   Download,
   Trash2,
   Loader2,
-  AlertCircle,
-  Calendar,
-  FolderOpen,
-  Files
+  AlertCircle
 } from 'lucide-react';
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
@@ -59,14 +56,12 @@ const formatDate = (dateString) => {
 
 export default function ClientDocumentsSection({ clientId, clientName, meetings = [] }) {
   const [clientDocuments, setClientDocuments] = useState([]);
-  const [meetingDocuments, setMeetingDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [error, setError] = useState(null);
-  const [viewMode, setViewMode] = useState('all'); // 'all', 'client', 'meetings'
 
-  // Fetch client-level documents
+  // Fetch all client documents (including those linked to meetings)
   const fetchClientDocuments = useCallback(async () => {
     try {
       const token = localStorage.getItem('jwt');
@@ -87,75 +82,19 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
     }
   }, [clientId]);
 
-  // Fetch meeting-level documents for all meetings
-  const fetchMeetingDocuments = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('jwt');
-      const allMeetingDocs = [];
-
-      // Only fetch documents for Google Calendar meetings (not Calendly)
-      // Calendly meetings have IDs starting with 'calendly_'
-      const googleMeetings = meetings.filter(meeting =>
-        meeting.id && !meeting.id.toString().startsWith('calendly_')
-      );
-
-      console.log(`📄 Fetching documents for ${googleMeetings.length} meetings`);
-
-      // Fetch documents for each Google Calendar meeting
-      for (const meeting of googleMeetings) {
-        try {
-          // Use the new unified client-documents endpoint
-          const response = await fetch(`${API_URL}/api/client-documents/meeting/${meeting.id}`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            console.log(`  Meeting ${meeting.id}: ${data.count} documents`);
-            if (data.documents && data.documents.length > 0) {
-              // Add meeting info to each document
-              const docsWithMeeting = data.documents.map(doc => ({
-                ...doc,
-                meetingId: meeting.id,
-                meetingTitle: meeting.title,
-                meetingDate: meeting.starttime
-              }));
-              allMeetingDocs.push(...docsWithMeeting);
-            }
-          } else if (response.status !== 404) {
-            // Only log non-404 errors (404 just means no documents)
-            console.warn(`Failed to fetch documents for meeting ${meeting.id}: ${response.status}`);
-          }
-        } catch (err) {
-          console.error(`Error fetching documents for meeting ${meeting.id}:`, err);
-        }
-      }
-
-      console.log(`✅ Total meeting documents found: ${allMeetingDocs.length}`);
-      setMeetingDocuments(allMeetingDocs);
-    } catch (err) {
-      console.error('Error fetching meeting documents:', err);
-    }
-  }, [meetings]);
-
   // Fetch all documents on mount
   useEffect(() => {
     const fetchAllDocuments = async () => {
       setLoading(true);
       setError(null);
-      await Promise.all([
-        fetchClientDocuments(),
-        fetchMeetingDocuments()
-      ]);
+      await fetchClientDocuments();
       setLoading(false);
     };
 
     if (clientId) {
       fetchAllDocuments();
     }
-  }, [clientId, fetchClientDocuments, fetchMeetingDocuments]);
+  }, [clientId, fetchClientDocuments]);
 
   const handleFileUpload = async (selectedFiles) => {
     if (!selectedFiles || selectedFiles.length === 0) return;
@@ -228,38 +167,14 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
       }
 
       await fetchClientDocuments();
-      
+
     } catch (err) {
       console.error('Error deleting document:', err);
       setError('Failed to delete document');
     }
   };
 
-  const handleDeleteMeetingDocument = async (meetingId, documentId) => {
-    if (!window.confirm('Are you sure you want to delete this document?')) return;
-
-    try {
-      const token = localStorage.getItem('jwt');
-      const response = await fetch(`${API_URL}/api/calendar/meetings/${meetingId}/documents/${documentId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete document');
-      }
-
-      await fetchMeetingDocuments();
-      
-    } catch (err) {
-      console.error('Error deleting document:', err);
-      setError('Failed to delete document');
-    }
-  };
-
-  const handleDownloadClientDocument = async (documentId, fileName) => {
+  const handleDownloadDocument = async (documentId, fileName) => {
     try {
       const token = localStorage.getItem('jwt');
       const response = await fetch(`${API_URL}/api/client-documents/${documentId}/download`, {
@@ -274,19 +189,10 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
 
       const data = await response.json();
       window.open(data.downloadUrl, '_blank');
-      
+
     } catch (err) {
       console.error('Error downloading document:', err);
       setError('Failed to download document');
-    }
-  };
-
-  const handleDownloadMeetingDocument = (doc) => {
-    // Meeting documents already have download_url from the API response
-    if (doc.download_url) {
-      window.open(doc.download_url, '_blank');
-    } else {
-      setError('Download URL not available');
     }
   };
 
@@ -311,20 +217,7 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
     handleFileUpload(e.target.files);
   };
 
-  // Group meeting documents by meeting
-  const meetingDocsByMeeting = meetingDocuments.reduce((acc, doc) => {
-    if (!acc[doc.meetingId]) {
-      acc[doc.meetingId] = {
-        meetingTitle: doc.meetingTitle,
-        meetingDate: doc.meetingDate,
-        documents: []
-      };
-    }
-    acc[doc.meetingId].documents.push(doc);
-    return acc;
-  }, {});
-
-  const totalDocuments = clientDocuments.length + meetingDocuments.length;
+  const totalDocuments = clientDocuments.length;
 
   if (loading) {
     return (
@@ -344,49 +237,8 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
         </Badge>
       </div>
 
-      {/* View Mode Tabs */}
-      <div className="flex gap-2 border-b border-border/50">
-        <button
-          onClick={() => setViewMode('all')}
-          className={cn(
-            "px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-            viewMode === 'all'
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Files className="w-4 h-4 inline mr-1" />
-          All Documents
-        </button>
-        <button
-          onClick={() => setViewMode('client')}
-          className={cn(
-            "px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-            viewMode === 'client'
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <FolderOpen className="w-4 h-4 inline mr-1" />
-          Client Files ({clientDocuments.length})
-        </button>
-        <button
-          onClick={() => setViewMode('meetings')}
-          className={cn(
-            "px-3 py-2 text-sm font-medium border-b-2 transition-colors",
-            viewMode === 'meetings'
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          )}
-        >
-          <Calendar className="w-4 h-4 inline mr-1" />
-          Meeting Files ({meetingDocuments.length})
-        </button>
-      </div>
-
-      {/* Upload Area - Only show in 'all' or 'client' view */}
-      {(viewMode === 'all' || viewMode === 'client') && (
-        <Card className={cn(
+      {/* Upload Area */}
+      <Card className={cn(
           "border-2 border-dashed transition-colors",
           dragOver ? "border-primary bg-primary/5" : "border-border/50",
           uploading && "opacity-50 pointer-events-none"
@@ -435,7 +287,6 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
             </div>
           </CardContent>
         </Card>
-      )}
 
       {/* Error Message */}
       {error && (
@@ -459,122 +310,46 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {/* Client Documents */}
-          {(viewMode === 'all' || viewMode === 'client') && clientDocuments.length > 0 && (
-            <div className="space-y-2">
-              {viewMode === 'all' && (
-                <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
-                  <FolderOpen className="w-4 h-4" />
-                  Client Files
-                </h4>
-              )}
-              <div className="space-y-2">
-                {clientDocuments.map((doc) => (
-                  <Card key={doc.id} className="hover:shadow-sm transition-shadow">
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <div className="text-muted-foreground flex-shrink-0">
-                            {getCategoryIcon(doc.file_category)}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h5 className="text-sm font-medium text-foreground truncate" title={doc.original_name}>
-                              {doc.original_name}
-                            </h5>
-                            <p className="text-xs text-muted-foreground">
-                              {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDownloadClientDocument(doc.id, doc.original_name)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Download className="w-3 h-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteClientDocument(doc.id)}
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Meeting Documents */}
-          {(viewMode === 'all' || viewMode === 'meetings') && meetingDocuments.length > 0 && (
-            <div className="space-y-3">
-              {viewMode === 'all' && (
-                <h4 className="text-sm font-medium text-foreground flex items-center gap-2 mt-4">
-                  <Calendar className="w-4 h-4" />
-                  Meeting Files
-                </h4>
-              )}
-              {Object.entries(meetingDocsByMeeting).map(([meetingId, meetingData]) => (
-                <div key={meetingId} className="space-y-2">
-                  <div className="flex items-center gap-2 px-2">
-                    <Calendar className="w-3 h-3 text-muted-foreground" />
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {meetingData.meetingTitle} • {formatDate(meetingData.meetingDate)}
-                    </span>
+        <div className="space-y-2">
+          {clientDocuments.map((doc) => (
+            <Card key={doc.id} className="hover:shadow-sm transition-shadow">
+              <CardContent className="p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <div className="text-muted-foreground flex-shrink-0">
+                      {getCategoryIcon(doc.file_category)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h5 className="text-sm font-medium text-foreground truncate" title={doc.original_name}>
+                        {doc.original_name}
+                      </h5>
+                      <p className="text-xs text-muted-foreground">
+                        {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="space-y-2 pl-5">
-                    {meetingData.documents.map((doc) => (
-                      <Card key={doc.id} className="hover:shadow-sm transition-shadow">
-                        <CardContent className="p-3">
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <div className="text-muted-foreground flex-shrink-0">
-                                {getCategoryIcon(doc.file_category)}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <h5 className="text-sm font-medium text-foreground truncate" title={doc.original_name}>
-                                  {doc.original_name}
-                                </h5>
-                                <p className="text-xs text-muted-foreground">
-                                  {formatFileSize(doc.file_size)} • {formatDate(doc.created_at)}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDownloadMeetingDocument(doc)}
-                                className="h-8 w-8 p-0"
-                              >
-                                <Download className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteMeetingDocument(doc.meetingId, doc.id)}
-                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDownloadDocument(doc.id, doc.original_name)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Download className="w-3 h-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteClientDocument(doc.id)}
+                      className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              </CardContent>
+            </Card>
+          ))}
         </div>
       )}
     </div>
