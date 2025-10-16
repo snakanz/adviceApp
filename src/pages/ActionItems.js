@@ -61,6 +61,7 @@ export default function ActionItems() {
     fetchActionItems();
     fetchStarredMeetings();
     fetchPendingApprovalItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Refetch when filters change
@@ -68,6 +69,7 @@ export default function ActionItems() {
     if (!loading) {
       fetchActionItems();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [priorityFilter, sortBy]);
 
   const fetchActionItems = async () => {
