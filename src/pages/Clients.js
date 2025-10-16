@@ -52,6 +52,7 @@ export default function Clients() {
   const [clientFilter, setClientFilter] = useState('all'); // 'all', 'with-upcoming', 'no-upcoming'
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); // Sorting state
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
+  const [showEditClientModal, setShowEditClientModal] = useState(false); // NEW: Separate state for Edit Client Details modal
   const [showBusinessTypeManager, setShowBusinessTypeManager] = useState(false);
   const [clientBusinessTypes, setClientBusinessTypes] = useState([]);
   const [savingBusinessTypes, setSavingBusinessTypes] = useState(false);
@@ -366,6 +367,9 @@ export default function Clients() {
       console.error('Error loading business types:', error);
       setClientBusinessTypes([]);
     }
+
+    // Open the Edit Client Details modal
+    setShowEditClientModal(true);
   };
 
   const handleEditBusinessTypes = async (client) => {
@@ -468,6 +472,7 @@ export default function Clients() {
       const data = await api.request('/clients');
       setClients(data);
       setEditingClient(null);
+      setShowEditClientModal(false); // Close the modal
       setSaving(false);
 
       // Show success message
@@ -480,6 +485,7 @@ export default function Clients() {
 
   const handleCancelEdit = () => {
     setEditingClient(null);
+    setShowEditClientModal(false); // Close the modal
     setEditForm({
       name: '',
       email: '',
@@ -1309,7 +1315,7 @@ export default function Clients() {
 
 
       {/* Edit Client Modal */}
-      {editingClient && (
+      {showEditClientModal && editingClient && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-background p-6 rounded-lg shadow-lg w-full max-w-md">
             <h3 className="text-lg font-semibold mb-4">Edit Client Details</h3>
