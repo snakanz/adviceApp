@@ -477,7 +477,7 @@ export default function ActionItems() {
         }))
       );
 
-      // Update local state for all-items view
+      // Update local state for all-items view (fixes white screen in all-items mode)
       setAllActionItems(prevItems =>
         prevItems.map(item =>
           item.id === actionItemId ? data.actionItem : item
