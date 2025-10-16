@@ -13,9 +13,7 @@ import {
   Download,
   Trash2,
   Loader2,
-  CheckCircle,
   AlertCircle,
-  Clock,
   Calendar,
   FolderOpen,
   Files
