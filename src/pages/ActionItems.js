@@ -21,7 +21,8 @@ import {
   Edit2,
   Save,
   List,
-  Users
+  Users,
+  Plus
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
@@ -53,10 +54,21 @@ export default function ActionItems() {
   const [viewMode, setViewMode] = useState('by-client'); // 'by-client' or 'all-items'
   const [assigningPriorities, setAssigningPriorities] = useState(false);
 
-  // Inline editing state
+  // Inline editing state (for approved items)
   const [editingItemId, setEditingItemId] = useState(null);
   const [editingText, setEditingText] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Pending item editing state
+  const [editingPendingItemId, setEditingPendingItemId] = useState(null);
+  const [editingPendingText, setEditingPendingText] = useState('');
+  const [savingPendingEdit, setSavingPendingEdit] = useState(false);
+
+  // Adding new pending item state
+  const [addingPendingItem, setAddingPendingItem] = useState(null); // { meetingId, clientId }
+  const [newPendingItemText, setNewPendingItemText] = useState('');
+  const [newPendingItemPriority, setNewPendingItemPriority] = useState(3);
+  const [savingNewPendingItem, setSavingNewPendingItem] = useState(false);
 
   useEffect(() => {
     fetchActionItems();
@@ -262,6 +274,116 @@ export default function ActionItems() {
       console.error('Error updating pending item priority:', error);
       setError('Failed to update priority');
       setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  // Edit pending item text
+  const startEditingPendingItem = (item) => {
+    setEditingPendingItemId(item.id);
+    setEditingPendingText(item.actionText);
+  };
+
+  const cancelEditingPendingItem = () => {
+    setEditingPendingItemId(null);
+    setEditingPendingText('');
+  };
+
+  const savePendingItemEdit = async (itemId) => {
+    if (!editingPendingText.trim()) {
+      setError('Action text cannot be empty');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    try {
+      setSavingPendingEdit(true);
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/api/transcript-action-items/pending/${itemId}/text`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ actionText: editingPendingText.trim() })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update pending item');
+      }
+
+      setSuccess('Action item updated successfully!');
+      setTimeout(() => setSuccess(''), 3000);
+
+      // Refresh pending items
+      await fetchPendingApprovalItems();
+      setEditingPendingItemId(null);
+      setEditingPendingText('');
+    } catch (error) {
+      console.error('Error updating pending item:', error);
+      setError('Failed to update action item');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setSavingPendingEdit(false);
+    }
+  };
+
+  // Add new pending item
+  const startAddingPendingItem = (meetingId, clientId) => {
+    setAddingPendingItem({ meetingId, clientId });
+    setNewPendingItemText('');
+    setNewPendingItemPriority(3);
+  };
+
+  const cancelAddingPendingItem = () => {
+    setAddingPendingItem(null);
+    setNewPendingItemText('');
+    setNewPendingItemPriority(3);
+  };
+
+  const saveNewPendingItem = async () => {
+    if (!newPendingItemText.trim()) {
+      setError('Action text cannot be empty');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
+
+    if (!addingPendingItem) return;
+
+    try {
+      setSavingNewPendingItem(true);
+      const token = localStorage.getItem('jwt');
+      const response = await fetch(`${API_URL}/api/transcript-action-items/pending`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          meetingId: addingPendingItem.meetingId,
+          clientId: addingPendingItem.clientId,
+          actionText: newPendingItemText.trim(),
+          priority: newPendingItemPriority
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create pending item');
+      }
+
+      setSuccess('Action item added successfully!');
+      setTimeout(() => setSuccess(''), 3000);
+
+      // Refresh pending items
+      await fetchPendingApprovalItems();
+      setAddingPendingItem(null);
+      setNewPendingItemText('');
+      setNewPendingItemPriority(3);
+    } catch (error) {
+      console.error('Error creating pending item:', error);
+      setError('Failed to add action item');
+      setTimeout(() => setError(''), 3000);
+    } finally {
+      setSavingNewPendingItem(false);
     }
   };
 
@@ -862,7 +984,7 @@ export default function ActionItems() {
 
                             <div className="space-y-2 pl-6">
                               {meeting.pendingItems.map((item) => (
-                                <Card key={item.id} className="border-orange-200 bg-white">
+                                <Card key={item.id} className="border-orange-200 bg-white hover:shadow-sm transition-shadow">
                                   <CardContent className="p-3">
                                     <div className="flex items-start gap-3">
                                       <input
@@ -872,35 +994,190 @@ export default function ActionItems() {
                                         className="mt-1 w-4 h-4 text-orange-600 border-orange-300 rounded focus:ring-orange-500 cursor-pointer"
                                       />
                                       <div className="flex-1 space-y-2">
-                                        <p className="text-sm text-foreground">
-                                          {item.actionText}
-                                        </p>
-                                        <div className="flex items-center gap-2">
-                                          <span className="text-xs text-muted-foreground">Priority:</span>
-                                          <Select
-                                            value={String(pendingItemPriorities[item.id] || 3)}
-                                            onValueChange={(value) => updatePendingItemPriority(item.id, parseInt(value))}
-                                          >
-                                            <SelectTrigger className="w-32 h-7 text-xs">
-                                              <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              {priorityOptions.map(option => (
-                                                <SelectItem key={option.value} value={String(option.value)}>
-                                                  <span className="flex items-center gap-1">
-                                                    <span>{option.icon}</span>
-                                                    <span>{option.label}</span>
-                                                  </span>
-                                                </SelectItem>
-                                              ))}
-                                            </SelectContent>
-                                          </Select>
-                                        </div>
+                                        {editingPendingItemId === item.id ? (
+                                          // Edit mode
+                                          <div className="space-y-2">
+                                            <textarea
+                                              value={editingPendingText}
+                                              onChange={(e) => setEditingPendingText(e.target.value)}
+                                              className="w-full text-sm border border-orange-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                              rows={2}
+                                              autoFocus
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && e.ctrlKey) {
+                                                  savePendingItemEdit(item.id);
+                                                } else if (e.key === 'Escape') {
+                                                  cancelEditingPendingItem();
+                                                }
+                                              }}
+                                            />
+                                            <div className="flex items-center gap-2">
+                                              <Button
+                                                size="sm"
+                                                onClick={() => savePendingItemEdit(item.id)}
+                                                disabled={savingPendingEdit}
+                                                className="h-7 text-xs bg-orange-600 hover:bg-orange-700"
+                                              >
+                                                {savingPendingEdit ? (
+                                                  <>
+                                                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent mr-1"></div>
+                                                    Saving...
+                                                  </>
+                                                ) : (
+                                                  <>
+                                                    <Save className="w-3 h-3 mr-1" />
+                                                    Save
+                                                  </>
+                                                )}
+                                              </Button>
+                                              <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={cancelEditingPendingItem}
+                                                disabled={savingPendingEdit}
+                                                className="h-7 text-xs"
+                                              >
+                                                <X className="w-3 h-3 mr-1" />
+                                                Cancel
+                                              </Button>
+                                              <span className="text-xs text-muted-foreground ml-2">
+                                                Ctrl+Enter to save, Esc to cancel
+                                              </span>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          // View mode
+                                          <>
+                                            <div className="flex items-start justify-between group">
+                                              <p className="text-sm text-foreground flex-1">
+                                                {item.actionText}
+                                              </p>
+                                              <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                onClick={() => startEditingPendingItem(item)}
+                                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                              >
+                                                <Edit2 className="w-3 h-3 text-muted-foreground" />
+                                              </Button>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-xs text-muted-foreground">Priority:</span>
+                                              <Select
+                                                value={String(pendingItemPriorities[item.id] || 3)}
+                                                onValueChange={(value) => updatePendingItemPriority(item.id, parseInt(value))}
+                                              >
+                                                <SelectTrigger className="w-32 h-7 text-xs">
+                                                  <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  {priorityOptions.map(option => (
+                                                    <SelectItem key={option.value} value={String(option.value)}>
+                                                      <span className="flex items-center gap-1">
+                                                        <span>{option.icon}</span>
+                                                        <span>{option.label}</span>
+                                                      </span>
+                                                    </SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                            </div>
+                                          </>
+                                        )}
                                       </div>
                                     </div>
                                   </CardContent>
                                 </Card>
                               ))}
+
+                              {/* Add New Action Item */}
+                              {addingPendingItem?.meetingId === meeting.meetingId ? (
+                                <Card className="border-orange-300 bg-orange-50/50">
+                                  <CardContent className="p-3">
+                                    <div className="space-y-2">
+                                      <textarea
+                                        value={newPendingItemText}
+                                        onChange={(e) => setNewPendingItemText(e.target.value)}
+                                        placeholder="Enter action item text..."
+                                        className="w-full text-sm border border-orange-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                        rows={2}
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' && e.ctrlKey) {
+                                            saveNewPendingItem();
+                                          } else if (e.key === 'Escape') {
+                                            cancelAddingPendingItem();
+                                          }
+                                        }}
+                                      />
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs text-muted-foreground">Priority:</span>
+                                        <Select
+                                          value={String(newPendingItemPriority)}
+                                          onValueChange={(value) => setNewPendingItemPriority(parseInt(value))}
+                                        >
+                                          <SelectTrigger className="w-32 h-7 text-xs">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {priorityOptions.map(option => (
+                                              <SelectItem key={option.value} value={String(option.value)}>
+                                                <span className="flex items-center gap-1">
+                                                  <span>{option.icon}</span>
+                                                  <span>{option.label}</span>
+                                                </span>
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <Button
+                                          size="sm"
+                                          onClick={saveNewPendingItem}
+                                          disabled={savingNewPendingItem}
+                                          className="h-7 text-xs bg-orange-600 hover:bg-orange-700"
+                                        >
+                                          {savingNewPendingItem ? (
+                                            <>
+                                              <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent mr-1"></div>
+                                              Adding...
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Plus className="w-3 h-3 mr-1" />
+                                              Add
+                                            </>
+                                          )}
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={cancelAddingPendingItem}
+                                          disabled={savingNewPendingItem}
+                                          className="h-7 text-xs"
+                                        >
+                                          <X className="w-3 h-3 mr-1" />
+                                          Cancel
+                                        </Button>
+                                        <span className="text-xs text-muted-foreground ml-2">
+                                          Ctrl+Enter to add, Esc to cancel
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              ) : (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => startAddingPendingItem(meeting.meetingId, client.clientId)}
+                                  className="w-full h-8 text-xs border-orange-300 text-orange-700 hover:bg-orange-50"
+                                >
+                                  <Plus className="w-3 h-3 mr-1" />
+                                  Add Action Item
+                                </Button>
+                              )}
                             </div>
                           </div>
                         ))}

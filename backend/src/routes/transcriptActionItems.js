@@ -796,6 +796,126 @@ router.patch('/pending/:pendingItemId/priority', authenticateToken, async (req, 
   }
 });
 
+// Update text of a pending action item
+router.patch('/pending/:pendingItemId/text', authenticateToken, async (req, res) => {
+  try {
+    const { pendingItemId } = req.params;
+    const { actionText } = req.body;
+    const userId = req.user.id;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    if (!actionText || actionText.trim().length === 0) {
+      return res.status(400).json({ error: 'Action text is required' });
+    }
+
+    console.log(`✏️  Updating text for pending item ${pendingItemId}`);
+
+    // Update action text
+    const { data: updatedItem, error: updateError } = await getSupabase()
+      .from('pending_transcript_action_items')
+      .update({ action_text: actionText.trim() })
+      .eq('id', pendingItemId)
+      .eq('advisor_id', userId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating pending item text:', updateError);
+      return res.status(500).json({ error: 'Failed to update action text' });
+    }
+
+    if (!updatedItem) {
+      return res.status(404).json({ error: 'Pending item not found' });
+    }
+
+    res.json({
+      success: true,
+      pendingItem: updatedItem
+    });
+  } catch (error) {
+    console.error('Error in update pending item text:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Create a new pending action item
+router.post('/pending', authenticateToken, async (req, res) => {
+  try {
+    const { meetingId, clientId, actionText, priority } = req.body;
+    const userId = req.user.id;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    // Validate required fields
+    if (!meetingId) {
+      return res.status(400).json({ error: 'Meeting ID is required' });
+    }
+
+    if (!clientId) {
+      return res.status(400).json({ error: 'Client ID is required' });
+    }
+
+    if (!actionText || actionText.trim().length === 0) {
+      return res.status(400).json({ error: 'Action text is required' });
+    }
+
+    const finalPriority = priority && priority >= 1 && priority <= 4 ? priority : 3;
+
+    console.log(`➕ Creating new pending action item for meeting ${meetingId}`);
+
+    // Get the highest display_order for this meeting to append the new item
+    const { data: existingItems, error: fetchError } = await getSupabase()
+      .from('pending_transcript_action_items')
+      .select('display_order')
+      .eq('meeting_id', meetingId)
+      .order('display_order', { ascending: false })
+      .limit(1);
+
+    if (fetchError) {
+      console.error('Error fetching existing items:', fetchError);
+      return res.status(500).json({ error: 'Failed to create action item' });
+    }
+
+    const nextDisplayOrder = existingItems && existingItems.length > 0
+      ? existingItems[0].display_order + 1
+      : 1;
+
+    // Create the new pending item
+    const { data: newItem, error: insertError } = await getSupabase()
+      .from('pending_transcript_action_items')
+      .insert({
+        meeting_id: meetingId,
+        client_id: clientId,
+        advisor_id: userId,
+        action_text: actionText.trim(),
+        priority: finalPriority,
+        display_order: nextDisplayOrder
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error creating pending item:', insertError);
+      return res.status(500).json({ error: 'Failed to create action item' });
+    }
+
+    console.log(`✅ Successfully created pending action item ${newItem.id}`);
+
+    res.json({
+      success: true,
+      pendingItem: newItem
+    });
+  } catch (error) {
+    console.error('Error in create pending item:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Reject/delete pending action items
 router.delete('/pending', authenticateToken, async (req, res) => {
   try {
