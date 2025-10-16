@@ -114,6 +114,7 @@ router.post('/upload', authenticateToken, clientDocumentsService.upload.array('f
           storage_path: storageResult.path,
           storage_bucket: 'client-documents',
           uploaded_by: advisorId,
+          upload_source: 'clients_page', // Track source for AI context
           analysis_status: 'pending'
         };
 

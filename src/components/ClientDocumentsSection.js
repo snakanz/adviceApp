@@ -169,11 +169,12 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
         formData.append('files', file);
       });
       formData.append('clientId', clientId);
+      // Note: Backend automatically sets upload_source='clients_page' for AI context tracking
 
       const token = localStorage.getItem('jwt');
-      console.log('Uploading to:', `${API_URL}/api/client-documents/upload`);
-      console.log('Client ID:', clientId);
-      console.log('Files:', Array.from(selectedFiles).map(f => f.name));
+      console.log('📤 Uploading to unified document system:', `${API_URL}/api/client-documents/upload`);
+      console.log('   Client ID:', clientId);
+      console.log('   Files:', Array.from(selectedFiles).map(f => f.name));
 
       const response = await fetch(`${API_URL}/api/client-documents/upload`, {
         method: 'POST',
@@ -183,7 +184,7 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
         body: formData
       });
 
-      console.log('Upload response status:', response.status);
+      console.log('   Response status:', response.status);
 
       if (!response.ok) {
         let errorMessage = 'Upload failed';
@@ -197,7 +198,7 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
       }
 
       const result = await response.json();
-      console.log('Upload successful:', result);
+      console.log('✅ Upload successful:', result);
 
       // Refresh client documents list
       await fetchClientDocuments();

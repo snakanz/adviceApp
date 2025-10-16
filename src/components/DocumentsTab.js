@@ -76,6 +76,7 @@ export default function DocumentsTab({ meetingId, selectedMeeting }) {
   }, [fetchFiles]);
 
   // Handle file upload
+  // UPDATED: Uses unified client_documents system with upload_source tracking
   const handleFileUpload = async (selectedFiles) => {
     if (!selectedFiles || selectedFiles.length === 0) return;
 
@@ -88,6 +89,9 @@ export default function DocumentsTab({ meetingId, selectedMeeting }) {
         formData.append('files', file);
       });
 
+      // Note: The backend endpoint /api/calendar/meetings/:meetingId/documents
+      // now uses the unified client_documents system and automatically sets
+      // upload_source='meetings_page' for AI context tracking
       const token = localStorage.getItem('jwt');
       const response = await fetch(`${API_URL}/api/calendar/meetings/${meetingId}/documents`, {
         method: 'POST',
@@ -103,13 +107,13 @@ export default function DocumentsTab({ meetingId, selectedMeeting }) {
       }
 
       const data = await response.json();
-      
+
       // Refresh files list
       await fetchFiles();
-      
+
       // Show success message
-      console.log(`Successfully uploaded ${data.files.length} file(s)`);
-      
+      console.log(`✅ Successfully uploaded ${data.files.length} file(s) to unified document system`);
+
     } catch (err) {
       console.error('Error uploading files:', err);
       setError(err.message || 'Failed to upload files');

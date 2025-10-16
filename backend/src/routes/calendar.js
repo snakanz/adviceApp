@@ -9,7 +9,8 @@ const { google } = require('googleapis');
 const { getGoogleAuthClient, refreshAccessToken } = require('../services/calendar');
 const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
 const calendarSyncService = require('../services/calendarSync');
-const fileUploadService = require('../services/fileUpload');
+const fileUploadService = require('../services/fileUpload'); // Legacy - kept for backward compatibility
+const clientDocumentsService = require('../services/clientDocuments'); // Unified document system
 
 // Get Google Calendar auth URL
 router.get('/auth/google', async (req, res) => {
@@ -1235,11 +1236,14 @@ router.put('/clients/:clientId/annual-review', authenticateToken, async (req, re
 // ============================================================================
 
 // Upload files to a meeting
-router.post('/meetings/:meetingId/documents', authenticateToken, fileUploadService.upload.array('files', 10), async (req, res) => {
+// UPDATED: Now uses unified client_documents system
+router.post('/meetings/:meetingId/documents', authenticateToken, clientDocumentsService.upload.array('files', 10), async (req, res) => {
   try {
     const { meetingId } = req.params;
     const userId = req.user.id;
     const files = req.files;
+
+    console.log(`📤 Meeting document upload: meeting=${meetingId}, user=${userId}, files=${files?.length || 0}`);
 
     if (!files || files.length === 0) {
       return res.status(400).json({ error: 'No files uploaded' });
@@ -1248,7 +1252,7 @@ router.post('/meetings/:meetingId/documents', authenticateToken, fileUploadServi
     // Verify meeting exists and user has access
     const { data: meeting, error: meetingError } = await getSupabase()
       .from('meetings')
-      .select('id, title')
+      .select('id, title, client_id')
       .eq('id', meetingId)
       .eq('userid', userId)
       .single();
@@ -1260,42 +1264,51 @@ router.post('/meetings/:meetingId/documents', authenticateToken, fileUploadServi
     const uploadedFiles = [];
     const errors = [];
 
-    // Process each file
+    // Process each file using unified client_documents system
     for (const file of files) {
       try {
+        console.log(`  Processing file: ${file.originalname}`);
+
         // Generate unique filename
-        const fileName = fileUploadService.generateFileName(file.originalname, meetingId);
+        const fileName = clientDocumentsService.generateFileName(file.originalname, meeting.client_id);
 
-        // Upload to storage
-        const storageResult = await fileUploadService.uploadToStorage(file, fileName);
+        // Upload to unified client-documents storage
+        const storageResult = await clientDocumentsService.uploadToStorage(file, fileName, userId);
 
-        // Save metadata to database
+        // Save metadata to unified client_documents table
         const fileData = {
           meeting_id: parseInt(meetingId),
+          client_id: meeting.client_id || null, // Link to client if available
+          advisor_id: userId,
           file_name: fileName,
           original_name: file.originalname,
           file_type: file.mimetype,
-          file_category: fileUploadService.getFileCategory(file.mimetype),
+          file_category: clientDocumentsService.getFileCategory(file.mimetype),
           file_size: file.size,
           storage_path: storageResult.path,
-          storage_bucket: 'meeting-documents',
-          uploaded_by: userId
+          storage_bucket: 'client-documents', // Unified bucket
+          uploaded_by: userId,
+          upload_source: 'meetings_page', // Track source for AI context
+          analysis_status: 'pending'
         };
 
-        const savedFile = await fileUploadService.saveFileMetadata(fileData);
+        const savedFile = await clientDocumentsService.saveFileMetadata(fileData);
 
         // Add download URL
-        savedFile.download_url = await fileUploadService.getFileDownloadUrl(storageResult.path);
+        savedFile.download_url = await clientDocumentsService.getFileDownloadUrl(storageResult.path);
 
         uploadedFiles.push(savedFile);
+        console.log(`  ✅ Uploaded: ${file.originalname}`);
       } catch (fileError) {
-        console.error(`Error uploading file ${file.originalname}:`, fileError);
+        console.error(`  ❌ Error uploading file ${file.originalname}:`, fileError);
         errors.push({
           filename: file.originalname,
           error: fileError.message
         });
       }
     }
+
+    console.log(`✅ Upload complete: ${uploadedFiles.length} files, ${errors.length} errors`);
 
     res.json({
       message: `Successfully uploaded ${uploadedFiles.length} file(s)`,
@@ -1310,10 +1323,13 @@ router.post('/meetings/:meetingId/documents', authenticateToken, fileUploadServi
 });
 
 // Get files for a meeting
+// UPDATED: Now uses unified client_documents system
 router.get('/meetings/:meetingId/documents', authenticateToken, async (req, res) => {
   try {
     const { meetingId } = req.params;
     const userId = req.user.id;
+
+    console.log(`📄 Fetching documents for meeting ${meetingId}`);
 
     // Verify meeting access
     const { data: meeting, error: meetingError } = await getSupabase()
@@ -1327,7 +1343,10 @@ router.get('/meetings/:meetingId/documents', authenticateToken, async (req, res)
       return res.status(404).json({ error: 'Meeting not found' });
     }
 
-    const files = await fileUploadService.getMeetingFiles(meetingId, userId);
+    // Use unified client_documents system
+    const files = await clientDocumentsService.getMeetingDocuments(meetingId, userId);
+
+    console.log(`✅ Found ${files.length} documents for meeting ${meetingId}`);
 
     res.json({
       files,
@@ -1341,10 +1360,13 @@ router.get('/meetings/:meetingId/documents', authenticateToken, async (req, res)
 });
 
 // Delete a file
+// UPDATED: Now uses unified client_documents system
 router.delete('/meetings/:meetingId/documents/:fileId', authenticateToken, async (req, res) => {
   try {
     const { meetingId, fileId } = req.params;
     const userId = req.user.id;
+
+    console.log(`🗑️  Deleting document ${fileId} from meeting ${meetingId}`);
 
     // Verify meeting access
     const { data: meeting, error: meetingError } = await getSupabase()
@@ -1358,7 +1380,10 @@ router.delete('/meetings/:meetingId/documents/:fileId', authenticateToken, async
       return res.status(404).json({ error: 'Meeting not found' });
     }
 
-    await fileUploadService.deleteFile(fileId, userId);
+    // Use unified client_documents system
+    await clientDocumentsService.deleteFile(fileId, userId);
+
+    console.log(`✅ Document ${fileId} deleted successfully`);
 
     res.json({ message: 'File deleted successfully' });
 
