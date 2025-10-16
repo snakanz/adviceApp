@@ -206,18 +206,52 @@ async function getClientDocuments(clientId, advisorId) {
 }
 
 /**
+ * Get all documents for a specific meeting
+ */
+async function getMeetingDocuments(meetingId, advisorId) {
+  const supabase = getSupabase();
+
+  const { data, error} = await supabase
+    .from('client_documents')
+    .select('*')
+    .eq('meeting_id', meetingId)
+    .eq('advisor_id', advisorId)
+    .eq('is_deleted', false)
+    .order('uploaded_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`Failed to fetch meeting documents: ${error.message}`);
+  }
+
+  // Add download URLs
+  const documentsWithUrls = await Promise.all(
+    data.map(async (doc) => {
+      try {
+        const downloadUrl = await getFileDownloadUrl(doc.storage_path);
+        return { ...doc, download_url: downloadUrl };
+      } catch (err) {
+        console.error(`Error generating URL for document ${doc.id}:`, err);
+        return { ...doc, download_url: null };
+      }
+    })
+  );
+
+  return documentsWithUrls;
+}
+
+/**
  * Get unassigned documents (for auto-detection review)
  */
 async function getUnassignedDocuments(advisorId) {
   const supabase = getSupabase();
-  
+
   const { data, error } = await supabase
     .from('client_documents')
     .select('*')
     .eq('advisor_id', advisorId)
     .is('client_id', null)
     .eq('is_deleted', false)
-    .order('uploaded_at', { ascending: false });
+    .order('uploaded_at', { ascending: false});
 
   if (error) {
     throw new Error(`Failed to fetch unassigned documents: ${error.message}`);
@@ -321,6 +355,7 @@ module.exports = {
   getFileDownloadUrl,
   deleteFile,
   getClientDocuments,
+  getMeetingDocuments,
   getUnassignedDocuments,
   assignDocumentToClient,
   queueDocumentForAnalysis,

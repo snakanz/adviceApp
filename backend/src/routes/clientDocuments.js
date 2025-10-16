@@ -27,12 +27,13 @@ const authenticateToken = (req, res, next) => {
 router.post('/upload', authenticateToken, clientDocumentsService.upload.array('files', 10), async (req, res) => {
   try {
     const advisorId = req.user.id;
-    const { clientId } = req.body; // Optional client ID
+    const { clientId, meetingId } = req.body; // Optional client ID and meeting ID
     const files = req.files;
 
     console.log('📤 Client document upload request:', {
       advisorId,
       clientId,
+      meetingId,
       fileCount: files?.length || 0,
       files: files?.map(f => ({ name: f.originalname, size: f.size, type: f.mimetype }))
     });
@@ -66,6 +67,23 @@ router.post('/upload', authenticateToken, clientDocumentsService.upload.array('f
       console.log('✅ Client verified:', client.name);
     }
 
+    // If meetingId provided, verify it belongs to advisor
+    if (meetingId) {
+      console.log('🔍 Verifying meeting access:', { meetingId, advisorId });
+      const { data: meeting, error: meetingError } = await getSupabase()
+        .from('meetings')
+        .select('id, title')
+        .eq('id', meetingId)
+        .eq('userid', advisorId)
+        .single();
+
+      if (meetingError || !meeting) {
+        console.error('❌ Meeting not found or access denied:', meetingError);
+        return res.status(404).json({ error: 'Meeting not found' });
+      }
+      console.log('✅ Meeting verified:', meeting.title);
+    }
+
     const uploadedFiles = [];
     const errors = [];
 
@@ -86,6 +104,7 @@ router.post('/upload', authenticateToken, clientDocumentsService.upload.array('f
         // Save metadata to database
         const fileData = {
           client_id: clientId || null,
+          meeting_id: meetingId || null,
           advisor_id: advisorId,
           file_name: fileName,
           original_name: file.originalname,
@@ -323,6 +342,39 @@ router.post('/:documentId/analyze', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error queuing document for analysis:', error);
     res.status(500).json({ error: 'Failed to queue document for analysis' });
+  }
+});
+
+/**
+ * GET /api/client-documents/meeting/:meetingId
+ * Get all documents for a specific meeting
+ */
+router.get('/meeting/:meetingId', authenticateToken, async (req, res) => {
+  try {
+    const advisorId = req.user.id;
+    const { meetingId } = req.params;
+
+    console.log('📄 Fetching meeting documents:', { meetingId, advisorId });
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    const documents = await clientDocumentsService.getMeetingDocuments(meetingId, advisorId);
+
+    console.log(`✅ Found ${documents.length} documents for meeting ${meetingId}`);
+
+    res.json({
+      meetingId,
+      count: documents.length,
+      documents
+    });
+
+  } catch (error) {
+    console.error('Error fetching meeting documents:', error);
+    res.status(500).json({ error: 'Failed to fetch documents' });
   }
 });
 

@@ -99,10 +99,13 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
         meeting.id && !meeting.id.toString().startsWith('calendly_')
       );
 
+      console.log(`📄 Fetching documents for ${googleMeetings.length} meetings`);
+
       // Fetch documents for each Google Calendar meeting
       for (const meeting of googleMeetings) {
         try {
-          const response = await fetch(`${API_URL}/api/calendar/meetings/${meeting.id}/documents`, {
+          // Use the new unified client-documents endpoint
+          const response = await fetch(`${API_URL}/api/client-documents/meeting/${meeting.id}`, {
             headers: {
               'Authorization': `Bearer ${token}`
             }
@@ -110,9 +113,10 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
 
           if (response.ok) {
             const data = await response.json();
-            if (data.files && data.files.length > 0) {
+            console.log(`  Meeting ${meeting.id}: ${data.count} documents`);
+            if (data.documents && data.documents.length > 0) {
               // Add meeting info to each document
-              const docsWithMeeting = data.files.map(doc => ({
+              const docsWithMeeting = data.documents.map(doc => ({
                 ...doc,
                 meetingId: meeting.id,
                 meetingTitle: meeting.title,
@@ -129,6 +133,7 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
         }
       }
 
+      console.log(`✅ Total meeting documents found: ${allMeetingDocs.length}`);
       setMeetingDocuments(allMeetingDocs);
     } catch (err) {
       console.error('Error fetching meeting documents:', err);
