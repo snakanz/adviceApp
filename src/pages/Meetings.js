@@ -1829,42 +1829,44 @@ export default function Meetings() {
             />
           </div>
 
-          {/* Segmented Control */}
-          <div className="flex bg-muted/30 rounded-lg p-1">
-            <button
-              onClick={() => setMeetingView('past')}
-              className={cn(
-                "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
-                meetingView === 'past'
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Past
-            </button>
-            <button
-              onClick={() => setMeetingView('today')}
-              className={cn(
-                "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
-                meetingView === 'today'
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Today
-            </button>
-            <button
-              onClick={() => setMeetingView('upcoming')}
-              className={cn(
-                "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
-                meetingView === 'upcoming'
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Upcoming
-            </button>
-          </div>
+          {/* Segmented Control - Only show in List View */}
+          {viewMode === 'list' && (
+            <div className="flex bg-muted/30 rounded-lg p-1">
+              <button
+                onClick={() => setMeetingView('past')}
+                className={cn(
+                  "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
+                  meetingView === 'past'
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Past
+              </button>
+              <button
+                onClick={() => setMeetingView('today')}
+                className={cn(
+                  "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
+                  meetingView === 'today'
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Today
+              </button>
+              <button
+                onClick={() => setMeetingView('upcoming')}
+                className={cn(
+                  "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
+                  meetingView === 'upcoming'
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Upcoming
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Meetings List */}
