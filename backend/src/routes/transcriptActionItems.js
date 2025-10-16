@@ -40,7 +40,10 @@ router.patch('/action-items/:actionItemId/toggle', authenticateToken, async (req
     const { actionItemId } = req.params;
     const userId = req.user.id;
 
+    console.log(`🔄 Toggle action item ${actionItemId} for user ${userId}`);
+
     if (!isSupabaseAvailable()) {
+      console.error('❌ Database unavailable');
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
@@ -53,9 +56,16 @@ router.patch('/action-items/:actionItemId/toggle', authenticateToken, async (req
       .single();
 
     if (fetchError) {
-      console.error('Error fetching action item:', fetchError);
+      console.error('❌ Error fetching action item:', fetchError);
       return res.status(500).json({ error: 'Failed to fetch action item' });
     }
+
+    if (!currentItem) {
+      console.error('❌ Action item not found');
+      return res.status(404).json({ error: 'Action item not found' });
+    }
+
+    console.log(`📋 Current state: completed=${currentItem.completed}`);
 
     // Toggle the completion status
     const newCompleted = !currentItem.completed;
@@ -63,6 +73,8 @@ router.patch('/action-items/:actionItemId/toggle', authenticateToken, async (req
       completed: newCompleted,
       completed_at: newCompleted ? new Date().toISOString() : null
     };
+
+    console.log(`🔄 Toggling to: completed=${newCompleted}`);
 
     const { data: updatedItem, error: updateError } = await getSupabase()
       .from('transcript_action_items')
@@ -73,13 +85,14 @@ router.patch('/action-items/:actionItemId/toggle', authenticateToken, async (req
       .single();
 
     if (updateError) {
-      console.error('Error updating action item:', updateError);
+      console.error('❌ Error updating action item:', updateError);
       return res.status(500).json({ error: 'Failed to update action item' });
     }
 
+    console.log(`✅ Successfully toggled action item ${actionItemId}`);
     res.json({ actionItem: updatedItem });
   } catch (error) {
-    console.error('Error in toggle action item:', error);
+    console.error('❌ Error in toggle action item:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
