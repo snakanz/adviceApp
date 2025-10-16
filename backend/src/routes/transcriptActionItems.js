@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 const { authenticateToken } = require('../middleware/auth');
+const OpenAI = require('openai');
 
 // Get action items for a specific meeting
 router.get('/meetings/:meetingId/action-items', authenticateToken, async (req, res) => {
@@ -83,17 +84,217 @@ router.patch('/action-items/:actionItemId/toggle', authenticateToken, async (req
   }
 });
 
-// Get all action items grouped by client
-router.get('/action-items/by-client', authenticateToken, async (req, res) => {
+// Update action item text (inline editing)
+router.patch('/action-items/:actionItemId/text', authenticateToken, async (req, res) => {
   try {
+    const { actionItemId } = req.params;
+    const { actionText } = req.body;
     const userId = req.user.id;
 
     if (!isSupabaseAvailable()) {
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
-    // Fetch all action items with client and meeting info
-    const { data: actionItems, error } = await getSupabase()
+    if (!actionText || !actionText.trim()) {
+      return res.status(400).json({ error: 'Action text is required' });
+    }
+
+    const { data: updatedItem, error: updateError } = await getSupabase()
+      .from('transcript_action_items')
+      .update({ action_text: actionText.trim() })
+      .eq('id', actionItemId)
+      .eq('advisor_id', userId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating action item text:', updateError);
+      return res.status(500).json({ error: 'Failed to update action item' });
+    }
+
+    if (!updatedItem) {
+      return res.status(404).json({ error: 'Action item not found' });
+    }
+
+    res.json({ actionItem: updatedItem });
+  } catch (error) {
+    console.error('Error in update action item text:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// AI-powered priority assignment for action items
+router.post('/action-items/assign-priorities', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { actionItemIds } = req.body;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(503).json({ error: 'OpenAI API key not configured' });
+    }
+
+    // Fetch action items to prioritize
+    const query = getSupabase()
+      .from('transcript_action_items')
+      .select(`
+        *,
+        meeting:meetings!inner(
+          id,
+          title,
+          starttime,
+          transcript
+        ),
+        client:clients(
+          id,
+          name
+        )
+      `)
+      .eq('advisor_id', userId);
+
+    // If specific IDs provided, filter by them
+    if (actionItemIds && Array.isArray(actionItemIds) && actionItemIds.length > 0) {
+      query.in('id', actionItemIds);
+    }
+
+    const { data: actionItems, error: fetchError } = await query;
+
+    if (fetchError) {
+      console.error('Error fetching action items:', fetchError);
+      return res.status(500).json({ error: 'Failed to fetch action items' });
+    }
+
+    if (!actionItems || actionItems.length === 0) {
+      return res.json({ message: 'No action items to prioritize', updatedCount: 0 });
+    }
+
+    console.log(`🤖 Assigning priorities to ${actionItems.length} action items using AI...`);
+
+    // Initialize OpenAI
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+
+    // Prepare action items for AI analysis
+    const itemsForAnalysis = actionItems.map(item => ({
+      id: item.id,
+      text: item.action_text,
+      meetingTitle: item.meeting?.title || 'Unknown Meeting',
+      meetingDate: item.meeting?.starttime || null,
+      clientName: item.client?.name || 'Unknown Client'
+    }));
+
+    // Call OpenAI to analyze and assign priorities
+    const prompt = `You are an AI assistant helping a financial advisor prioritize action items.
+Analyze the following action items and assign each a priority level from 1 to 4:
+- 1 = Urgent (time-sensitive, critical, requires immediate attention, contains words like "urgent", "ASAP", "deadline", "today")
+- 2 = High (important but not immediately urgent, should be done soon)
+- 3 = Medium (standard priority, can be scheduled normally)
+- 4 = Low (nice to have, can be done when time permits)
+
+Consider:
+- Keywords indicating urgency (urgent, ASAP, deadline, today, tomorrow, this week)
+- Time-sensitive language
+- Client importance
+- Meeting context
+- Regulatory or compliance-related items (higher priority)
+
+Action items:
+${itemsForAnalysis.map((item, idx) => `${idx + 1}. [ID: ${item.id}] "${item.text}" (Client: ${item.clientName}, Meeting: ${item.meetingTitle})`).join('\n')}
+
+Respond with ONLY a JSON array in this exact format:
+[
+  {"id": "uuid-here", "priority": 1},
+  {"id": "uuid-here", "priority": 2}
+]`;
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a helpful assistant that analyzes action items and assigns priority levels. Always respond with valid JSON only.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.3,
+      response_format: { type: 'json_object' }
+    });
+
+    const aiResponse = completion.choices[0].message.content;
+    console.log('🤖 AI Response:', aiResponse);
+
+    // Parse AI response
+    let priorities;
+    try {
+      const parsed = JSON.parse(aiResponse);
+      // Handle both array and object with array property
+      priorities = Array.isArray(parsed) ? parsed : (parsed.priorities || parsed.items || []);
+    } catch (parseError) {
+      console.error('Error parsing AI response:', parseError);
+      return res.status(500).json({ error: 'Failed to parse AI response' });
+    }
+
+    if (!Array.isArray(priorities) || priorities.length === 0) {
+      console.error('Invalid priorities format:', priorities);
+      return res.status(500).json({ error: 'Invalid AI response format' });
+    }
+
+    // Update action items with assigned priorities
+    const updatePromises = priorities.map(async ({ id, priority }) => {
+      // Validate priority is between 1 and 4
+      const validPriority = Math.max(1, Math.min(4, parseInt(priority) || 3));
+
+      const { data, error } = await getSupabase()
+        .from('transcript_action_items')
+        .update({ priority: validPriority })
+        .eq('id', id)
+        .eq('advisor_id', userId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error(`Error updating priority for item ${id}:`, error);
+        return null;
+      }
+
+      return data;
+    });
+
+    const updatedItems = await Promise.all(updatePromises);
+    const successCount = updatedItems.filter(item => item !== null).length;
+
+    console.log(`✅ Successfully assigned priorities to ${successCount} action items`);
+
+    res.json({
+      success: true,
+      updatedCount: successCount,
+      actionItems: updatedItems.filter(item => item !== null)
+    });
+  } catch (error) {
+    console.error('Error in assign priorities:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get all action items grouped by client
+router.get('/action-items/by-client', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { priorityFilter, sortBy } = req.query; // Add query params for filtering/sorting
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    // Build query
+    let query = getSupabase()
       .from('transcript_action_items')
       .select(`
         *,
@@ -109,9 +310,23 @@ router.get('/action-items/by-client', authenticateToken, async (req, res) => {
           email
         )
       `)
-      .eq('advisor_id', userId)
-      .order('completed', { ascending: true })
-      .order('created_at', { ascending: false });
+      .eq('advisor_id', userId);
+
+    // Apply priority filter if specified
+    if (priorityFilter && priorityFilter !== 'all') {
+      query = query.eq('priority', parseInt(priorityFilter));
+    }
+
+    // Apply sorting
+    if (sortBy === 'priority') {
+      query = query.order('priority', { ascending: true }); // 1 (urgent) first
+      query = query.order('completed', { ascending: true });
+    } else {
+      query = query.order('completed', { ascending: true });
+      query = query.order('created_at', { ascending: false });
+    }
+
+    const { data: actionItems, error } = await query;
 
     if (error) {
       console.error('Error fetching action items by client:', error);
@@ -141,6 +356,7 @@ router.get('/action-items/by-client', authenticateToken, async (req, res) => {
         completed: item.completed,
         completedAt: item.completed_at,
         displayOrder: item.display_order,
+        priority: item.priority || 3, // Default to medium priority
         createdAt: item.created_at,
         meeting: {
           id: item.meeting.id,
@@ -152,13 +368,111 @@ router.get('/action-items/by-client', authenticateToken, async (req, res) => {
     });
 
     // Convert to array and sort by client name
-    const clientsArray = Object.values(groupedByClient).sort((a, b) => 
+    const clientsArray = Object.values(groupedByClient).sort((a, b) =>
       a.clientName.localeCompare(b.clientName)
     );
+
+    // If sorting by priority, also sort action items within each client
+    if (sortBy === 'priority') {
+      clientsArray.forEach(client => {
+        client.actionItems.sort((a, b) => {
+          // Sort by priority first (1 = urgent first)
+          if (a.priority !== b.priority) {
+            return a.priority - b.priority;
+          }
+          // Then by completion status (incomplete first)
+          if (a.completed !== b.completed) {
+            return a.completed ? 1 : -1;
+          }
+          // Finally by creation date (newest first)
+          return new Date(b.createdAt) - new Date(a.createdAt);
+        });
+      });
+    }
 
     res.json({ clients: clientsArray });
   } catch (error) {
     console.error('Error in get action items by client:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Get all action items (not grouped) with priority sorting
+router.get('/action-items/all', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { priorityFilter, sortBy } = req.query;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    // Build query
+    let query = getSupabase()
+      .from('transcript_action_items')
+      .select(`
+        *,
+        meeting:meetings!inner(
+          id,
+          title,
+          starttime,
+          googleeventid
+        ),
+        client:clients(
+          id,
+          name,
+          email
+        )
+      `)
+      .eq('advisor_id', userId);
+
+    // Apply priority filter if specified
+    if (priorityFilter && priorityFilter !== 'all') {
+      query = query.eq('priority', parseInt(priorityFilter));
+    }
+
+    // Apply sorting
+    if (sortBy === 'priority') {
+      query = query.order('priority', { ascending: true }); // 1 (urgent) first
+      query = query.order('completed', { ascending: true });
+      query = query.order('created_at', { ascending: false });
+    } else {
+      query = query.order('completed', { ascending: true });
+      query = query.order('created_at', { ascending: false });
+    }
+
+    const { data: actionItems, error } = await query;
+
+    if (error) {
+      console.error('Error fetching all action items:', error);
+      return res.status(500).json({ error: 'Failed to fetch action items' });
+    }
+
+    // Format response
+    const formattedItems = actionItems.map(item => ({
+      id: item.id,
+      actionText: item.action_text,
+      completed: item.completed,
+      completedAt: item.completed_at,
+      displayOrder: item.display_order,
+      priority: item.priority || 3,
+      createdAt: item.created_at,
+      meeting: {
+        id: item.meeting.id,
+        title: item.meeting.title,
+        startTime: item.meeting.starttime,
+        googleEventId: item.meeting.googleeventid
+      },
+      client: item.client ? {
+        id: item.client.id,
+        name: item.client.name,
+        email: item.client.email
+      } : null
+    }));
+
+    res.json({ actionItems: formattedItems });
+  } catch (error) {
+    console.error('Error in get all action items:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
