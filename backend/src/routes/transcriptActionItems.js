@@ -36,11 +36,16 @@ router.get('/meetings/:meetingId/action-items', authenticateToken, async (req, r
 
 // Toggle action item completion
 router.patch('/action-items/:actionItemId/toggle', authenticateToken, async (req, res) => {
-  try {
-    const { actionItemId } = req.params;
-    const userId = req.user.id;
+  const { actionItemId } = req.params;
+  const userId = req.user?.id;
 
-    console.log(`🔄 Toggle action item ${actionItemId} for user ${userId}`);
+  console.log(`🔄 Toggle action item ${actionItemId} for user ${userId}`);
+
+  try {
+    if (!userId) {
+      console.error('❌ No user ID in request');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
 
     if (!isSupabaseAvailable()) {
       console.error('❌ Database unavailable');
@@ -48,16 +53,17 @@ router.patch('/action-items/:actionItemId/toggle', authenticateToken, async (req
     }
 
     // First, get the current state
+    console.log(`📋 Fetching current state for item ${actionItemId}...`);
     const { data: currentItem, error: fetchError } = await getSupabase()
       .from('transcript_action_items')
-      .select('completed')
+      .select('*')
       .eq('id', actionItemId)
       .eq('advisor_id', userId)
       .single();
 
     if (fetchError) {
       console.error('❌ Error fetching action item:', fetchError);
-      return res.status(500).json({ error: 'Failed to fetch action item' });
+      return res.status(500).json({ error: 'Failed to fetch action item', details: fetchError.message });
     }
 
     if (!currentItem) {
@@ -86,14 +92,22 @@ router.patch('/action-items/:actionItemId/toggle', authenticateToken, async (req
 
     if (updateError) {
       console.error('❌ Error updating action item:', updateError);
-      return res.status(500).json({ error: 'Failed to update action item' });
+      return res.status(500).json({ error: 'Failed to update action item', details: updateError.message });
     }
 
-    console.log(`✅ Successfully toggled action item ${actionItemId}`);
-    res.json({ actionItem: updatedItem });
+    if (!updatedItem) {
+      console.error('❌ No item returned after update');
+      return res.status(500).json({ error: 'Update failed - no item returned' });
+    }
+
+    console.log(`✅ Successfully toggled action item ${actionItemId} to completed=${updatedItem.completed}`);
+
+    // Ensure we're sending the response
+    return res.status(200).json({ actionItem: updatedItem });
   } catch (error) {
-    console.error('❌ Error in toggle action item:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('❌ EXCEPTION in toggle action item:', error);
+    console.error('Stack trace:', error.stack);
+    return res.status(500).json({ error: 'Internal server error', message: error.message });
   }
 });
 
