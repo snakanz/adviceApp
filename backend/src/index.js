@@ -1289,6 +1289,10 @@ console.log('🔄 Mounting client-documents routes...');
 app.use('/api/client-documents', require('./routes/clientDocuments'));
 console.log('✅ Client-documents routes mounted');
 
+console.log('🔄 Mounting Calendly routes...');
+app.use('/api/calendly', require('./routes/calendly'));
+console.log('✅ Calendly routes mounted (includes sync, status, and webhook endpoints)');
+
 console.log('✅ All API routes mounted');
 
 // DISABLED: Routes are already mounted directly above
@@ -1297,7 +1301,18 @@ console.log('✅ All API routes mounted');
 // app.use('/api', routes);
 // console.log('✅ Main routes mounted at /api');
 
+// Initialize automatic sync scheduler
+console.log('🔄 Initializing automatic sync scheduler...');
+const syncScheduler = require('./services/syncScheduler');
+
+// Start the scheduler after a short delay to ensure server is fully initialized
+setTimeout(() => {
+  syncScheduler.start();
+  console.log('✅ Automatic sync scheduler initialized');
+}, 5000); // 5 second delay
+
 const port = process.env.PORT || 8787;
 app.listen(port, () => {
   console.log(`Backend running on port ${port}`);
-}); 
+  console.log('📅 Calendly automatic sync: Every 15 minutes');
+});

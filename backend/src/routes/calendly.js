@@ -1,5 +1,6 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const CalendlyService = require('../services/calendlyService');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 
@@ -240,11 +241,219 @@ router.get('/stats', authenticateUser, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching integration stats:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: 'Failed to fetch integration stats',
-      details: error.message 
+      details: error.message
     });
   }
 });
+
+// Get automatic sync scheduler status
+router.get('/scheduler/status', authenticateUser, async (req, res) => {
+  try {
+    const syncScheduler = require('../services/syncScheduler');
+    const status = syncScheduler.getStatus();
+
+    res.json({
+      success: true,
+      scheduler: status
+    });
+  } catch (error) {
+    console.error('Error fetching scheduler status:', error);
+    res.status(500).json({
+      error: 'Failed to fetch scheduler status',
+      details: error.message
+    });
+  }
+});
+
+// Manually trigger automatic sync (for testing or immediate needs)
+router.post('/scheduler/trigger', authenticateUser, async (req, res) => {
+  try {
+    const syncScheduler = require('../services/syncScheduler');
+
+    // Trigger sync in background (don't wait for completion)
+    syncScheduler.triggerManualSync().catch(error => {
+      console.error('Error in manual scheduler trigger:', error);
+    });
+
+    res.json({
+      success: true,
+      message: 'Automatic sync triggered in background'
+    });
+  } catch (error) {
+    console.error('Error triggering scheduler:', error);
+    res.status(500).json({
+      error: 'Failed to trigger scheduler',
+      details: error.message
+    });
+  }
+});
+
+// =====================================================
+// WEBHOOK ENDPOINTS
+// =====================================================
+
+/**
+ * Verify Calendly webhook signature
+ */
+function verifyWebhookSignature(req) {
+  const signature = req.headers['calendly-webhook-signature'];
+  const webhookSigningKey = process.env.CALENDLY_WEBHOOK_SIGNING_KEY;
+
+  if (!webhookSigningKey) {
+    console.warn('⚠️  CALENDLY_WEBHOOK_SIGNING_KEY not configured - skipping signature verification');
+    return true; // Allow in development if not configured
+  }
+
+  if (!signature) {
+    console.error('❌ No webhook signature provided');
+    return false;
+  }
+
+  try {
+    const payload = JSON.stringify(req.body);
+    const expectedSignature = crypto
+      .createHmac('sha256', webhookSigningKey)
+      .update(payload)
+      .digest('hex');
+
+    const isValid = crypto.timingSafeEqual(
+      Buffer.from(signature),
+      Buffer.from(expectedSignature)
+    );
+
+    if (!isValid) {
+      console.error('❌ Invalid webhook signature');
+    }
+
+    return isValid;
+  } catch (error) {
+    console.error('❌ Error verifying webhook signature:', error);
+    return false;
+  }
+}
+
+/**
+ * Calendly Webhook Handler
+ * Handles real-time updates from Calendly
+ */
+router.post('/webhook', express.json(), async (req, res) => {
+  try {
+    console.log('📥 Received Calendly webhook:', {
+      event: req.body.event,
+      created_at: req.body.created_at
+    });
+
+    if (!verifyWebhookSignature(req)) {
+      return res.status(401).json({ error: 'Invalid webhook signature' });
+    }
+
+    if (!isSupabaseAvailable()) {
+      console.error('❌ Database unavailable for webhook processing');
+      return res.status(503).json({ error: 'Database unavailable' });
+    }
+
+    const { event, payload } = req.body;
+
+    switch (event) {
+      case 'invitee.created':
+        await handleInviteeCreated(payload);
+        break;
+      case 'invitee.canceled':
+        await handleInviteeCanceled(payload);
+        break;
+      default:
+        console.log(`⚠️  Unhandled webhook event: ${event}`);
+    }
+
+    res.status(200).json({ received: true });
+  } catch (error) {
+    console.error('❌ Error processing Calendly webhook:', error);
+    res.status(200).json({ received: true, error: error.message });
+  }
+});
+
+/**
+ * Test endpoint for webhook setup
+ */
+router.get('/webhook/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Calendly webhook endpoint is accessible',
+    url: `${req.protocol}://${req.get('host')}/api/calendly/webhook`,
+    instructions: [
+      '1. Go to Calendly Integrations > Webhooks',
+      '2. Create a new webhook subscription',
+      '3. Set URL to the webhook URL above',
+      '4. Subscribe to events: invitee.created, invitee.canceled',
+      '5. Copy the signing key to CALENDLY_WEBHOOK_SIGNING_KEY env variable'
+    ]
+  });
+});
+
+// Helper functions for webhook handlers
+async function handleInviteeCreated(payload) {
+  try {
+    console.log('✅ New meeting scheduled:', payload.event);
+    const calendlyService = new CalendlyService();
+    const eventUri = payload.event;
+    const eventUuid = eventUri.split('/').pop();
+
+    const eventData = await calendlyService.makeRequest(`/scheduled_events/${eventUuid}`);
+    const event = eventData.resource;
+
+    const { data: users } = await getSupabase()
+      .from('users')
+      .select('id')
+      .limit(1);
+
+    if (!users || users.length === 0) {
+      console.error('❌ No users found in database');
+      return;
+    }
+
+    const userId = users[0].id;
+    const meetingData = await calendlyService.transformEventToMeeting(event, userId);
+
+    const { error } = await getSupabase()
+      .from('meetings')
+      .insert(meetingData);
+
+    if (error) {
+      console.error('❌ Error inserting meeting from webhook:', error);
+    } else {
+      console.log('✅ Meeting created from webhook:', meetingData.title);
+    }
+  } catch (error) {
+    console.error('❌ Error handling invitee.created:', error);
+  }
+}
+
+async function handleInviteeCanceled(payload) {
+  try {
+    console.log('🗑️  Meeting cancelled:', payload.event);
+    const eventUri = payload.event;
+    const eventUuid = eventUri.split('/').pop();
+    const calendlyEventId = `calendly_${eventUuid}`;
+
+    const { error } = await getSupabase()
+      .from('meetings')
+      .update({
+        is_deleted: true,
+        sync_status: 'deleted',
+        updatedat: new Date().toISOString()
+      })
+      .eq('googleeventid', calendlyEventId);
+
+    if (error) {
+      console.error('❌ Error marking meeting as deleted:', error);
+    } else {
+      console.log('✅ Meeting marked as deleted:', calendlyEventId);
+    }
+  } catch (error) {
+    console.error('❌ Error handling invitee.canceled:', error);
+  }
+}
 
 module.exports = router;
