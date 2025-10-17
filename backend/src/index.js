@@ -521,10 +521,6 @@ app.get('/api/dev/meetings', async (req, res) => {
       return res.status(503).json({ error: 'Database unavailable' });
     }
 
-    // TEMPORARILY DISABLED: Calendly sync causing 502 errors
-    console.log('⚠️ Calendly sync temporarily disabled to fix 502 errors');
-    // TODO: Debug and re-enable Calendly sync
-
     // Database query with client information
     console.log('🔍 Querying database for meetings with client info...');
     const { data: meetings, error } = await getSupabase()
