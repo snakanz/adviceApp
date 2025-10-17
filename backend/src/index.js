@@ -51,6 +51,7 @@ const corsOptions = {
 
     const allowedOrigins = [
       'https://adviceapp.pages.dev',
+      'https://adviceapp-pages.dev',  // Current Cloudflare Pages URL
       'http://localhost:3000',
       'http://localhost:3001'
     ];
@@ -59,6 +60,7 @@ const corsOptions = {
     if (origin.endsWith('.pages.dev') || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
+      console.warn(`⚠️  CORS blocked origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
