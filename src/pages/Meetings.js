@@ -49,7 +49,6 @@ import {
 } from '../components/ui/tooltip';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { supabase } from '../lib/supabase';
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
@@ -581,69 +580,34 @@ export default function Meetings() {
     }
   }, [selectedMeeting]);
 
-  // DISABLED: Auto-refresh polling (replaced with real-time subscriptions)
-  // Real-time updates via Supabase Realtime are now used instead
-  // useEffect(() => {
-  //   if (!isAuthenticated) return;
-  //   const interval = setInterval(() => {
-  //     console.log('Auto-refreshing meetings...');
-  //     fetchMeetings();
-  //   }, 5 * 60 * 1000); // 5 minutes
-  //   return () => clearInterval(interval);
-  // }, [isAuthenticated, fetchMeetings]);
-
-  // Real-time subscription to meetings table for instant updates
+  // Smart polling: Only refresh when page is visible and at reasonable intervals
+  // This provides near-real-time updates without requiring Supabase Realtime (paid feature)
   useEffect(() => {
-    if (!isAuthenticated || !user?.id) return;
+    if (!isAuthenticated) return;
 
-    console.log('📡 Setting up real-time subscription for meetings...');
-
-    // Subscribe to changes in the meetings table for this user
-    const channel = supabase
-      .channel('meetings-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'meetings',
-          filter: `userid=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('📥 Real-time meeting change detected:', payload);
-
-          // Refresh meetings when any change occurs
-          fetchMeetings();
-
-          // Show notification based on event type
-          if (payload.eventType === 'INSERT') {
-            setShowSnackbar(true);
-            setSnackbarMessage('New meeting added!');
-            setSnackbarSeverity('success');
-            setTimeout(() => setShowSnackbar(false), 3000);
-          } else if (payload.eventType === 'UPDATE') {
-            setShowSnackbar(true);
-            setSnackbarMessage('Meeting updated!');
-            setSnackbarSeverity('info');
-            setTimeout(() => setShowSnackbar(false), 3000);
-          } else if (payload.eventType === 'DELETE') {
-            setShowSnackbar(true);
-            setSnackbarMessage('Meeting removed!');
-            setSnackbarSeverity('warning');
-            setTimeout(() => setShowSnackbar(false), 3000);
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 Realtime subscription status:', status);
-      });
-
-    // Cleanup subscription on unmount
-    return () => {
-      console.log('🔌 Unsubscribing from real-time meetings updates');
-      supabase.removeChannel(channel);
+    // Refresh when page becomes visible (user switches back to tab)
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('📱 Page visible - refreshing meetings...');
+        fetchMeetings();
+      }
     };
-  }, [isAuthenticated, user?.id, fetchMeetings]);
+
+    // Refresh every 30 seconds when page is visible (webhooks should update within seconds)
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        console.log('🔄 Auto-refreshing meetings (webhook sync)...');
+        fetchMeetings();
+      }
+    }, 30 * 1000); // 30 seconds
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isAuthenticated, fetchMeetings]);
 
   // Handle URL parameter to auto-select a meeting
   useEffect(() => {

@@ -25,7 +25,6 @@ import PipelineEntryForm from '../components/PipelineEntryForm';
 import BusinessTypeManager from '../components/BusinessTypeManager';
 import CreateClientForm from '../components/CreateClientForm';
 import ClientDocumentsSection from '../components/ClientDocumentsSection';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 
 export default function Clients() {
@@ -237,40 +236,31 @@ export default function Clients() {
     }
   }, [searchParams, clients]);
 
-  // Real-time subscription to clients table for instant updates
+  // Smart polling: Refresh when page becomes visible
+  // This provides near-real-time updates without requiring Supabase Realtime (paid feature)
   useEffect(() => {
-    if (!user?.id) return;
-
-    console.log('📡 Setting up real-time subscription for clients...');
-
-    // Subscribe to changes in the clients table
-    const channel = supabase
-      .channel('clients-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'clients',
-          filter: `advisor_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('📥 Real-time client change detected:', payload);
-
-          // Refresh clients when any change occurs
-          fetchClients(clientFilter);
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 Realtime subscription status:', status);
-      });
-
-    // Cleanup subscription on unmount
-    return () => {
-      console.log('🔌 Unsubscribing from real-time clients updates');
-      supabase.removeChannel(channel);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('📱 Page visible - refreshing clients...');
+        fetchClients(clientFilter);
+      }
     };
-  }, [user?.id, fetchClients, clientFilter]);
+
+    // Refresh every 30 seconds when page is visible
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        console.log('🔄 Auto-refreshing clients (webhook sync)...');
+        fetchClients(clientFilter);
+      }
+    }, 30 * 1000); // 30 seconds
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchClients, clientFilter]);
 
   // Fetch action items when client is selected
   useEffect(() => {

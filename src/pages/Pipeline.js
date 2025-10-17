@@ -21,7 +21,6 @@ import { cn } from '../lib/utils';
 import { api } from '../services/api';
 import CreateClientForm from '../components/CreateClientForm';
 import BusinessTypeManager from '../components/BusinessTypeManager';
-import { supabase } from '../lib/supabase';
 import {
   Select,
   SelectContent,
@@ -243,57 +242,31 @@ export default function Pipeline() {
     }
   }, [isAuthenticated, fetchPipelineData]);
 
-  // Real-time subscription to clients and pipeline tables for instant updates
+  // Smart polling: Refresh when page becomes visible
+  // This provides near-real-time updates without requiring Supabase Realtime (paid feature)
   useEffect(() => {
-    if (!user?.id) return;
-
-    console.log('📡 Setting up real-time subscription for pipeline...');
-
-    // Subscribe to changes in the clients table (which affects pipeline)
-    const clientsChannel = supabase
-      .channel('pipeline-clients-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'clients',
-          filter: `advisor_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('📥 Real-time client change detected (pipeline):', payload);
-          fetchPipelineData();
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 Pipeline realtime subscription status:', status);
-      });
-
-    // Also subscribe to pipeline table changes
-    const pipelineChannel = supabase
-      .channel('pipeline-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'pipeline',
-          filter: `advisor_id=eq.${user.id}`
-        },
-        (payload) => {
-          console.log('📥 Real-time pipeline change detected:', payload);
-          fetchPipelineData();
-        }
-      )
-      .subscribe();
-
-    // Cleanup subscriptions on unmount
-    return () => {
-      console.log('🔌 Unsubscribing from real-time pipeline updates');
-      supabase.removeChannel(clientsChannel);
-      supabase.removeChannel(pipelineChannel);
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('📱 Page visible - refreshing pipeline...');
+        fetchPipelineData();
+      }
     };
-  }, [user?.id, fetchPipelineData]);
+
+    // Refresh every 30 seconds when page is visible
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        console.log('🔄 Auto-refreshing pipeline (webhook sync)...');
+        fetchPipelineData();
+      }
+    }, 30 * 1000); // 30 seconds
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchPipelineData]);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return 'No meeting scheduled';

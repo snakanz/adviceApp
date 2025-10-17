@@ -23,11 +23,13 @@ Your Advicly platform now uses a **webhook-only, real-time synchronization syste
 - Support for `invitee.updated` (rescheduled meetings) - NEW!
 - Improved duplicate detection and handling
 
-#### 3. **Frontend Real-time Updates** (NEW!)
-- Supabase Realtime subscriptions on all pages
-- Meetings page: Instant updates when meetings change
-- Clients page: Instant updates when clients change
-- Pipeline page: Instant updates for pipeline changes
+#### 3. **Frontend Smart Polling** (NEW!)
+- Lightweight polling (30-second intervals) on all pages
+- Only polls when page is visible (tab is active)
+- Automatic refresh when switching back to tab
+- Meetings page: Updates within 30 seconds of webhook
+- Clients page: Updates within 30 seconds of webhook
+- Pipeline page: Updates within 30 seconds of webhook
 - No manual refresh needed!
 
 ---
@@ -58,17 +60,7 @@ CREATE INDEX IF NOT EXISTS calendar_watch_channels_expiration_idx ON calendar_wa
 
 **Supabase SQL Editor:** https://supabase.com/dashboard/project/xjqjzievgepqpgtggcjx/sql/new
 
-### Step 2: Enable Supabase Realtime
-
-1. Go to Supabase Dashboard → Database → Replication
-2. Enable Realtime for these tables:
-   - ✅ `meetings`
-   - ✅ `clients`
-   - ✅ `pipeline`
-
-**Supabase Replication:** https://supabase.com/dashboard/project/xjqjzievgepqpgtggcjx/database/replication
-
-### Step 3: Set Up Google Calendar Webhooks
+### Step 2: Set Up Google Calendar Webhooks
 
 After authenticating with Google Calendar in your app:
 
@@ -85,7 +77,7 @@ This will:
 
 **Note:** Google Calendar watch channels expire after 7 days. You'll need to renew them periodically (we can add auto-renewal later).
 
-### Step 4: Verify Calendly Webhooks
+### Step 3: Verify Calendly Webhooks
 
 Your Calendly webhook should already be set up. Verify it's working:
 
@@ -117,9 +109,9 @@ If you need to set up a new webhook:
    ↓
 4. Database is updated (meetings table)
    ↓
-5. Supabase Realtime broadcasts change to frontend
+5. Frontend polls database every 30 seconds (when page is visible)
    ↓
-6. Frontend automatically updates UI (no refresh needed!)
+6. Frontend automatically updates UI within 30 seconds
 ```
 
 ### Calendly Flow
@@ -130,9 +122,9 @@ If you need to set up a new webhook:
    ↓
 3. Backend creates/updates/deletes meeting in database
    ↓
-4. Supabase Realtime broadcasts change to frontend
+4. Frontend polls database every 30 seconds (when page is visible)
    ↓
-5. Frontend automatically updates UI (instant!)
+5. Frontend automatically updates UI within 30 seconds
 ```
 
 ---
@@ -228,42 +220,45 @@ POST /api/calendar/webhook/setup
 ### Frontend Not Updating
 
 **Check:**
-1. Is Supabase Realtime enabled for the tables?
+1. Is the page visible (not in background tab)?
 2. Are there any console errors in browser?
 3. Is the user authenticated?
+4. Check browser console for polling logs
 
 **Fix:**
-- Enable Realtime in Supabase Dashboard → Database → Replication
-- Check browser console for subscription errors
+- Switch to the Advicly tab to trigger immediate refresh
+- Check browser console for errors
 - Verify JWT token is valid
+- Wait up to 30 seconds for next poll
 
 ---
 
 ## 🎉 Benefits
 
-### Before (Polling-Based)
-- ⏰ Updates every 5-15 minutes
+### Before (Heavy Polling)
+- ⏰ Updates every 5 minutes (even when no changes)
 - 🔄 Constant API calls (expensive)
 - 📊 Stale data between syncs
 - 🐌 Slow user experience
 
-### After (Webhook-Based)
-- ⚡ Instant updates (1-2 seconds)
-- 💰 Minimal API calls (only when changes occur)
-- 📊 Always fresh data
-- 🚀 Fast, real-time user experience
+### After (Webhook + Smart Polling)
+- ⚡ Updates within 30 seconds of webhook firing
+- 💰 Minimal API calls (only when page is visible)
+- 📊 Near-real-time data (30-second max delay)
+- 🚀 Fast, efficient user experience
+- 🔋 Battery-friendly (no polling when tab is hidden)
 
 ---
 
 ## 📝 Next Steps
 
 1. ✅ Create `calendar_watch_channels` table in Supabase
-2. ✅ Enable Realtime for `meetings`, `clients`, `pipeline` tables
-3. ✅ Set up Google Calendar webhook after authentication
-4. ✅ Verify Calendly webhook is working
-5. ✅ Test the system end-to-end
-6. 🔄 (Optional) Add auto-renewal for Google Calendar watch channels
-7. 🔄 (Optional) Add webhook health monitoring/alerts
+2. ✅ Set up Google Calendar webhook after authentication
+3. ✅ Verify Calendly webhook is working
+4. ✅ Test the system end-to-end
+5. 🔄 (Optional) Add auto-renewal for Google Calendar watch channels
+6. 🔄 (Optional) Add webhook health monitoring/alerts
+7. 🔄 (Optional) Reduce polling interval to 15 seconds for faster updates
 
 ---
 
@@ -285,12 +280,13 @@ If you encounter any issues:
 
 ## ✨ Summary
 
-Your Advicly platform now has a **modern, webhook-driven, real-time synchronization system** that:
+Your Advicly platform now has a **modern, webhook-driven synchronization system** that:
 
-- ✅ Updates instantly when calendar events change
-- ✅ Eliminates unnecessary polling and API calls
-- ✅ Provides a seamless, real-time user experience
+- ✅ Updates within 30 seconds when calendar events change
+- ✅ Eliminates unnecessary polling (only polls when page is visible)
+- ✅ Provides a near-real-time user experience
 - ✅ Scales efficiently with minimal resource usage
+- ✅ Battery-friendly (no background polling)
 
-Enjoy your new real-time calendar sync! 🎉
+Enjoy your new webhook-based calendar sync! 🎉
 
