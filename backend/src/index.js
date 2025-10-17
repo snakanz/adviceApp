@@ -1299,15 +1299,15 @@ console.log('✅ All API routes mounted');
 // app.use('/api', routes);
 // console.log('✅ Main routes mounted at /api');
 
-// Initialize automatic sync scheduler
-console.log('🔄 Initializing automatic sync scheduler...');
-const syncScheduler = require('./services/syncScheduler');
-
-// Start the scheduler after a short delay to ensure server is fully initialized
-setTimeout(() => {
-  syncScheduler.start();
-  console.log('✅ Automatic sync scheduler initialized');
-}, 5000); // 5 second delay
+// DISABLED: Automatic sync scheduler (replaced with webhook-only sync)
+// The system now relies entirely on webhooks for real-time calendar updates
+// Polling has been removed to reduce API calls and improve efficiency
+console.log('ℹ️  Automatic sync scheduler DISABLED - using webhook-only sync');
+// const syncScheduler = require('./services/syncScheduler');
+// setTimeout(() => {
+//   syncScheduler.start();
+//   console.log('✅ Automatic sync scheduler initialized');
+// }, 5000);
 
 const port = process.env.PORT || 8787;
 app.listen(port, () => {

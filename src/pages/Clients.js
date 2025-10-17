@@ -25,6 +25,8 @@ import PipelineEntryForm from '../components/PipelineEntryForm';
 import BusinessTypeManager from '../components/BusinessTypeManager';
 import CreateClientForm from '../components/CreateClientForm';
 import ClientDocumentsSection from '../components/ClientDocumentsSection';
+import { supabase } from '../lib/supabase';
+import { useAuth } from '../context/AuthContext';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -64,6 +66,7 @@ export default function Clients() {
   const [clientActionItems, setClientActionItems] = useState([]);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user } = useAuth();
 
 
 
@@ -233,6 +236,41 @@ export default function Clients() {
       }
     }
   }, [searchParams, clients]);
+
+  // Real-time subscription to clients table for instant updates
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log('📡 Setting up real-time subscription for clients...');
+
+    // Subscribe to changes in the clients table
+    const channel = supabase
+      .channel('clients-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'clients',
+          filter: `advisor_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('📥 Real-time client change detected:', payload);
+
+          // Refresh clients when any change occurs
+          fetchClients(clientFilter);
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Realtime subscription status:', status);
+      });
+
+    // Cleanup subscription on unmount
+    return () => {
+      console.log('🔌 Unsubscribing from real-time clients updates');
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, fetchClients, clientFilter]);
 
   // Fetch action items when client is selected
   useEffect(() => {

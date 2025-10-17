@@ -296,47 +296,11 @@ router.get('/stats', authenticateUser, async (req, res) => {
   }
 });
 
-// Get automatic sync scheduler status
-router.get('/scheduler/status', authenticateUser, async (req, res) => {
-  try {
-    const syncScheduler = require('../services/syncScheduler');
-    const status = syncScheduler.getStatus();
-
-    res.json({
-      success: true,
-      scheduler: status
-    });
-  } catch (error) {
-    console.error('Error fetching scheduler status:', error);
-    res.status(500).json({
-      error: 'Failed to fetch scheduler status',
-      details: error.message
-    });
-  }
-});
-
-// Manually trigger automatic sync (for testing or immediate needs)
-router.post('/scheduler/trigger', authenticateUser, async (req, res) => {
-  try {
-    const syncScheduler = require('../services/syncScheduler');
-
-    // Trigger sync in background (don't wait for completion)
-    syncScheduler.triggerManualSync().catch(error => {
-      console.error('Error in manual scheduler trigger:', error);
-    });
-
-    res.json({
-      success: true,
-      message: 'Automatic sync triggered in background'
-    });
-  } catch (error) {
-    console.error('Error triggering scheduler:', error);
-    res.status(500).json({
-      error: 'Failed to trigger scheduler',
-      details: error.message
-    });
-  }
-});
+// DISABLED: Scheduler endpoints (replaced with webhook-only sync)
+// The system now uses webhooks exclusively for real-time updates
+// Manual sync is still available via POST /api/calendly/sync endpoint
+// router.get('/scheduler/status', ...) - REMOVED
+// router.post('/scheduler/trigger', ...) - REMOVED
 
 // =====================================================
 // WEBHOOK ENDPOINTS
@@ -411,6 +375,9 @@ router.post('/webhook', express.json(), async (req, res) => {
       case 'invitee.canceled':
         await handleInviteeCanceled(payload);
         break;
+      case 'invitee.updated':
+        await handleInviteeUpdated(payload);
+        break;
       default:
         console.log(`⚠️  Unhandled webhook event: ${event}`);
     }
@@ -479,14 +446,34 @@ async function handleInviteeCreated(payload) {
     // Mark as synced via webhook
     meetingData.synced_via_webhook = true;
 
-    const { error } = await getSupabase()
+    // Check if meeting already exists (by calendly_event_uuid)
+    const { data: existingMeeting } = await getSupabase()
       .from('meetings')
-      .insert(meetingData);
+      .select('id')
+      .eq('calendly_event_uuid', eventUuid)
+      .single();
+
+    let error;
+    if (existingMeeting) {
+      // Update existing meeting instead of creating duplicate
+      console.log('⚠️  Meeting already exists, updating instead');
+      const updateResult = await getSupabase()
+        .from('meetings')
+        .update(meetingData)
+        .eq('id', existingMeeting.id);
+      error = updateResult.error;
+    } else {
+      // Create new meeting
+      const insertResult = await getSupabase()
+        .from('meetings')
+        .insert(meetingData);
+      error = insertResult.error;
+    }
 
     if (error) {
-      console.error('❌ Error inserting meeting from webhook:', error);
+      console.error('❌ Error saving meeting from webhook:', error);
     } else {
-      console.log('✅ Meeting created from webhook:', meetingData.title);
+      console.log('✅ Meeting saved from webhook:', meetingData.title);
 
       // Record webhook event
       await getSupabase()
@@ -576,6 +563,87 @@ async function handleInviteeCanceled(payload) {
     }
   } catch (error) {
     console.error('❌ Error handling invitee.canceled:', error);
+  }
+}
+
+async function handleInviteeUpdated(payload) {
+  try {
+    console.log('🔄 Meeting updated via webhook:', payload.event);
+    const calendlyService = new CalendlyService();
+    const eventUri = payload.event;
+    const eventUuid = eventUri.split('/').pop();
+
+    // Check if webhook event already processed (deduplication)
+    const { data: existingWebhookEvent } = await getSupabase()
+      .from('calendly_webhook_events')
+      .select('id')
+      .eq('event_id', eventUuid)
+      .eq('event_type', 'invitee.updated')
+      .single();
+
+    if (existingWebhookEvent) {
+      console.log('⏭️  Webhook event already processed, skipping');
+      return;
+    }
+
+    // Fetch the updated event details from Calendly
+    const eventData = await calendlyService.makeRequest(`/scheduled_events/${eventUuid}`);
+    const event = eventData.resource;
+
+    // Find the existing meeting in database
+    const { data: existingMeeting } = await getSupabase()
+      .from('meetings')
+      .select('id, userid')
+      .eq('calendly_event_uuid', eventUuid)
+      .single();
+
+    if (!existingMeeting) {
+      console.log('⚠️  Meeting not found in database, creating new one');
+      // If meeting doesn't exist, create it
+      await handleInviteeCreated(payload);
+      return;
+    }
+
+    // Transform the updated event data
+    const userId = existingMeeting.userid;
+    const meetingData = await calendlyService.transformEventToMeeting(event, userId);
+
+    // Mark as synced via webhook
+    meetingData.synced_via_webhook = true;
+    meetingData.updatedat = new Date().toISOString();
+
+    // Update the meeting
+    const { error } = await getSupabase()
+      .from('meetings')
+      .update(meetingData)
+      .eq('id', existingMeeting.id);
+
+    if (error) {
+      console.error('❌ Error updating meeting from webhook:', error);
+    } else {
+      console.log('✅ Meeting updated from webhook:', meetingData.title);
+
+      // Record webhook event
+      await getSupabase()
+        .from('calendly_webhook_events')
+        .insert({
+          event_id: eventUuid,
+          event_type: 'invitee.updated',
+          payload: payload,
+          user_id: userId
+        });
+
+      // Update user's last sync time
+      await getSupabase()
+        .from('users')
+        .update({
+          last_calendly_sync: new Date().toISOString(),
+          calendly_webhook_enabled: true
+        })
+        .eq('id', userId);
+    }
+  } catch (error) {
+    console.error('❌ Error handling invitee.updated:', error);
   }
 }
 

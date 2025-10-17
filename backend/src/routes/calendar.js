@@ -11,6 +11,7 @@ const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase'
 const calendarSyncService = require('../services/calendarSync');
 const fileUploadService = require('../services/fileUpload'); // Legacy - kept for backward compatibility
 const clientDocumentsService = require('../services/clientDocuments'); // Unified document system
+const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
 
 // Get Google Calendar auth URL
 router.get('/auth/google', async (req, res) => {
@@ -1391,6 +1392,123 @@ router.delete('/meetings/:meetingId/documents/:fileId', authenticateToken, async
     console.error('Error deleting file:', error);
     res.status(500).json({ error: error.message || 'Failed to delete file' });
   }
+});
+
+// =====================================================
+// GOOGLE CALENDAR WEBHOOK ENDPOINTS
+// =====================================================
+
+/**
+ * Setup Google Calendar webhook for a user
+ * This registers a push notification channel with Google
+ */
+router.post('/webhook/setup', authenticateUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const webhookService = new GoogleCalendarWebhookService();
+
+    const watchData = await webhookService.setupCalendarWatch(userId);
+
+    res.json({
+      success: true,
+      message: 'Google Calendar webhook set up successfully',
+      watch: {
+        channelId: watchData.id,
+        resourceId: watchData.resourceId,
+        expiration: new Date(parseInt(watchData.expiration))
+      }
+    });
+  } catch (error) {
+    console.error('Error setting up calendar webhook:', error);
+    res.status(500).json({
+      error: 'Failed to set up calendar webhook',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Stop Google Calendar webhook for a user
+ */
+router.post('/webhook/stop', authenticateUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const webhookService = new GoogleCalendarWebhookService();
+
+    await webhookService.stopCalendarWatch(userId);
+
+    res.json({
+      success: true,
+      message: 'Google Calendar webhook stopped successfully'
+    });
+  } catch (error) {
+    console.error('Error stopping calendar webhook:', error);
+    res.status(500).json({
+      error: 'Failed to stop calendar webhook',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Receive Google Calendar webhook notifications
+ * This endpoint is called by Google when calendar events change
+ */
+router.post('/webhook', express.json(), async (req, res) => {
+  try {
+    console.log('📥 Received Google Calendar webhook notification');
+
+    const webhookService = new GoogleCalendarWebhookService();
+
+    // Extract channel info from headers
+    const channelId = req.headers['x-goog-channel-id'];
+    const resourceState = req.headers['x-goog-resource-state'];
+
+    if (!channelId) {
+      console.warn('⚠️  No channel ID in webhook headers');
+      return res.status(400).json({ error: 'Missing channel ID' });
+    }
+
+    // Look up the user for this channel
+    const { data: channel } = await getSupabase()
+      .from('calendar_watch_channels')
+      .select('user_id')
+      .eq('channel_id', channelId)
+      .single();
+
+    if (!channel) {
+      console.warn('⚠️  Unknown channel ID:', channelId);
+      return res.status(404).json({ error: 'Unknown channel' });
+    }
+
+    // Process the webhook
+    const result = await webhookService.processWebhookNotification(req.headers, channel.user_id);
+
+    // Google expects a 200 response quickly
+    res.status(200).json({ success: true, result });
+
+  } catch (error) {
+    console.error('❌ Error processing Google Calendar webhook:', error);
+    // Still return 200 to Google to avoid retries
+    res.status(200).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Test endpoint for Google Calendar webhook
+ */
+router.get('/webhook/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Google Calendar webhook endpoint is accessible',
+    url: `${req.protocol}://${req.get('host')}/api/calendar/webhook`,
+    instructions: [
+      '1. Authenticate with Google Calendar',
+      '2. Call POST /api/calendar/webhook/setup to register webhook',
+      '3. Google will send notifications to this endpoint when calendar changes',
+      '4. Webhook will automatically sync changed events to database'
+    ]
+  });
 });
 
 // Debug route to confirm calendar.js is loaded
