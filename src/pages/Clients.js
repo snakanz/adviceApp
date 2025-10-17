@@ -65,7 +65,6 @@ export default function Clients() {
   const [clientActionItems, setClientActionItems] = useState([]);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user } = useAuth();
 
 
 
