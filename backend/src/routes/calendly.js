@@ -443,10 +443,22 @@ router.get('/webhook/test', (req, res) => {
 // Helper functions for webhook handlers
 async function handleInviteeCreated(payload) {
   try {
-    console.log('✅ New meeting scheduled:', payload.event);
+    console.log('✅ New meeting scheduled via webhook:', payload.event);
     const calendlyService = new CalendlyService();
     const eventUri = payload.event;
     const eventUuid = eventUri.split('/').pop();
+
+    // Check if webhook event already processed (deduplication)
+    const { data: existingWebhookEvent } = await getSupabase()
+      .from('calendly_webhook_events')
+      .select('id')
+      .eq('event_id', eventUuid)
+      .single();
+
+    if (existingWebhookEvent) {
+      console.log('⏭️  Webhook event already processed, skipping');
+      return;
+    }
 
     const eventData = await calendlyService.makeRequest(`/scheduled_events/${eventUuid}`);
     const event = eventData.resource;
@@ -464,6 +476,9 @@ async function handleInviteeCreated(payload) {
     const userId = users[0].id;
     const meetingData = await calendlyService.transformEventToMeeting(event, userId);
 
+    // Mark as synced via webhook
+    meetingData.synced_via_webhook = true;
+
     const { error } = await getSupabase()
       .from('meetings')
       .insert(meetingData);
@@ -472,6 +487,25 @@ async function handleInviteeCreated(payload) {
       console.error('❌ Error inserting meeting from webhook:', error);
     } else {
       console.log('✅ Meeting created from webhook:', meetingData.title);
+
+      // Record webhook event
+      await getSupabase()
+        .from('calendly_webhook_events')
+        .insert({
+          event_id: eventUuid,
+          event_type: 'invitee.created',
+          payload: payload,
+          user_id: userId
+        });
+
+      // Update user's last sync time
+      await getSupabase()
+        .from('users')
+        .update({
+          last_calendly_sync: new Date().toISOString(),
+          calendly_webhook_enabled: true
+        })
+        .eq('id', userId);
     }
   } catch (error) {
     console.error('❌ Error handling invitee.created:', error);
@@ -480,16 +514,36 @@ async function handleInviteeCreated(payload) {
 
 async function handleInviteeCanceled(payload) {
   try {
-    console.log('🗑️  Meeting cancelled:', payload.event);
+    console.log('🗑️  Meeting cancelled via webhook:', payload.event);
     const eventUri = payload.event;
     const eventUuid = eventUri.split('/').pop();
     const calendlyEventId = `calendly_${eventUuid}`;
+
+    // Check if webhook event already processed (deduplication)
+    const { data: existingWebhookEvent } = await getSupabase()
+      .from('calendly_webhook_events')
+      .select('id')
+      .eq('event_id', eventUuid)
+      .single();
+
+    if (existingWebhookEvent) {
+      console.log('⏭️  Webhook event already processed, skipping');
+      return;
+    }
+
+    // Get user ID from the meeting
+    const { data: meeting } = await getSupabase()
+      .from('meetings')
+      .select('userid')
+      .eq('googleeventid', calendlyEventId)
+      .single();
 
     const { error } = await getSupabase()
       .from('meetings')
       .update({
         is_deleted: true,
-        sync_status: 'deleted',
+        sync_status: 'canceled',
+        synced_via_webhook: true,
         updatedat: new Date().toISOString()
       })
       .eq('googleeventid', calendlyEventId);
@@ -497,7 +551,28 @@ async function handleInviteeCanceled(payload) {
     if (error) {
       console.error('❌ Error marking meeting as deleted:', error);
     } else {
-      console.log('✅ Meeting marked as deleted:', calendlyEventId);
+      console.log('✅ Meeting marked as canceled via webhook:', calendlyEventId);
+
+      if (meeting?.userid) {
+        // Record webhook event
+        await getSupabase()
+          .from('calendly_webhook_events')
+          .insert({
+            event_id: eventUuid,
+            event_type: 'invitee.canceled',
+            payload: payload,
+            user_id: parseInt(meeting.userid)
+          });
+
+        // Update user's last sync time
+        await getSupabase()
+          .from('users')
+          .update({
+            last_calendly_sync: new Date().toISOString(),
+            calendly_webhook_enabled: true
+          })
+          .eq('id', parseInt(meeting.userid));
+      }
     }
   } catch (error) {
     console.error('❌ Error handling invitee.canceled:', error);

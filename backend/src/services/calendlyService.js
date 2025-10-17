@@ -60,29 +60,44 @@ class CalendlyService {
   /**
    * Fetch scheduled events from Calendly with pagination support
    * Fetches BOTH active and canceled events to properly sync deletions
+   * Uses intelligent time ranges based on sync status
    */
   async fetchScheduledEvents(options = {}) {
     try {
       // Get current user first to get their URI
       const user = await this.getCurrentUser();
 
-      // Calculate time range (default: 2 years back, 1 year forward for comprehensive sync)
+      // Determine time range based on sync type
       const now = new Date();
-      const timeMin = options.timeMin || new Date(now.getTime() - 730 * 24 * 60 * 60 * 1000); // 2 years back
-      const timeMax = options.timeMax || new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000); // 1 year forward
+      let timeMin, timeMax, syncType;
 
-      console.log(`📅 Fetching Calendly events (active + canceled) from ${timeMin.toISOString()} to ${timeMax.toISOString()}`);
+      if (options.fullSync || options.initialSync) {
+        // INITIAL SYNC: Get all historical data (2 years back)
+        timeMin = options.timeMin || new Date(now.getTime() - 730 * 24 * 60 * 60 * 1000); // 2 years back
+        timeMax = options.timeMax || new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000); // 1 year forward
+        syncType = 'FULL';
+        console.log(`📅 FULL SYNC: Fetching all Calendly events (2 years back, 1 year forward)`);
+      } else {
+        // INCREMENTAL SYNC: Only recent data (3 months back, 6 months forward)
+        timeMin = options.timeMin || new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); // 3 months back
+        timeMax = options.timeMax || new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000); // 6 months forward
+        syncType = 'INCREMENTAL';
+        console.log(`📅 INCREMENTAL SYNC: Fetching recent Calendly events (3 months back, 6 months forward)`);
+      }
+
+      console.log(`   Time range: ${timeMin.toISOString()} to ${timeMax.toISOString()}`);
 
       // Fetch both active and canceled events
       const activeEvents = await this.fetchEventsByStatus(user.uri, timeMin, timeMax, 'active');
       const canceledEvents = await this.fetchEventsByStatus(user.uri, timeMin, timeMax, 'canceled');
 
-      console.log(`✅ Calendly fetch complete: ${activeEvents.length} active, ${canceledEvents.length} canceled`);
+      console.log(`✅ ${syncType} fetch complete: ${activeEvents.length} active, ${canceledEvents.length} canceled`);
 
       return {
         active: activeEvents,
         canceled: canceledEvents,
-        all: [...activeEvents, ...canceledEvents]
+        all: [...activeEvents, ...canceledEvents],
+        syncType
       };
     } catch (error) {
       console.error('Error fetching Calendly events:', error);
@@ -252,8 +267,9 @@ class CalendlyService {
 
   /**
    * Sync Calendly meetings to database
+   * Automatically determines if full or incremental sync is needed
    */
-  async syncMeetingsToDatabase(userId) {
+  async syncMeetingsToDatabase(userId, options = {}) {
     try {
       console.log(`🔄 Starting Calendly sync for user ${userId}...`);
 
@@ -262,8 +278,26 @@ class CalendlyService {
         return { synced: 0, errors: 0, message: 'Calendly not configured' };
       }
 
+      // Check if initial sync has been completed
+      const { data: userData } = await getSupabase()
+        .from('users')
+        .select('calendly_initial_sync_complete, last_calendly_sync')
+        .eq('id', userId)
+        .single();
+
+      const needsInitialSync = !userData?.calendly_initial_sync_complete || options.forceFullSync;
+
+      if (needsInitialSync) {
+        console.log('🎯 Initial sync needed - will fetch 2 years of historical data');
+      } else {
+        console.log('⚡ Incremental sync - fetching recent data only (3 months back, 6 months forward)');
+      }
+
       // Fetch events from Calendly (both active and canceled)
-      const eventData = await this.fetchScheduledEvents();
+      const eventData = await this.fetchScheduledEvents({
+        initialSync: needsInitialSync,
+        fullSync: options.forceFullSync
+      });
       const activeEvents = eventData.active || [];
       const canceledEvents = eventData.canceled || [];
 
@@ -416,14 +450,33 @@ class CalendlyService {
         }
       }
 
-      console.log(`🎉 Calendly sync complete: ${syncedCount} new, ${updatedCount} updated, ${deletedCount} deleted, ${restoredCount} restored, ${errorCount} errors`);
+      // Update user's sync status
+      const updateData = {
+        last_calendly_sync: new Date().toISOString()
+      };
+
+      // Mark initial sync as complete if this was an initial sync
+      if (needsInitialSync && !userData?.calendly_initial_sync_complete) {
+        updateData.calendly_initial_sync_complete = true;
+        console.log('✅ Initial sync complete - future syncs will be incremental');
+      }
+
+      await getSupabase()
+        .from('users')
+        .update(updateData)
+        .eq('id', userId);
+
+      const syncTypeLabel = needsInitialSync ? 'FULL' : 'INCREMENTAL';
+      console.log(`🎉 ${syncTypeLabel} Calendly sync complete: ${syncedCount} new, ${updatedCount} updated, ${deletedCount} deleted, ${restoredCount} restored, ${errorCount} errors`);
+
       return {
         synced: syncedCount,
         updated: updatedCount,
         deleted: deletedCount,
         restored: restoredCount,
         errors: errorCount,
-        message: `Synced ${syncedCount} new, updated ${updatedCount}, deleted ${deletedCount}, restored ${restoredCount} meetings from Calendly`
+        syncType: syncTypeLabel,
+        message: `${syncTypeLabel} sync: ${syncedCount} new, ${updatedCount} updated, ${deletedCount} deleted, ${restoredCount} restored meetings from Calendly`
       };
 
     } catch (error) {
