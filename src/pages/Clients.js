@@ -25,7 +25,6 @@ import PipelineEntryForm from '../components/PipelineEntryForm';
 import BusinessTypeManager from '../components/BusinessTypeManager';
 import CreateClientForm from '../components/CreateClientForm';
 import ClientDocumentsSection from '../components/ClientDocumentsSection';
-import { useAuth } from '../context/AuthContext';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
