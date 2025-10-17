@@ -1,5 +1,5 @@
 const { getSupabase } = require('../lib/supabase');
-const ClientExtractionService = require('./clientExtraction');
+const clientExtractionService = require('./clientExtraction');
 
 /**
  * Calendly API Service
@@ -59,6 +59,7 @@ class CalendlyService {
 
   /**
    * Fetch scheduled events from Calendly with pagination support
+   * Fetches BOTH active and canceled events to properly sync deletions
    */
   async fetchScheduledEvents(options = {}) {
     try {
@@ -70,65 +71,79 @@ class CalendlyService {
       const timeMin = options.timeMin || new Date(now.getTime() - 730 * 24 * 60 * 60 * 1000); // 2 years back
       const timeMax = options.timeMax || new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000); // 1 year forward
 
-      console.log(`📅 Fetching Calendly events from ${timeMin.toISOString()} to ${timeMax.toISOString()}`);
+      console.log(`📅 Fetching Calendly events (active + canceled) from ${timeMin.toISOString()} to ${timeMax.toISOString()}`);
 
-      let allEvents = [];
-      let nextPageUrl = null;
-      let pageCount = 0;
+      // Fetch both active and canceled events
+      const activeEvents = await this.fetchEventsByStatus(user.uri, timeMin, timeMax, 'active');
+      const canceledEvents = await this.fetchEventsByStatus(user.uri, timeMin, timeMax, 'canceled');
 
-      // Build initial request URL
-      const params = new URLSearchParams({
-        user: user.uri,
-        min_start_time: timeMin.toISOString(),
-        max_start_time: timeMax.toISOString(),
-        status: 'active',
-        sort: 'start_time:asc',
-        count: '100' // Maximum allowed by Calendly API
-      });
+      console.log(`✅ Calendly fetch complete: ${activeEvents.length} active, ${canceledEvents.length} canceled`);
 
-      let requestUrl = `/scheduled_events?${params}`;
-
-      do {
-        console.log(`📄 Fetching page ${pageCount + 1} of Calendly events...`);
-
-        // Use the full next page URL if available, otherwise use the initial URL
-        const urlToFetch = nextPageUrl ? nextPageUrl.replace(this.baseURL, '') : requestUrl;
-        const data = await this.makeRequest(urlToFetch);
-
-        const events = data.collection || [];
-        allEvents = allEvents.concat(events);
-        pageCount++;
-
-        console.log(`📊 Page ${pageCount}: Found ${events.length} events (Total: ${allEvents.length})`);
-
-        // Check for pagination - use the full next_page URL
-        const pagination = data.pagination || {};
-
-        // If we got fewer than 100 events, we're at the end
-        if (events.length < 100) {
-          console.log('📄 Received fewer than 100 events, reached end of results');
-          nextPageUrl = null;
-        } else {
-          nextPageUrl = pagination.next_page || null;
-          if (nextPageUrl) {
-            console.log('🔗 Next page URL:', nextPageUrl);
-          }
-        }
-
-        // Safety check to prevent infinite loops
-        if (pageCount > 50) {
-          console.warn('⚠️  Reached maximum page limit (50), stopping pagination');
-          break;
-        }
-
-      } while (nextPageUrl);
-
-      console.log(`✅ Calendly fetch complete: ${allEvents.length} total events across ${pageCount} pages`);
-      return allEvents;
+      return {
+        active: activeEvents,
+        canceled: canceledEvents,
+        all: [...activeEvents, ...canceledEvents]
+      };
     } catch (error) {
       console.error('Error fetching Calendly events:', error);
       throw error;
     }
+  }
+
+  /**
+   * Fetch events by status with pagination
+   */
+  async fetchEventsByStatus(userUri, timeMin, timeMax, status) {
+    let allEvents = [];
+    let nextPageUrl = null;
+    let pageCount = 0;
+
+    // Build initial request URL
+    const params = new URLSearchParams({
+      user: userUri,
+      min_start_time: timeMin.toISOString(),
+      max_start_time: timeMax.toISOString(),
+      status: status,
+      sort: 'start_time:asc',
+      count: '100' // Maximum allowed by Calendly API
+    });
+
+    let requestUrl = `/scheduled_events?${params}`;
+
+    do {
+      console.log(`📄 Fetching ${status} events page ${pageCount + 1}...`);
+
+      // Use the full next page URL if available, otherwise use the initial URL
+      const urlToFetch = nextPageUrl ? nextPageUrl.replace(this.baseURL, '') : requestUrl;
+      const data = await this.makeRequest(urlToFetch);
+
+      const events = data.collection || [];
+      allEvents = allEvents.concat(events);
+      pageCount++;
+
+      console.log(`📊 Page ${pageCount}: Found ${events.length} ${status} events (Total: ${allEvents.length})`);
+
+      // Check for pagination - use the full next_page URL
+      const pagination = data.pagination || {};
+
+      // If we got fewer than 100 events, we're at the end
+      if (events.length < 100) {
+        console.log(`📄 Received fewer than 100 ${status} events, reached end of results`);
+        nextPageUrl = null;
+      } else {
+        nextPageUrl = pagination.next_page || null;
+      }
+
+      // Safety check to prevent infinite loops
+      if (pageCount > 50) {
+        console.warn('⚠️  Reached maximum page limit (50), stopping pagination');
+        break;
+      }
+
+    } while (nextPageUrl);
+
+    console.log(`✅ Fetched ${allEvents.length} ${status} events across ${pageCount} pages`);
+    return allEvents;
   }
 
   /**
@@ -247,43 +262,42 @@ class CalendlyService {
         return { synced: 0, errors: 0, message: 'Calendly not configured' };
       }
 
-      // Fetch events from Calendly
-      const calendlyEvents = await this.fetchScheduledEvents();
-      console.log(`📅 Found ${calendlyEvents.length} Calendly events`);
+      // Fetch events from Calendly (both active and canceled)
+      const eventData = await this.fetchScheduledEvents();
+      const activeEvents = eventData.active || [];
+      const canceledEvents = eventData.canceled || [];
 
-      if (calendlyEvents.length === 0) {
-        return { synced: 0, errors: 0, message: 'No Calendly events found' };
-      }
+      console.log(`📅 Found ${activeEvents.length} active and ${canceledEvents.length} canceled Calendly events`);
 
-      // Get existing Calendly meetings from database using googleeventid (which contains calendly_ prefix)
+      // Get existing Calendly meetings from database
       const { data: existingMeetings } = await getSupabase()
         .from('meetings')
-        .select('googleeventid')
+        .select('googleeventid, is_deleted')
         .eq('userid', userId)
         .eq('meeting_source', 'calendly');
 
-      const existingEventIds = new Set(
-        (existingMeetings || []).map(m => m.googleeventid).filter(Boolean)
+      const existingEventMap = new Map(
+        (existingMeetings || []).map(m => [m.googleeventid, m])
       );
 
       let syncedCount = 0;
       let errorCount = 0;
       let updatedCount = 0;
+      let deletedCount = 0;
+      let restoredCount = 0;
 
-      // Process each Calendly event
-      for (const event of calendlyEvents) {
+      // Process ACTIVE events - create or update
+      console.log(`🔄 Processing ${activeEvents.length} active events...`);
+      for (const event of activeEvents) {
         try {
           const eventUuid = event.uri.split('/').pop();
           const calendlyEventId = `calendly_${eventUuid}`;
 
-          // Check if already exists
-          const alreadyExists = existingEventIds.has(calendlyEventId);
-
-          // Transform event to meeting data with enhanced information
+          const existingMeeting = existingEventMap.get(calendlyEventId);
           const meetingData = await this.transformEventToMeeting(event, userId);
 
-          if (alreadyExists) {
-            // Update existing meeting with latest data
+          if (existingMeeting) {
+            // Update existing meeting and ensure it's NOT deleted
             const { error } = await getSupabase()
               .from('meetings')
               .update({
@@ -293,6 +307,8 @@ class CalendlyService {
                 summary: meetingData.summary,
                 attendees: meetingData.attendees,
                 location: meetingData.location,
+                is_deleted: false, // Restore if it was previously deleted
+                sync_status: 'active',
                 last_calendar_sync: meetingData.last_calendar_sync,
                 updatedat: meetingData.updatedat,
                 client_email: meetingData.client_email
@@ -301,11 +317,16 @@ class CalendlyService {
               .eq('userid', userId);
 
             if (error) {
-              console.error(`Error updating Calendly meeting ${eventUuid}:`, error);
+              console.error(`Error updating active meeting ${eventUuid}:`, error);
               errorCount++;
             } else {
-              console.log(`🔄 Updated Calendly meeting: ${meetingData.title}`);
-              updatedCount++;
+              if (existingMeeting.is_deleted) {
+                console.log(`♻️  Restored previously deleted meeting: ${meetingData.title}`);
+                restoredCount++;
+              } else {
+                console.log(`🔄 Updated active meeting: ${meetingData.title}`);
+                updatedCount++;
+              }
             }
           } else {
             // Insert new meeting
@@ -314,53 +335,62 @@ class CalendlyService {
               .insert(meetingData);
 
             if (error) {
-              console.error(`Error inserting Calendly meeting ${eventUuid}:`, error);
+              console.error(`Error inserting new meeting ${eventUuid}:`, error);
               errorCount++;
             } else {
-              console.log(`✅ Synced Calendly meeting: ${meetingData.title}`);
+              console.log(`✅ Created new meeting: ${meetingData.title}`);
               syncedCount++;
             }
           }
         } catch (error) {
-          console.error('Error processing Calendly event:', error);
+          console.error('Error processing active event:', error);
           errorCount++;
         }
       }
-      // Mark meetings as deleted if they're no longer in Calendly
-      const currentCalendlyEventIds = new Set(
-        calendlyEvents.map(event => `calendly_${event.uri.split('/').pop()}`)
-      );
 
-      let deletedCount = 0;
-      for (const existingEventId of existingEventIds) {
-        if (!currentCalendlyEventIds.has(existingEventId)) {
-          // Meeting no longer exists in Calendly, mark as deleted
-          const { error } = await getSupabase()
-            .from('meetings')
-            .update({
-              is_deleted: true,
-              sync_status: 'deleted',
-              updatedat: new Date().toISOString()
-            })
-            .eq('googleeventid', existingEventId)
-            .eq('userid', userId);
+      // Process CANCELED events - mark as deleted
+      console.log(`🗑️  Processing ${canceledEvents.length} canceled events...`);
+      for (const event of canceledEvents) {
+        try {
+          const eventUuid = event.uri.split('/').pop();
+          const calendlyEventId = `calendly_${eventUuid}`;
 
-          if (error) {
-            console.error(`Error marking meeting as deleted ${existingEventId}:`, error);
-            errorCount++;
-          } else {
-            console.log(`🗑️  Marked meeting as deleted: ${existingEventId}`);
-            deletedCount++;
+          const existingMeeting = existingEventMap.get(calendlyEventId);
+
+          if (existingMeeting && !existingMeeting.is_deleted) {
+            // Mark as deleted
+            const { error } = await getSupabase()
+              .from('meetings')
+              .update({
+                is_deleted: true,
+                sync_status: 'canceled',
+                updatedat: new Date().toISOString()
+              })
+              .eq('googleeventid', calendlyEventId)
+              .eq('userid', userId);
+
+            if (error) {
+              console.error(`Error marking canceled meeting ${eventUuid}:`, error);
+              errorCount++;
+            } else {
+              console.log(`🗑️  Marked as canceled: ${event.name}`);
+              deletedCount++;
+            }
+          } else if (!existingMeeting) {
+            // Canceled event that we never had - skip it
+            console.log(`⏭️  Skipping canceled event that was never synced: ${event.name}`);
           }
+        } catch (error) {
+          console.error('Error processing canceled event:', error);
+          errorCount++;
         }
       }
 
       // After syncing meetings, extract and associate clients
-      if (syncedCount > 0 || updatedCount > 0) {
+      if (syncedCount > 0 || updatedCount > 0 || restoredCount > 0) {
         try {
           console.log('🔄 Starting client extraction for Calendly meetings...');
-          const clientExtraction = new ClientExtractionService();
-          const extractionResult = await clientExtraction.extractClientsFromMeetings(userId);
+          const extractionResult = await clientExtractionService.extractClientsFromMeetings(userId);
           console.log('✅ Client extraction completed for Calendly meetings:', extractionResult);
         } catch (error) {
           console.error('❌ Error extracting clients from Calendly meetings:', error);
@@ -368,12 +398,14 @@ class CalendlyService {
         }
       }
 
-      console.log(`🎉 Calendly sync complete: ${syncedCount} synced, ${updatedCount} updated, ${errorCount} errors`);
+      console.log(`🎉 Calendly sync complete: ${syncedCount} new, ${updatedCount} updated, ${deletedCount} deleted, ${restoredCount} restored, ${errorCount} errors`);
       return {
         synced: syncedCount,
         updated: updatedCount,
+        deleted: deletedCount,
+        restored: restoredCount,
         errors: errorCount,
-        message: `Synced ${syncedCount} new meetings, updated ${updatedCount} existing meetings from Calendly`
+        message: `Synced ${syncedCount} new, updated ${updatedCount}, deleted ${deletedCount}, restored ${restoredCount} meetings from Calendly`
       };
 
     } catch (error) {
