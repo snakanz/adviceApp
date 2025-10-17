@@ -213,6 +213,54 @@ router.get('/meetings', authenticateUser, async (req, res) => {
   }
 });
 
+// Debug endpoint to check specific client meetings
+router.get('/debug/client/:email', authenticateUser, async (req, res) => {
+  try {
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    const clientEmail = decodeURIComponent(req.params.email);
+    console.log(`🔍 Debugging meetings for client: ${clientEmail}`);
+
+    // Get all meetings for this client email
+    const { data: meetings, error } = await getSupabase()
+      .from('meetings')
+      .select('*')
+      .eq('userid', req.user.id)
+      .eq('meeting_source', 'calendly')
+      .ilike('client_email', `%${clientEmail}%`)
+      .order('starttime', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching client meetings:', error);
+      return res.status(500).json({ error: 'Failed to fetch meetings' });
+    }
+
+    res.json({
+      client_email: clientEmail,
+      total_meetings: meetings?.length || 0,
+      meetings: meetings?.map(m => ({
+        id: m.id,
+        title: m.title,
+        starttime: m.starttime,
+        endtime: m.endtime,
+        is_deleted: m.is_deleted,
+        sync_status: m.sync_status,
+        googleeventid: m.googleeventid,
+        calendly_event_uuid: m.calendly_event_uuid,
+        client_email: m.client_email
+      })) || []
+    });
+  } catch (error) {
+    console.error('Error in debug endpoint:', error);
+    res.status(500).json({
+      error: 'Failed to debug client meetings',
+      details: error.message
+    });
+  }
+});
+
 // Get integration statistics
 router.get('/stats', authenticateUser, async (req, res) => {
   try {

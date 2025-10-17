@@ -272,12 +272,21 @@ class CalendlyService {
       // Get existing Calendly meetings from database
       const { data: existingMeetings } = await getSupabase()
         .from('meetings')
-        .select('googleeventid, is_deleted')
+        .select('googleeventid, is_deleted, calendly_event_uuid')
         .eq('userid', userId)
         .eq('meeting_source', 'calendly');
 
+      console.log(`💾 Found ${existingMeetings?.length || 0} existing Calendly meetings in database`);
+
       const existingEventMap = new Map(
         (existingMeetings || []).map(m => [m.googleeventid, m])
+      );
+
+      // Also create a map by UUID for better matching
+      const existingUuidMap = new Map(
+        (existingMeetings || [])
+          .filter(m => m.calendly_event_uuid)
+          .map(m => [m.calendly_event_uuid, m])
       );
 
       let syncedCount = 0;
@@ -355,30 +364,39 @@ class CalendlyService {
           const eventUuid = event.uri.split('/').pop();
           const calendlyEventId = `calendly_${eventUuid}`;
 
-          const existingMeeting = existingEventMap.get(calendlyEventId);
+          // Try to find by googleeventid first, then by UUID
+          let existingMeeting = existingEventMap.get(calendlyEventId);
+          if (!existingMeeting) {
+            existingMeeting = existingUuidMap.get(eventUuid);
+          }
 
-          if (existingMeeting && !existingMeeting.is_deleted) {
-            // Mark as deleted
-            const { error } = await getSupabase()
-              .from('meetings')
-              .update({
-                is_deleted: true,
-                sync_status: 'canceled',
-                updatedat: new Date().toISOString()
-              })
-              .eq('googleeventid', calendlyEventId)
-              .eq('userid', userId);
+          if (existingMeeting) {
+            if (!existingMeeting.is_deleted) {
+              // Mark as deleted - use both googleeventid and UUID for matching
+              const { error } = await getSupabase()
+                .from('meetings')
+                .update({
+                  is_deleted: true,
+                  sync_status: 'canceled',
+                  updatedat: new Date().toISOString()
+                })
+                .eq('userid', userId)
+                .eq('meeting_source', 'calendly')
+                .or(`googleeventid.eq.${calendlyEventId},calendly_event_uuid.eq.${eventUuid}`);
 
-            if (error) {
-              console.error(`Error marking canceled meeting ${eventUuid}:`, error);
-              errorCount++;
+              if (error) {
+                console.error(`Error marking canceled meeting ${eventUuid}:`, error);
+                errorCount++;
+              } else {
+                console.log(`🗑️  Marked as canceled: ${event.name} (UUID: ${eventUuid})`);
+                deletedCount++;
+              }
             } else {
-              console.log(`🗑️  Marked as canceled: ${event.name}`);
-              deletedCount++;
+              console.log(`⏭️  Already deleted: ${event.name}`);
             }
-          } else if (!existingMeeting) {
-            // Canceled event that we never had - skip it
-            console.log(`⏭️  Skipping canceled event that was never synced: ${event.name}`);
+          } else {
+            // Canceled event that we never had - this is normal for old canceled meetings
+            console.log(`⏭️  Skipping canceled event (never synced): ${event.name}`);
           }
         } catch (error) {
           console.error('Error processing canceled event:', error);
@@ -390,7 +408,7 @@ class CalendlyService {
       if (syncedCount > 0 || updatedCount > 0 || restoredCount > 0) {
         try {
           console.log('🔄 Starting client extraction for Calendly meetings...');
-          const extractionResult = await clientExtractionService.extractClientsFromMeetings(userId);
+          const extractionResult = await clientExtractionService.linkMeetingsToClients(userId);
           console.log('✅ Client extraction completed for Calendly meetings:', extractionResult);
         } catch (error) {
           console.error('❌ Error extracting clients from Calendly meetings:', error);
