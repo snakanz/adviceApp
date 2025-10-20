@@ -425,12 +425,12 @@ app.get('/api/calendar/sync-status', async (req, res) => {
 
 // Test endpoint to debug issues (v4 - CORS fix)
 app.get('/api/dev/test', (req, res) => {
-  console.log('🧪 Test endpoint called v4');
+  console.log('🧪 Test endpoint called v5');
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    message: 'Backend is working v4 - CORS and JWT fixes',
-    version: '4.0',
+    message: 'Backend is working v5 - JWT decode fix',
+    version: '5.0',
     cors: {
       origin: req.headers.origin || 'none',
       allowedOrigins: [
