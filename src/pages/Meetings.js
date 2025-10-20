@@ -580,12 +580,11 @@ export default function Meetings() {
     }
   }, [selectedMeeting]);
 
-  // Smart polling: Only refresh when page is visible and at reasonable intervals
-  // This provides near-real-time updates without requiring Supabase Realtime (paid feature)
+  // Refresh when page becomes visible (user switches back to tab)
+  // Removed 30-second polling - relying on webhooks for real-time updates
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    // Refresh when page becomes visible (user switches back to tab)
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         console.log('📱 Page visible - refreshing meetings...');
@@ -593,18 +592,9 @@ export default function Meetings() {
       }
     };
 
-    // Refresh every 30 seconds when page is visible (webhooks should update within seconds)
-    const interval = setInterval(() => {
-      if (!document.hidden) {
-        console.log('🔄 Auto-refreshing meetings (webhook sync)...');
-        fetchMeetings();
-      }
-    }, 30 * 1000); // 30 seconds
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [isAuthenticated, fetchMeetings]);

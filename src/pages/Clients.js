@@ -208,18 +208,7 @@ export default function Clients() {
     fetchClients(clientFilter);
   }, [fetchClients, clientFilter]);
 
-  // Refresh data when page becomes visible (e.g., navigating back from Meetings page)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        // Page became visible, refresh client data to get latest summaries
-        fetchClients(clientFilter);
-      }
-    };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [fetchClients, clientFilter]);
 
   // Handle URL parameters for client selection
   useEffect(() => {
@@ -234,8 +223,8 @@ export default function Clients() {
     }
   }, [searchParams, clients]);
 
-  // Smart polling: Refresh when page becomes visible
-  // This provides near-real-time updates without requiring Supabase Realtime (paid feature)
+  // Refresh when page becomes visible (user switches back to tab)
+  // Removed 30-second polling - relying on webhooks for real-time updates
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
@@ -244,18 +233,9 @@ export default function Clients() {
       }
     };
 
-    // Refresh every 30 seconds when page is visible
-    const interval = setInterval(() => {
-      if (!document.hidden) {
-        console.log('🔄 Auto-refreshing clients (webhook sync)...');
-        fetchClients(clientFilter);
-      }
-    }, 30 * 1000); // 30 seconds
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [fetchClients, clientFilter]);

@@ -242,8 +242,8 @@ export default function Pipeline() {
     }
   }, [isAuthenticated, fetchPipelineData]);
 
-  // Smart polling: Refresh when page becomes visible
-  // This provides near-real-time updates without requiring Supabase Realtime (paid feature)
+  // Refresh when page becomes visible (user switches back to tab)
+  // Removed 30-second polling - relying on webhooks for real-time updates
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
@@ -252,18 +252,9 @@ export default function Pipeline() {
       }
     };
 
-    // Refresh every 30 seconds when page is visible
-    const interval = setInterval(() => {
-      if (!document.hidden) {
-        console.log('🔄 Auto-refreshing pipeline (webhook sync)...');
-        fetchPipelineData();
-      }
-    }, 30 * 1000); // 30 seconds
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [fetchPipelineData]);

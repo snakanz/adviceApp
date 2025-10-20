@@ -544,6 +544,7 @@ app.get('/api/dev/meetings', async (req, res) => {
         client:clients(id, name, email)
       `)
       .eq('userid', userId)
+      .or('is_deleted.is.null,is_deleted.eq.false') // Filter out deleted meetings
       .order('starttime', { ascending: false })
       .limit(100);
 
