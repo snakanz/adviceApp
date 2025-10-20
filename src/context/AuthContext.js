@@ -1,93 +1,221 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+
+// ============================================================================
+// AUTH CONTEXT - SUPABASE AUTH VERSION
+// ============================================================================
+// This context manages authentication state using Supabase Auth
+// Replaces the previous custom JWT implementation
+// ============================================================================
 
 const AuthContext = createContext(null);
 
-const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
-
 export const AuthProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Enhanced auth initialization with better debugging
+  // Initialize auth state and listen for changes
   useEffect(() => {
-    const initAuth = async () => {
-      console.log('🔄 Initializing authentication...');
-      const token = localStorage.getItem('jwt');
-      console.log('🔑 Token from localStorage:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+    console.log('🔄 Initializing Supabase Auth...');
 
-      if (token) {
-        console.log('✅ Token found, verifying...');
-        const success = await verifyTokenAndGetUser(token);
-        console.log('🔍 Token verification result:', success);
-
-        if (!success) {
-          console.log('❌ Token verification failed, clearing localStorage');
-          localStorage.removeItem('jwt');
-        }
-      } else {
-        console.log('⚠️ No token found in localStorage');
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('❌ Error getting session:', error);
       }
 
+      console.log('📋 Initial session:', session ? 'Found' : 'None');
+      setSession(session);
+      setUser(session?.user ?? null);
+      setIsAuthenticated(!!session);
       setIsLoading(false);
-      console.log('✅ Auth initialization complete');
-    };
+    });
 
-    initAuth();
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        console.log('🔔 Auth state changed:', event);
+
+        setSession(session);
+        setUser(session?.user ?? null);
+        setIsAuthenticated(!!session);
+
+        // Handle different auth events
+        switch (event) {
+          case 'SIGNED_IN':
+            console.log('✅ User signed in:', session?.user?.email);
+            break;
+          case 'SIGNED_OUT':
+            console.log('👋 User signed out');
+            break;
+          case 'TOKEN_REFRESHED':
+            console.log('🔄 Token refreshed');
+            break;
+          case 'USER_UPDATED':
+            console.log('📝 User updated');
+            break;
+          default:
+            console.log('ℹ️ Auth event:', event);
+        }
+      }
+    );
+
+    // Cleanup subscription on unmount
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const verifyTokenAndGetUser = async (token) => {
+  /**
+   * Sign in with email and password
+   */
+  const signInWithEmail = async (email, password) => {
     try {
-      console.log('Verifying token with backend...');
-      const response = await fetch(`${API_URL}/api/auth/verify`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
       });
-      
-      console.log('Token verification response status:', response.status);
-      
-      if (response.ok) {
-        const userData = await response.json();
-        console.log('User data received:', userData);
-        setUser(userData);
-        setIsAuthenticated(true);
-        return true;
-      } else {
-        // Token is invalid
-        console.error('Token verification failed:', response.status, response.statusText);
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
-        localStorage.removeItem('jwt');
-        setIsAuthenticated(false);
-        setUser(null);
-        return false;
-      }
+
+      if (error) throw error;
+
+      console.log('✅ Signed in with email:', email);
+      return { success: true, data };
     } catch (error) {
-      console.error('Error verifying token:', error);
-      localStorage.removeItem('jwt');
-      setIsAuthenticated(false);
-      setUser(null);
-      return false;
+      console.error('❌ Email sign in error:', error);
+      return { success: false, error: error.message };
     }
   };
 
-  const login = async (token) => {
-    console.log('Login function called with token');
-    localStorage.setItem('jwt', token);
-    const success = await verifyTokenAndGetUser(token);
-    console.log('Login verification result:', success);
-    return success;
+  /**
+   * Sign up with email and password
+   */
+  const signUpWithEmail = async (email, password, metadata = {}) => {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: metadata,
+          emailRedirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+
+      if (error) throw error;
+
+      console.log('✅ Signed up with email:', email);
+      return { success: true, data };
+    } catch (error) {
+      console.error('❌ Email sign up error:', error);
+      return { success: false, error: error.message };
+    }
   };
 
-  const logout = () => {
-    localStorage.removeItem('jwt');
-    setIsAuthenticated(false);
-    setUser(null);
+  /**
+   * Sign in with OAuth provider (Google, Microsoft)
+   */
+  const signInWithOAuth = async (provider, options = {}) => {
+    try {
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+          ...options
+        }
+      });
+
+      if (error) throw error;
+
+      console.log('✅ OAuth sign in initiated:', provider);
+      return { success: true, data };
+    } catch (error) {
+      console.error('❌ OAuth sign in error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  /**
+   * Sign out
+   */
+  const signOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+
+      if (error) throw error;
+
+      console.log('✅ Signed out successfully');
+      return { success: true };
+    } catch (error) {
+      console.error('❌ Sign out error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  /**
+   * Get current session
+   */
+  const getSession = async () => {
+    const { data: { session }, error } = await supabase.auth.getSession();
+
+    if (error) {
+      console.error('❌ Error getting session:', error);
+      return null;
+    }
+
+    return session;
+  };
+
+  /**
+   * Get access token for API calls
+   */
+  const getAccessToken = async () => {
+    const session = await getSession();
+    return session?.access_token ?? null;
+  };
+
+  /**
+   * Legacy login function for backward compatibility
+   * @deprecated Use signInWithEmail or signInWithOAuth instead
+   */
+  const login = async (token) => {
+    console.warn('⚠️ login() is deprecated. Use signInWithEmail() or signInWithOAuth() instead');
+    // This is for backward compatibility during migration
+    // In the new system, authentication is handled by Supabase
+    return false;
+  };
+
+  /**
+   * Legacy logout function for backward compatibility
+   * @deprecated Use signOut instead
+   */
+  const logout = async () => {
+    console.warn('⚠️ logout() is deprecated. Use signOut() instead');
+    return await signOut();
+  };
+
+  const value = {
+    // Auth state
+    session,
+    user,
+    isLoading,
+    isAuthenticated,
+
+    // Auth methods
+    signInWithEmail,
+    signUpWithEmail,
+    signInWithOAuth,
+    signOut,
+    getSession,
+    getAccessToken,
+
+    // Legacy methods (deprecated)
+    login,
+    logout
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, login, logout, user }}>
+    <AuthContext.Provider value={value}>
       {!isLoading && children}
     </AuthContext.Provider>
   );
@@ -99,4 +227,4 @@ export const useAuth = () => {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}; 
+};

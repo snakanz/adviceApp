@@ -1,19 +1,13 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
-const { authenticateUser } = require('../middleware/auth');
+const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 
 const router = express.Router();
 
 // Get all action items for dashboard
-router.get('/dashboard', authenticateUser, async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No authorization header' });
-
+router.get('/dashboard', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const advisorId = req.user.id; // From Supabase Auth middleware
 
     if (!isSupabaseAvailable()) {
       return res.status(503).json({
@@ -21,11 +15,10 @@ router.get('/dashboard', authenticateUser, async (req, res) => {
       });
     }
 
-    // Get action items from the dashboard view
-    const { data: actionItems, error } = await getSupabase()
+    // Get action items from the dashboard view - RLS auto-filters by auth.uid()
+    const { data: actionItems, error } = await req.supabase
       .from('action_items_dashboard')
       .select('*')
-      .eq('advisor_id', advisorId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -33,11 +26,10 @@ router.get('/dashboard', authenticateUser, async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch action items' });
     }
 
-    // Get annual review dashboard data
-    const { data: annualReviews, error: reviewError } = await getSupabase()
+    // Get annual review dashboard data - RLS auto-filters by auth.uid()
+    const { data: annualReviews, error: reviewError } = await req.supabase
       .from('annual_review_dashboard')
       .select('*')
-      .eq('advisor_id', advisorId)
       .order('computed_status', { ascending: true })
       .order('client_name', { ascending: true });
 
@@ -62,14 +54,9 @@ router.get('/dashboard', authenticateUser, async (req, res) => {
 });
 
 // Create new ad-hoc task
-router.post('/tasks', authenticateUser, async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No authorization header' });
-
+router.post('/tasks', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const advisorId = req.user.id;
     const { title, description, priority, due_date } = req.body;
 
     if (!title) {
@@ -82,7 +69,7 @@ router.post('/tasks', authenticateUser, async (req, res) => {
       });
     }
 
-    const { data: newTask, error } = await getSupabase()
+    const { data: newTask, error } = await req.supabase
       .from('advisor_tasks')
       .insert({
         advisor_id: advisorId,
@@ -107,14 +94,9 @@ router.post('/tasks', authenticateUser, async (req, res) => {
 });
 
 // Update ad-hoc task
-router.put('/tasks/:taskId', authenticateUser, async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No authorization header' });
-
+router.put('/tasks/:taskId', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const advisorId = req.user.id;
     const taskId = req.params.taskId;
     const { title, description, priority, due_date, status } = req.body;
 
@@ -136,7 +118,8 @@ router.put('/tasks/:taskId', authenticateUser, async (req, res) => {
       }
     }
 
-    const { data: updatedTask, error } = await getSupabase()
+    // RLS will automatically filter by auth.uid(), but we keep .eq('advisor_id') for clarity
+    const { data: updatedTask, error } = await req.supabase
       .from('advisor_tasks')
       .update(updateData)
       .eq('id', taskId)
@@ -161,14 +144,9 @@ router.put('/tasks/:taskId', authenticateUser, async (req, res) => {
 });
 
 // Delete ad-hoc task
-router.delete('/tasks/:taskId', authenticateUser, async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No authorization header' });
-
+router.delete('/tasks/:taskId', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const advisorId = req.user.id;
     const taskId = req.params.taskId;
 
     if (!isSupabaseAvailable()) {
@@ -177,7 +155,7 @@ router.delete('/tasks/:taskId', authenticateUser, async (req, res) => {
       });
     }
 
-    const { error } = await getSupabase()
+    const { error } = await req.supabase
       .from('advisor_tasks')
       .delete()
       .eq('id', taskId)
@@ -196,14 +174,9 @@ router.delete('/tasks/:taskId', authenticateUser, async (req, res) => {
 });
 
 // Update meeting transcript status
-router.post('/meetings/:meetingId/transcript', authenticateUser, async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No authorization header' });
-
+router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const advisorId = req.user.id;
     const meetingId = req.params.meetingId;
     const { transcript, markAsNotRequired } = req.body;
 
@@ -215,7 +188,7 @@ router.post('/meetings/:meetingId/transcript', authenticateUser, async (req, res
 
     if (markAsNotRequired) {
       // Mark meeting as not requiring transcript
-      const { error } = await getSupabase()
+      const { error } = await req.supabase
         .from('meetings')
         .update({ transcript: 'NOT_REQUIRED' })
         .eq('id', meetingId)
@@ -227,7 +200,7 @@ router.post('/meetings/:meetingId/transcript', authenticateUser, async (req, res
       }
     } else if (transcript) {
       // Add transcript to meeting
-      const { error } = await getSupabase()
+      const { error } = await req.supabase
         .from('meetings')
         .update({ transcript })
         .eq('id', meetingId)
@@ -249,14 +222,9 @@ router.post('/meetings/:meetingId/transcript', authenticateUser, async (req, res
 });
 
 // Bulk operations for action items
-router.post('/bulk-actions', authenticateUser, async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No authorization header' });
-
+router.post('/bulk-actions', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const advisorId = req.user.id;
     const { action, itemIds, itemType } = req.body;
 
     if (!action || !itemIds || !Array.isArray(itemIds)) {
@@ -273,9 +241,9 @@ router.post('/bulk-actions', authenticateUser, async (req, res) => {
 
     if (itemType === 'tasks' && action === 'complete') {
       // Complete multiple tasks
-      const { data, error } = await getSupabase()
+      const { data, error } = await req.supabase
         .from('advisor_tasks')
-        .update({ 
+        .update({
           status: 'completed',
           completed_at: new Date().toISOString()
         })
@@ -291,7 +259,7 @@ router.post('/bulk-actions', authenticateUser, async (req, res) => {
       results = data;
     } else if (itemType === 'meetings' && action === 'mark_transcript_not_required') {
       // Mark multiple meetings as not requiring transcripts
-      const { data, error } = await getSupabase()
+      const { data, error } = await req.supabase
         .from('meetings')
         .update({ transcript: 'NOT_REQUIRED' })
         .in('id', itemIds)
@@ -306,9 +274,9 @@ router.post('/bulk-actions', authenticateUser, async (req, res) => {
       results = data;
     }
 
-    res.json({ 
+    res.json({
       message: `Bulk action ${action} completed successfully`,
-      results 
+      results
     });
   } catch (error) {
     console.error('Error in bulk actions:', error);
@@ -317,14 +285,9 @@ router.post('/bulk-actions', authenticateUser, async (req, res) => {
 });
 
 // Get email summary for a meeting
-router.get('/meetings/:meetingId/email-summary', authenticateUser, async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No authorization header' });
-
+router.get('/meetings/:meetingId/email-summary', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const advisorId = req.user.id;
     const meetingId = req.params.meetingId;
 
     if (!isSupabaseAvailable()) {
@@ -333,12 +296,11 @@ router.get('/meetings/:meetingId/email-summary', authenticateUser, async (req, r
       });
     }
 
-    // Check if email summary already exists
-    const { data: existingSummary, error: summaryError } = await getSupabase()
+    // Check if email summary already exists - RLS auto-filters
+    const { data: existingSummary, error: summaryError} = await req.supabase
       .from('email_summaries')
       .select('*')
       .eq('meeting_id', meetingId)
-      .eq('advisor_id', advisorId)
       .single();
 
     if (summaryError && summaryError.code !== 'PGRST116') {
@@ -350,12 +312,11 @@ router.get('/meetings/:meetingId/email-summary', authenticateUser, async (req, r
       return res.json(existingSummary);
     }
 
-    // Get meeting details to generate email summary
-    const { data: meeting, error: meetingError } = await getSupabase()
+    // Get meeting details to generate email summary - RLS auto-filters
+    const { data: meeting, error: meetingError } = await req.supabase
       .from('meetings')
       .select('*')
       .eq('id', meetingId)
-      .eq('userid', advisorId)
       .single();
 
     if (meetingError) {
@@ -372,7 +333,7 @@ router.get('/meetings/:meetingId/email-summary', authenticateUser, async (req, r
     const clientEmail = extractClientEmail(meeting.attendees);
 
     // Create draft email summary
-    const { data: newSummary, error: createError } = await getSupabase()
+    const { data: newSummary, error: createError } = await req.supabase
       .from('email_summaries')
       .insert({
         meeting_id: meetingId,
@@ -398,14 +359,9 @@ router.get('/meetings/:meetingId/email-summary', authenticateUser, async (req, r
 });
 
 // Update email summary
-router.put('/email-summaries/:summaryId', authenticateUser, async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No authorization header' });
-
+router.put('/email-summaries/:summaryId', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const advisorId = req.user.id;
     const summaryId = req.params.summaryId;
     const { subject, content } = req.body;
 
@@ -415,7 +371,7 @@ router.put('/email-summaries/:summaryId', authenticateUser, async (req, res) => 
       });
     }
 
-    const { data: updatedSummary, error } = await getSupabase()
+    const { data: updatedSummary, error } = await req.supabase
       .from('email_summaries')
       .update({ subject, content })
       .eq('id', summaryId)
@@ -440,14 +396,9 @@ router.put('/email-summaries/:summaryId', authenticateUser, async (req, res) => 
 });
 
 // Send email summary
-router.post('/email-summaries/:summaryId/send', authenticateUser, async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No authorization header' });
-
+router.post('/email-summaries/:summaryId/send', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const advisorId = req.user.id;
     const summaryId = req.params.summaryId;
 
     if (!isSupabaseAvailable()) {
@@ -456,12 +407,11 @@ router.post('/email-summaries/:summaryId/send', authenticateUser, async (req, re
       });
     }
 
-    // Get email summary
-    const { data: summary, error: summaryError } = await getSupabase()
+    // Get email summary - RLS auto-filters
+    const { data: summary, error: summaryError } = await req.supabase
       .from('email_summaries')
       .select('*')
       .eq('id', summaryId)
-      .eq('advisor_id', advisorId)
       .single();
 
     if (summaryError) {
@@ -475,7 +425,7 @@ router.post('/email-summaries/:summaryId/send', authenticateUser, async (req, re
 
     // TODO: Integrate with actual email service (SendGrid, AWS SES, etc.)
     // For now, we'll just mark it as sent
-    const { data: updatedSummary, error: updateError } = await getSupabase()
+    const { data: updatedSummary, error: updateError } = await req.supabase
       .from('email_summaries')
       .update({
         status: 'sent',
