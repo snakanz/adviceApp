@@ -37,6 +37,10 @@ const AuthCallback = () => {
         const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
         const token = session.access_token;
 
+        // Store the JWT token in localStorage for API calls
+        localStorage.setItem('jwt', token);
+        console.log('✅ JWT token stored in localStorage');
+
         try {
           const response = await fetch(`${apiBaseUrl}/api/users/profile`, {
             headers: {
