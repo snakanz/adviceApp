@@ -507,36 +507,53 @@ app.get('/api/dev/meetings', async (req, res) => {
     contentType: req.headers['content-type'],
     origin: req.headers.origin
   });
-  const auth = req.headers.authorization;
-
-  // TEMPORARY: Allow access without auth for debugging
-  let userId = 1; // Default user ID for testing
-
-  if (auth) {
-    try {
-      console.log('🔑 Verifying token...');
-      const token = auth.split(' ')[1];
-      if (token) {
-        console.log(`🔍 Token preview: ${token.substring(0, 20)}...`);
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        userId = decoded.id;
-        console.log(`✅ Token verified for user ${userId}`);
-      }
-    } catch (error) {
-      console.log('⚠️ Token verification failed, using default user:', error.message);
-      // Continue with default userId for debugging
-    }
-  } else {
-    console.log('⚠️ No auth header, using default user for debugging');
-  }
 
   try {
-
     // Check Supabase availability
     if (!isSupabaseAvailable()) {
       console.log('❌ Supabase not available');
       return res.status(503).json({ error: 'Database unavailable' });
     }
+
+    const auth = req.headers.authorization;
+    if (!auth) {
+      console.log('❌ No authorization header');
+      return res.status(401).json({ error: 'No authorization token provided' });
+    }
+
+    const token = auth.split(' ')[1];
+    if (!token) {
+      console.log('❌ No token in authorization header');
+      return res.status(401).json({ error: 'Invalid authorization header format' });
+    }
+
+    console.log('🔑 Verifying Supabase token...');
+    console.log(`🔍 Token preview: ${token.substring(0, 20)}...`);
+
+    // Use Supabase to verify the JWT token and get the user
+    const { data: { user }, error: authError } = await getSupabase().auth.getUser(token);
+
+    if (authError || !user) {
+      console.log('❌ Token verification failed:', authError?.message || 'No user found');
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    console.log(`✅ Token verified for Supabase user: ${user.id} (${user.email})`);
+
+    // Look up the user in our users table to get the integer ID
+    const { data: dbUser, error: userError } = await getSupabase()
+      .from('users')
+      .select('id, email')
+      .eq('email', user.email)
+      .single();
+
+    if (userError || !dbUser) {
+      console.log('❌ User not found in database:', userError?.message);
+      return res.status(404).json({ error: 'User not found in database' });
+    }
+
+    const userId = dbUser.id;
+    console.log(`✅ Found user in database: ID ${userId}, Email ${dbUser.email}`);
 
     // Database query with client information
     console.log('🔍 Querying database for meetings with client info...');
@@ -558,7 +575,7 @@ app.get('/api/dev/meetings', async (req, res) => {
         client_id,
         client:clients(id, name, email)
       `)
-      .or(`userid.eq.${userId},userid.is.null`) // Include meetings with matching userid OR null userid
+      .eq('userid', userId) // Use integer user ID
       .or('is_deleted.is.null,is_deleted.eq.false') // Filter out deleted meetings
       .order('starttime', { ascending: false })
       .limit(100);
@@ -1291,14 +1308,23 @@ app.get('/api/users/profile', async (req, res) => {
             });
         }
 
-        // Verify JWT token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        console.log('🔑 Verifying Supabase token for /api/users/profile...');
 
-        // Fetch user from database
+        // Use Supabase to verify the JWT token and get the user
+        const { data: { user: supabaseUser }, error: authError } = await getSupabase().auth.getUser(token);
+
+        if (authError || !supabaseUser) {
+            console.error('❌ Token verification failed:', authError?.message);
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+
+        console.log(`✅ Token verified for Supabase user: ${supabaseUser.email}`);
+
+        // Fetch user from our users table
         const { data: user, error } = await getSupabase()
             .from('users')
             .select('id, email, name, profilepicture, onboarding_completed')
-            .eq('id', decoded.id)
+            .eq('email', supabaseUser.email)
             .single();
 
         if (error || !user) {
