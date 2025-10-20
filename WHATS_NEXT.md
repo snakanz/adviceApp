@@ -79,7 +79,7 @@ Follow the guide in `docs/SUPABASE_AUTH_SETUP.md`:
 3. Go to "Environment" tab
 4. **ADD** this new variable:
    ```
-   SUPABASE_ANON_KEY=your-supabase-anon-key-from-step-2
+   SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqcWp6aWV2Z2VwcXBndGdnY2p4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5ODYyNTksImV4cCI6MjA2NzU2MjI1OX0.dWBeOIQ-Je3FfKtT4npLZgmIkaMUtquXrk64Jeg6yxk
    ```
 5. Click "Save Changes"
 6. Render will automatically redeploy
