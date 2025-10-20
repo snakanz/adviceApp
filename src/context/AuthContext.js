@@ -37,6 +37,8 @@ export const AuthProvider = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         console.log('🔔 Auth state changed:', event);
+        console.log('📋 Session:', session ? 'Present' : 'None');
+        console.log('📋 User:', session?.user?.email || 'None');
 
         setSession(session);
         setUser(session?.user ?? null);
@@ -49,12 +51,16 @@ export const AuthProvider = ({ children }) => {
             break;
           case 'SIGNED_OUT':
             console.log('👋 User signed out');
+            console.log('⚠️ Sign out reason: Check if this is intentional');
             break;
           case 'TOKEN_REFRESHED':
             console.log('🔄 Token refreshed');
             break;
           case 'USER_UPDATED':
             console.log('📝 User updated');
+            break;
+          case 'INITIAL_SESSION':
+            console.log('🎯 Initial session loaded:', session?.user?.email);
             break;
           default:
             console.log('ℹ️ Auth event:', event);
