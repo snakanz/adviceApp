@@ -423,14 +423,23 @@ app.get('/api/calendar/sync-status', async (req, res) => {
   }
 });
 
-// Test endpoint to debug issues (v3)
+// Test endpoint to debug issues (v4 - CORS fix)
 app.get('/api/dev/test', (req, res) => {
-  console.log('🧪 Test endpoint called v3');
+  console.log('🧪 Test endpoint called v4');
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    message: 'Backend is working v3 - Fixed meetings query',
-    version: '3.0'
+    message: 'Backend is working v4 - CORS and JWT fixes',
+    version: '4.0',
+    cors: {
+      origin: req.headers.origin || 'none',
+      allowedOrigins: [
+        'https://adviceapp.pages.dev',
+        'https://adviceapp-pages.dev',
+        'http://localhost:3000',
+        'http://localhost:3001'
+      ]
+    }
   });
 });
 
@@ -492,6 +501,12 @@ app.get('/api/dev/auth-status', (req, res) => {
 // Meetings endpoint with auth and basic database query
 app.get('/api/dev/meetings', async (req, res) => {
   console.log('🔄 Meetings endpoint called');
+  console.log('📋 Request origin:', req.headers.origin || 'none');
+  console.log('📋 Request headers:', {
+    authorization: req.headers.authorization ? 'Bearer [REDACTED]' : 'MISSING',
+    contentType: req.headers['content-type'],
+    origin: req.headers.origin
+  });
   const auth = req.headers.authorization;
 
   // TEMPORARY: Allow access without auth for debugging
