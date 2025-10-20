@@ -1260,6 +1260,50 @@ console.log('🔄 Mounting auth routes...');
 app.use('/api/auth', require('./routes/auth'));
 console.log('✅ Auth routes mounted');
 
+// User profile endpoint (for onboarding check)
+app.get('/api/users/profile', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
+
+        // Check if Supabase is available
+        if (!isSupabaseAvailable()) {
+            return res.status(503).json({
+                error: 'Database service unavailable. Please contact support.'
+            });
+        }
+
+        // Verify JWT token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        // Fetch user from database
+        const { data: user, error } = await getSupabase()
+            .from('users')
+            .select('id, email, name, profilepicture, onboarding_completed')
+            .eq('id', decoded.id)
+            .single();
+
+        if (error || !user) {
+            console.error('Error fetching user profile:', error);
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        res.json({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            profilepicture: user.profilepicture,
+            onboarding_completed: user.onboarding_completed || false
+        });
+    } catch (error) {
+        console.error('Error in /api/users/profile:', error);
+        res.status(401).json({ error: 'Invalid token' });
+    }
+});
+
 console.log('🔄 Mounting clients routes...');
 app.use('/api/clients', clientsRouter);
 console.log('✅ Clients routes mounted');
