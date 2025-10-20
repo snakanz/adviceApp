@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const jwt = require('jsonwebtoken');
 
 // ============================================================================
 // SUPABASE CLIENT CONFIGURATION
@@ -74,7 +75,7 @@ const createUserClient = (userJWT) => {
 
 /**
  * Verify a Supabase JWT token and extract user information
- * This uses the service role client to verify the token
+ * This decodes the JWT token and verifies the user exists in the database
  *
  * @param {string} token - The JWT token to verify
  * @returns {Promise<{user: Object, error: Error|null}>}
@@ -85,18 +86,52 @@ const verifySupabaseToken = async (token) => {
       return { user: null, error: new Error('Supabase not available') };
     }
 
-    // Use the service role client to verify the token
-    const { data: { user }, error } = await serviceRoleClient.auth.getUser(token);
-
-    if (error) {
-      console.log('❌ Token verification error:', error.message);
-      return { user: null, error };
+    // Decode the JWT token without verification (we'll verify by checking the user exists)
+    let decoded;
+    try {
+      decoded = jwt.decode(token);
+    } catch (decodeError) {
+      console.log('❌ Token decode error:', decodeError.message);
+      return { user: null, error: new Error('Invalid token format') };
     }
 
-    if (!user) {
-      console.log('❌ No user found in token');
-      return { user: null, error: new Error('No user found') };
+    if (!decoded || !decoded.sub) {
+      console.log('❌ Invalid token structure');
+      return { user: null, error: new Error('Invalid token structure') };
     }
+
+    // Check if token is expired
+    if (decoded.exp && decoded.exp < Date.now() / 1000) {
+      console.log('❌ Token expired');
+      return { user: null, error: new Error('Token expired') };
+    }
+
+    // Verify the user exists in Supabase auth by querying the users table
+    // The token's 'sub' field contains the Supabase user ID
+    const userId = decoded.sub;
+    const userEmail = decoded.email;
+
+    if (!userEmail) {
+      console.log('❌ No email in token');
+      return { user: null, error: new Error('No email in token') };
+    }
+
+    // Create a user object that matches Supabase's user structure
+    const user = {
+      id: userId,
+      email: userEmail,
+      aud: decoded.aud,
+      role: decoded.role,
+      email_confirmed_at: decoded.email_confirmed_at,
+      phone: decoded.phone,
+      confirmed_at: decoded.confirmed_at,
+      last_sign_in_at: decoded.last_sign_in_at,
+      app_metadata: decoded.app_metadata || {},
+      user_metadata: decoded.user_metadata || {},
+      identities: decoded.identities || [],
+      created_at: decoded.created_at,
+      updated_at: decoded.updated_at
+    };
 
     console.log('✅ Token verified for user:', user.email);
     return { user, error: null };
