@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
 const clientExtractionService = require('../services/clientExtraction');
-const { authenticateUser } = require('../middleware/auth');
+const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 
 const router = express.Router();
 
@@ -43,7 +43,7 @@ router.get('/', async (req, res) => {
     }
 
     // Get ALL clients for this advisor (not just those with meetings)
-    const { data: clients, error: clientsError } = await getSupabase()
+    const { data: clients, error: clientsError } = await req.supabase
       .from('clients')
       .select(`
         *,
@@ -70,7 +70,7 @@ router.get('/', async (req, res) => {
 
     // Get business types for all clients
     // Note: We fetch all business types and filter in application code if needed
-    const { data: allBusinessTypes, error: businessTypesError } = await getSupabase()
+    const { data: allBusinessTypes, error: businessTypesError } = await req.supabase
       .from('client_business_types')
       .select('*')
       .in('client_id', clients.map(c => c.id));
@@ -198,7 +198,7 @@ router.post('/upsert', async (req, res) => {
     }
 
     // Check if client already exists
-    const { data: existingClient, error: checkError } = await getSupabase()
+    const { data: existingClient, error: checkError } = await req.supabase
       .from('clients')
       .select('id')
       .eq('advisor_id', advisorId)
@@ -231,7 +231,7 @@ router.post('/upsert', async (req, res) => {
       if (regular_contribution_type !== undefined) updateData.regular_contribution_type = regular_contribution_type;
       if (regular_contribution_amount !== undefined) updateData.regular_contribution_amount = regular_contribution_amount;
 
-      const { data: updatedClient, error: updateError } = await getSupabase()
+      const { data: updatedClient, error: updateError } = await req.supabase
         .from('clients')
         .update(updateData)
         .eq('id', existingClient.id)
@@ -268,7 +268,7 @@ router.post('/upsert', async (req, res) => {
       if (regular_contribution_type !== undefined) insertData.regular_contribution_type = regular_contribution_type;
       if (regular_contribution_amount !== undefined) insertData.regular_contribution_amount = regular_contribution_amount;
 
-      const { data: newClient, error: insertError } = await getSupabase()
+      const { data: newClient, error: insertError } = await req.supabase
         .from('clients')
         .insert(insertData)
         .select()
@@ -321,7 +321,7 @@ router.post('/update-name', async (req, res) => {
     }
 
     // Find the client first
-    const { data: client, error: findError } = await getSupabase()
+    const { data: client, error: findError } = await req.supabase
       .from('clients')
       .select('id')
       .eq('advisor_id', advisorId)
@@ -340,7 +340,7 @@ router.post('/update-name', async (req, res) => {
       updated_at: new Date().toISOString()
     };
 
-    const { data: updatedClient, error: updateError } = await getSupabase()
+    const { data: updatedClient, error: updateError } = await req.supabase
       .from('clients')
       .update(clientUpdateData)
       .eq('id', client.id)
@@ -356,7 +356,7 @@ router.post('/update-name', async (req, res) => {
     // If business type data is provided, update or create business type entry
     if (business_type && business_type !== '') {
       // Check if business type entry already exists
-      const { data: existingBusinessType, error: fetchError } = await getSupabase()
+      const { data: existingBusinessType, error: fetchError } = await req.supabase
         .from('client_business_types')
         .select('*')
         .eq('client_id', client.id)
@@ -395,7 +395,7 @@ router.post('/update-name', async (req, res) => {
 
       if (existingBusinessType) {
         // Update existing business type
-        const { error: updateBTError } = await getSupabase()
+        const { error: updateBTError } = await req.supabase
           .from('client_business_types')
           .update(businessTypeData)
           .eq('id', existingBusinessType.id);
@@ -408,7 +408,7 @@ router.post('/update-name', async (req, res) => {
         }
       } else {
         // Create new business type entry
-        const { error: insertBTError } = await getSupabase()
+        const { error: insertBTError } = await req.supabase
           .from('client_business_types')
           .insert([businessTypeData]);
 
@@ -447,7 +447,7 @@ router.get('/:clientId', async (req, res) => {
     }
 
     // Try to find client by ID first, then by email for backward compatibility
-    let clientQuery = getSupabase()
+    let clientQuery = req.supabase
       .from('clients')
       .select(`
         *,
@@ -487,7 +487,7 @@ router.get('/:clientId', async (req, res) => {
     }
 
     // Get business types for this client (SINGLE SOURCE OF TRUTH)
-    const { data: clientBusinessTypes, error: businessTypesError } = await getSupabase()
+    const { data: clientBusinessTypes, error: businessTypesError } = await req.supabase
       .from('client_business_types')
       .select('*')
       .eq('client_id', client.id)
@@ -571,7 +571,7 @@ router.get('/:clientId/meetings', async (req, res) => {
     }
 
     // First, find the client to get their UUID
-    let clientQuery = getSupabase()
+    let clientQuery = req.supabase
       .from('clients')
       .select('id')
       .eq('advisor_id', userId);
@@ -595,7 +595,7 @@ router.get('/:clientId/meetings', async (req, res) => {
     }
 
     // Get meetings for this client
-    const { data: meetings, error: meetingsError } = await getSupabase()
+    const { data: meetings, error: meetingsError } = await req.supabase
       .from('meetings')
       .select('*')
       .eq('userid', userId)
@@ -679,7 +679,7 @@ router.put('/:clientId', async (req, res) => {
     if (regular_contribution_type !== undefined) updateData.regular_contribution_type = regular_contribution_type;
     if (regular_contribution_amount !== undefined) updateData.regular_contribution_amount = regular_contribution_amount;
 
-    const { data: updatedClient, error: updateError } = await getSupabase()
+    const { data: updatedClient, error: updateError } = await req.supabase
       .from('clients')
       .update(updateData)
       .eq('advisor_id', advisorId)
@@ -725,7 +725,7 @@ router.post('/:clientId/avatar', upload.single('avatar'), async (req, res) => {
     }
 
     // Verify client belongs to advisor
-    const { data: client, error: clientError } = await getSupabase()
+    const { data: client, error: clientError } = await req.supabase
       .from('clients')
       .select('id, name')
       .eq('id', clientId)
@@ -742,7 +742,7 @@ router.post('/:clientId/avatar', upload.single('avatar'), async (req, res) => {
     const filePath = `avatars/${fileName}`;
 
     // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await getSupabase()
+    const { data: uploadData, error: uploadError } = await req.supabase
       .storage
       .from('avatars')
       .upload(filePath, req.file.buffer, {
@@ -756,7 +756,7 @@ router.post('/:clientId/avatar', upload.single('avatar'), async (req, res) => {
     }
 
     // Get public URL
-    const { data: urlData } = getSupabase()
+    const { data: urlData } = req.supabase
       .storage
       .from('avatars')
       .getPublicUrl(filePath);
@@ -764,7 +764,7 @@ router.post('/:clientId/avatar', upload.single('avatar'), async (req, res) => {
     const avatarUrl = urlData.publicUrl;
 
     // Update client record with avatar URL
-    const { data: updatedClient, error: updateError } = await getSupabase()
+    const { data: updatedClient, error: updateError } = await req.supabase
       .from('clients')
       .update({
         avatar_url: avatarUrl,
@@ -882,7 +882,7 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
     }
 
     // Verify client exists and belongs to advisor
-    const { data: client, error: clientError } = await getSupabase()
+    const { data: client, error: clientError } = await req.supabase
       .from('clients')
       .select('id, name, email')
       .eq('id', clientId)
@@ -919,7 +919,7 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
       updateData: JSON.stringify(clientUpdateData, null, 2)
     });
 
-    const { data: updatedClient, error: updateError } = await getSupabase()
+    const { data: updatedClient, error: updateError } = await req.supabase
       .from('clients')
       .update(clientUpdateData)
       .eq('id', clientId)
@@ -945,7 +945,7 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
     const businessTypeResults = [];
 
     // First, delete all existing business types for this client
-    const { error: deleteError } = await getSupabase()
+    const { error: deleteError } = await req.supabase
       .from('client_business_types')
       .delete()
       .eq('client_id', clientId);
@@ -998,7 +998,7 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
 
     // Bulk insert all business types
     if (businessTypesToInsert.length > 0) {
-      const { error: insertError } = await getSupabase()
+      const { error: insertError } = await req.supabase
         .from('client_business_types')
         .insert(businessTypesToInsert);
 
@@ -1025,7 +1025,7 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
         .map(r => r.type)
         .join(', ');
 
-      await getSupabase()
+      await req.supabase
         .from('pipeline_activities')
         .insert({
           client_id: clientId,
@@ -1070,7 +1070,7 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
         }])
       };
 
-      const { data: newMeeting, error: meetingError } = await getSupabase()
+      const { data: newMeeting, error: meetingError } = await req.supabase
         .from('meetings')
         .insert(meetingData)
         .select()
@@ -1085,7 +1085,7 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
 
         // Log meeting creation activity (optional - don't fail if table doesn't exist)
         try {
-          await getSupabase()
+          await req.supabase
             .from('pipeline_activities')
             .insert({
               client_id: clientId,
@@ -1125,7 +1125,7 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
 });
 
 // Get client business types
-router.get('/:clientId/business-types', authenticateUser, async (req, res) => {
+router.get('/:clientId/business-types', authenticateSupabaseUser, async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No authorization header' });
 
@@ -1142,7 +1142,7 @@ router.get('/:clientId/business-types', authenticateUser, async (req, res) => {
     }
 
     // Get client business types
-    const { data: businessTypes, error } = await getSupabase()
+    const { data: businessTypes, error } = await req.supabase
       .from('client_business_types')
       .select('*')
       .eq('client_id', clientId)
@@ -1161,7 +1161,7 @@ router.get('/:clientId/business-types', authenticateUser, async (req, res) => {
 });
 
 // Update client business types
-router.put('/:clientId/business-types', authenticateUser, async (req, res) => {
+router.put('/:clientId/business-types', authenticateSupabaseUser, async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No authorization header' });
 
@@ -1183,7 +1183,7 @@ router.put('/:clientId/business-types', authenticateUser, async (req, res) => {
     }
 
     // Verify client belongs to advisor
-    const { data: client, error: clientError } = await getSupabase()
+    const { data: client, error: clientError } = await req.supabase
       .from('clients')
       .select('id')
       .eq('id', clientId)
@@ -1195,7 +1195,7 @@ router.put('/:clientId/business-types', authenticateUser, async (req, res) => {
     }
 
     // Delete existing business types for this client
-    const { error: deleteError } = await getSupabase()
+    const { error: deleteError } = await req.supabase
       .from('client_business_types')
       .delete()
       .eq('client_id', clientId);
@@ -1218,7 +1218,7 @@ router.put('/:clientId/business-types', authenticateUser, async (req, res) => {
         notes: bt.notes || null
       }));
 
-      const { data: newBusinessTypes, error: insertError } = await getSupabase()
+      const { data: newBusinessTypes, error: insertError } = await req.supabase
         .from('client_business_types')
         .insert(businessTypeData)
         .select();
@@ -1239,7 +1239,7 @@ router.put('/:clientId/business-types', authenticateUser, async (req, res) => {
 });
 
 // Mark a business type as not proceeding
-router.patch('/business-types/:businessTypeId/not-proceeding', authenticateUser, async (req, res) => {
+router.patch('/business-types/:businessTypeId/not-proceeding', authenticateSupabaseUser, async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No authorization header' });
 
@@ -1263,7 +1263,7 @@ router.patch('/business-types/:businessTypeId/not-proceeding', authenticateUser,
     }
 
     // Verify business type exists and belongs to advisor's client
-    const { data: businessType, error: fetchError } = await getSupabase()
+    const { data: businessType, error: fetchError } = await req.supabase
       .from('client_business_types')
       .select(`
         *,
@@ -1293,7 +1293,7 @@ router.patch('/business-types/:businessTypeId/not-proceeding', authenticateUser,
       updated_at: new Date().toISOString()
     };
 
-    const { data: updatedBusinessType, error: updateError } = await getSupabase()
+    const { data: updatedBusinessType, error: updateError } = await req.supabase
       .from('client_business_types')
       .update(updateData)
       .eq('id', businessTypeId)
@@ -1318,7 +1318,7 @@ router.patch('/business-types/:businessTypeId/not-proceeding', authenticateUser,
 });
 
 // Create new client with pipeline integration and business types
-router.post('/create', authenticateUser, async (req, res) => {
+router.post('/create', authenticateSupabaseUser, async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No authorization header' });
 
@@ -1378,7 +1378,7 @@ router.post('/create', authenticateUser, async (req, res) => {
     }
 
     // Check if client already exists
-    const { data: existingClient, error: checkError } = await getSupabase()
+    const { data: existingClient, error: checkError } = await req.supabase
       .from('clients')
       .select('id')
       .eq('advisor_id', advisorId)
@@ -1411,7 +1411,7 @@ router.post('/create', authenticateUser, async (req, res) => {
       updated_at: new Date().toISOString()
     };
 
-    const { data: newClient, error: clientError } = await getSupabase()
+    const { data: newClient, error: clientError } = await req.supabase
       .from('clients')
       .insert(clientData)
       .select()
@@ -1434,7 +1434,7 @@ router.post('/create', authenticateUser, async (req, res) => {
       notes: bt.notes || null
     }));
 
-    const { data: newBusinessTypes, error: businessTypeError } = await getSupabase()
+    const { data: newBusinessTypes, error: businessTypeError } = await req.supabase
       .from('client_business_types')
       .insert(businessTypeData)
       .select();
@@ -1446,7 +1446,7 @@ router.post('/create', authenticateUser, async (req, res) => {
 
     // Create pipeline activity (optional - don't fail if table doesn't exist)
     try {
-      await getSupabase()
+      await req.supabase
         .from('pipeline_activities')
         .insert({
           client_id: newClient.id,
@@ -1494,7 +1494,7 @@ router.post('/:clientId/generate-summary', async (req, res) => {
     }
 
     // Get client data
-    const { data: client, error: clientError } = await getSupabase()
+    const { data: client, error: clientError } = await req.supabase
       .from('clients')
       .select('*')
       .eq('id', clientId)
@@ -1506,7 +1506,7 @@ router.post('/:clientId/generate-summary', async (req, res) => {
     }
 
     // Get client's meetings with transcripts
-    const { data: meetings, error: meetingsError } = await getSupabase()
+    const { data: meetings, error: meetingsError } = await req.supabase
       .from('meetings')
       .select('*')
       .eq('client_id', clientId)
@@ -1531,7 +1531,7 @@ router.post('/:clientId/generate-summary', async (req, res) => {
     }
 
     // Get business types
-    const { data: businessTypes } = await getSupabase()
+    const { data: businessTypes } = await req.supabase
       .from('client_business_types')
       .select('*')
       .eq('client_id', clientId);
@@ -1594,7 +1594,7 @@ Keep it professional, factual, and under 100 words.`;
     const summary = completion.choices[0].message.content.trim();
 
     // Store summary in database (add ai_summary column if it doesn't exist)
-    const { error: updateError } = await getSupabase()
+    const { error: updateError } = await req.supabase
       .from('clients')
       .update({
         ai_summary: summary,
@@ -1639,7 +1639,7 @@ router.post('/:clientId/generate-pipeline-summary', async (req, res) => {
     }
 
     // Get client data with pipeline information
-    const { data: client, error: clientError } = await getSupabase()
+    const { data: client, error: clientError } = await req.supabase
       .from('clients')
       .select('*')
       .eq('id', clientId)
@@ -1651,13 +1651,13 @@ router.post('/:clientId/generate-pipeline-summary', async (req, res) => {
     }
 
     // Get business types with expected close dates
-    const { data: businessTypes } = await getSupabase()
+    const { data: businessTypes } = await req.supabase
       .from('client_business_types')
       .select('*')
       .eq('client_id', clientId);
 
     // Get recent meetings
-    const { data: meetings } = await getSupabase()
+    const { data: meetings } = await req.supabase
       .from('meetings')
       .select('*')
       .eq('client_id', clientId)
@@ -1735,7 +1735,7 @@ Be specific and actionable. Focus on what needs to happen NOW to move this forwa
     const summary = completion.choices[0].message.content.trim();
 
     // Store summary in database
-    const { error: updateError } = await getSupabase()
+    const { error: updateError } = await req.supabase
       .from('clients')
       .update({
         pipeline_next_steps: summary,

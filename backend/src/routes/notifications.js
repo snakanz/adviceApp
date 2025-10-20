@@ -6,7 +6,7 @@ const pushNotificationService = require('../services/pushNotificationService');
 const router = express.Router();
 
 // Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
+const authenticateSupabaseUser = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
@@ -24,7 +24,7 @@ const authenticateToken = (req, res, next) => {
 };
 
 // Subscribe to push notifications
-router.post('/subscribe', authenticateToken, async (req, res) => {
+router.post('/subscribe', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const { subscription } = req.body;
@@ -53,7 +53,7 @@ router.post('/subscribe', authenticateToken, async (req, res) => {
 });
 
 // Unsubscribe from push notifications
-router.post('/unsubscribe', authenticateToken, async (req, res) => {
+router.post('/unsubscribe', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -77,7 +77,7 @@ router.post('/unsubscribe', authenticateToken, async (req, res) => {
 });
 
 // Get subscription status
-router.get('/status', authenticateToken, async (req, res) => {
+router.get('/status', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -104,7 +104,7 @@ router.get('/status', authenticateToken, async (req, res) => {
 });
 
 // Get notification preferences
-router.get('/preferences', authenticateToken, async (req, res) => {
+router.get('/preferences', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -112,7 +112,7 @@ router.get('/preferences', authenticateToken, async (req, res) => {
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
-    const { data: preferences, error } = await getSupabase()
+    const { data: preferences, error } = await req.supabase
       .rpc('get_user_notification_preferences', { p_user_id: userId });
 
     if (error) {
@@ -131,7 +131,7 @@ router.get('/preferences', authenticateToken, async (req, res) => {
 });
 
 // Update notification preferences
-router.put('/preferences', authenticateToken, async (req, res) => {
+router.put('/preferences', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const preferences = req.body;
@@ -140,7 +140,7 @@ router.put('/preferences', authenticateToken, async (req, res) => {
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
-    const { data, error } = await getSupabase()
+    const { data, error } = await req.supabase
       .from('notification_preferences')
       .upsert({
         user_id: userId,
@@ -168,7 +168,7 @@ router.put('/preferences', authenticateToken, async (req, res) => {
 });
 
 // Send test notification
-router.post('/test', authenticateToken, async (req, res) => {
+router.post('/test', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -188,7 +188,7 @@ router.post('/test', authenticateToken, async (req, res) => {
 });
 
 // Get notification history
-router.get('/history', authenticateToken, async (req, res) => {
+router.get('/history', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const { limit = 50, offset = 0 } = req.query;
@@ -197,7 +197,7 @@ router.get('/history', authenticateToken, async (req, res) => {
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
-    const { data: notifications, error } = await getSupabase()
+    const { data: notifications, error } = await req.supabase
       .from('notification_log')
       .select(`
         id,
@@ -231,7 +231,7 @@ router.get('/history', authenticateToken, async (req, res) => {
 });
 
 // Trigger meeting reminder (for testing)
-router.post('/meeting-reminder/:meetingId', authenticateToken, async (req, res) => {
+router.post('/meeting-reminder/:meetingId', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const { meetingId } = req.params;
@@ -242,7 +242,7 @@ router.post('/meeting-reminder/:meetingId', authenticateToken, async (req, res) 
     }
 
     // Get meeting details
-    const { data: meeting, error } = await getSupabase()
+    const { data: meeting, error } = await req.supabase
       .from('meetings')
       .select('*')
       .eq('id', meetingId)

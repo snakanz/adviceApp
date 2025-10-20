@@ -7,7 +7,7 @@ import GoogleIcon from '../components/GoogleIcon';
 
 const LoginPage = () => {
     const navigate = useNavigate();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, signInWithOAuth } = useAuth();
 
     useEffect(() => {
         if (isAuthenticated) {
@@ -16,27 +16,16 @@ const LoginPage = () => {
     }, [isAuthenticated, navigate]);
 
     const handleGoogleLogin = async () => {
-        // Fallback to hardcoded URL if environment variable is not set
-        const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
-        const apiUrl = `${apiBaseUrl}/api/auth/google`;
-        console.log('API Base URL:', apiBaseUrl);
-        console.log('Full API URL:', apiUrl);
-
         try {
-            const response = await fetch(apiUrl);
-            console.log('Response status:', response.status);
-            console.log('Response headers:', response.headers);
+            const result = await signInWithOAuth('google', {
+                redirectTo: `${window.location.origin}/auth/callback`
+            });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('API Error Response:', errorText);
-                alert(`API Error: ${response.status} - ${errorText.substring(0, 200)}`);
-                return;
+            if (!result.success) {
+                console.error('Login error:', result.error);
+                alert(`Login error: ${result.error}`);
             }
-
-            const data = await response.json();
-            console.log('API Response:', data);
-            window.location.href = data.url;
+            // Supabase will redirect to Google OAuth automatically
         } catch (error) {
             console.error('Login error:', error);
             alert(`Login error: ${error.message}`);

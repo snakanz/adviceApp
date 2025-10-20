@@ -9,7 +9,7 @@ const router = express.Router();
 console.log('🔄 Calendly routes loaded successfully');
 
 // Middleware to authenticate user
-const authenticateUser = (req, res, next) => {
+const authenticateSupabaseUser = (req, res, next) => {
   const auth = req.headers.authorization;
   if (!auth) {
     return res.status(401).json({ error: 'No authorization header' });
@@ -26,7 +26,7 @@ const authenticateUser = (req, res, next) => {
 };
 
 // Test Calendly connection
-router.get('/test-connection', authenticateUser, async (req, res) => {
+router.get('/test-connection', authenticateSupabaseUser, async (req, res) => {
   try {
     const calendlyService = new CalendlyService();
     const result = await calendlyService.testConnection();
@@ -42,7 +42,7 @@ router.get('/test-connection', authenticateUser, async (req, res) => {
 });
 
 // Get Calendly connection status
-router.get('/status', authenticateUser, async (req, res) => {
+router.get('/status', authenticateSupabaseUser, async (req, res) => {
   try {
     const calendlyService = new CalendlyService();
     const isConfigured = calendlyService.isConfigured();
@@ -85,7 +85,7 @@ router.get('/status', authenticateUser, async (req, res) => {
 });
 
 // Enhanced Calendly sync with comprehensive feedback
-router.post('/sync', authenticateUser, async (req, res) => {
+router.post('/sync', authenticateSupabaseUser, async (req, res) => {
   try {
     if (!isSupabaseAvailable()) {
       return res.status(503).json({ error: 'Database service unavailable' });
@@ -97,14 +97,14 @@ router.post('/sync', authenticateUser, async (req, res) => {
     console.log(`🔄 Starting enhanced Calendly sync for user ${userId}`);
 
     // Get sync status before sync
-    const { data: beforeStatus } = await getSupabase()
+    const { data: beforeStatus } = await req.supabase
       .rpc('get_calendly_sync_status', { user_id: userId });
 
     // Perform the sync
     const syncResult = await calendlyService.syncMeetingsToDatabase(userId);
 
     // Get sync status after sync
-    const { data: afterStatus } = await getSupabase()
+    const { data: afterStatus } = await req.supabase
       .rpc('get_calendly_sync_status', { user_id: userId });
 
     // Calculate improvements
@@ -171,13 +171,13 @@ function generateSyncRecommendations(syncStatus) {
 }
 
 // Get Calendly meetings for user
-router.get('/meetings', authenticateUser, async (req, res) => {
+router.get('/meetings', authenticateSupabaseUser, async (req, res) => {
   try {
     if (!isSupabaseAvailable()) {
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
-    const { data: meetings, error } = await getSupabase()
+    const { data: meetings, error } = await req.supabase
       .from('meetings')
       .select('*')
       .eq('userid', req.user.id)
@@ -214,7 +214,7 @@ router.get('/meetings', authenticateUser, async (req, res) => {
 });
 
 // Debug endpoint to check specific client meetings
-router.get('/debug/client/:email', authenticateUser, async (req, res) => {
+router.get('/debug/client/:email', authenticateSupabaseUser, async (req, res) => {
   try {
     if (!isSupabaseAvailable()) {
       return res.status(503).json({ error: 'Database service unavailable' });
@@ -224,7 +224,7 @@ router.get('/debug/client/:email', authenticateUser, async (req, res) => {
     console.log(`🔍 Debugging meetings for client: ${clientEmail}`);
 
     // Get all meetings for this client email
-    const { data: meetings, error } = await getSupabase()
+    const { data: meetings, error } = await req.supabase
       .from('meetings')
       .select('*')
       .eq('userid', req.user.id)
@@ -262,13 +262,13 @@ router.get('/debug/client/:email', authenticateUser, async (req, res) => {
 });
 
 // Get integration statistics
-router.get('/stats', authenticateUser, async (req, res) => {
+router.get('/stats', authenticateSupabaseUser, async (req, res) => {
   try {
     if (!isSupabaseAvailable()) {
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
-    const { data: stats, error } = await getSupabase()
+    const { data: stats, error } = await req.supabase
       .from('integration_status')
       .select('*')
       .eq('userid', req.user.id)
@@ -416,7 +416,7 @@ async function handleInviteeCreated(payload) {
     const eventUuid = eventUri.split('/').pop();
 
     // Check if webhook event already processed (deduplication)
-    const { data: existingWebhookEvent } = await getSupabase()
+    const { data: existingWebhookEvent } = await req.supabase
       .from('calendly_webhook_events')
       .select('id')
       .eq('event_id', eventUuid)
@@ -439,7 +439,7 @@ async function handleInviteeCreated(payload) {
     meetingData.synced_via_webhook = true;
 
     // Check if meeting already exists (by calendly_event_uuid)
-    const { data: existingMeeting } = await getSupabase()
+    const { data: existingMeeting } = await req.supabase
       .from('meetings')
       .select('id')
       .eq('calendly_event_uuid', eventUuid)
@@ -449,14 +449,14 @@ async function handleInviteeCreated(payload) {
     if (existingMeeting) {
       // Update existing meeting instead of creating duplicate
       console.log('⚠️  Meeting already exists, updating instead');
-      const updateResult = await getSupabase()
+      const updateResult = await req.supabase
         .from('meetings')
         .update(meetingData)
         .eq('id', existingMeeting.id);
       error = updateResult.error;
     } else {
       // Create new meeting
-      const insertResult = await getSupabase()
+      const insertResult = await req.supabase
         .from('meetings')
         .insert(meetingData);
       error = insertResult.error;
@@ -468,7 +468,7 @@ async function handleInviteeCreated(payload) {
       console.log('✅ Meeting saved from webhook:', meetingData.title);
 
       // Record webhook event
-      await getSupabase()
+      await req.supabase
         .from('calendly_webhook_events')
         .insert({
           event_id: eventUuid,
@@ -478,7 +478,7 @@ async function handleInviteeCreated(payload) {
         });
 
       // Update user's last sync time
-      await getSupabase()
+      await req.supabase
         .from('users')
         .update({
           last_calendly_sync: new Date().toISOString(),
@@ -499,7 +499,7 @@ async function handleInviteeCanceled(payload) {
     const calendlyEventId = `calendly_${eventUuid}`;
 
     // Check if webhook event already processed (deduplication)
-    const { data: existingWebhookEvent } = await getSupabase()
+    const { data: existingWebhookEvent } = await req.supabase
       .from('calendly_webhook_events')
       .select('id')
       .eq('event_id', eventUuid)
@@ -511,13 +511,13 @@ async function handleInviteeCanceled(payload) {
     }
 
     // Get user ID from the meeting
-    const { data: meeting } = await getSupabase()
+    const { data: meeting } = await req.supabase
       .from('meetings')
       .select('userid')
       .eq('googleeventid', calendlyEventId)
       .single();
 
-    const { error } = await getSupabase()
+    const { error } = await req.supabase
       .from('meetings')
       .update({
         is_deleted: true,
@@ -534,7 +534,7 @@ async function handleInviteeCanceled(payload) {
 
       if (meeting?.userid) {
         // Record webhook event
-        await getSupabase()
+        await req.supabase
           .from('calendly_webhook_events')
           .insert({
             event_id: eventUuid,
@@ -544,7 +544,7 @@ async function handleInviteeCanceled(payload) {
           });
 
         // Update user's last sync time
-        await getSupabase()
+        await req.supabase
           .from('users')
           .update({
             last_calendly_sync: new Date().toISOString(),
@@ -566,7 +566,7 @@ async function handleInviteeUpdated(payload) {
     const eventUuid = eventUri.split('/').pop();
 
     // Check if webhook event already processed (deduplication)
-    const { data: existingWebhookEvent } = await getSupabase()
+    const { data: existingWebhookEvent } = await req.supabase
       .from('calendly_webhook_events')
       .select('id')
       .eq('event_id', eventUuid)
@@ -583,7 +583,7 @@ async function handleInviteeUpdated(payload) {
     const event = eventData.resource;
 
     // Find the existing meeting in database
-    const { data: existingMeeting } = await getSupabase()
+    const { data: existingMeeting } = await req.supabase
       .from('meetings')
       .select('id, userid')
       .eq('calendly_event_uuid', eventUuid)
@@ -605,7 +605,7 @@ async function handleInviteeUpdated(payload) {
     meetingData.updatedat = new Date().toISOString();
 
     // Update the meeting
-    const { error } = await getSupabase()
+    const { error } = await req.supabase
       .from('meetings')
       .update(meetingData)
       .eq('id', existingMeeting.id);
@@ -616,7 +616,7 @@ async function handleInviteeUpdated(payload) {
       console.log('✅ Meeting updated from webhook:', meetingData.title);
 
       // Record webhook event
-      await getSupabase()
+      await req.supabase
         .from('calendly_webhook_events')
         .insert({
           event_id: eventUuid,
@@ -626,7 +626,7 @@ async function handleInviteeUpdated(payload) {
         });
 
       // Update user's last sync time
-      await getSupabase()
+      await req.supabase
         .from('users')
         .update({
           last_calendly_sync: new Date().toISOString(),

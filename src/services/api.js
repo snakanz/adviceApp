@@ -1,29 +1,35 @@
+import { supabase } from '../lib/supabase';
+
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
 class ApiService {
     constructor() {
         this.baseUrl = API_BASE_URL;
-        this.token = localStorage.getItem('jwt');
     }
 
+    async getToken() {
+        // Get token from Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
+        return session?.access_token || null;
+    }
+
+    // Legacy method for backward compatibility
     setToken(token) {
-        this.token = token;
-        if (token) {
-            localStorage.setItem('jwt', token);
-        } else {
-            localStorage.removeItem('jwt');
-        }
+        console.warn('setToken() is deprecated. Tokens are now managed by Supabase Auth.');
+        // No-op - tokens are managed by Supabase
     }
 
     async request(endpoint, options = {}) {
         const url = `${this.baseUrl}/api${endpoint}`;
         const headers = {
-    'Content-Type': 'application/json',
+            'Content-Type': 'application/json',
             ...options.headers
         };
 
-        if (this.token) {
-            headers.Authorization = `Bearer ${this.token}`;
+        // Get token from Supabase session
+        const token = await this.getToken();
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
         }
 
         try {
@@ -35,7 +41,8 @@ class ApiService {
 
             if (!response.ok) {
                 if (response.status === 401) {
-                    this.setToken(null);
+                    // Sign out and redirect to login
+                    await supabase.auth.signOut();
                     window.location.href = '/login';
                     throw new Error('Unauthorized');
                 }

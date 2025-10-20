@@ -6,7 +6,7 @@ const dataImportService = require('../services/dataImport');
 const router = express.Router();
 
 // Middleware to authenticate user
-const authenticateToken = (req, res, next) => {
+const authenticateSupabaseUser = (req, res, next) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token provided' });
 
@@ -24,7 +24,7 @@ const authenticateToken = (req, res, next) => {
  * POST /api/data-import/preview
  * Upload file and preview import data without saving to database
  */
-router.post('/preview', authenticateToken, dataImportService.upload.single('file'), async (req, res) => {
+router.post('/preview', authenticateSupabaseUser, dataImportService.upload.single('file'), async (req, res) => {
   try {
     if (!isSupabaseAvailable()) {
       return res.status(503).json({
@@ -63,7 +63,7 @@ router.post('/preview', authenticateToken, dataImportService.upload.single('file
  * POST /api/data-import/execute
  * Execute the actual data import
  */
-router.post('/execute', authenticateToken, dataImportService.upload.single('file'), async (req, res) => {
+router.post('/execute', authenticateSupabaseUser, dataImportService.upload.single('file'), async (req, res) => {
   try {
     if (!isSupabaseAvailable()) {
       return res.status(503).json({
@@ -109,7 +109,7 @@ router.post('/execute', authenticateToken, dataImportService.upload.single('file
  * GET /api/data-import/template
  * Download a template Excel file for data import
  */
-router.get('/template', authenticateToken, async (req, res) => {
+router.get('/template', authenticateSupabaseUser, async (req, res) => {
   try {
     const XLSX = require('xlsx');
     
@@ -259,7 +259,7 @@ router.get('/template', authenticateToken, async (req, res) => {
  * GET /api/data-import/status
  * Get import status and statistics
  */
-router.get('/status', authenticateToken, async (req, res) => {
+router.get('/status', authenticateSupabaseUser, async (req, res) => {
   try {
     if (!isSupabaseAvailable()) {
       return res.status(503).json({
@@ -268,7 +268,7 @@ router.get('/status', authenticateToken, async (req, res) => {
     }
 
     const { getSupabase } = require('../lib/supabase');
-    const supabase = getSupabase();
+    const supabase = req.supabase;
     const userId = req.user.id;
 
     // Get client statistics

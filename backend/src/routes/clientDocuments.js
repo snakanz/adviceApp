@@ -6,7 +6,7 @@ const clientDocumentsService = require('../services/clientDocuments');
 const router = express.Router();
 
 // Middleware to authenticate requests
-const authenticateToken = (req, res, next) => {
+const authenticateSupabaseUser = (req, res, next) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token provided' });
 
@@ -24,7 +24,7 @@ const authenticateToken = (req, res, next) => {
  * POST /api/client-documents/upload
  * Upload documents (with optional client assignment)
  */
-router.post('/upload', authenticateToken, clientDocumentsService.upload.array('files', 10), async (req, res) => {
+router.post('/upload', authenticateSupabaseUser, clientDocumentsService.upload.array('files', 10), async (req, res) => {
   try {
     const advisorId = req.user.id;
     const { clientId, meetingId } = req.body; // Optional client ID and meeting ID
@@ -53,7 +53,7 @@ router.post('/upload', authenticateToken, clientDocumentsService.upload.array('f
     // If clientId provided, verify it belongs to advisor
     if (clientId) {
       console.log('🔍 Verifying client access:', { clientId, advisorId });
-      const { data: client, error: clientError } = await getSupabase()
+      const { data: client, error: clientError } = await req.supabase
         .from('clients')
         .select('id, name')
         .eq('id', clientId)
@@ -70,7 +70,7 @@ router.post('/upload', authenticateToken, clientDocumentsService.upload.array('f
     // If meetingId provided, verify it belongs to advisor
     if (meetingId) {
       console.log('🔍 Verifying meeting access:', { meetingId, advisorId });
-      const { data: meeting, error: meetingError } = await getSupabase()
+      const { data: meeting, error: meetingError } = await req.supabase
         .from('meetings')
         .select('id, title')
         .eq('id', meetingId)
@@ -171,7 +171,7 @@ router.post('/upload', authenticateToken, clientDocumentsService.upload.array('f
  * GET /api/client-documents/unassigned/list
  * Get all unassigned documents (for auto-detection review)
  */
-router.get('/unassigned/list', authenticateToken, async (req, res) => {
+router.get('/unassigned/list', authenticateSupabaseUser, async (req, res) => {
   try {
     const advisorId = req.user.id;
 
@@ -198,7 +198,7 @@ router.get('/unassigned/list', authenticateToken, async (req, res) => {
  * PATCH /api/client-documents/:documentId/assign
  * Manually assign a document to a client
  */
-router.patch('/:documentId/assign', authenticateToken, async (req, res) => {
+router.patch('/:documentId/assign', authenticateSupabaseUser, async (req, res) => {
   try {
     const advisorId = req.user.id;
     const { documentId } = req.params;
@@ -235,7 +235,7 @@ router.patch('/:documentId/assign', authenticateToken, async (req, res) => {
  * DELETE /api/client-documents/:documentId
  * Delete a document
  */
-router.delete('/:documentId', authenticateToken, async (req, res) => {
+router.delete('/:documentId', authenticateSupabaseUser, async (req, res) => {
   try {
     const advisorId = req.user.id;
     const { documentId } = req.params;
@@ -262,7 +262,7 @@ router.delete('/:documentId', authenticateToken, async (req, res) => {
  * GET /api/client-documents/:documentId/download
  * Get download URL for a document
  */
-router.get('/:documentId/download', authenticateToken, async (req, res) => {
+router.get('/:documentId/download', authenticateSupabaseUser, async (req, res) => {
   try {
     const advisorId = req.user.id;
     const { documentId } = req.params;
@@ -274,7 +274,7 @@ router.get('/:documentId/download', authenticateToken, async (req, res) => {
     }
 
     // Get document info
-    const { data: document, error } = await getSupabase()
+    const { data: document, error } = await req.supabase
       .from('client_documents')
       .select('*')
       .eq('id', documentId)
@@ -304,7 +304,7 @@ router.get('/:documentId/download', authenticateToken, async (req, res) => {
  * POST /api/client-documents/:documentId/analyze
  * Trigger AI analysis for a specific document
  */
-router.post('/:documentId/analyze', authenticateToken, async (req, res) => {
+router.post('/:documentId/analyze', authenticateSupabaseUser, async (req, res) => {
   try {
     const advisorId = req.user.id;
     const { documentId } = req.params;
@@ -316,7 +316,7 @@ router.post('/:documentId/analyze', authenticateToken, async (req, res) => {
     }
 
     // Verify document belongs to advisor
-    const { data: document, error } = await getSupabase()
+    const { data: document, error } = await req.supabase
       .from('client_documents')
       .select('id, analysis_status')
       .eq('id', documentId)
@@ -350,7 +350,7 @@ router.post('/:documentId/analyze', authenticateToken, async (req, res) => {
  * GET /api/client-documents/meeting/:meetingId
  * Get all documents for a specific meeting
  */
-router.get('/meeting/:meetingId', authenticateToken, async (req, res) => {
+router.get('/meeting/:meetingId', authenticateSupabaseUser, async (req, res) => {
   try {
     const advisorId = req.user.id;
     const { meetingId } = req.params;
@@ -384,7 +384,7 @@ router.get('/meeting/:meetingId', authenticateToken, async (req, res) => {
  * Get all documents for a specific client
  * NOTE: This route must come LAST to avoid conflicts with specific routes above
  */
-router.get('/client/:clientId', authenticateToken, async (req, res) => {
+router.get('/client/:clientId', authenticateSupabaseUser, async (req, res) => {
   try {
     const advisorId = req.user.id;
     const { clientId } = req.params;

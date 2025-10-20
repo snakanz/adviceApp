@@ -85,7 +85,7 @@ router.get('/test', (req, res) => {
 // Debug route to check meeting data
 router.get('/debug/meetings', async (req, res) => {
   try {
-    const { data: meetings } = await getSupabase()
+    const { data: meetings } = await req.supabase
       .from('meetings')
       .select('googleeventid, title, starttime, attendees, transcript, quick_summary, email_summary_draft')
       .order('starttime', { ascending: false })
@@ -128,7 +128,7 @@ router.get('/threads', async (req, res) => {
       });
     }
 
-    const { data: threads, error } = await getSupabase()
+    const { data: threads, error } = await req.supabase
       .from('ask_threads')
       .select(`
         id,
@@ -192,7 +192,7 @@ router.get('/threads/:threadId/messages', async (req, res) => {
     }
 
     // Verify thread belongs to advisor
-    const { data: thread, error: threadError } = await getSupabase()
+    const { data: thread, error: threadError } = await req.supabase
       .from('ask_threads')
       .select('id')
       .eq('id', threadId)
@@ -203,7 +203,7 @@ router.get('/threads/:threadId/messages', async (req, res) => {
       return res.status(404).json({ error: 'Thread not found' });
     }
 
-    const { data: messages, error } = await getSupabase()
+    const { data: messages, error } = await req.supabase
       .from('ask_messages')
       .select('*')
       .eq('thread_id', threadId)
@@ -250,7 +250,7 @@ router.post('/threads', async (req, res) => {
       finalTitle = generateContextualTitle(contextType, contextData);
     }
 
-    const { data: thread, error } = await getSupabase()
+    const { data: thread, error } = await req.supabase
       .from('ask_threads')
       .insert({
         advisor_id: advisorId,
@@ -316,7 +316,7 @@ router.post('/threads/:threadId/messages', async (req, res) => {
     }
 
     // Verify thread belongs to advisor and get enhanced context
-    const { data: thread, error: threadError } = await getSupabase()
+    const { data: thread, error: threadError } = await req.supabase
       .from('ask_threads')
       .select(`
         id,
@@ -335,7 +335,7 @@ router.post('/threads/:threadId/messages', async (req, res) => {
     }
 
     // Save user message
-    const { data: userMessage, error: userMessageError } = await getSupabase()
+    const { data: userMessage, error: userMessageError } = await req.supabase
       .from('ask_messages')
       .insert({
         thread_id: threadId,
@@ -354,7 +354,7 @@ router.post('/threads/:threadId/messages', async (req, res) => {
     let advisorContext = '';
 
     // Get ALL meetings for the advisor (for general questions)
-    const { data: allMeetings } = await getSupabase()
+    const { data: allMeetings } = await req.supabase
       .from('meetings')
       .select('title, starttime, endtime, transcript, quick_summary, email_summary_draft, attendees')
       .eq('userid', advisorId)
@@ -362,7 +362,7 @@ router.post('/threads/:threadId/messages', async (req, res) => {
       .limit(50); // Get recent 50 meetings
 
     // Get all clients for the advisor
-    const { data: allClients } = await getSupabase()
+    const { data: allClients } = await req.supabase
       .from('clients')
       .select('name, email, status, likely_value, likely_close_month')
       .eq('advisor_id', advisorId);
@@ -545,7 +545,7 @@ router.post('/threads/:threadId/messages', async (req, res) => {
         }) || [];
 
         // Get client details from database
-        const { data: fullClientData } = await getSupabase()
+        const { data: fullClientData } = await req.supabase
           .from('clients')
           .select('*')
           .eq('id', mentionedClient.id)
@@ -611,7 +611,7 @@ router.post('/threads/:threadId/messages', async (req, res) => {
     const aiResponse = await generateChatResponse(content.trim(), systemPrompt, 1200);
 
     // Save AI response
-    const { data: aiMessage, error: aiMessageError } = await getSupabase()
+    const { data: aiMessage, error: aiMessageError } = await req.supabase
       .from('ask_messages')
       .insert({
         thread_id: threadId,
@@ -627,7 +627,7 @@ router.post('/threads/:threadId/messages', async (req, res) => {
     }
 
     // Update thread timestamp
-    await getSupabase()
+    await req.supabase
       .from('ask_threads')
       .update({ updated_at: new Date().toISOString() })
       .eq('id', threadId);
@@ -664,7 +664,7 @@ router.patch('/threads/:threadId', async (req, res) => {
       });
     }
 
-    const { data: thread, error } = await getSupabase()
+    const { data: thread, error } = await req.supabase
       .from('ask_threads')
       .update({ 
         title: title.trim(),

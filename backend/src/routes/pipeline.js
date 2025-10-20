@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
     }
 
     // Fetch clients with pipeline data
-    const { data: clients, error: clientsError } = await getSupabase()
+    const { data: clients, error: clientsError } = await req.supabase
       .from('clients')
       .select(`
         id,
@@ -52,7 +52,7 @@ router.get('/', async (req, res) => {
 
     // Get business types for all clients (SINGLE SOURCE OF TRUTH)
     // Exclude not proceeding items from pipeline view by default
-    const { data: allBusinessTypes, error: businessTypesError } = await getSupabase()
+    const { data: allBusinessTypes, error: businessTypesError } = await req.supabase
       .from('client_business_types')
       .select('*')
       .in('client_id', clients.map(c => c.id))
@@ -73,7 +73,7 @@ router.get('/', async (req, res) => {
     });
 
     // Get meeting counts for each client
-    const { data: meetings, error: meetingsError } = await getSupabase()
+    const { data: meetings, error: meetingsError } = await req.supabase
       .from('meetings')
       .select('id, attendees')
       .eq('userid', userId);
@@ -203,7 +203,7 @@ router.put('/client/:clientId', async (req, res) => {
     }
 
     // Verify client belongs to advisor
-    const { data: client, error: clientError } = await getSupabase()
+    const { data: client, error: clientError } = await req.supabase
       .from('clients')
       .select('id, pipeline_stage')
       .eq('id', clientId)
@@ -236,7 +236,7 @@ router.put('/client/:clientId', async (req, res) => {
       updateData.iaf_expected = iafValue;
     }
 
-    const { data: updatedClient, error: updateError } = await getSupabase()
+    const { data: updatedClient, error: updateError } = await req.supabase
       .from('clients')
       .update(updateData)
       .eq('id', clientId)
@@ -252,7 +252,7 @@ router.put('/client/:clientId', async (req, res) => {
     // Log activity
     if (pipeline_stage !== undefined) {
       try {
-        await getSupabase()
+        await req.supabase
           .from('pipeline_activities')
           .insert({
             client_id: clientId,
@@ -293,7 +293,7 @@ router.get('/client/:clientId/todos', async (req, res) => {
     }
 
     // Verify client belongs to advisor
-    const { data: client, error: clientError } = await getSupabase()
+    const { data: client, error: clientError } = await req.supabase
       .from('clients')
       .select('id')
       .eq('id', clientId)
@@ -305,7 +305,7 @@ router.get('/client/:clientId/todos', async (req, res) => {
     }
 
     // Get todos for client
-    const { data: todos, error: todosError } = await getSupabase()
+    const { data: todos, error: todosError } = await req.supabase
       .from('client_todos')
       .select('*')
       .eq('client_id', clientId)
@@ -348,7 +348,7 @@ router.post('/client/:clientId/todos', async (req, res) => {
     }
 
     // Verify client belongs to advisor
-    const { data: client, error: clientError } = await getSupabase()
+    const { data: client, error: clientError } = await req.supabase
       .from('clients')
       .select('id')
       .eq('id', clientId)
@@ -360,7 +360,7 @@ router.post('/client/:clientId/todos', async (req, res) => {
     }
 
     // Create todo
-    const { data: todo, error: todoError } = await getSupabase()
+    const { data: todo, error: todoError } = await req.supabase
       .from('client_todos')
       .insert({
         client_id: clientId,
@@ -405,7 +405,7 @@ router.put('/todos/:todoId', async (req, res) => {
     }
 
     // Verify todo belongs to advisor
-    const { data: existingTodo, error: todoError } = await getSupabase()
+    const { data: existingTodo, error: todoError } = await req.supabase
       .from('client_todos')
       .select('*')
       .eq('id', todoId)
@@ -433,7 +433,7 @@ router.put('/todos/:todoId', async (req, res) => {
     }
 
     // Update todo
-    const { data: updatedTodo, error: updateError } = await getSupabase()
+    const { data: updatedTodo, error: updateError } = await req.supabase
       .from('client_todos')
       .update(updateData)
       .eq('id', todoId)
@@ -448,7 +448,7 @@ router.put('/todos/:todoId', async (req, res) => {
 
     // Log activity if todo was completed
     if (status === 'completed' && existingTodo.status !== 'completed') {
-      await getSupabase()
+      await req.supabase
         .from('pipeline_activities')
         .insert({
           client_id: existingTodo.client_id,
@@ -485,7 +485,7 @@ router.delete('/todos/:todoId', async (req, res) => {
     }
 
     // Delete todo (verify ownership through RLS policy)
-    const { error: deleteError } = await getSupabase()
+    const { error: deleteError } = await req.supabase
       .from('client_todos')
       .delete()
       .eq('id', todoId)

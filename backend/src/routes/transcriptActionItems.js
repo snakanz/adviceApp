@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 const OpenAI = require('openai');
 
 // Get action items for a specific meeting
-router.get('/meetings/:meetingId/action-items', authenticateToken, async (req, res) => {
+router.get('/meetings/:meetingId/action-items', authenticateSupabaseUser, async (req, res) => {
   try {
     const { meetingId } = req.params;
     const userId = req.user.id;
@@ -14,12 +14,11 @@ router.get('/meetings/:meetingId/action-items', authenticateToken, async (req, r
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
-    // Fetch action items for the meeting
-    const { data: actionItems, error } = await getSupabase()
+    // Fetch action items for the meeting - RLS auto-filters
+    const { data: actionItems, error } = await req.supabase
       .from('transcript_action_items')
       .select('*')
       .eq('meeting_id', meetingId)
-      .eq('advisor_id', userId)
       .order('display_order', { ascending: true });
 
     if (error) {
@@ -35,18 +34,13 @@ router.get('/meetings/:meetingId/action-items', authenticateToken, async (req, r
 });
 
 // Toggle action item completion
-router.patch('/action-items/:actionItemId/toggle', authenticateToken, async (req, res) => {
+router.patch('/action-items/:actionItemId/toggle', authenticateSupabaseUser, async (req, res) => {
   const { actionItemId } = req.params;
-  const userId = req.user?.id;
+  const userId = req.user.id;
 
   console.log(`🔄 Toggle action item ${actionItemId} for user ${userId}`);
 
   try {
-    if (!userId) {
-      console.error('❌ No user ID in request');
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
     if (!isSupabaseAvailable()) {
       console.error('❌ Database unavailable');
       return res.status(503).json({ error: 'Database service unavailable' });
@@ -54,7 +48,7 @@ router.patch('/action-items/:actionItemId/toggle', authenticateToken, async (req
 
     // First, get the current state
     console.log(`📋 Fetching current state for item ${actionItemId}...`);
-    const { data: currentItem, error: fetchError } = await getSupabase()
+    const { data: currentItem, error: fetchError } = await req.supabase
       .from('transcript_action_items')
       .select('*')
       .eq('id', actionItemId)
@@ -82,7 +76,7 @@ router.patch('/action-items/:actionItemId/toggle', authenticateToken, async (req
 
     console.log(`🔄 Toggling to: completed=${newCompleted}`);
 
-    const { data: updatedItem, error: updateError } = await getSupabase()
+    const { data: updatedItem, error: updateError } = await req.supabase
       .from('transcript_action_items')
       .update(updateData)
       .eq('id', actionItemId)
@@ -126,7 +120,7 @@ router.patch('/action-items/:actionItemId/toggle', authenticateToken, async (req
 });
 
 // Update action item text (inline editing)
-router.patch('/action-items/:actionItemId/text', authenticateToken, async (req, res) => {
+router.patch('/action-items/:actionItemId/text', authenticateSupabaseUser, async (req, res) => {
   try {
     const { actionItemId } = req.params;
     const { actionText } = req.body;
@@ -140,7 +134,7 @@ router.patch('/action-items/:actionItemId/text', authenticateToken, async (req, 
       return res.status(400).json({ error: 'Action text is required' });
     }
 
-    const { data: updatedItem, error: updateError } = await getSupabase()
+    const { data: updatedItem, error: updateError } = await req.supabase
       .from('transcript_action_items')
       .update({ action_text: actionText.trim() })
       .eq('id', actionItemId)
@@ -179,7 +173,7 @@ router.patch('/action-items/:actionItemId/text', authenticateToken, async (req, 
 });
 
 // AI-powered priority assignment for action items
-router.post('/action-items/assign-priorities', authenticateToken, async (req, res) => {
+router.post('/action-items/assign-priorities', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const { actionItemIds } = req.body;
@@ -306,7 +300,7 @@ Respond with ONLY a JSON array in this exact format:
       // Validate priority is between 1 and 4
       const validPriority = Math.max(1, Math.min(4, parseInt(priority) || 3));
 
-      const { data, error } = await getSupabase()
+      const { data, error } = await req.supabase
         .from('transcript_action_items')
         .update({ priority: validPriority })
         .eq('id', id)
@@ -339,7 +333,7 @@ Respond with ONLY a JSON array in this exact format:
 });
 
 // Get all action items grouped by client
-router.get('/action-items/by-client', authenticateToken, async (req, res) => {
+router.get('/action-items/by-client', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const { priorityFilter, sortBy } = req.query; // Add query params for filtering/sorting
@@ -453,7 +447,7 @@ router.get('/action-items/by-client', authenticateToken, async (req, res) => {
 });
 
 // Get all action items (not grouped) with priority sorting
-router.get('/action-items/all', authenticateToken, async (req, res) => {
+router.get('/action-items/all', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const { priorityFilter, sortBy } = req.query;
@@ -533,7 +527,7 @@ router.get('/action-items/all', authenticateToken, async (req, res) => {
 });
 
 // Get action items for a specific client
-router.get('/clients/:clientId/action-items', authenticateToken, async (req, res) => {
+router.get('/clients/:clientId/action-items', authenticateSupabaseUser, async (req, res) => {
   try {
     const { clientId } = req.params;
     const userId = req.user.id;
@@ -543,7 +537,7 @@ router.get('/clients/:clientId/action-items', authenticateToken, async (req, res
     }
 
     // Fetch action items for the client
-    const { data: actionItems, error } = await getSupabase()
+    const { data: actionItems, error } = await req.supabase
       .from('transcript_action_items')
       .select(`
         *,
@@ -603,7 +597,7 @@ router.get('/clients/:clientId/action-items', authenticateToken, async (req, res
 });
 
 // Get pending action items for a specific meeting (awaiting approval)
-router.get('/meetings/:meetingId/pending', authenticateToken, async (req, res) => {
+router.get('/meetings/:meetingId/pending', authenticateSupabaseUser, async (req, res) => {
   try {
     const { meetingId } = req.params;
     const userId = req.user.id;
@@ -613,7 +607,7 @@ router.get('/meetings/:meetingId/pending', authenticateToken, async (req, res) =
     }
 
     // Fetch pending action items for the meeting
-    const { data: pendingItems, error } = await getSupabase()
+    const { data: pendingItems, error } = await req.supabase
       .from('pending_transcript_action_items')
       .select('*')
       .eq('meeting_id', meetingId)
@@ -633,7 +627,7 @@ router.get('/meetings/:meetingId/pending', authenticateToken, async (req, res) =
 });
 
 // Get ALL pending action items for the advisor (across all meetings)
-router.get('/pending/all', authenticateToken, async (req, res) => {
+router.get('/pending/all', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -644,7 +638,7 @@ router.get('/pending/all', authenticateToken, async (req, res) => {
     console.log(`📋 Fetching all pending action items for advisor ${userId}`);
 
     // Fetch all pending action items with client and meeting info
-    const { data: pendingItems, error } = await getSupabase()
+    const { data: pendingItems, error } = await req.supabase
       .from('pending_transcript_action_items')
       .select(`
         *,
@@ -728,7 +722,7 @@ router.get('/pending/all', authenticateToken, async (req, res) => {
 });
 
 // Approve selected action items (move from pending to approved)
-router.post('/approve', authenticateToken, async (req, res) => {
+router.post('/approve', authenticateSupabaseUser, async (req, res) => {
   try {
     const { pendingItemIds } = req.body;
     const userId = req.user.id;
@@ -744,7 +738,7 @@ router.post('/approve', authenticateToken, async (req, res) => {
     console.log(`📋 Approving ${pendingItemIds.length} action items for user ${userId}`);
 
     // Fetch the pending items to approve
-    const { data: pendingItems, error: fetchError } = await getSupabase()
+    const { data: pendingItems, error: fetchError } = await req.supabase
       .from('pending_transcript_action_items')
       .select('*')
       .in('id', pendingItemIds)
@@ -771,7 +765,7 @@ router.post('/approve', authenticateToken, async (req, res) => {
     }));
 
     // Insert into transcript_action_items table
-    const { data: insertedItems, error: insertError } = await getSupabase()
+    const { data: insertedItems, error: insertError } = await req.supabase
       .from('transcript_action_items')
       .insert(approvedItems)
       .select();
@@ -782,7 +776,7 @@ router.post('/approve', authenticateToken, async (req, res) => {
     }
 
     // Delete from pending table
-    const { error: deleteError } = await getSupabase()
+    const { error: deleteError } = await req.supabase
       .from('pending_transcript_action_items')
       .delete()
       .in('id', pendingItemIds)
@@ -807,7 +801,7 @@ router.post('/approve', authenticateToken, async (req, res) => {
 });
 
 // Update priority of a pending action item
-router.patch('/pending/:pendingItemId/priority', authenticateToken, async (req, res) => {
+router.patch('/pending/:pendingItemId/priority', authenticateSupabaseUser, async (req, res) => {
   try {
     const { pendingItemId } = req.params;
     const { priority } = req.body;
@@ -824,7 +818,7 @@ router.patch('/pending/:pendingItemId/priority', authenticateToken, async (req, 
     console.log(`🎯 Updating priority for pending item ${pendingItemId} to ${priority}`);
 
     // Update priority
-    const { data: updatedItem, error: updateError } = await getSupabase()
+    const { data: updatedItem, error: updateError } = await req.supabase
       .from('pending_transcript_action_items')
       .update({ priority })
       .eq('id', pendingItemId)
@@ -852,7 +846,7 @@ router.patch('/pending/:pendingItemId/priority', authenticateToken, async (req, 
 });
 
 // Update text of a pending action item
-router.patch('/pending/:pendingItemId/text', authenticateToken, async (req, res) => {
+router.patch('/pending/:pendingItemId/text', authenticateSupabaseUser, async (req, res) => {
   try {
     const { pendingItemId } = req.params;
     const { actionText } = req.body;
@@ -869,7 +863,7 @@ router.patch('/pending/:pendingItemId/text', authenticateToken, async (req, res)
     console.log(`✏️  Updating text for pending item ${pendingItemId}`);
 
     // Update action text
-    const { data: updatedItem, error: updateError } = await getSupabase()
+    const { data: updatedItem, error: updateError } = await req.supabase
       .from('pending_transcript_action_items')
       .update({ action_text: actionText.trim() })
       .eq('id', pendingItemId)
@@ -897,7 +891,7 @@ router.patch('/pending/:pendingItemId/text', authenticateToken, async (req, res)
 });
 
 // Create a new pending action item
-router.post('/pending', authenticateToken, async (req, res) => {
+router.post('/pending', authenticateSupabaseUser, async (req, res) => {
   try {
     const { meetingId, clientId, actionText, priority } = req.body;
     const userId = req.user.id;
@@ -924,7 +918,7 @@ router.post('/pending', authenticateToken, async (req, res) => {
     console.log(`➕ Creating new pending action item for meeting ${meetingId}`);
 
     // Get the highest display_order for this meeting to append the new item
-    const { data: existingItems, error: fetchError } = await getSupabase()
+    const { data: existingItems, error: fetchError } = await req.supabase
       .from('pending_transcript_action_items')
       .select('display_order')
       .eq('meeting_id', meetingId)
@@ -941,7 +935,7 @@ router.post('/pending', authenticateToken, async (req, res) => {
       : 1;
 
     // Create the new pending item
-    const { data: newItem, error: insertError } = await getSupabase()
+    const { data: newItem, error: insertError } = await req.supabase
       .from('pending_transcript_action_items')
       .insert({
         meeting_id: meetingId,
@@ -972,7 +966,7 @@ router.post('/pending', authenticateToken, async (req, res) => {
 });
 
 // Reject/delete pending action items
-router.delete('/pending', authenticateToken, async (req, res) => {
+router.delete('/pending', authenticateSupabaseUser, async (req, res) => {
   try {
     const { pendingItemIds } = req.body;
     const userId = req.user.id;
@@ -988,7 +982,7 @@ router.delete('/pending', authenticateToken, async (req, res) => {
     console.log(`🗑️  Rejecting ${pendingItemIds.length} pending action items for user ${userId}`);
 
     // Delete from pending table
-    const { error: deleteError } = await getSupabase()
+    const { error: deleteError } = await req.supabase
       .from('pending_transcript_action_items')
       .delete()
       .in('id', pendingItemIds)

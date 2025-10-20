@@ -3,7 +3,7 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const calendarService = require('../services/calendar');
 // const meetingService = require('../services/meeting'); // Removed because file does not exist
-const { authenticateUser, authenticateToken } = require('../middleware/auth');
+const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 const openai = require('../services/openai');
 const { google } = require('googleapis');
 const { getGoogleAuthClient, refreshAccessToken } = require('../services/calendar');
@@ -35,7 +35,7 @@ router.get('/auth/google', async (req, res) => {
 });
 
 // Handle Google Calendar OAuth callback
-// This route handles the full Google OAuth flow and should NOT require authenticateUser
+// This route handles the full Google OAuth flow and should NOT require authenticateSupabaseUser
 router.get('/auth/google/callback', async (req, res) => {
   const { code, error } = req.query;
   if (error) {
@@ -99,7 +99,7 @@ router.get('/auth/google/callback', async (req, res) => {
 });
 
 // Create a new meeting with calendar event
-router.post('/meetings', authenticateUser, async (req, res) => {
+router.post('/meetings', authenticateSupabaseUser, async (req, res) => {
   try {
     const { title, description, date, time, duration } = req.body;
     
@@ -133,7 +133,7 @@ router.post('/meetings', authenticateUser, async (req, res) => {
 });
 
 // Sync calendar meetings to database
-router.post('/sync', authenticateToken, async (req, res) => {
+router.post('/sync', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     console.log(`🔄 Starting calendar sync for user ${userId}`);
@@ -155,7 +155,7 @@ router.post('/sync', authenticateToken, async (req, res) => {
 });
 
 // Get all meetings for a user
-router.get('/meetings', authenticateToken, async (req, res) => {
+router.get('/meetings', authenticateSupabaseUser, async (req, res) => {
     try {
         const userId = req.user.id;
         const meetings = await calendarService.listMeetings(userId);
@@ -167,7 +167,7 @@ router.get('/meetings', authenticateToken, async (req, res) => {
 });
 
 // List upcoming meetings
-router.get('/meetings/all', authenticateUser, async (req, res) => {
+router.get('/meetings/all', authenticateSupabaseUser, async (req, res) => {
   try {
     const meetings = await calendarService.listMeetingsWithRecentPast(req.user.id);
     res.json(meetings);
@@ -178,7 +178,7 @@ router.get('/meetings/all', authenticateUser, async (req, res) => {
 });
 
 // Start meeting recording
-router.post('/meetings/:id/record/start', authenticateUser, async (req, res) => {
+router.post('/meetings/:id/record/start', authenticateSupabaseUser, async (req, res) => {
   try {
     const { id } = req.params;
     const recording = await meetingService.startRecording(id);
@@ -190,7 +190,7 @@ router.post('/meetings/:id/record/start', authenticateUser, async (req, res) => 
 });
 
 // Stop meeting recording
-router.post('/meetings/:id/record/stop', authenticateUser, async (req, res) => {
+router.post('/meetings/:id/record/stop', authenticateSupabaseUser, async (req, res) => {
   try {
     const { id } = req.params;
     const { recordingUrl } = req.body;
@@ -209,7 +209,7 @@ router.post('/meetings/:id/record/stop', authenticateUser, async (req, res) => {
 });
 
 // Get meeting details including transcript and recording if available
-router.get('/meetings/:eventId', authenticateToken, async (req, res) => {
+router.get('/meetings/:eventId', authenticateSupabaseUser, async (req, res) => {
     try {
         const { eventId } = req.params;
         const userId = req.user.id;
@@ -254,7 +254,7 @@ router.get('/meetings/:eventId', authenticateToken, async (req, res) => {
 });
 
 // Add manual notes to a meeting
-router.post('/meetings/:eventId/notes', authenticateToken, async (req, res) => {
+router.post('/meetings/:eventId/notes', authenticateSupabaseUser, async (req, res) => {
     try {
         const { eventId } = req.params;
         const { notes } = req.body;
@@ -281,7 +281,7 @@ router.post('/meetings/:eventId/notes', authenticateToken, async (req, res) => {
 });
 
 // Upload meeting image/document
-router.post('/meetings/:eventId/attachments', authenticateToken, async (req, res) => {
+router.post('/meetings/:eventId/attachments', authenticateSupabaseUser, async (req, res) => {
     try {
         const { eventId } = req.params;
         const { imageText } = req.body; // Assuming we're receiving OCR'd text from the frontend
@@ -312,7 +312,7 @@ router.post('/meetings/:eventId/attachments', authenticateToken, async (req, res
 });
 
 // Generate email summary for a meeting (AI or template)
-router.post('/meetings/:id/generate-summary', authenticateToken, async (req, res) => {
+router.post('/meetings/:id/generate-summary', authenticateSupabaseUser, async (req, res) => {
   try {
     const { id } = req.params;
     const { transcript, prompt } = req.body;
@@ -350,7 +350,7 @@ router.post('/generate-summary', async (req, res) => {
 });
 
 // Auto-generate summaries for a meeting
-router.post('/meetings/:id/auto-generate-summaries', authenticateToken, async (req, res) => {
+router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, async (req, res) => {
   try {
     const meetingId = req.params.id;
     const userId = req.user.id;
@@ -364,7 +364,7 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateToken, async (r
     }
 
     // Get meeting from database with client information
-    const { data: meeting, error: fetchError } = await getSupabase()
+    const { data: meeting, error: fetchError } = await req.supabase
       .from('meetings')
       .select(`
         *,
@@ -580,7 +580,7 @@ Return only the JSON array:`;
     }
 
     // Save summaries to database
-    const { error: updateError } = await getSupabase()
+    const { error: updateError } = await req.supabase
       .from('meetings')
       .update({
         quick_summary: quickSummary,
@@ -601,7 +601,7 @@ Return only the JSON array:`;
     // Save individual action items to PENDING table (awaiting approval)
     if (actionPointsArray.length > 0) {
       // First, delete existing pending action items for this meeting
-      await getSupabase()
+      await req.supabase
         .from('pending_transcript_action_items')
         .delete()
         .eq('meeting_id', meeting.id);
@@ -615,7 +615,7 @@ Return only the JSON array:`;
         display_order: index
       }));
 
-      const { error: actionItemsError } = await getSupabase()
+      const { error: actionItemsError } = await req.supabase
         .from('pending_transcript_action_items')
         .insert(actionItemsToInsert);
 
@@ -644,7 +644,7 @@ Return only the JSON array:`;
 });
 
 // Delete a meeting and its associated data
-router.delete('/meetings/:eventId', authenticateToken, async (req, res) => {
+router.delete('/meetings/:eventId', authenticateSupabaseUser, async (req, res) => {
   try {
     const { eventId } = req.params;
     const userId = req.user.id;
@@ -683,7 +683,7 @@ router.delete('/meetings/:eventId', authenticateToken, async (req, res) => {
 });
 
 // Delete all meetings for a user (cleanup endpoint)
-router.delete('/meetings', authenticateToken, async (req, res) => {
+router.delete('/meetings', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const { olderThan } = req.query; // Optional: delete meetings older than X days
@@ -729,14 +729,14 @@ router.delete('/meetings', authenticateToken, async (req, res) => {
 });
 
 // Update meeting summary with new template
-router.post('/meetings/:id/update-summary', authenticateToken, async (req, res) => {
+router.post('/meetings/:id/update-summary', authenticateSupabaseUser, async (req, res) => {
   try {
     const meetingId = req.params.id;
     const userId = req.user.id;
     const { emailSummary, templateId } = req.body;
 
     // Verify meeting belongs to user
-    const { data: meeting, error: fetchError } = await getSupabase()
+    const { data: meeting, error: fetchError } = await req.supabase
       .from('meetings')
       .select('*')
       .eq('id', meetingId)
@@ -748,7 +748,7 @@ router.post('/meetings/:id/update-summary', authenticateToken, async (req, res) 
     }
 
     // Update the meeting with new summary
-    const { error: updateError } = await getSupabase()
+    const { error: updateError } = await req.supabase
       .from('meetings')
       .update({
         email_summary_draft: emailSummary,
@@ -776,7 +776,7 @@ router.post('/meetings/:id/update-summary', authenticateToken, async (req, res) 
 // ============================================================================
 
 // Create a manual meeting
-router.post('/meetings/manual', authenticateToken, async (req, res) => {
+router.post('/meetings/manual', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const {
@@ -820,7 +820,7 @@ router.post('/meetings/manual', authenticateToken, async (req, res) => {
     };
 
     // Insert meeting into database
-    const { data: meeting, error: insertError } = await getSupabase()
+    const { data: meeting, error: insertError } = await req.supabase
       .from('meetings')
       .insert(meetingData)
       .select()
@@ -848,7 +848,7 @@ router.post('/meetings/manual', authenticateToken, async (req, res) => {
 });
 
 // Update a manual meeting
-router.put('/meetings/manual/:meetingId', authenticateToken, async (req, res) => {
+router.put('/meetings/manual/:meetingId', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const { meetingId } = req.params;
@@ -864,7 +864,7 @@ router.put('/meetings/manual/:meetingId', authenticateToken, async (req, res) =>
     } = req.body;
 
     // Verify meeting exists and is manual
-    const { data: existingMeeting, error: fetchError } = await getSupabase()
+    const { data: existingMeeting, error: fetchError } = await req.supabase
       .from('meetings')
       .select('*')
       .eq('googleeventid', meetingId)
@@ -891,7 +891,7 @@ router.put('/meetings/manual/:meetingId', authenticateToken, async (req, res) =>
     };
 
     // Update meeting
-    const { data: updatedMeeting, error: updateError } = await getSupabase()
+    const { data: updatedMeeting, error: updateError } = await req.supabase
       .from('meetings')
       .update(updateData)
       .eq('googleeventid', meetingId)
@@ -921,13 +921,13 @@ router.put('/meetings/manual/:meetingId', authenticateToken, async (req, res) =>
 });
 
 // Delete a manual meeting
-router.delete('/meetings/manual/:meetingId', authenticateToken, async (req, res) => {
+router.delete('/meetings/manual/:meetingId', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const { meetingId } = req.params;
 
     // Verify meeting exists and is manual
-    const { data: existingMeeting, error: fetchError } = await getSupabase()
+    const { data: existingMeeting, error: fetchError } = await req.supabase
       .from('meetings')
       .select('id')
       .eq('googleeventid', meetingId)
@@ -940,7 +940,7 @@ router.delete('/meetings/manual/:meetingId', authenticateToken, async (req, res)
     }
 
     // Delete meeting (this will cascade delete documents due to foreign key)
-    const { error: deleteError } = await getSupabase()
+    const { error: deleteError } = await req.supabase
       .from('meetings')
       .delete()
       .eq('googleeventid', meetingId)
@@ -960,7 +960,7 @@ router.delete('/meetings/manual/:meetingId', authenticateToken, async (req, res)
 });
 
 // Update meeting transcript (for both manual and Google meetings)
-router.post('/meetings/:meetingId/transcript', authenticateToken, async (req, res) => {
+router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const { meetingId } = req.params;
@@ -971,7 +971,7 @@ router.post('/meetings/:meetingId/transcript', authenticateToken, async (req, re
     }
 
     // Verify meeting exists and user has access
-    const { data: existingMeeting, error: fetchError } = await getSupabase()
+    const { data: existingMeeting, error: fetchError } = await req.supabase
       .from('meetings')
       .select('*')
       .eq('googleeventid', meetingId)
@@ -983,7 +983,7 @@ router.post('/meetings/:meetingId/transcript', authenticateToken, async (req, re
     }
 
     // Update transcript
-    const { data: updatedMeeting, error: updateError } = await getSupabase()
+    const { data: updatedMeeting, error: updateError } = await req.supabase
       .from('meetings')
       .update({
         transcript: transcript,
@@ -1020,7 +1020,7 @@ router.post('/meetings/:meetingId/transcript', authenticateToken, async (req, re
 // ============================================================================
 
 // Toggle annual review flag for a meeting
-router.patch('/meetings/:meetingId/annual-review', authenticateToken, async (req, res) => {
+router.patch('/meetings/:meetingId/annual-review', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const { meetingId } = req.params;
@@ -1031,7 +1031,7 @@ router.patch('/meetings/:meetingId/annual-review', authenticateToken, async (req
     }
 
     // Verify meeting exists and user has access
-    const { data: existingMeeting, error: fetchError } = await getSupabase()
+    const { data: existingMeeting, error: fetchError } = await req.supabase
       .from('meetings')
       .select('*')
       .eq('id', meetingId)
@@ -1043,7 +1043,7 @@ router.patch('/meetings/:meetingId/annual-review', authenticateToken, async (req
     }
 
     // Update the annual review flag
-    const { data: updatedMeeting, error: updateError } = await getSupabase()
+    const { data: updatedMeeting, error: updateError } = await req.supabase
       .from('meetings')
       .update({ is_annual_review: isAnnualReview })
       .eq('id', meetingId)
@@ -1068,12 +1068,12 @@ router.patch('/meetings/:meetingId/annual-review', authenticateToken, async (req
 });
 
 // Get annual review dashboard for current user
-router.get('/annual-reviews/dashboard', authenticateToken, async (req, res) => {
+router.get('/annual-reviews/dashboard', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
 
     // Get annual review dashboard data
-    const { data: reviews, error } = await getSupabase()
+    const { data: reviews, error } = await req.supabase
       .from('annual_review_dashboard')
       .select('*')
       .eq('advisor_id', userId)
@@ -1093,12 +1093,12 @@ router.get('/annual-reviews/dashboard', authenticateToken, async (req, res) => {
 });
 
 // Get all starred/review meetings for current user
-router.get('/meetings/starred', authenticateToken, async (req, res) => {
+router.get('/meetings/starred', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
 
     // Get all meetings marked as annual review (starred)
-    const { data: meetings, error } = await getSupabase()
+    const { data: meetings, error } = await req.supabase
       .from('meetings')
       .select(`
         id,
@@ -1151,14 +1151,14 @@ router.get('/meetings/starred', authenticateToken, async (req, res) => {
 });
 
 // Get annual review status for a specific client
-router.get('/clients/:clientId/annual-review', authenticateToken, async (req, res) => {
+router.get('/clients/:clientId/annual-review', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const { clientId } = req.params;
     const currentYear = new Date().getFullYear();
 
     // Get annual review record for current year
-    const { data: review, error } = await getSupabase()
+    const { data: review, error } = await req.supabase
       .from('client_annual_reviews')
       .select('*')
       .eq('client_id', clientId)
@@ -1179,7 +1179,7 @@ router.get('/clients/:clientId/annual-review', authenticateToken, async (req, re
 });
 
 // Update annual review status for a client
-router.put('/clients/:clientId/annual-review', authenticateToken, async (req, res) => {
+router.put('/clients/:clientId/annual-review', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const { clientId } = req.params;
@@ -1187,7 +1187,7 @@ router.put('/clients/:clientId/annual-review', authenticateToken, async (req, re
     const currentYear = reviewYear || new Date().getFullYear();
 
     // Verify client exists and belongs to user
-    const { data: client, error: clientError } = await getSupabase()
+    const { data: client, error: clientError } = await req.supabase
       .from('clients')
       .select('id')
       .eq('id', clientId)
@@ -1199,7 +1199,7 @@ router.put('/clients/:clientId/annual-review', authenticateToken, async (req, re
     }
 
     // Upsert annual review record
-    const { data: review, error: upsertError } = await getSupabase()
+    const { data: review, error: upsertError } = await req.supabase
       .from('client_annual_reviews')
       .upsert({
         client_id: clientId,
@@ -1238,7 +1238,7 @@ router.put('/clients/:clientId/annual-review', authenticateToken, async (req, re
 
 // Upload files to a meeting
 // UPDATED: Now uses unified client_documents system
-router.post('/meetings/:meetingId/documents', authenticateToken, clientDocumentsService.upload.array('files', 10), async (req, res) => {
+router.post('/meetings/:meetingId/documents', authenticateSupabaseUser, clientDocumentsService.upload.array('files', 10), async (req, res) => {
   try {
     const { meetingId } = req.params;
     const userId = req.user.id;
@@ -1251,7 +1251,7 @@ router.post('/meetings/:meetingId/documents', authenticateToken, clientDocuments
     }
 
     // Verify meeting exists and user has access
-    const { data: meeting, error: meetingError } = await getSupabase()
+    const { data: meeting, error: meetingError } = await req.supabase
       .from('meetings')
       .select('id, title, client_id')
       .eq('id', meetingId)
@@ -1325,7 +1325,7 @@ router.post('/meetings/:meetingId/documents', authenticateToken, clientDocuments
 
 // Get files for a meeting
 // UPDATED: Now uses unified client_documents system
-router.get('/meetings/:meetingId/documents', authenticateToken, async (req, res) => {
+router.get('/meetings/:meetingId/documents', authenticateSupabaseUser, async (req, res) => {
   try {
     const { meetingId } = req.params;
     const userId = req.user.id;
@@ -1333,7 +1333,7 @@ router.get('/meetings/:meetingId/documents', authenticateToken, async (req, res)
     console.log(`📄 Fetching documents for meeting ${meetingId}`);
 
     // Verify meeting access
-    const { data: meeting, error: meetingError } = await getSupabase()
+    const { data: meeting, error: meetingError } = await req.supabase
       .from('meetings')
       .select('id')
       .eq('id', meetingId)
@@ -1362,7 +1362,7 @@ router.get('/meetings/:meetingId/documents', authenticateToken, async (req, res)
 
 // Delete a file
 // UPDATED: Now uses unified client_documents system
-router.delete('/meetings/:meetingId/documents/:fileId', authenticateToken, async (req, res) => {
+router.delete('/meetings/:meetingId/documents/:fileId', authenticateSupabaseUser, async (req, res) => {
   try {
     const { meetingId, fileId } = req.params;
     const userId = req.user.id;
@@ -1370,7 +1370,7 @@ router.delete('/meetings/:meetingId/documents/:fileId', authenticateToken, async
     console.log(`🗑️  Deleting document ${fileId} from meeting ${meetingId}`);
 
     // Verify meeting access
-    const { data: meeting, error: meetingError } = await getSupabase()
+    const { data: meeting, error: meetingError } = await req.supabase
       .from('meetings')
       .select('id')
       .eq('id', meetingId)
@@ -1402,7 +1402,7 @@ router.delete('/meetings/:meetingId/documents/:fileId', authenticateToken, async
  * Setup Google Calendar webhook for a user
  * This registers a push notification channel with Google
  */
-router.post('/webhook/setup', authenticateUser, async (req, res) => {
+router.post('/webhook/setup', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const webhookService = new GoogleCalendarWebhookService();
@@ -1430,7 +1430,7 @@ router.post('/webhook/setup', authenticateUser, async (req, res) => {
 /**
  * Stop Google Calendar webhook for a user
  */
-router.post('/webhook/stop', authenticateUser, async (req, res) => {
+router.post('/webhook/stop', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const webhookService = new GoogleCalendarWebhookService();
@@ -1470,7 +1470,7 @@ router.post('/webhook', express.json(), async (req, res) => {
     }
 
     // Look up the user for this channel
-    const { data: channel } = await getSupabase()
+    const { data: channel } = await req.supabase
       .from('calendar_watch_channels')
       .select('user_id')
       .eq('channel_id', channelId)
