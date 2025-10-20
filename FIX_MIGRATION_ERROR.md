@@ -1,24 +1,32 @@
-# 🔧 Fix for Migration Error
+# 🔧 Fix for Migration Errors
 
-## ❌ The Error You Got
+## ❌ The Errors You Got
 
+### Error 1:
 ```
 ERROR: 42703: column "provider" does not exist
 ```
+This happened because your `users` table doesn't have the `provider` and `providerid` columns.
 
-This happened because your actual `users` table doesn't have the `provider` and `providerid` columns that the migration script expected.
+### Error 2:
+```
+ERROR: 42P01: relation "pending_action_items" does not exist
+```
+This happened because the `pending_action_items` table doesn't exist in your database.
 
 ---
 
 ## ✅ The Fix
 
-I've created a **FIXED** migration script that handles this gracefully:
+I've created a **FINAL** migration script that handles both issues:
 
-**File:** `backend/migrations/PHASE1_MULTI_TENANT_MIGRATION_FIXED.sql`
+**File:** `backend/migrations/PHASE1_MULTI_TENANT_MIGRATION_FINAL.sql`
 
 This new script:
 - ✅ Checks if `provider` and `providerid` columns exist
 - ✅ Uses default values if they don't exist
+- ✅ Checks if each table exists before updating it
+- ✅ Only updates tables that actually exist in your database
 - ✅ Handles all edge cases gracefully
 - ✅ Provides detailed logging
 
@@ -31,8 +39,8 @@ This new script:
 2. Select your project
 3. Click "SQL Editor" in left sidebar
 
-### Step 2: Run the FIXED Migration Part 1
-1. Open file: `backend/migrations/PHASE1_MULTI_TENANT_MIGRATION_FIXED.sql`
+### Step 2: Run the FINAL Migration Part 1
+1. Open file: `backend/migrations/PHASE1_MULTI_TENANT_MIGRATION_FINAL.sql`
 2. Copy **entire contents**
 3. Paste into Supabase SQL Editor
 4. Click "Run"
