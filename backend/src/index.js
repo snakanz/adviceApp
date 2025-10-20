@@ -1321,15 +1321,46 @@ app.get('/api/users/profile', async (req, res) => {
         console.log(`✅ Token verified for Supabase user: ${supabaseUser.email}`);
 
         // Fetch user from our users table
-        const { data: user, error } = await getSupabase()
+        let { data: user, error } = await getSupabase()
             .from('users')
             .select('id, email, name, profilepicture, onboarding_completed')
             .eq('email', supabaseUser.email)
             .single();
 
-        if (error || !user) {
-            console.error('Error fetching user profile:', error);
-            return res.status(404).json({ error: 'User not found' });
+        // If user doesn't exist, create them automatically (first-time sign-in)
+        if (error && error.code === 'PGRST116') {  // PGRST116 = no rows returned
+            console.log(`📝 First-time sign-in detected. Creating new user: ${supabaseUser.email}`);
+
+            const { data: newUser, error: createError } = await getSupabase()
+                .from('users')
+                .insert({
+                    id: supabaseUser.id,  // Use Supabase Auth UUID
+                    email: supabaseUser.email,
+                    name: supabaseUser.user_metadata?.full_name || supabaseUser.email.split('@')[0],
+                    provider: 'google',
+                    providerid: supabaseUser.id,
+                    onboarding_completed: false  // New users need to complete onboarding
+                })
+                .select('id, email, name, profilepicture, onboarding_completed')
+                .single();
+
+            if (createError) {
+                console.error('❌ Error creating new user:', createError);
+                return res.status(500).json({
+                    error: 'Failed to create user account',
+                    details: createError.message
+                });
+            }
+
+            user = newUser;
+            console.log(`✅ New user created successfully: ${user.email} (${user.id})`);
+        } else if (error) {
+            // Some other database error (not "no rows found")
+            console.error('❌ Database error fetching user profile:', error);
+            return res.status(500).json({
+                error: 'Database error',
+                details: error.message
+            });
         }
 
         res.json({

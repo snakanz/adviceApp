@@ -3,6 +3,7 @@ const router = express.Router();
 const { google } = require('googleapis');
 const jwt = require('jsonwebtoken');
 const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
+const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -26,6 +27,62 @@ router.get('/google', (req, res) => {
   });
 
     res.json({ url });
+});
+
+// Check Google Calendar connection status
+router.get('/google/status', authenticateSupabaseUser, async (req, res) => {
+  try {
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable'
+      });
+    }
+
+    const userId = req.user.id;
+
+    // Check if user has Google Calendar tokens
+    const { data: calendarToken, error } = await getSupabase()
+      .from('calendartoken')
+      .select('accesstoken, refreshtoken, expiresat, provider')
+      .eq('userid', userId)
+      .eq('provider', 'google')
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error checking Google Calendar status:', error);
+      return res.status(500).json({
+        connected: false,
+        error: 'Failed to check status'
+      });
+    }
+
+    if (!calendarToken) {
+      return res.json({
+        connected: false,
+        message: 'Google Calendar not connected'
+      });
+    }
+
+    // Check if token is expired
+    const expiresAt = new Date(calendarToken.expiresat);
+    const now = new Date();
+    const isExpired = expiresAt <= now;
+
+    return res.json({
+      connected: !isExpired,
+      user: req.user.email,
+      expiresAt: calendarToken.expiresat,
+      expired: isExpired,
+      message: isExpired ? 'Google Calendar token expired' : 'Google Calendar connected'
+    });
+
+  } catch (error) {
+    console.error('Error in /auth/google/status:', error);
+    return res.status(500).json({
+      connected: false,
+      error: 'Failed to check Google Calendar status'
+    });
+  }
 });
 
 // Handle Google OAuth callback
