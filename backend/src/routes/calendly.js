@@ -430,17 +430,9 @@ async function handleInviteeCreated(payload) {
     const eventData = await calendlyService.makeRequest(`/scheduled_events/${eventUuid}`);
     const event = eventData.resource;
 
-    const { data: users } = await getSupabase()
-      .from('users')
-      .select('id')
-      .limit(1);
-
-    if (!users || users.length === 0) {
-      console.error('❌ No users found in database');
-      return;
-    }
-
-    const userId = users[0].id;
+    // For single-user system, always assign to user ID 1
+    // TODO: For multi-user support, determine user based on Calendly account mapping
+    const userId = 1;
     const meetingData = await calendlyService.transformEventToMeeting(event, userId);
 
     // Mark as synced via webhook
