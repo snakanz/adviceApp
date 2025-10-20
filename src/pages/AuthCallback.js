@@ -49,7 +49,7 @@ const AuthCallback = () => {
           });
 
           if (response.ok) {
-            const profile = await response.json();
+            await response.json(); // Profile loaded successfully
 
             setStatus('success');
             setMessage('Sign in successful! Redirecting...');
