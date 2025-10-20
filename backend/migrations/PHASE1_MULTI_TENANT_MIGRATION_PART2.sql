@@ -230,30 +230,14 @@ CREATE POLICY "Calendar watch channels for own user" ON calendar_watch_channels
     FOR ALL
     USING (user_id = auth.uid());
 
--- Conditional RLS policies for optional tables
+-- Conditional RLS policies for optional tables (only if they exist and don't already have policies)
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'client_business_types') THEN
+    -- Client business types (if exists and has advisor_id column)
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'client_business_types')
+       AND EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'client_business_types' AND column_name = 'advisor_id') THEN
         EXECUTE 'ALTER TABLE client_business_types ENABLE ROW LEVEL SECURITY';
-        EXECUTE 'CREATE POLICY "Client business types for own advisor" ON client_business_types 
-            FOR ALL USING (advisor_id = auth.uid())';
-    END IF;
-    
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'pipeline_activities') THEN
-        EXECUTE 'ALTER TABLE pipeline_activities ENABLE ROW LEVEL SECURITY';
-        EXECUTE 'CREATE POLICY "Pipeline activities for own advisor" ON pipeline_activities 
-            FOR ALL USING (advisor_id = auth.uid())';
-    END IF;
-    
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'client_todos') THEN
-        EXECUTE 'ALTER TABLE client_todos ENABLE ROW LEVEL SECURITY';
-        EXECUTE 'CREATE POLICY "Client todos for own advisor" ON client_todos 
-            FOR ALL USING (advisor_id = auth.uid())';
-    END IF;
-    
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'pipeline_templates') THEN
-        EXECUTE 'ALTER TABLE pipeline_templates ENABLE ROW LEVEL SECURITY';
-        EXECUTE 'CREATE POLICY "Pipeline templates for own advisor" ON pipeline_templates 
+        EXECUTE 'CREATE POLICY "Client business types for own advisor" ON client_business_types
             FOR ALL USING (advisor_id = auth.uid())';
     END IF;
 END $$;
