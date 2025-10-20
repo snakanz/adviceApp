@@ -9,7 +9,10 @@ const supabase = createClient(
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: true,
-      flowType: 'pkce'
+      flowType: 'pkce', // PKCE flow is required for Google OAuth
+      storage: window.localStorage,
+      storageKey: 'supabase.auth.token',
+      debug: true // Enable debug logging
     }
   }
 );

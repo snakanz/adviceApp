@@ -19,6 +19,8 @@ export const AuthProvider = ({ children }) => {
   // Initialize auth state and listen for changes
   useEffect(() => {
     console.log('🔄 Initializing Supabase Auth...');
+    console.log('🔍 Current URL:', window.location.href);
+    console.log('🔍 URL Hash:', window.location.hash);
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session }, error }) => {
@@ -27,6 +29,10 @@ export const AuthProvider = ({ children }) => {
       }
 
       console.log('📋 Initial session:', session ? 'Found' : 'None');
+      if (session) {
+        console.log('✅ Session user:', session.user.email);
+        console.log('✅ Session expires at:', new Date(session.expires_at * 1000).toLocaleString());
+      }
       setSession(session);
       setUser(session?.user ?? null);
       setIsAuthenticated(!!session);
@@ -39,6 +45,7 @@ export const AuthProvider = ({ children }) => {
         console.log('🔔 Auth state changed:', event);
         console.log('📋 Session:', session ? 'Present' : 'None');
         console.log('📋 User:', session?.user?.email || 'None');
+        console.log('📋 Stack trace:', new Error().stack);
 
         setSession(session);
         setUser(session?.user ?? null);
@@ -52,6 +59,7 @@ export const AuthProvider = ({ children }) => {
           case 'SIGNED_OUT':
             console.log('👋 User signed out');
             console.log('⚠️ Sign out reason: Check if this is intentional');
+            console.log('⚠️ Stack trace for SIGNED_OUT:', new Error().stack);
             break;
           case 'TOKEN_REFRESHED':
             console.log('🔄 Token refreshed');
@@ -127,6 +135,11 @@ export const AuthProvider = ({ children }) => {
         provider,
         options: {
           redirectTo: `${window.location.origin}/auth/callback`,
+          skipBrowserRedirect: false,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          },
           ...options
         }
       });

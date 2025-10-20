@@ -41,9 +41,21 @@ class ApiService {
 
             if (!response.ok) {
                 if (response.status === 401) {
-                    // Sign out and redirect to login
-                    await supabase.auth.signOut();
-                    window.location.href = '/login';
+                    console.warn('⚠️ 401 Unauthorized response from:', endpoint);
+
+                    // Check if we have a valid session before signing out
+                    const { data: { session } } = await supabase.auth.getSession();
+
+                    if (!session) {
+                        // No session - redirect to login
+                        console.log('❌ No session found, redirecting to login');
+                        window.location.href = '/login';
+                    } else {
+                        // We have a session but got 401 - this might be a backend issue
+                        // Don't sign out automatically, just log the error
+                        console.error('❌ 401 error despite having valid session. Backend may not recognize token yet.');
+                    }
+
                     throw new Error('Unauthorized');
                 }
                 throw new Error(`HTTP error! status: ${response.status}`);

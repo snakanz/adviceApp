@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { Card, CardContent } from '../components/ui/card';
 import {
   Loader2,
@@ -11,68 +11,74 @@ import {
 
 const AuthCallback = () => {
   const navigate = useNavigate();
-  const { getSession } = useAuth();
   const [status, setStatus] = useState('processing');
   const [message, setMessage] = useState('Verifying your credentials...');
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
+        console.log('🔄 AuthCallback: Starting OAuth callback processing...');
         setStatus('processing');
         setMessage('Verifying your credentials...');
 
-        // Supabase Auth automatically handles the OAuth callback
-        // We just need to check if we have a session
-        const session = await getSession();
+        // Supabase automatically processes the hash fragment from the URL
+        // We just need to wait for it to complete
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
+        // Get the session directly from Supabase
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error('❌ Error getting session:', error);
+          throw error;
+        }
 
         if (!session) {
+          console.error('❌ No session found after OAuth callback');
           setStatus('error');
-          setMessage('No session found. Please try logging in again.');
+          setMessage('Authentication failed. Please try again.');
           setTimeout(() => navigate('/login'), 3000);
           return;
         }
 
-        // Check if user has completed onboarding
-        setMessage('Loading your profile...');
-        const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
-        const token = session.access_token;
+        console.log('✅ Session established:', session.user.email);
 
         // Store the JWT token in localStorage for API calls
-        localStorage.setItem('jwt', token);
+        localStorage.setItem('jwt', session.access_token);
         console.log('✅ JWT token stored in localStorage');
+
+        // Check if user profile exists
+        setMessage('Loading your profile...');
+        const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
         try {
           const response = await fetch(`${apiBaseUrl}/api/users/profile`, {
             headers: {
-              'Authorization': `Bearer ${token}`
+              'Authorization': `Bearer ${session.access_token}`
             }
           });
 
           if (response.ok) {
-            await response.json(); // Profile loaded successfully
-
-            setStatus('success');
-            setMessage('Sign in successful! Redirecting...');
-
-            // Always redirect to meetings (onboarding page doesn't exist yet)
-            setTimeout(() => navigate('/meetings'), 1000);
+            console.log('✅ Profile loaded successfully');
           } else {
-            // Profile endpoint error - redirect to meetings anyway
-            console.warn('Profile endpoint error, redirecting to meetings');
-            setStatus('success');
-            setMessage('Sign in successful! Redirecting...');
-            setTimeout(() => navigate('/meetings'), 1000);
+            console.warn('⚠️ Profile endpoint returned:', response.status);
           }
         } catch (profileError) {
-          console.error('Error fetching profile:', profileError);
-          // Fallback: redirect to meetings
-          setStatus('success');
-          setMessage('Sign in successful! Redirecting...');
-          setTimeout(() => navigate('/meetings'), 1000);
+          console.warn('⚠️ Error fetching profile:', profileError);
         }
 
+        // Success - redirect to meetings
+        setStatus('success');
+        setMessage('Sign in successful! Redirecting...');
+
+        // Redirect after a short delay
+        setTimeout(() => {
+          console.log('🔄 Redirecting to /meetings...');
+          navigate('/meetings', { replace: true });
+        }, 1000);
+
       } catch (err) {
-        console.error('Auth callback error:', err);
+        console.error('❌ Auth callback error:', err);
         setStatus('error');
         setMessage(err.message || 'Authentication failed');
         setTimeout(() => navigate('/login'), 3000);
@@ -80,7 +86,7 @@ const AuthCallback = () => {
     };
 
     handleCallback();
-  }, [navigate, getSession]);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
