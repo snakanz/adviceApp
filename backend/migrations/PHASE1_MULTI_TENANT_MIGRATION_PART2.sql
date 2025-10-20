@@ -86,21 +86,17 @@ INSERT INTO calendar_integrations (
     refresh_token,
     token_expires_at,
     is_primary,
-    is_active,
-    created_at,
-    updated_at
+    is_active
 )
-SELECT 
+SELECT
     userid as advisor_id,
-    provider,
+    COALESCE(provider, 'google') as provider,
     (SELECT email FROM users WHERE id = userid) as provider_account_email,
     accesstoken as access_token,
     refreshtoken as refresh_token,
     expiresat as token_expires_at,
     TRUE as is_primary, -- Existing tokens are primary
-    TRUE as is_active,
-    created_at,
-    updatedat as updated_at
+    TRUE as is_active
 FROM calendartoken
 WHERE userid IS NOT NULL
 ON CONFLICT (advisor_id, provider, provider_account_email) DO NOTHING;
@@ -136,16 +132,23 @@ SELECT 'Meetings linked to calendar integrations' as status;
 -- STEP 11: CREATE UPDATED RLS POLICIES
 -- ============================================================================
 
--- Enable RLS on all tables
+-- Enable RLS on all tables that have advisor_id or userid
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE calendartoken ENABLE ROW LEVEL SECURITY;
 ALTER TABLE meetings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE calendar_integrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ask_threads ENABLE ROW LEVEL SECURITY;
-ALTER TABLE ask_messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE client_documents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE transcript_action_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pending_transcript_action_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE client_todos ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pipeline_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pipeline_activities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE client_annual_reviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_document_analysis_queue ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_usage_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE calendar_watch_channels ENABLE ROW LEVEL SECURITY;
 
 -- Users table policies
 CREATE POLICY "Users can view own data" ON users 
@@ -173,28 +176,59 @@ CREATE POLICY "Calendar integrations for own advisor" ON calendar_integrations
     USING (advisor_id = auth.uid());
 
 -- Ask threads table policies
-CREATE POLICY "Ask threads for own advisor" ON ask_threads 
-    FOR ALL 
+CREATE POLICY "Ask threads for own advisor" ON ask_threads
+    FOR ALL
     USING (advisor_id = auth.uid());
 
--- Ask messages table policies
-CREATE POLICY "Ask messages for own advisor" ON ask_messages 
-    FOR ALL 
-    USING (
-        thread_id IN (
-            SELECT id FROM ask_threads WHERE advisor_id = auth.uid()
-        )
-    );
-
 -- Client documents table policies
-CREATE POLICY "Client documents for own advisor" ON client_documents 
-    FOR ALL 
+CREATE POLICY "Client documents for own advisor" ON client_documents
+    FOR ALL
     USING (advisor_id = auth.uid());
 
 -- Transcript action items table policies
-CREATE POLICY "Transcript action items for own advisor" ON transcript_action_items 
-    FOR ALL 
+CREATE POLICY "Transcript action items for own advisor" ON transcript_action_items
+    FOR ALL
     USING (advisor_id = auth.uid());
+
+-- Pending transcript action items table policies
+CREATE POLICY "Pending transcript action items for own advisor" ON pending_transcript_action_items
+    FOR ALL
+    USING (advisor_id = auth.uid());
+
+-- Client todos table policies
+CREATE POLICY "Client todos for own advisor" ON client_todos
+    FOR ALL
+    USING (advisor_id = auth.uid());
+
+-- Pipeline templates table policies
+CREATE POLICY "Pipeline templates for own advisor" ON pipeline_templates
+    FOR ALL
+    USING (advisor_id = auth.uid());
+
+-- Pipeline activities table policies
+CREATE POLICY "Pipeline activities for own advisor" ON pipeline_activities
+    FOR ALL
+    USING (advisor_id = auth.uid());
+
+-- Client annual reviews table policies
+CREATE POLICY "Client annual reviews for own advisor" ON client_annual_reviews
+    FOR ALL
+    USING (advisor_id = auth.uid());
+
+-- AI document analysis queue table policies
+CREATE POLICY "AI document analysis queue for own advisor" ON ai_document_analysis_queue
+    FOR ALL
+    USING (advisor_id = auth.uid());
+
+-- AI usage logs table policies
+CREATE POLICY "AI usage logs for own advisor" ON ai_usage_logs
+    FOR ALL
+    USING (advisor_id = auth.uid());
+
+-- Calendar watch channels table policies
+CREATE POLICY "Calendar watch channels for own user" ON calendar_watch_channels
+    FOR ALL
+    USING (user_id = auth.uid());
 
 -- Conditional RLS policies for optional tables
 DO $$
