@@ -54,17 +54,11 @@ const AuthCallback = () => {
             setStatus('success');
             setMessage('Sign in successful! Redirecting...');
 
-            if (profile.onboarding_completed) {
-              // User has completed onboarding, go to dashboard
-              setTimeout(() => navigate('/meetings'), 1000);
-            } else {
-              // User needs to complete onboarding
-              setTimeout(() => navigate('/onboarding'), 1000);
-            }
+            // Always redirect to meetings (onboarding page doesn't exist yet)
+            setTimeout(() => navigate('/meetings'), 1000);
           } else {
-            // Profile endpoint doesn't exist yet or error
-            // For now, just redirect to meetings
-            console.warn('Profile endpoint not available, redirecting to meetings');
+            // Profile endpoint error - redirect to meetings anyway
+            console.warn('Profile endpoint error, redirecting to meetings');
             setStatus('success');
             setMessage('Sign in successful! Redirecting...');
             setTimeout(() => navigate('/meetings'), 1000);
