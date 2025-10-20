@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { google } = require('googleapis');
-const { supabase, isSupabaseAvailable, getSupabase } = require('./lib/supabase');
+const { supabase, isSupabaseAvailable, getSupabase, verifySupabaseToken } = require('./lib/supabase');
 const CalendlyService = require('./services/calendlyService');
 
 // Load route modules with error handling to identify problematic routes
@@ -530,8 +530,8 @@ app.get('/api/dev/meetings', async (req, res) => {
     console.log('🔑 Verifying Supabase token...');
     console.log(`🔍 Token preview: ${token.substring(0, 20)}...`);
 
-    // Use Supabase to verify the JWT token and get the user
-    const { data: { user }, error: authError } = await getSupabase().auth.getUser(token);
+    // Use the new verification function
+    const { user, error: authError } = await verifySupabaseToken(token);
 
     if (authError || !user) {
       console.log('❌ Token verification failed:', authError?.message || 'No user found');
@@ -1310,8 +1310,8 @@ app.get('/api/users/profile', async (req, res) => {
 
         console.log('🔑 Verifying Supabase token for /api/users/profile...');
 
-        // Use Supabase to verify the JWT token and get the user
-        const { data: { user: supabaseUser }, error: authError } = await getSupabase().auth.getUser(token);
+        // Use the new verification function
+        const { user: supabaseUser, error: authError } = await verifySupabaseToken(token);
 
         if (authError || !supabaseUser) {
             console.error('❌ Token verification failed:', authError?.message);

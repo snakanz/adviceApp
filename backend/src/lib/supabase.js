@@ -73,6 +73,40 @@ const createUserClient = (userJWT) => {
 // ============================================================================
 
 /**
+ * Verify a Supabase JWT token and extract user information
+ * This uses the service role client to verify the token
+ *
+ * @param {string} token - The JWT token to verify
+ * @returns {Promise<{user: Object, error: Error|null}>}
+ */
+const verifySupabaseToken = async (token) => {
+  try {
+    if (!serviceRoleClient) {
+      return { user: null, error: new Error('Supabase not available') };
+    }
+
+    // Use the service role client to verify the token
+    const { data: { user }, error } = await serviceRoleClient.auth.getUser(token);
+
+    if (error) {
+      console.log('❌ Token verification error:', error.message);
+      return { user: null, error };
+    }
+
+    if (!user) {
+      console.log('❌ No user found in token');
+      return { user: null, error: new Error('No user found') };
+    }
+
+    console.log('✅ Token verified for user:', user.email);
+    return { user, error: null };
+  } catch (error) {
+    console.log('❌ Token verification exception:', error.message);
+    return { user: null, error };
+  }
+};
+
+/**
  * Check if Supabase is available
  * @returns {boolean}
  */
@@ -115,5 +149,8 @@ module.exports = {
   isSupabaseAvailable,
 
   // User-scoped client factory (use for user requests)
-  createUserClient
+  createUserClient,
+
+  // Token verification
+  verifySupabaseToken
 };
