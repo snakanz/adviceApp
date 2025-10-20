@@ -1,12 +1,12 @@
-name = "adviceapp"
+name = "advicly"
 compatibility_date = "2024-01-15"
 
 pages_build_output_dir = "build"
 
 [env.production]
-name = "adviceapp"
+name = "advicly"
 
 [env.production.vars]
-REACT_APP_BACKEND_URL = "https://adviceapp-9rgw.onrender.com"
-REACT_APP_SUPABASE_URL = "https://your-project.supabase.co"
-REACT_APP_SUPABASE_ANON_KEY = "your-supabase-anon-key"
+REACT_APP_API_BASE_URL = "https://adviceapp-9rgw.onrender.com"
+REACT_APP_SUPABASE_URL = "https://xjqizievzeoupt.supabase.co"
+REACT_APP_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqcWl6aWV2emVvdXB0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzY5NzU5NzcsImV4cCI6MjA1MjU1MTk3N30.Aw_ygSMCEKCqJPQqJPQqJPQqJPQqJPQqJPQqJPQ"
