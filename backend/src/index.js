@@ -543,7 +543,7 @@ app.get('/api/dev/meetings', async (req, res) => {
         client_id,
         client:clients(id, name, email)
       `)
-      .eq('userid', userId)
+      .or(`userid.eq.${userId},userid.is.null`) // Include meetings with matching userid OR null userid
       .or('is_deleted.is.null,is_deleted.eq.false') // Filter out deleted meetings
       .order('starttime', { ascending: false })
       .limit(100);
