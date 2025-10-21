@@ -419,7 +419,10 @@ router.post('/onboarding/business-profile', authenticateSupabaseUser, async (req
 
     // Create tenant if doesn't exist
     if (!tenantId) {
-      const { data: tenant, error: tenantError } = await req.supabase
+      // Use service role client for tenant creation (bypasses RLS)
+      const adminClient = getSupabase();
+
+      const { data: tenant, error: tenantError } = await adminClient
         .from('tenants')
         .insert({
           name: business_name,
@@ -438,8 +441,8 @@ router.post('/onboarding/business-profile', authenticateSupabaseUser, async (req
 
       tenantId = tenant.id;
 
-      // Add user as tenant owner
-      await req.supabase
+      // Add user as tenant owner (use service role client)
+      const { error: memberError } = await adminClient
         .from('tenant_members')
         .insert({
           tenant_id: tenantId,
@@ -447,11 +450,23 @@ router.post('/onboarding/business-profile', authenticateSupabaseUser, async (req
           role: 'owner'
         });
 
-      // Update user with tenant_id
-      await req.supabase
+      if (memberError) {
+        console.error('Error adding tenant member:', memberError);
+        return res.status(500).json({ error: 'Failed to add tenant member' });
+      }
+
+      // Update user with tenant_id (use service role client)
+      const { error: updateError } = await adminClient
         .from('users')
         .update({ tenant_id: tenantId })
         .eq('id', userId);
+
+      if (updateError) {
+        console.error('Error updating user tenant_id:', updateError);
+        return res.status(500).json({ error: 'Failed to update user' });
+      }
+
+      console.log(`✅ Created tenant ${tenantId} for user ${userId}`);
     }
 
     res.json({
