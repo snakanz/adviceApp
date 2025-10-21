@@ -10,13 +10,15 @@ import axios from 'axios';
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
 const Step4_CalendarConnect = ({ data, onNext, onBack, onSkip }) => {
-    const { getAccessToken } = useAuth();
+    const { getAccessToken, user } = useAuth();
     const [isConnecting, setIsConnecting] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
     const [error, setError] = useState('');
     const [calendlyToken, setCalendlyToken] = useState('');
 
     const provider = data.calendar_provider;
+    const signedInWithGoogle = user?.app_metadata?.provider === 'google';
+    const userEmail = user?.email;
 
     // Check if already connected
     useEffect(() => {
@@ -115,6 +117,18 @@ const Step4_CalendarConnect = ({ data, onNext, onBack, onSkip }) => {
                         <>
                             {provider === 'google' && (
                                 <div className="space-y-4">
+                                    {/* Show which Google account will be used */}
+                                    {signedInWithGoogle && (
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                            <p className="text-sm font-medium text-blue-900 mb-1">
+                                                You'll connect the same Google account:
+                                            </p>
+                                            <p className="text-sm text-blue-700 font-semibold">
+                                                {userEmail}
+                                            </p>
+                                        </div>
+                                    )}
+
                                     <div className="bg-muted/50 rounded-lg p-4 space-y-2">
                                         <h4 className="font-semibold text-sm">What we'll access:</h4>
                                         <ul className="text-sm text-muted-foreground space-y-1">
@@ -139,7 +153,9 @@ const Step4_CalendarConnect = ({ data, onNext, onBack, onSkip }) => {
                                                 Connecting...
                                             </>
                                         ) : (
-                                            'Connect Google Calendar'
+                                            signedInWithGoogle
+                                                ? 'Grant Calendar Access'
+                                                : 'Connect Google Calendar'
                                         )}
                                     </Button>
                                 </div>
