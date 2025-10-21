@@ -1,0 +1,7 @@
+# Cloudflare Pages SPA Configuration
+# This file tells Cloudflare Pages to serve index.html for all routes
+# allowing React Router to handle client-side routing
+
+# Serve index.html for all routes (SPA fallback)
+/*    /index.html   200
+
