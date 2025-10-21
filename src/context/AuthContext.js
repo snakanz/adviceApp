@@ -45,7 +45,6 @@ export const AuthProvider = ({ children }) => {
         console.log('🔔 Auth state changed:', event);
         console.log('📋 Session:', session ? 'Present' : 'None');
         console.log('📋 User:', session?.user?.email || 'None');
-        console.log('📋 Stack trace:', new Error().stack);
 
         setSession(session);
         setUser(session?.user ?? null);
@@ -58,11 +57,9 @@ export const AuthProvider = ({ children }) => {
             break;
           case 'SIGNED_OUT':
             console.log('👋 User signed out');
-            console.log('⚠️ Sign out reason: Check if this is intentional');
-            console.log('⚠️ Stack trace for SIGNED_OUT:', new Error().stack);
             break;
           case 'TOKEN_REFRESHED':
-            console.log('🔄 Token refreshed');
+            console.log('🔄 Token refreshed successfully');
             break;
           case 'USER_UPDATED':
             console.log('📝 User updated');
@@ -81,6 +78,35 @@ export const AuthProvider = ({ children }) => {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Set up automatic token refresh check
+  useEffect(() => {
+    if (!session) return;
+
+    // Check token expiration every minute
+    const checkTokenExpiration = setInterval(async () => {
+      const expiresAt = session.expires_at;
+      const now = Math.floor(Date.now() / 1000);
+      const timeUntilExpiry = expiresAt - now;
+
+      // If token expires in less than 5 minutes, refresh it
+      if (timeUntilExpiry < 300) {
+        console.log('🔄 Token expiring soon, refreshing...');
+        try {
+          const { data, error } = await supabase.auth.refreshSession();
+          if (error) {
+            console.error('❌ Error refreshing session:', error);
+          } else {
+            console.log('✅ Session refreshed successfully');
+          }
+        } catch (error) {
+          console.error('❌ Exception refreshing session:', error);
+        }
+      }
+    }, 60000); // Check every minute
+
+    return () => clearInterval(checkTokenExpiration);
+  }, [session]);
 
   /**
    * Sign in with email and password

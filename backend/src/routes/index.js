@@ -6,6 +6,7 @@ const authRoutes = require('./auth');
 const calendarRoutes = require('./calendar');
 const calendlyRoutes = require('./calendly');
 const askAdviclyRoutes = require('./ask-advicly');
+const tenantRoutes = require('./tenants');
 
 // Mount routes
 console.log('🔄 Mounting routes...');
@@ -17,5 +18,7 @@ router.use('/calendly', calendlyRoutes);
 console.log('✅ Calendly routes mounted');
 router.use('/ask-advicly', askAdviclyRoutes);
 console.log('✅ Ask Advicly routes mounted');
+router.use('/tenants', tenantRoutes);
+console.log('✅ Tenant routes mounted');
 
 module.exports = router;

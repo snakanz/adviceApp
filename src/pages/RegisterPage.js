@@ -7,19 +7,21 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import GoogleIcon from '../components/GoogleIcon';
 
-const LoginPage = () => {
+const RegisterPage = () => {
     const navigate = useNavigate();
-    const { isAuthenticated, signInWithEmail, signInWithOAuth } = useAuth();
+    const { isAuthenticated, signUpWithEmail, signInWithOAuth } = useAuth();
     const [formData, setFormData] = useState({
+        name: '',
         email: '',
-        password: ''
+        password: '',
+        confirmPassword: ''
     });
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         if (isAuthenticated) {
-            navigate('/meetings');
+            navigate('/onboarding');
         }
     }, [isAuthenticated, navigate]);
 
@@ -31,36 +33,69 @@ const LoginPage = () => {
         setError(''); // Clear error when user types
     };
 
-    const handleEmailLogin = async (e) => {
+    const handleEmailRegister = async (e) => {
         e.preventDefault();
         setError('');
 
-        if (!formData.email.trim() || !formData.password) {
-            setError('Please enter both email and password');
+        // Validation
+        if (!formData.name.trim()) {
+            setError('Please enter your name');
+            return;
+        }
+
+        if (!formData.email.trim()) {
+            setError('Please enter your email');
+            return;
+        }
+
+        if (!formData.password) {
+            setError('Please enter a password');
+            return;
+        }
+
+        if (formData.password.length < 6) {
+            setError('Password must be at least 6 characters');
+            return;
+        }
+
+        if (formData.password !== formData.confirmPassword) {
+            setError('Passwords do not match');
             return;
         }
 
         setIsLoading(true);
 
         try {
-            const result = await signInWithEmail(formData.email, formData.password);
+            const result = await signUpWithEmail(
+                formData.email,
+                formData.password,
+                { name: formData.name }
+            );
 
             if (!result.success) {
-                setError(result.error || 'Login failed');
+                setError(result.error || 'Registration failed');
                 setIsLoading(false);
                 return;
             }
 
-            // Success - AuthContext will handle redirect
-            console.log('✅ Login successful');
+            // Check if email confirmation is required
+            if (result.data?.user && !result.data?.session) {
+                setError('Please check your email to confirm your account');
+                setIsLoading(false);
+                return;
+            }
+
+            // Success - redirect to onboarding
+            console.log('✅ Registration successful, redirecting to onboarding...');
+            navigate('/onboarding');
         } catch (err) {
-            console.error('Login error:', err);
+            console.error('Registration error:', err);
             setError('An unexpected error occurred');
             setIsLoading(false);
         }
     };
 
-    const handleGoogleLogin = async () => {
+    const handleGoogleRegister = async () => {
         try {
             setError('');
             const result = await signInWithOAuth('google', {
@@ -68,13 +103,13 @@ const LoginPage = () => {
             });
 
             if (!result.success) {
-                console.error('Login error:', result.error);
-                setError(`Login error: ${result.error}`);
+                console.error('Google registration error:', result.error);
+                setError(`Google registration error: ${result.error}`);
             }
             // Supabase will redirect to Google OAuth automatically
         } catch (error) {
-            console.error('Login error:', error);
-            setError(`Login error: ${error.message}`);
+            console.error('Google registration error:', error);
+            setError(`Google registration error: ${error.message}`);
         }
     };
 
@@ -91,22 +126,21 @@ const LoginPage = () => {
                             />
                         </div>
                         <CardTitle className="text-2xl font-bold text-foreground">
-                            Welcome to Advicly
+                            Create Your Account
                         </CardTitle>
                         <CardDescription className="text-base text-muted-foreground max-w-sm mx-auto">
-                            Your AI-powered dashboard for managing meetings, clients, and insights. 
-                            Sign in with your Google account to get started.
+                            Join Advicly to manage your meetings, clients, and insights with AI-powered tools.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        {/* Google Sign In Button */}
+                        {/* Google Sign Up Button */}
                         <Button
-                            onClick={handleGoogleLogin}
+                            onClick={handleGoogleRegister}
                             className="w-full h-12 text-base font-medium bg-white hover:bg-gray-50 text-gray-900 border border-border shadow-soft hover:shadow-medium transition-all duration-150"
                             disabled={isLoading}
                         >
                             <GoogleIcon size={20} className="mr-3" />
-                            Sign in with Google
+                            Sign up with Google
                         </Button>
 
                         <div className="relative">
@@ -120,8 +154,22 @@ const LoginPage = () => {
                             </div>
                         </div>
 
-                        {/* Email Login Form */}
-                        <form onSubmit={handleEmailLogin} className="space-y-4">
+                        {/* Email Registration Form */}
+                        <form onSubmit={handleEmailRegister} className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="name">Full Name</Label>
+                                <Input
+                                    id="name"
+                                    name="name"
+                                    type="text"
+                                    placeholder="John Doe"
+                                    value={formData.name}
+                                    onChange={handleChange}
+                                    disabled={isLoading}
+                                    required
+                                />
+                            </div>
+
                             <div className="space-y-2">
                                 <Label htmlFor="email">Email</Label>
                                 <Input
@@ -150,6 +198,20 @@ const LoginPage = () => {
                                 />
                             </div>
 
+                            <div className="space-y-2">
+                                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                                <Input
+                                    id="confirmPassword"
+                                    name="confirmPassword"
+                                    type="password"
+                                    placeholder="••••••••"
+                                    value={formData.confirmPassword}
+                                    onChange={handleChange}
+                                    disabled={isLoading}
+                                    required
+                                />
+                            </div>
+
                             {error && (
                                 <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
                                     {error}
@@ -161,22 +223,25 @@ const LoginPage = () => {
                                 className="w-full h-12 text-base font-medium"
                                 disabled={isLoading}
                             >
-                                {isLoading ? 'Signing in...' : 'Sign in'}
+                                {isLoading ? 'Creating Account...' : 'Create Account'}
                             </Button>
                         </form>
 
                         <div className="text-center text-sm text-muted-foreground">
-                            Don't have an account?{' '}
-                            <Link
-                                to="/register"
+                            Already have an account?{' '}
+                            <Link 
+                                to="/login" 
                                 className="text-primary hover:underline font-medium"
                             >
-                                Sign up
+                                Sign in
                             </Link>
                         </div>
 
                         <p className="text-xs text-muted-foreground text-center">
-                            By signing in, you agree to our Terms of Service and Privacy Policy
+                            By creating an account, you agree to our{' '}
+                            <a href="#" className="underline hover:text-foreground">Terms of Service</a>
+                            {' '}and{' '}
+                            <a href="#" className="underline hover:text-foreground">Privacy Policy</a>
                         </p>
                     </CardContent>
                 </Card>
@@ -185,4 +250,5 @@ const LoginPage = () => {
     );
 };
 
-export default LoginPage; 
+export default RegisterPage;
+

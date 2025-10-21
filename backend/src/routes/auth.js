@@ -306,4 +306,229 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// ============================================================================
+// ONBOARDING ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/auth/onboarding/status
+ * Get the current user's onboarding status
+ */
+router.get('/onboarding/status', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const { data: user, error } = await req.supabase
+      .from('users')
+      .select('onboarding_completed, onboarding_step, business_name, tenant_id')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching onboarding status:', error);
+      return res.status(500).json({ error: 'Failed to fetch onboarding status' });
+    }
+
+    res.json({
+      onboarding_completed: user.onboarding_completed || false,
+      onboarding_step: user.onboarding_step || 0,
+      business_name: user.business_name,
+      tenant_id: user.tenant_id
+    });
+  } catch (error) {
+    console.error('Error in GET /onboarding/status:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * PUT /api/auth/onboarding/step
+ * Update the current user's onboarding step
+ */
+router.put('/onboarding/step', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { step } = req.body;
+
+    if (typeof step !== 'number' || step < 0) {
+      return res.status(400).json({ error: 'Invalid step number' });
+    }
+
+    const { data: user, error } = await req.supabase
+      .from('users')
+      .update({
+        onboarding_step: step,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating onboarding step:', error);
+      return res.status(500).json({ error: 'Failed to update onboarding step' });
+    }
+
+    res.json({
+      onboarding_step: user.onboarding_step,
+      message: 'Onboarding step updated successfully'
+    });
+  } catch (error) {
+    console.error('Error in PUT /onboarding/step:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/auth/onboarding/business-profile
+ * Save business profile information during onboarding
+ */
+router.post('/onboarding/business-profile', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { business_name, business_type, team_size, timezone } = req.body;
+
+    if (!business_name) {
+      return res.status(400).json({ error: 'Business name is required' });
+    }
+
+    // Update user's business info
+    const { error: userError } = await req.supabase
+      .from('users')
+      .update({
+        business_name,
+        timezone: timezone || 'UTC',
+        onboarding_step: 2, // Move to next step
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (userError) {
+      console.error('Error updating user business info:', userError);
+      return res.status(500).json({ error: 'Failed to save business profile' });
+    }
+
+    // Check if user already has a tenant
+    const { data: existingUser } = await req.supabase
+      .from('users')
+      .select('tenant_id')
+      .eq('id', userId)
+      .single();
+
+    let tenantId = existingUser?.tenant_id;
+
+    // Create tenant if doesn't exist
+    if (!tenantId) {
+      const { data: tenant, error: tenantError } = await req.supabase
+        .from('tenants')
+        .insert({
+          name: business_name,
+          business_type,
+          team_size,
+          timezone: timezone || 'UTC',
+          owner_id: userId
+        })
+        .select()
+        .single();
+
+      if (tenantError) {
+        console.error('Error creating tenant:', tenantError);
+        return res.status(500).json({ error: 'Failed to create tenant' });
+      }
+
+      tenantId = tenant.id;
+
+      // Add user as tenant owner
+      await req.supabase
+        .from('tenant_members')
+        .insert({
+          tenant_id: tenantId,
+          user_id: userId,
+          role: 'owner'
+        });
+
+      // Update user with tenant_id
+      await req.supabase
+        .from('users')
+        .update({ tenant_id: tenantId })
+        .eq('id', userId);
+    }
+
+    res.json({
+      success: true,
+      tenant_id: tenantId,
+      message: 'Business profile saved successfully'
+    });
+  } catch (error) {
+    console.error('Error in POST /onboarding/business-profile:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/auth/onboarding/complete
+ * Mark onboarding as complete
+ */
+router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const { error } = await req.supabase
+      .from('users')
+      .update({
+        onboarding_completed: true,
+        onboarding_step: 6, // Final step
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error completing onboarding:', error);
+      return res.status(500).json({ error: 'Failed to complete onboarding' });
+    }
+
+    console.log(`✅ User ${userId} completed onboarding`);
+
+    res.json({
+      success: true,
+      message: 'Onboarding completed successfully'
+    });
+  } catch (error) {
+    console.error('Error in POST /onboarding/complete:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/auth/onboarding/skip-calendar
+ * Skip calendar connection during onboarding
+ */
+router.post('/onboarding/skip-calendar', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Move to final step (skipping calendar connection)
+    const { error } = await req.supabase
+      .from('users')
+      .update({
+        onboarding_step: 5, // Move to completion step
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Error skipping calendar:', error);
+      return res.status(500).json({ error: 'Failed to skip calendar connection' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Calendar connection skipped'
+    });
+  } catch (error) {
+    console.error('Error in POST /onboarding/skip-calendar:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;
