@@ -20,26 +20,16 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:300
 
 function PrivateRoute() {
   const { isAuthenticated, isLoading, getAccessToken } = useAuth();
-  const [onboardingStatus, setOnboardingStatus] = useState(null);
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Initialize notification service when user is authenticated
-    if (isAuthenticated) {
-      notificationService.initialize();
-      checkOnboardingStatus();
-    }
-  }, [isAuthenticated]);
-
-  const checkOnboardingStatus = async () => {
+  const checkOnboardingStatus = React.useCallback(async () => {
     try {
       const token = await getAccessToken();
       const response = await axios.get(`${API_BASE_URL}/api/auth/onboarding/status`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      setOnboardingStatus(response.data);
       setCheckingOnboarding(false);
 
       // Redirect to onboarding if not completed
@@ -50,7 +40,15 @@ function PrivateRoute() {
       console.error('Error checking onboarding status:', error);
       setCheckingOnboarding(false);
     }
-  };
+  }, [getAccessToken, navigate]);
+
+  useEffect(() => {
+    // Initialize notification service when user is authenticated
+    if (isAuthenticated) {
+      notificationService.initialize();
+      checkOnboardingStatus();
+    }
+  }, [isAuthenticated, checkOnboardingStatus]);
 
   console.log('PrivateRoute: isAuthenticated:', isAuthenticated, 'isLoading:', isLoading);
 

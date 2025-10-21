@@ -21,6 +21,7 @@ const Step4_CalendarConnect = ({ data, onNext, onBack, onSkip }) => {
     // Check if already connected
     useEffect(() => {
         checkConnectionStatus();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const checkConnectionStatus = async () => {
@@ -77,7 +78,6 @@ const Step4_CalendarConnect = ({ data, onNext, onBack, onSkip }) => {
         setError('');
 
         try {
-            const token = await getAccessToken();
             // TODO: Implement Calendly connection endpoint
             // For now, just simulate success
             await new Promise(resolve => setTimeout(resolve, 1000));

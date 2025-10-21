@@ -93,13 +93,13 @@ const Step6_Complete = ({ data, onComplete }) => {
 
                     <p className="text-xs text-muted-foreground text-center">
                         Need help? Check out our{' '}
-                        <a href="#" className="underline hover:text-foreground">
+                        <button onClick={() => {}} className="underline hover:text-foreground">
                             Getting Started Guide
-                        </a>
+                        </button>
                         {' '}or{' '}
-                        <a href="#" className="underline hover:text-foreground">
+                        <button onClick={() => {}} className="underline hover:text-foreground">
                             Contact Support
-                        </a>
+                        </button>
                     </p>
                 </CardContent>
             </Card>

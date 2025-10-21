@@ -93,7 +93,7 @@ export const AuthProvider = ({ children }) => {
       if (timeUntilExpiry < 300) {
         console.log('🔄 Token expiring soon, refreshing...');
         try {
-          const { data, error } = await supabase.auth.refreshSession();
+          const { error } = await supabase.auth.refreshSession();
           if (error) {
             console.error('❌ Error refreshing session:', error);
           } else {

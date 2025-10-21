@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
-import Step2_BusinessProfile from './Step2_BusinessProfile';
-import Step3_CalendarChoice from './Step3_CalendarChoice';
-import Step4_CalendarConnect from './Step4_CalendarConnect';
-import Step5_InitialSync from './Step5_InitialSync';
-import Step6_Complete from './Step6_Complete';
+import BusinessProfile from './Step2_BusinessProfile';
+import CalendarChoice from './Step3_CalendarChoice';
+import CalendarConnect from './Step4_CalendarConnect';
+import InitialSync from './Step5_InitialSync';
+import Complete from './Step6_Complete';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
@@ -32,6 +32,7 @@ const OnboardingFlow = () => {
         }
 
         loadOnboardingStatus();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isAuthenticated, navigate]);
 
     const loadOnboardingStatus = async () => {
@@ -178,7 +179,7 @@ const OnboardingFlow = () => {
             {/* Step Content */}
             <div className="max-w-4xl mx-auto px-6 py-12">
                 {currentStep === 2 && (
-                    <Step2_BusinessProfile
+                    <BusinessProfile
                         data={onboardingData}
                         onNext={handleNext}
                         user={user}
@@ -186,7 +187,7 @@ const OnboardingFlow = () => {
                 )}
 
                 {currentStep === 3 && (
-                    <Step3_CalendarChoice
+                    <CalendarChoice
                         data={onboardingData}
                         onNext={handleNext}
                         onBack={handleBack}
@@ -195,7 +196,7 @@ const OnboardingFlow = () => {
                 )}
 
                 {currentStep === 4 && (
-                    <Step4_CalendarConnect
+                    <CalendarConnect
                         data={onboardingData}
                         onNext={handleNext}
                         onBack={handleBack}
@@ -204,7 +205,7 @@ const OnboardingFlow = () => {
                 )}
 
                 {currentStep === 5 && (
-                    <Step5_InitialSync
+                    <InitialSync
                         data={onboardingData}
                         onNext={handleNext}
                         onBack={handleBack}
@@ -212,7 +213,7 @@ const OnboardingFlow = () => {
                 )}
 
                 {currentStep === 6 && (
-                    <Step6_Complete
+                    <Complete
                         data={onboardingData}
                         onComplete={handleComplete}
                     />

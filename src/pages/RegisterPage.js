@@ -239,9 +239,9 @@ const RegisterPage = () => {
 
                         <p className="text-xs text-muted-foreground text-center">
                             By creating an account, you agree to our{' '}
-                            <a href="#" className="underline hover:text-foreground">Terms of Service</a>
+                            <button onClick={() => {}} className="underline hover:text-foreground">Terms of Service</button>
                             {' '}and{' '}
-                            <a href="#" className="underline hover:text-foreground">Privacy Policy</a>
+                            <button onClick={() => {}} className="underline hover:text-foreground">Privacy Policy</button>
                         </p>
                     </CardContent>
                 </Card>
