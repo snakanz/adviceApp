@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { Button } from '../../components/ui/button';
+import { LogOut } from 'lucide-react';
 import axios from 'axios';
 import BusinessProfile from './Step2_BusinessProfile';
 import CalendarChoice from './Step3_CalendarChoice';
@@ -12,7 +14,7 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:300
 
 const OnboardingFlow = () => {
     const navigate = useNavigate();
-    const { user, getAccessToken, isAuthenticated } = useAuth();
+    const { user, getAccessToken, isAuthenticated, signOut } = useAuth();
     const [currentStep, setCurrentStep] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
     const [onboardingData, setOnboardingData] = useState({
@@ -136,6 +138,17 @@ const OnboardingFlow = () => {
         }
     };
 
+    const handleSignOut = async () => {
+        const confirmed = window.confirm(
+            'Are you sure you want to sign out? Your onboarding progress will be saved.'
+        );
+
+        if (confirmed) {
+            await signOut();
+            navigate('/login');
+        }
+    };
+
     if (isLoading) {
         return (
             <div className="min-h-screen bg-background flex items-center justify-center">
@@ -154,21 +167,32 @@ const OnboardingFlow = () => {
                 <div className="max-w-4xl mx-auto px-6 py-4">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center space-x-2">
-                            <img 
-                                src={process.env.PUBLIC_URL + '/logo-advicly.png'} 
-                                alt="Advicly" 
-                                className="h-8 w-auto" 
+                            <img
+                                src={process.env.PUBLIC_URL + '/logo-advicly.png'}
+                                alt="Advicly"
+                                className="h-8 w-auto"
                             />
                             <span className="text-sm font-medium text-muted-foreground">
                                 Setup
                             </span>
                         </div>
-                        <span className="text-sm text-muted-foreground">
-                            Step {currentStep - 1} of 5
-                        </span>
+                        <div className="flex items-center space-x-4">
+                            <span className="text-sm text-muted-foreground">
+                                Step {currentStep - 1} of 5
+                            </span>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleSignOut}
+                                className="text-muted-foreground hover:text-foreground"
+                            >
+                                <LogOut className="w-4 h-4 mr-2" />
+                                Sign out
+                            </Button>
+                        </div>
                     </div>
                     <div className="w-full bg-muted rounded-full h-2">
-                        <div 
+                        <div
                             className="bg-primary h-2 rounded-full transition-all duration-300"
                             style={{ width: `${((currentStep - 1) / 5) * 100}%` }}
                         />
