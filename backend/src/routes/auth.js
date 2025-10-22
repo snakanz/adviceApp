@@ -517,6 +517,7 @@ router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) =
 /**
  * POST /api/auth/onboarding/skip-calendar
  * Skip calendar connection during onboarding
+ * DEPRECATED: Calendar is now auto-connected during Google OAuth login
  */
 router.post('/onboarding/skip-calendar', authenticateSupabaseUser, async (req, res) => {
   try {
@@ -526,7 +527,7 @@ router.post('/onboarding/skip-calendar', authenticateSupabaseUser, async (req, r
     const { error } = await req.supabase
       .from('users')
       .update({
-        onboarding_step: 5, // Move to completion step
+        onboarding_step: 3, // Move to initial sync step (step 3 in new flow)
         updated_at: new Date().toISOString()
       })
       .eq('id', userId);
@@ -542,6 +543,139 @@ router.post('/onboarding/skip-calendar', authenticateSupabaseUser, async (req, r
     });
   } catch (error) {
     console.error('Error in POST /onboarding/skip-calendar:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/auth/auto-connect-calendar
+ * Automatically create calendar connection from Supabase Auth session
+ * This is called after Google OAuth login to extract calendar tokens
+ */
+router.post('/auto-connect-calendar', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userEmail = req.user.email;
+
+    console.log(`📅 Auto-connecting Google Calendar for user: ${userEmail}`);
+
+    // Get the user's Supabase Auth session to extract provider tokens
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.split(' ')[1];
+
+    if (!token) {
+      return res.status(401).json({ error: 'No auth token provided' });
+    }
+
+    // Verify the token and get the full session data
+    const { data: { user: authUser }, error: authError } = await req.supabase.auth.getUser(token);
+
+    if (authError || !authUser) {
+      console.error('Error getting auth user:', authError);
+      return res.status(401).json({ error: 'Invalid auth token' });
+    }
+
+    // Check if user signed in with Google (provider_token contains the Google access token)
+    const providerToken = authUser.app_metadata?.provider_token;
+    const providerRefreshToken = authUser.app_metadata?.provider_refresh_token;
+
+    if (!providerToken) {
+      console.log('⚠️ No provider token found - user may not have signed in with Google');
+      return res.json({
+        success: false,
+        message: 'No Google Calendar access - user did not sign in with Google OAuth'
+      });
+    }
+
+    console.log('✅ Found Google provider token in Supabase Auth session');
+
+    // Get user's tenant_id
+    const { data: userData, error: userError } = await req.supabase
+      .from('users')
+      .select('tenant_id')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !userData?.tenant_id) {
+      console.error('Error getting user tenant:', userError);
+      return res.status(400).json({
+        error: 'User must complete business profile setup first (tenant_id required)'
+      });
+    }
+
+    const tenantId = userData.tenant_id;
+
+    // Check if calendar connection already exists
+    const { data: existingConnection } = await req.supabase
+      .from('calendar_connections')
+      .select('id, is_active')
+      .eq('user_id', userId)
+      .eq('provider', 'google')
+      .eq('provider_account_email', userEmail)
+      .single();
+
+    if (existingConnection) {
+      console.log('✅ Calendar connection already exists, updating tokens...');
+
+      // Update existing connection
+      const { error: updateError } = await req.supabase
+        .from('calendar_connections')
+        .update({
+          access_token: providerToken,
+          refresh_token: providerRefreshToken || null,
+          is_active: true,
+          sync_enabled: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingConnection.id);
+
+      if (updateError) {
+        console.error('Error updating calendar connection:', updateError);
+        return res.status(500).json({ error: 'Failed to update calendar connection' });
+      }
+
+      return res.json({
+        success: true,
+        message: 'Google Calendar connection updated',
+        connection_id: existingConnection.id
+      });
+    }
+
+    // Create new calendar connection
+    const { data: newConnection, error: createError } = await req.supabase
+      .from('calendar_connections')
+      .insert({
+        user_id: userId,
+        tenant_id: tenantId,
+        provider: 'google',
+        provider_account_email: userEmail,
+        access_token: providerToken,
+        refresh_token: providerRefreshToken || null,
+        is_primary: true, // First calendar connection is primary
+        is_active: true,
+        sync_enabled: true
+      })
+      .select('id')
+      .single();
+
+    if (createError) {
+      console.error('Error creating calendar connection:', createError);
+      return res.status(500).json({
+        error: 'Failed to create calendar connection',
+        details: createError.message
+      });
+    }
+
+    console.log(`✅ Google Calendar auto-connected successfully: ${newConnection.id}`);
+
+    res.json({
+      success: true,
+      message: 'Google Calendar connected automatically',
+      connection_id: newConnection.id
+    });
+
+  } catch (error) {
+    console.error('Error in POST /auto-connect-calendar:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

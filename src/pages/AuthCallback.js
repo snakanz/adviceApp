@@ -47,7 +47,7 @@ const AuthCallback = () => {
         localStorage.setItem('jwt', session.access_token);
         console.log('✅ JWT token stored in localStorage');
 
-        // Check if user profile exists
+        // Check if user profile exists and create if needed
         setMessage('Loading your profile...');
         const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
@@ -65,6 +65,32 @@ const AuthCallback = () => {
           }
         } catch (profileError) {
           console.warn('⚠️ Error fetching profile:', profileError);
+        }
+
+        // Auto-connect Google Calendar if user signed in with Google
+        setMessage('Connecting your calendar...');
+        try {
+          const calendarResponse = await fetch(`${apiBaseUrl}/api/auth/auto-connect-calendar`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (calendarResponse.ok) {
+            const calendarData = await calendarResponse.json();
+            if (calendarData.success) {
+              console.log('✅ Google Calendar auto-connected:', calendarData.message);
+            } else {
+              console.log('ℹ️ Calendar not connected:', calendarData.message);
+            }
+          } else {
+            console.warn('⚠️ Calendar auto-connect returned:', calendarResponse.status);
+          }
+        } catch (calendarError) {
+          console.warn('⚠️ Error auto-connecting calendar:', calendarError);
+          // Don't fail the login if calendar connection fails
         }
 
         // Success - redirect to meetings

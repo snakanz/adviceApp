@@ -5,8 +5,9 @@ import { Button } from '../../components/ui/button';
 import { LogOut } from 'lucide-react';
 import axios from 'axios';
 import BusinessProfile from './Step2_BusinessProfile';
-import CalendarChoice from './Step3_CalendarChoice';
-import CalendarConnect from './Step4_CalendarConnect';
+// Calendar steps removed - calendar is auto-connected during Google OAuth login
+// import CalendarChoice from './Step3_CalendarChoice';
+// import CalendarConnect from './Step4_CalendarConnect';
 import InitialSync from './Step5_InitialSync';
 import Complete from './Step6_Complete';
 
@@ -106,21 +107,7 @@ const OnboardingFlow = () => {
         }
     };
 
-    const handleSkipCalendar = async () => {
-        try {
-            const token = await getAccessToken();
-            await axios.post(
-                `${API_BASE_URL}/api/auth/onboarding/skip-calendar`,
-                {},
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-
-            // Jump to completion step
-            setCurrentStep(6);
-        } catch (error) {
-            console.error('Error skipping calendar:', error);
-        }
-    };
+    // Removed handleSkipCalendar - no longer needed since calendar is auto-connected
 
     const handleComplete = async () => {
         try {
@@ -178,7 +165,7 @@ const OnboardingFlow = () => {
                         </div>
                         <div className="flex items-center space-x-4">
                             <span className="text-sm text-muted-foreground">
-                                Step {currentStep - 1} of 5
+                                Step {currentStep - 1} of 3
                             </span>
                             <Button
                                 variant="ghost"
@@ -194,7 +181,7 @@ const OnboardingFlow = () => {
                     <div className="w-full bg-muted rounded-full h-2">
                         <div
                             className="bg-primary h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${((currentStep - 1) / 5) * 100}%` }}
+                            style={{ width: `${((currentStep - 1) / 3) * 100}%` }}
                         />
                     </div>
                 </div>
@@ -202,6 +189,7 @@ const OnboardingFlow = () => {
 
             {/* Step Content */}
             <div className="max-w-4xl mx-auto px-6 py-12">
+                {/* Step 2: Business Profile */}
                 {currentStep === 2 && (
                     <BusinessProfile
                         data={onboardingData}
@@ -210,25 +198,8 @@ const OnboardingFlow = () => {
                     />
                 )}
 
+                {/* Step 3: Initial Sync (calendar steps removed) */}
                 {currentStep === 3 && (
-                    <CalendarChoice
-                        data={onboardingData}
-                        onNext={handleNext}
-                        onBack={handleBack}
-                        onSkip={handleSkipCalendar}
-                    />
-                )}
-
-                {currentStep === 4 && (
-                    <CalendarConnect
-                        data={onboardingData}
-                        onNext={handleNext}
-                        onBack={handleBack}
-                        onSkip={handleSkipCalendar}
-                    />
-                )}
-
-                {currentStep === 5 && (
                     <InitialSync
                         data={onboardingData}
                         onNext={handleNext}
@@ -236,7 +207,8 @@ const OnboardingFlow = () => {
                     />
                 )}
 
-                {currentStep === 6 && (
+                {/* Step 4: Complete */}
+                {currentStep === 4 && (
                     <Complete
                         data={onboardingData}
                         onComplete={handleComplete}
