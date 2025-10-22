@@ -98,7 +98,7 @@ class CalendarDeletionSync {
       const { data: existingMeetings } = await getSupabase()
         .from('meetings')
         .select('*')
-        .eq('userid', userId)
+        .eq('user_id', userId)
         .gte('starttime', twoMonthsAgo.toISOString());
 
       console.log(`💾 Found ${existingMeetings?.length || 0} existing meetings in database`);
@@ -131,9 +131,9 @@ class CalendarDeletionSync {
     const calendarEventsMap = new Map(
       calendarEvents.map(event => [event.id, event])
     );
-    
+
     const existingMeetingsMap = new Map(
-      existingMeetings.map(meeting => [meeting.googleeventid, meeting])
+      existingMeetings.map(meeting => [meeting.external_id, meeting])
     );
 
     // Process calendar events

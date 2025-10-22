@@ -197,7 +197,7 @@ router.post('/sync-google', authenticateSupabaseUser, async (req, res) => {
     const { data: existingMeetings, error: dbError } = await req.supabase
       .from('meetings')
       .select('*')
-      .eq('userid', userId)
+      .eq('user_id', userId)
       .eq('meeting_source', 'google')
       .gte('starttime', sixMonthsAgo.toISOString());
 
@@ -215,17 +215,17 @@ router.post('/sync-google', authenticateSupabaseUser, async (req, res) => {
 
     for (const event of calendarEvents) {
       try {
-        const existing = existingMeetings?.find(m => m.googleeventid === event.id);
+        const existing = existingMeetings?.find(m => m.external_id === event.id);
 
         const meetingData = {
-          userid: userId,
-          googleeventid: event.id,
+          user_id: userId,
+          external_id: event.id,
           title: event.summary || 'Untitled Meeting',
           starttime: event.start?.dateTime || event.start?.date,
           endtime: event.end?.dateTime || event.end?.date,
           attendees: event.attendees ? JSON.stringify(event.attendees) : null,
           meeting_source: 'google',
-          sync_status: 'synced'
+          is_deleted: false
         };
 
         if (existing) {
@@ -1126,8 +1126,8 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
     const { data: existingMeeting, error: fetchError } = await req.supabase
       .from('meetings')
       .select('*')
-      .eq('googleeventid', meetingId)
-      .eq('userid', userId)
+      .eq('external_id', meetingId)
+      .eq('user_id', userId)
       .single();
 
     if (fetchError || !existingMeeting) {
@@ -1139,10 +1139,10 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
       .from('meetings')
       .update({
         transcript: transcript,
-        updatedat: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
-      .eq('googleeventid', meetingId)
-      .eq('userid', userId)
+      .eq('external_id', meetingId)
+      .eq('user_id', userId)
       .select()
       .single();
 
@@ -1155,9 +1155,9 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
       message: 'Transcript updated successfully',
       meeting: {
         ...updatedMeeting,
-        id: updatedMeeting.googleeventid,
+        id: updatedMeeting.external_id,
         startTime: updatedMeeting.starttime,
-        googleEventId: updatedMeeting.googleeventid
+        googleEventId: updatedMeeting.external_id
       }
     });
 
@@ -1187,7 +1187,7 @@ router.patch('/meetings/:meetingId/annual-review', authenticateSupabaseUser, asy
       .from('meetings')
       .select('*')
       .eq('id', meetingId)
-      .eq('userid', userId)
+      .eq('user_id', userId)
       .single();
 
     if (fetchError || !existingMeeting) {
@@ -1342,7 +1342,7 @@ router.put('/clients/:clientId/annual-review', authenticateSupabaseUser, async (
       .from('clients')
       .select('id')
       .eq('id', clientId)
-      .eq('userid', userId)
+      .eq('user_id', userId)
       .single();
 
     if (clientError || !client) {
@@ -1406,7 +1406,7 @@ router.post('/meetings/:meetingId/documents', authenticateSupabaseUser, clientDo
       .from('meetings')
       .select('id, title, client_id')
       .eq('id', meetingId)
-      .eq('userid', userId)
+      .eq('user_id', userId)
       .single();
 
     if (meetingError || !meeting) {
@@ -1488,7 +1488,7 @@ router.get('/meetings/:meetingId/documents', authenticateSupabaseUser, async (re
       .from('meetings')
       .select('id')
       .eq('id', meetingId)
-      .eq('userid', userId)
+      .eq('user_id', userId)
       .single();
 
     if (meetingError || !meeting) {
