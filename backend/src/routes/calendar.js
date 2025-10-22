@@ -132,7 +132,163 @@ router.post('/meetings', authenticateSupabaseUser, async (req, res) => {
   }
 });
 
-// Sync calendar meetings to database
+// Sync Google Calendar meetings to database (NEW - uses calendar_connections table)
+router.post('/sync-google', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    console.log(`🔄 Starting Google Calendar sync for user ${userId}`);
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    // Get active Google Calendar connection
+    const { data: connection, error: connError } = await req.supabase
+      .from('calendar_connections')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('provider', 'google')
+      .eq('is_active', true)
+      .single();
+
+    if (connError || !connection) {
+      return res.status(404).json({ error: 'No active Google Calendar connection found' });
+    }
+
+    if (!connection.access_token) {
+      return res.status(400).json({ error: 'Google Calendar token not available' });
+    }
+
+    // Set up OAuth client with tokens from calendar_connections
+    const oauth2Client = new (require('googleapis').auth.OAuth2)(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    );
+
+    oauth2Client.setCredentials({
+      access_token: connection.access_token,
+      refresh_token: connection.refresh_token,
+      expiry_date: connection.token_expires_at ? new Date(connection.token_expires_at).getTime() : null
+    });
+
+    // Fetch events from Google Calendar
+    const { google } = require('googleapis');
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+    const now = new Date();
+    const sixMonthsAgo = new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000);
+
+    console.log(`📅 Fetching Google Calendar events from ${sixMonthsAgo.toISOString()} onwards...`);
+
+    const response = await calendar.events.list({
+      calendarId: 'primary',
+      timeMin: sixMonthsAgo.toISOString(),
+      maxResults: 2500,
+      singleEvents: true,
+      orderBy: 'startTime',
+      showDeleted: false
+    });
+
+    const calendarEvents = response.data.items || [];
+    console.log(`📊 Found ${calendarEvents.length} events in Google Calendar`);
+
+    // Get existing meetings from database
+    const { data: existingMeetings, error: dbError } = await req.supabase
+      .from('meetings')
+      .select('*')
+      .eq('userid', userId)
+      .eq('meeting_source', 'google')
+      .gte('starttime', sixMonthsAgo.toISOString());
+
+    if (dbError) {
+      console.error('Error fetching existing meetings:', dbError);
+      return res.status(500).json({ error: 'Failed to fetch existing meetings' });
+    }
+
+    console.log(`💾 Found ${existingMeetings?.length || 0} existing Google meetings in database`);
+
+    // Process sync: add new meetings, update existing ones
+    let added = 0;
+    let updated = 0;
+    let errors = 0;
+
+    for (const event of calendarEvents) {
+      try {
+        const existing = existingMeetings?.find(m => m.googleeventid === event.id);
+
+        const meetingData = {
+          userid: userId,
+          googleeventid: event.id,
+          title: event.summary || 'Untitled Meeting',
+          starttime: event.start?.dateTime || event.start?.date,
+          endtime: event.end?.dateTime || event.end?.date,
+          attendees: event.attendees ? JSON.stringify(event.attendees) : null,
+          meeting_source: 'google',
+          sync_status: 'synced'
+        };
+
+        if (existing) {
+          // Update existing meeting
+          const { error: updateError } = await req.supabase
+            .from('meetings')
+            .update(meetingData)
+            .eq('id', existing.id);
+
+          if (updateError) {
+            console.error(`❌ Failed to update meeting ${event.id}:`, updateError);
+            errors++;
+          } else {
+            updated++;
+          }
+        } else {
+          // Insert new meeting
+          const { error: insertError } = await req.supabase
+            .from('meetings')
+            .insert([meetingData]);
+
+          if (insertError) {
+            console.error(`❌ Failed to insert meeting ${event.id}:`, insertError);
+            errors++;
+          } else {
+            added++;
+          }
+        }
+      } catch (error) {
+        console.error(`❌ Error processing event ${event.id}:`, error);
+        errors++;
+      }
+    }
+
+    // Update last sync time
+    await req.supabase
+      .from('calendar_connections')
+      .update({
+        last_sync_at: new Date().toISOString(),
+        last_sync_status: 'success'
+      })
+      .eq('id', connection.id);
+
+    console.log(`✅ Google Calendar sync completed: ${added} added, ${updated} updated, ${errors} errors`);
+
+    res.json({
+      success: true,
+      message: 'Google Calendar synced successfully',
+      results: {
+        added,
+        updated,
+        errors,
+        total: calendarEvents.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Error syncing Google Calendar:', error);
+    res.status(500).json({ error: 'Failed to sync Google Calendar', details: error.message });
+  }
+});
+
+// Legacy sync endpoint (kept for backwards compatibility)
 router.post('/sync', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
