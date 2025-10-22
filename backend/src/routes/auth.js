@@ -187,7 +187,7 @@ router.get('/google/callback', async (req, res) => {
 
     const tenantId = userData?.tenant_id || null;
 
-    // Check if calendar connection already exists
+    // Check if calendar connection already exists for this specific email
     const { data: existingConnection } = await getSupabase()
       .from('calendar_connections')
       .select('id')
@@ -219,6 +219,23 @@ router.get('/google/callback', async (req, res) => {
       }
     } else {
       console.log('✅ Creating new Google Calendar connection...');
+
+      // Deactivate all other active connections for this user (single active connection per user)
+      console.log('🔄 Deactivating other active calendar connections...');
+      const { error: deactivateError } = await getSupabase()
+        .from('calendar_connections')
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id)
+        .eq('is_active', true);
+
+      if (deactivateError) {
+        console.warn('Warning: Could not deactivate other connections:', deactivateError);
+      } else {
+        console.log('✅ Other connections deactivated');
+      }
 
       // Create new calendar connection
       const { error: createError } = await getSupabase()

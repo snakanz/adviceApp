@@ -315,13 +315,22 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
       });
     }
 
-    // Check if this is the first calendar connection
-    const { data: allConnections } = await req.supabase
+    // Deactivate all other active connections (single active connection per user)
+    console.log(`🔄 Deactivating other active calendar connections for user ${userId}...`);
+    const { error: deactivateError } = await req.supabase
       .from('calendar_connections')
-      .select('id')
-      .eq('user_id', userId);
+      .update({
+        is_active: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .eq('is_active', true);
 
-    const isPrimary = !allConnections || allConnections.length === 0;
+    if (deactivateError) {
+      console.warn(`Warning: Could not deactivate other connections for user ${userId}:`, deactivateError);
+    } else {
+      console.log(`✅ Other connections deactivated for user ${userId}`);
+    }
 
     // Create new Calendly connection
     const { data, error } = await req.supabase
@@ -332,7 +341,7 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
         provider: 'calendly',
         provider_account_email: userData.email,
         access_token: api_token,
-        is_primary: isPrimary,
+        is_primary: true,
         is_active: true,
         sync_enabled: true
       })
