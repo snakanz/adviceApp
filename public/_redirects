@@ -3,5 +3,7 @@
 # allowing React Router to handle client-side routing
 
 # Serve index.html for all routes (SPA fallback)
+# The 200 status code means it's a rewrite, not a redirect
+# This preserves the URL and hash fragments needed for OAuth callbacks
 /*    /index.html   200
 
