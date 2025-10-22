@@ -894,7 +894,7 @@ router.post('/meetings/:id/update-summary', authenticateSupabaseUser, async (req
       .from('meetings')
       .select('*')
       .eq('id', meetingId)
-      .eq('userid', userId)
+      .eq('user_id', userId)
       .single();
 
     if (fetchError || !meeting) {

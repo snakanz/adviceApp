@@ -267,9 +267,9 @@ class GoogleCalendarWebhookService {
           // Event was deleted
           const { error } = await getSupabase()
             .from('meetings')
-            .update({ is_deleted: true, updatedat: new Date().toISOString() })
-            .eq('googleeventid', event.id)
-            .eq('userid', userId);
+            .update({ is_deleted: true, updated_at: new Date().toISOString() })
+            .eq('external_id', event.id)
+            .eq('user_id', userId);
 
           if (!error) deleted++;
         } else {
@@ -280,8 +280,8 @@ class GoogleCalendarWebhookService {
           const { data: existing } = await getSupabase()
             .from('meetings')
             .select('id')
-            .eq('googleeventid', event.id)
-            .eq('userid', userId)
+            .eq('external_id', event.id)
+            .eq('user_id', userId)
             .single();
 
           if (existing) {
@@ -332,18 +332,17 @@ class GoogleCalendarWebhookService {
     const endTime = event.end?.dateTime || event.end?.date;
 
     return {
-      userid: userId,
-      googleeventid: event.id,
+      user_id: userId,
+      external_id: event.id,
       title: event.summary || 'Untitled Meeting',
       starttime: startTime,
       endtime: endTime,
       location: event.location || null,
       description: event.description || null,
-      meeting_source: 'google_calendar',
-      synced_via_webhook: true,
+      meeting_source: 'google',
       is_deleted: false,
-      createdat: new Date().toISOString(),
-      updatedat: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     };
   }
 }

@@ -227,7 +227,7 @@ router.get('/debug/client/:email', authenticateSupabaseUser, async (req, res) =>
     const { data: meetings, error } = await req.supabase
       .from('meetings')
       .select('*')
-      .eq('userid', req.user.id)
+      .eq('user_id', req.user.id)
       .eq('meeting_source', 'calendly')
       .ilike('client_email', `%${clientEmail}%`)
       .order('starttime', { ascending: false });
@@ -271,7 +271,7 @@ router.get('/stats', authenticateSupabaseUser, async (req, res) => {
     const { data: stats, error } = await req.supabase
       .from('integration_status')
       .select('*')
-      .eq('userid', req.user.id)
+      .eq('user_id', req.user.id)
       .single();
 
     if (error && error.code !== 'PGRST116') {
@@ -280,7 +280,7 @@ router.get('/stats', authenticateSupabaseUser, async (req, res) => {
     }
 
     res.json(stats || {
-      userid: req.user.id,
+      user_id: req.user.id,
       google_meetings: 0,
       calendly_meetings: 0,
       manual_meetings: 0,

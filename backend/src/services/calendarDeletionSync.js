@@ -182,8 +182,8 @@ class CalendarDeletionSync {
           deleted_at: new Date().toISOString(),
           last_calendar_sync: new Date().toISOString()
         })
-        .eq('googleeventid', calendarEvent.id)
-        .eq('userid', userId);
+        .eq('external_id', calendarEvent.id)
+        .eq('user_id', userId);
 
       results.deleted++;
       console.log(`🗑️  Marked as deleted: ${existingMeeting.title}`);
@@ -252,9 +252,9 @@ class CalendarDeletionSync {
       const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
       await calendar.events.get({
         calendarId: 'primary',
-        eventId: meeting.googleeventid
+        eventId: meeting.external_id
       });
-      
+
       // Event still exists, no action needed
       return;
     } catch (error) {

@@ -928,14 +928,13 @@ Return only the JSON array:`;
             .from('meetings')
             .update({
               quick_summary: quickSummary,           // Single sentence for Clients page
-              email_summary_draft: emailSummary,     // Email format
+              detailed_summary: emailSummary,        // Email format
               action_points: actionPoints,           // Action items for user
-              email_template_id: 'auto-template',
               last_summarized_at: new Date().toISOString(),
-              updatedat: new Date().toISOString()
+              updated_at: new Date().toISOString()
             })
-            .eq('googleeventid', meetingId)
-            .eq('userid', userId);
+            .eq('external_id', meetingId)
+            .eq('user_id', userId);
 
           if (updateError) {
             console.error('Error saving summaries to database:', updateError);

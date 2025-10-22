@@ -246,7 +246,7 @@ router.post('/meeting-reminder/:meetingId', authenticateSupabaseUser, async (req
       .from('meetings')
       .select('*')
       .eq('id', meetingId)
-      .eq('userid', userId)
+      .eq('user_id', userId)
       .single();
 
     if (error || !meeting) {

@@ -520,14 +520,14 @@ async function importData(fileBuffer, filename, userId, options = {}) {
 
       try {
 
-        // Generate unique googleeventid for imported meetings
-        const googleEventId = `import_${Date.now()}_${i}_${uuidv4().substring(0, 8)}`;
+        // Generate unique external_id for imported meetings
+        const externalId = `import_${Date.now()}_${i}_${uuidv4().substring(0, 8)}`;
 
         // Check if meeting already exists (by title, client, and start time)
         const { data: existingMeeting } = await supabase
           .from('meetings')
           .select('id')
-          .eq('userid', userId)
+          .eq('user_id', userId)
           .eq('client_id', clientId)
           .eq('title', validation.data.title)
           .eq('starttime', validation.data.starttime)
