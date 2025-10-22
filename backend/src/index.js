@@ -216,7 +216,7 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
     const { data: meetings, error } = await getSupabase()
       .from('meetings')
       .select('*')
-      .eq('userid', userId)
+      .eq('user_id', userId)
       .or('is_deleted.is.null,is_deleted.eq.false') // Show meetings where is_deleted is NULL or false
       .gte('starttime', timeMin.toISOString())
       .order('starttime', { ascending: true });
@@ -576,7 +576,7 @@ app.get('/api/dev/meetings', async (req, res) => {
         clients(id, name, email)
       `)
       .eq('user_id', userId)
-      .eq('is_deleted', false)
+      .or('is_deleted.is.null,is_deleted.eq.false') // Show meetings where is_deleted is NULL or false
       .order('starttime', { ascending: false })
       .limit(100);
 

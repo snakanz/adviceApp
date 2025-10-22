@@ -196,15 +196,15 @@ class CalendarDeletionSync {
   async handleActiveEvent(userId, calendarEvent, existingMeetingsMap, results) {
     const existingMeeting = existingMeetingsMap.get(calendarEvent.id);
     const meetingData = {
-      googleeventid: calendarEvent.id,
-      userid: userId,
+      external_id: calendarEvent.id,
+      user_id: userId,
       title: calendarEvent.summary || 'Untitled Meeting',
       starttime: calendarEvent.start.dateTime,
       endtime: calendarEvent.end?.dateTime || null,
-      summary: calendarEvent.description || '',
+      description: calendarEvent.description || '',
       location: calendarEvent.location || null,
       attendees: JSON.stringify(calendarEvent.attendees || []),
-      updatedat: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
       last_calendar_sync: new Date().toISOString()
     };
 

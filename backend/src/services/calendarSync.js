@@ -224,8 +224,8 @@ class CalendarSyncService {
             deleted_at: new Date().toISOString(),
             last_calendar_sync: new Date().toISOString()
           })
-          .eq('googleeventid', calendarEvent.id)
-          .eq('userid', userId);
+          .eq('external_id', calendarEvent.id)
+          .eq('user_id', userId);
 
         // Cancel any associated Recall bots
         await this.cancelRecallBot(existingMeeting);
@@ -266,8 +266,8 @@ class CalendarSyncService {
               deleted_at: null,
               last_calendar_sync: new Date().toISOString()
             })
-            .eq('googleeventid', calendarEvent.id)
-            .eq('userid', userId);
+            .eq('external_id', calendarEvent.id)
+            .eq('user_id', userId);
         }
 
         results.restored++;
@@ -286,8 +286,8 @@ class CalendarSyncService {
               ...meetingData,
               last_calendar_sync: new Date().toISOString()
             })
-            .eq('googleeventid', calendarEvent.id)
-            .eq('userid', userId);
+            .eq('external_id', calendarEvent.id)
+            .eq('user_id', userId);
         }
 
         results.updated++;
