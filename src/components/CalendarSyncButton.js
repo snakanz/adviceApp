@@ -3,8 +3,13 @@ import { NavLink } from 'react-router-dom';
 import { Calendar as CalendarIntegrationsIcon, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { api } from '../services/api';
+import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
 export default function CalendarSyncButton() {
+  const { getAccessToken } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -18,8 +23,18 @@ export default function CalendarSyncButton() {
   const checkCalendarStatus = async () => {
     try {
       setIsLoading(true);
-      const response = await api.request('/auth/google/status');
-      setIsConnected(response.connected || false);
+      const token = await getAccessToken();
+
+      // Check for any active calendar connection
+      const response = await axios.get(`${API_BASE_URL}/api/calendar-connections`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Check if there's at least one active connection
+      const hasActiveConnection = response.data.connections &&
+        response.data.connections.some(conn => conn.is_active);
+
+      setIsConnected(hasActiveConnection || false);
     } catch (error) {
       console.error('Error checking calendar status:', error);
       setIsConnected(false);
