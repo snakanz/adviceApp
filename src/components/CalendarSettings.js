@@ -12,7 +12,8 @@ import {
   Plus,
   AlertCircle,
   Loader2,
-  Power
+  Power,
+  Clock
 } from 'lucide-react';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
@@ -268,7 +269,7 @@ export default function CalendarSettings() {
 
                         <div className="flex items-center gap-4 text-sm">
                           <div className="flex items-center gap-1 text-muted-foreground">
-                            <RefreshCw className="w-4 h-4" />
+                            <Clock className="w-4 h-4" />
                             <span>Last sync: {formatLastSync(connection.last_sync_at)}</span>
                           </div>
 
