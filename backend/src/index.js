@@ -564,19 +564,19 @@ app.get('/api/dev/meetings', async (req, res) => {
         title,
         starttime,
         endtime,
-        summary,
-        googleeventid,
+        description,
+        external_id,
         attendees,
         transcript,
         quick_summary,
-        email_summary_draft,
+        detailed_summary,
         action_points,
         meeting_source,
         client_id,
-        client:clients(id, name, email)
+        clients(id, name, email)
       `)
-      .eq('userid', userId) // Use integer user ID
-      .or('is_deleted.is.null,is_deleted.eq.false') // Filter out deleted meetings
+      .eq('user_id', userId)
+      .eq('is_deleted', false)
       .order('starttime', { ascending: false })
       .limit(100);
 

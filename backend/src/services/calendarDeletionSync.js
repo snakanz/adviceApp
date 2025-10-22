@@ -215,11 +215,10 @@ class CalendarDeletionSync {
           .from('meetings')
           .update({
             ...meetingData,
-            is_deleted: false,
-            deleted_at: null
+            is_deleted: false
           })
-          .eq('googleeventid', calendarEvent.id)
-          .eq('userid', userId);
+          .eq('external_id', calendarEvent.id)
+          .eq('user_id', userId);
 
         results.restored++;
         console.log(`🔄 Restored: ${calendarEvent.summary}`);
@@ -228,8 +227,8 @@ class CalendarDeletionSync {
         await getSupabase()
           .from('meetings')
           .update(meetingData)
-          .eq('googleeventid', calendarEvent.id)
-          .eq('userid', userId);
+          .eq('external_id', calendarEvent.id)
+          .eq('user_id', userId);
 
         results.updated++;
       }

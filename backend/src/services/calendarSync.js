@@ -394,19 +394,18 @@ class CalendarSyncService {
    */
   extractMeetingData(userId, calendarEvent) {
     return {
-      googleeventid: calendarEvent.id,
-      userid: parseInt(userId), // Convert to integer to match database
+      external_id: calendarEvent.id,
+      user_id: userId,
       title: calendarEvent.summary || 'Untitled Meeting',
       starttime: calendarEvent.start.dateTime,
       endtime: calendarEvent.end?.dateTime || null,
-      summary: calendarEvent.description || '',
       description: calendarEvent.description || '',
       location: calendarEvent.location || null,
-      attendees: JSON.stringify(calendarEvent.attendees || []), // Convert to text
+      attendees: JSON.stringify(calendarEvent.attendees || []),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       is_deleted: false,
-      sync_status: 'active',
+      meeting_source: 'google',
       last_calendar_sync: new Date().toISOString()
     };
   }

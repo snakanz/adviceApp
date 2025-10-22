@@ -740,14 +740,12 @@ Return only the JSON array:`;
       .from('meetings')
       .update({
         quick_summary: quickSummary,
-        email_summary_draft: emailSummary,
+        detailed_summary: emailSummary,
         action_points: actionPoints,
-        email_template_id: 'auto-template',
-        last_summarized_at: new Date().toISOString(),
-        updatedat: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
-      .eq('googleeventid', meetingId)
-      .eq('userid', userId);
+      .eq('external_id', meetingId)
+      .eq('user_id', userId);
 
     if (updateError) {
       console.error('Error saving summaries:', updateError);
@@ -907,13 +905,11 @@ router.post('/meetings/:id/update-summary', authenticateSupabaseUser, async (req
     const { error: updateError } = await req.supabase
       .from('meetings')
       .update({
-        email_summary_draft: emailSummary,
-        email_template_id: templateId,
-        last_summarized_at: new Date().toISOString(),
-        updatedat: new Date().toISOString()
+        detailed_summary: emailSummary,
+        updated_at: new Date().toISOString()
       })
       .eq('id', meetingId)
-      .eq('userid', userId);
+      .eq('user_id', userId);
 
     if (updateError) {
       console.error('Error updating meeting summary:', updateError);

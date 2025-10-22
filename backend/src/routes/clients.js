@@ -1510,7 +1510,7 @@ router.post('/:clientId/generate-summary', async (req, res) => {
       .from('meetings')
       .select('*')
       .eq('client_id', clientId)
-      .eq('userid', advisorId)
+      .eq('user_id', advisorId)
       .order('starttime', { ascending: false })
       .limit(5); // Get last 5 meetings
 

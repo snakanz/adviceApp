@@ -277,15 +277,15 @@ class ComprehensiveCalendarSync {
    */
   async createMeetingFromCalendarEvent(event, userId) {
     const meetingData = {
-      userid: userId,
-      googleeventid: event.id,
+      user_id: userId,
+      external_id: event.id,
       title: event.summary || 'Untitled Event',
       starttime: event.start?.dateTime || event.start?.date,
       endtime: event.end?.dateTime || event.end?.date,
-      summary: event.description || null,
+      description: event.description || null,
       attendees: event.attendees ? JSON.stringify(event.attendees) : null,
       is_deleted: false,
-      sync_status: 'active',
+      meeting_source: 'google',
       last_calendar_sync: new Date().toISOString()
     };
 
