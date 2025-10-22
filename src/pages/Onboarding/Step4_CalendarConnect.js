@@ -70,7 +70,29 @@ const Step4_CalendarConnect = ({ data, onNext, onBack, onSkip }) => {
         }
     };
 
-    const handleCalendlyConnect = async () => {
+    const handleCalendlyOAuthConnect = async () => {
+        setIsConnecting(true);
+        setError('');
+
+        try {
+            const token = await getAccessToken();
+            const response = await axios.get(
+                `${API_BASE_URL}/api/calendar-connections/calendly/auth-url`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            // Redirect to Calendly OAuth
+            if (response.data.url) {
+                window.location.href = response.data.url;
+            }
+        } catch (err) {
+            console.error('Error connecting to Calendly via OAuth:', err);
+            setError(err.response?.data?.error || 'Failed to connect to Calendly');
+            setIsConnecting(false);
+        }
+    };
+
+    const handleCalendlyTokenConnect = async () => {
         if (!calendlyToken.trim()) {
             setError('Please enter your Calendly API token');
             return;
@@ -80,14 +102,18 @@ const Step4_CalendarConnect = ({ data, onNext, onBack, onSkip }) => {
         setError('');
 
         try {
-            // TODO: Implement Calendly connection endpoint
-            // For now, just simulate success
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            const token = await getAccessToken();
+            await axios.post(
+                `${API_BASE_URL}/api/calendar-connections/calendly`,
+                { api_token: calendlyToken },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
             setIsConnected(true);
             setIsConnecting(false);
         } catch (err) {
             console.error('Error connecting to Calendly:', err);
-            setError('Failed to connect to Calendly');
+            setError(err.response?.data?.error || 'Failed to connect to Calendly');
             setIsConnecting(false);
         }
     };
@@ -163,43 +189,77 @@ const Step4_CalendarConnect = ({ data, onNext, onBack, onSkip }) => {
 
                             {provider === 'calendly' && (
                                 <div className="space-y-4">
-                                    <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                                        <h4 className="font-semibold text-sm">How to get your Calendly API token:</h4>
-                                        <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
-                                            <li>Go to Calendly Settings → Integrations</li>
-                                            <li>Click "API & Webhooks"</li>
-                                            <li>Generate a Personal Access Token</li>
-                                            <li>Copy and paste it below</li>
-                                        </ol>
-                                    </div>
+                                    <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                                        <h4 className="font-semibold text-sm">Choose your connection method:</h4>
+                                        <div className="space-y-3">
+                                            <div className="border border-primary/30 rounded-lg p-3 bg-primary/5">
+                                                <h5 className="font-medium text-sm mb-2">✨ OAuth (Recommended)</h5>
+                                                <p className="text-xs text-muted-foreground mb-3">
+                                                    Secure and easy - you'll be redirected to Calendly to authorize
+                                                </p>
+                                                <Button
+                                                    onClick={handleCalendlyOAuthConnect}
+                                                    disabled={isConnecting}
+                                                    size="sm"
+                                                    className="w-full"
+                                                >
+                                                    {isConnecting ? (
+                                                        <>
+                                                            <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                                            Redirecting...
+                                                        </>
+                                                    ) : (
+                                                        'Connect with Calendly OAuth'
+                                                    )}
+                                                </Button>
+                                            </div>
 
-                                    <div className="space-y-2">
-                                        <Label htmlFor="calendly_token">Calendly API Token</Label>
-                                        <Input
-                                            id="calendly_token"
-                                            type="password"
-                                            placeholder="Enter your Calendly API token"
-                                            value={calendlyToken}
-                                            onChange={(e) => setCalendlyToken(e.target.value)}
-                                            disabled={isConnecting}
-                                        />
+                                            <div className="border border-border rounded-lg p-3">
+                                                <h5 className="font-medium text-sm mb-2">API Token (Manual)</h5>
+                                                <p className="text-xs text-muted-foreground mb-3">
+                                                    Paste your Calendly API token directly
+                                                </p>
+                                                <div className="space-y-2">
+                                                    <Input
+                                                        id="calendly_token"
+                                                        type="password"
+                                                        placeholder="Enter your Calendly API token"
+                                                        value={calendlyToken}
+                                                        onChange={(e) => setCalendlyToken(e.target.value)}
+                                                        disabled={isConnecting}
+                                                        size="sm"
+                                                    />
+                                                    <Button
+                                                        onClick={handleCalendlyTokenConnect}
+                                                        disabled={isConnecting || !calendlyToken.trim()}
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="w-full"
+                                                    >
+                                                        {isConnecting ? (
+                                                            <>
+                                                                <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                                                                Connecting...
+                                                            </>
+                                                        ) : (
+                                                            'Connect with Token'
+                                                        )}
+                                                    </Button>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Get your token from{' '}
+                                                        <a
+                                                            href="https://calendly.com/integrations/api_webhooks"
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="text-primary hover:underline"
+                                                        >
+                                                            Calendly Settings → Integrations
+                                                        </a>
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-
-                                    <Button
-                                        onClick={handleCalendlyConnect}
-                                        disabled={isConnecting || !calendlyToken.trim()}
-                                        size="lg"
-                                        className="w-full"
-                                    >
-                                        {isConnecting ? (
-                                            <>
-                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                                Connecting...
-                                            </>
-                                        ) : (
-                                            'Connect Calendly'
-                                        )}
-                                    </Button>
                                 </div>
                             )}
 
