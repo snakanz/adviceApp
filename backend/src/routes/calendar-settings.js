@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateSupabaseUser } = require('../middleware/auth');
-const { getSupabase, isSupabaseAvailable } = require('../config/supabase');
+const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
+const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 
 /**
  * GET /api/calendar-connections
