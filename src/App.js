@@ -24,10 +24,26 @@ function PrivateRoute() {
   const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false);
   const navigate = useNavigate();
 
+  // Safety timeout: If still loading after 10 seconds, stop loading
   useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (checkingOnboarding) {
+        console.warn('⚠️ Onboarding check timeout - stopping loading state');
+        setCheckingOnboarding(false);
+      }
+    }, 10000); // 10 seconds
+
+    return () => clearTimeout(timeout);
+  }, [checkingOnboarding]);
+
+  useEffect(() => {
+    console.log('🔍 PrivateRoute useEffect:', { isAuthenticated, hasCheckedOnboarding, isLoading });
+
     // Only check onboarding status once when user first authenticates
     if (isAuthenticated && !hasCheckedOnboarding) {
       setHasCheckedOnboarding(true);
+
+      console.log('✅ User authenticated, checking onboarding status...');
 
       // Initialize notification service
       notificationService.initialize();
@@ -36,18 +52,31 @@ function PrivateRoute() {
       const checkOnboarding = async () => {
         try {
           const token = await getAccessToken();
+          console.log('🔑 Got access token:', token ? 'Present' : 'Missing');
+
           const response = await axios.get(`${API_BASE_URL}/api/auth/onboarding/status`, {
             headers: { Authorization: `Bearer ${token}` }
           });
 
+          console.log('📋 Onboarding status response:', response.data);
           setCheckingOnboarding(false);
 
           // Redirect to onboarding if not completed
           if (!response.data.onboarding_completed) {
+            console.log('🔄 Redirecting to onboarding...');
             navigate('/onboarding');
+          } else {
+            console.log('✅ Onboarding completed, staying on current route');
           }
         } catch (error) {
-          console.error('Error checking onboarding status:', error);
+          console.error('❌ Error checking onboarding status:', error);
+          console.error('❌ Error details:', error.response?.data || error.message);
+
+          // If we get a 401, the user is not properly authenticated
+          if (error.response?.status === 401) {
+            console.error('❌ 401 Unauthorized - token may be invalid');
+          }
+
           setCheckingOnboarding(false);
         }
       };
@@ -55,10 +84,15 @@ function PrivateRoute() {
       checkOnboarding();
     } else if (!isAuthenticated) {
       // Reset check flag when user logs out
+      console.log('👋 User not authenticated, resetting onboarding check');
       setHasCheckedOnboarding(false);
       setCheckingOnboarding(true);
+    } else if (!isLoading && isAuthenticated && hasCheckedOnboarding) {
+      // User is authenticated and we've already checked - stop loading
+      console.log('✅ Already checked onboarding, stopping loading state');
+      setCheckingOnboarding(false);
     }
-  }, [isAuthenticated, hasCheckedOnboarding, getAccessToken, navigate]);
+  }, [isAuthenticated, hasCheckedOnboarding, isLoading, getAccessToken, navigate]);
 
   console.log('PrivateRoute: isAuthenticated:', isAuthenticated, 'isLoading:', isLoading);
 
