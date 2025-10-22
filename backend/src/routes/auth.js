@@ -489,7 +489,7 @@ router.post('/onboarding/business-profile', authenticateSupabaseUser, async (req
       .update({
         business_name,
         timezone: timezone || 'UTC',
-        onboarding_step: 2, // Move to next step
+        onboarding_completed: true,
         updated_at: new Date().toISOString()
       })
       .eq('id', userId);
@@ -499,70 +499,10 @@ router.post('/onboarding/business-profile', authenticateSupabaseUser, async (req
       return res.status(500).json({ error: 'Failed to save business profile' });
     }
 
-    // Check if user already has a tenant
-    const { data: existingUser } = await req.supabase
-      .from('users')
-      .select('tenant_id')
-      .eq('id', userId)
-      .single();
-
-    let tenantId = existingUser?.tenant_id;
-
-    // Create tenant if doesn't exist
-    if (!tenantId) {
-      // Use service role client for tenant creation (bypasses RLS)
-      const adminClient = getSupabase();
-
-      const { data: tenant, error: tenantError } = await adminClient
-        .from('tenants')
-        .insert({
-          name: business_name,
-          business_type,
-          team_size,
-          timezone: timezone || 'UTC',
-          owner_id: userId
-        })
-        .select()
-        .single();
-
-      if (tenantError) {
-        console.error('Error creating tenant:', tenantError);
-        return res.status(500).json({ error: 'Failed to create tenant' });
-      }
-
-      tenantId = tenant.id;
-
-      // Add user as tenant owner (use service role client)
-      const { error: memberError } = await adminClient
-        .from('tenant_members')
-        .insert({
-          tenant_id: tenantId,
-          user_id: userId,
-          role: 'owner'
-        });
-
-      if (memberError) {
-        console.error('Error adding tenant member:', memberError);
-        return res.status(500).json({ error: 'Failed to add tenant member' });
-      }
-
-      // Update user with tenant_id (use service role client)
-      const { error: updateError } = await adminClient
-        .from('users')
-        .update({ tenant_id: tenantId })
-        .eq('id', userId);
-
-      if (updateError) {
-        console.error('Error updating user tenant_id:', updateError);
-        return res.status(500).json({ error: 'Failed to update user' });
-      }
-
-      console.log(`✅ Created tenant ${tenantId} for user ${userId}`);
-    }
+    console.log(`✅ Onboarding completed for user ${userId}`);
 
     res.json({
       success: true,
-      tenant_id: tenantId,
       message: 'Business profile saved successfully'
     });
   } catch (error) {
