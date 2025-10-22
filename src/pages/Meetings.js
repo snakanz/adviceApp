@@ -309,9 +309,6 @@ export default function Meetings() {
   const [emailSummary, setEmailSummary] = useState('');
   const [autoGenerating, setAutoGenerating] = useState(false);
 
-  // Add calendar sync state
-  const [syncing, setSyncing] = useState(false);
-
   // Add import dialog state
   const [showImportDialog, setShowImportDialog] = useState(false);
 
@@ -1043,83 +1040,8 @@ export default function Meetings() {
     }
   };
 
-  // Calendar sync function - actually sync with Google Calendar
-  const syncCalendar = async () => {
-    setSyncing(true);
-    try {
-      const token = localStorage.getItem('jwt');
-
-      // Call the actual calendar sync API endpoint
-      const response = await fetch(`${API_URL}/api/calendar/sync`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to sync calendar');
-      }
-
-      const syncResults = await response.json();
-      console.log('Calendar sync results:', syncResults);
-
-      // Refresh meetings after successful sync
-      await fetchMeetings();
-
-      setShowSnackbar(true);
-      setSnackbarMessage(`Calendar synced successfully! Added: ${syncResults.results?.added || 0}, Updated: ${syncResults.results?.updated || 0}`);
-      setSnackbarSeverity('success');
-    } catch (error) {
-      console.error('Error syncing calendar:', error);
-      setShowSnackbar(true);
-      setSnackbarMessage('Failed to sync calendar: ' + error.message);
-      setSnackbarSeverity('error');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  // Calendly sync function - sync with Calendly meetings
-  const syncCalendly = async () => {
-    setSyncing(true);
-    try {
-      const token = localStorage.getItem('jwt');
-
-      // Call the Calendly sync API endpoint
-      const response = await fetch(`${API_URL}/api/calendly/sync`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to sync Calendly');
-      }
-
-      const syncResults = await response.json();
-      console.log('Calendly sync results:', syncResults);
-
-      // Refresh meetings after successful sync
-      await fetchMeetings();
-
-      setShowSnackbar(true);
-      setSnackbarMessage(`Calendly synced successfully! ${syncResults.synced || 0} meetings synced`);
-      setSnackbarSeverity('success');
-    } catch (error) {
-      console.error('Error syncing Calendly:', error);
-      setShowSnackbar(true);
-      setSnackbarMessage('Failed to sync Calendly: ' + error.message);
-      setSnackbarSeverity('error');
-    } finally {
-      setSyncing(false);
-    }
-  };
+  // NOTE: Calendar sync is now handled automatically via webhooks
+  // Manual sync buttons have been removed from the UI
 
   // Toggle annual review flag for a meeting
   const toggleAnnualReview = async (meetingId, currentValue) => {
@@ -1960,26 +1882,6 @@ export default function Meetings() {
                   setSelectedMeetingId(meeting.id);
                 }}
               />
-              <Button
-                onClick={syncCalendar}
-                disabled={syncing}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <RefreshCw className={cn("w-4 h-4", syncing && "animate-spin")} />
-                {syncing ? 'Syncing...' : 'Sync Google'}
-              </Button>
-              <Button
-                onClick={syncCalendly}
-                disabled={syncing}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2 bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200"
-              >
-                <RefreshCw className={cn("w-4 h-4", syncing && "animate-spin")} />
-                {syncing ? 'Syncing...' : 'Sync Calendly'}
-              </Button>
 
               {/* View Mode Toggle */}
               <div className="flex items-center gap-1 border border-border rounded-lg p-1 bg-background">
@@ -2077,27 +1979,7 @@ export default function Meetings() {
                       <p className="text-sm text-muted-foreground">
                         If you expect to see meetings here, try:
                       </p>
-                      <div className="flex gap-2 justify-center">
-                        <Button
-                          onClick={syncCalendly}
-                          disabled={syncing}
-                          variant="outline"
-                          size="sm"
-                          className="bg-orange-50 hover:bg-orange-100 text-orange-700 border-orange-200"
-                        >
-                          <RefreshCw className={cn("w-4 h-4 mr-2", syncing && "animate-spin")} />
-                          Sync Calendly
-                        </Button>
-                        <Button
-                          onClick={syncCalendar}
-                          disabled={syncing}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <RefreshCw className={cn("w-4 h-4 mr-2", syncing && "animate-spin")} />
-                          Sync Google
-                        </Button>
-                      </div>
+
                     </div>
                   )}
                 </div>

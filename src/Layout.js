@@ -26,7 +26,7 @@ import {
   AutoAwesomeIcon,
   NotificationsIcon
 } from './components/icons';
-import { Calendar as CalendarIntegrationsIcon } from 'lucide-react';
+import CalendarSyncButton from './components/CalendarSyncButton';
 
 const navItems = [
   { label: 'Meetings', icon: <CalendarIcon />, path: '/meetings' },
@@ -174,20 +174,7 @@ export default function Layout() {
           <div className="border-t border-border/50">
             {/* Calendar Integrations Quick Access */}
             <div className="p-3">
-              <NavLink
-                to="/settings/calendar"
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm font-medium",
-                    isActive
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                  )
-                }
-              >
-                <CalendarIntegrationsIcon className="w-4 h-4" />
-                <span>Calendar Sync</span>
-              </NavLink>
+              <CalendarSyncButton />
             </div>
 
             {/* Advicly Logo */}
@@ -255,22 +242,8 @@ export default function Layout() {
             </nav>
 
             {/* Calendar Integrations Quick Access - Mobile */}
-            <div className="px-4 py-3 border-t border-border/50 mt-4">
-              <NavLink
-                to="/settings/calendar"
-                onClick={() => setOpen(false)}
-                className={({ isActive }) =>
-                  cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm font-medium",
-                    isActive
-                      ? "bg-primary text-primary-foreground shadow-sm"
-                      : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                  )
-                }
-              >
-                <CalendarIntegrationsIcon className="w-4 h-4" />
-                <span>Calendar Sync</span>
-              </NavLink>
+            <div className="px-4 py-3 border-t border-border/50 mt-4" onClick={() => setOpen(false)}>
+              <CalendarSyncButton />
             </div>
           </div>
         </div>

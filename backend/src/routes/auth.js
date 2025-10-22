@@ -109,6 +109,9 @@ router.get('/google/callback', async (req, res) => {
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const userInfo = await oauth2.userinfo.get();
 
+    console.log('📅 Google OAuth callback - User:', userInfo.data.email);
+    console.log('📅 Google tokens received - Access token:', tokens.access_token ? 'yes' : 'no', 'Refresh token:', tokens.refresh_token ? 'yes' : 'no');
+
     // Find or create user
     const { data: existingUser, error: findError } = await getSupabase()
       .from('users')
@@ -168,27 +171,95 @@ router.get('/google/callback', async (req, res) => {
       user = updatedUser;
     }
 
-    // NOTE: Calendar tokens are now stored in calendar_connections table
-    // This is handled by the auto-connect-calendar endpoint called from AuthCallback.js
-    // We no longer use the old calendartoken table
+    // Store Google tokens in calendar_connections table
+    console.log('💾 Storing Google Calendar tokens in calendar_connections...');
 
-        // Generate JWT
-        const jwtToken = jwt.sign(
-            {
-                id: user.id,
-                email: user.email,
-                name: user.name
-            },
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
+    // Get user's tenant_id (optional - for backwards compatibility)
+    const { data: userData, error: userError } = await getSupabase()
+      .from('users')
+      .select('tenant_id')
+      .eq('id', user.id)
+      .single();
 
-        // Redirect to frontend with token
-        res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${jwtToken}`);
-    } catch (error) {
-        console.error('Google auth error:', error);
-        res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
+    if (userError) {
+      console.error('Error getting user data:', userError);
     }
+
+    const tenantId = userData?.tenant_id || null;
+
+    // Check if calendar connection already exists
+    const { data: existingConnection } = await getSupabase()
+      .from('calendar_connections')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('provider', 'google')
+      .eq('provider_account_email', userInfo.data.email)
+      .single();
+
+    if (existingConnection) {
+      console.log('✅ Updating existing Google Calendar connection...');
+
+      // Update existing connection
+      const { error: updateError } = await getSupabase()
+        .from('calendar_connections')
+        .update({
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token || null,
+          token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
+          is_active: true,
+          sync_enabled: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingConnection.id);
+
+      if (updateError) {
+        console.error('Error updating calendar connection:', updateError);
+      } else {
+        console.log('✅ Google Calendar connection updated successfully');
+      }
+    } else {
+      console.log('✅ Creating new Google Calendar connection...');
+
+      // Create new calendar connection
+      const { error: createError } = await getSupabase()
+        .from('calendar_connections')
+        .insert({
+          user_id: user.id,
+          tenant_id: tenantId,
+          provider: 'google',
+          provider_account_email: userInfo.data.email,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token || null,
+          token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
+          is_primary: true,
+          is_active: true,
+          sync_enabled: true
+        });
+
+      if (createError) {
+        console.error('Error creating calendar connection:', createError);
+      } else {
+        console.log('✅ Google Calendar connection created successfully');
+      }
+    }
+
+    // Generate JWT
+    const jwtToken = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        name: user.name
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Redirect to frontend with token
+    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${jwtToken}`);
+  } catch (error) {
+    console.error('Google auth error:', error);
+    res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
+  }
 });
 
 // Verify token and return user info
