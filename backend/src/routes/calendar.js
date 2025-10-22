@@ -1258,14 +1258,14 @@ router.get('/meetings/starred', authenticateSupabaseUser, async (req, res) => {
       .from('meetings')
       .select(`
         id,
-        googleeventid,
+        external_id,
         title,
         starttime,
         endtime,
         transcript,
         quick_summary,
-        email_summary_draft,
-        is_annual_review,
+        detailed_summary,
+        action_points,
         client_id,
         clients (
           id,
@@ -1273,8 +1273,7 @@ router.get('/meetings/starred', authenticateSupabaseUser, async (req, res) => {
           email
         )
       `)
-      .eq('userid', userId)
-      .eq('is_annual_review', true)
+      .eq('user_id', userId)
       .order('starttime', { ascending: false });
 
     if (error) {

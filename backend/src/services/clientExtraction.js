@@ -16,8 +16,8 @@ class ClientExtractionService {
       // Get all meetings without client_id
       const { data: unlinkedMeetings, error: meetingsError } = await getSupabase()
         .from('meetings')
-        .select('id, title, attendees, googleeventid')
-        .eq('userid', userId)
+        .select('id, title, attendees, external_id')
+        .eq('user_id', userId)
         .is('client_id', null)
         .not('attendees', 'is', null);
 

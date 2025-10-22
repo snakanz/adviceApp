@@ -356,16 +356,16 @@ router.post('/threads/:threadId/messages', async (req, res) => {
     // Get ALL meetings for the advisor (for general questions)
     const { data: allMeetings } = await req.supabase
       .from('meetings')
-      .select('title, starttime, endtime, transcript, quick_summary, email_summary_draft, attendees')
-      .eq('userid', advisorId)
+      .select('title, starttime, endtime, transcript, quick_summary, detailed_summary, attendees')
+      .eq('user_id', advisorId)
       .order('starttime', { ascending: false })
       .limit(50); // Get recent 50 meetings
 
     // Get all clients for the advisor
     const { data: allClients } = await req.supabase
       .from('clients')
-      .select('name, email, status, likely_value, likely_close_month')
-      .eq('advisor_id', advisorId);
+      .select('name, email, pipeline_stage, notes')
+      .eq('user_id', advisorId);
 
     // Build comprehensive context
     if (allMeetings && allMeetings.length > 0) {

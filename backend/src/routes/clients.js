@@ -598,7 +598,7 @@ router.get('/:clientId/meetings', async (req, res) => {
     const { data: meetings, error: meetingsError } = await req.supabase
       .from('meetings')
       .select('*')
-      .eq('userid', userId)
+      .eq('user_id', userId)
       .eq('client_id', client.id)
       .order('starttime', { ascending: false });
 

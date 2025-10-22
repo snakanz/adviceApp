@@ -35,7 +35,7 @@ class CascadeDeletionManager {
         .from('meetings')
         .select('*')
         .eq('id', meetingId)
-        .eq('userid', userId)
+        .eq('user_id', userId)
         .single();
 
       if (!meeting) {

@@ -180,9 +180,9 @@ router.get('/meetings', authenticateSupabaseUser, async (req, res) => {
     const { data: meetings, error } = await req.supabase
       .from('meetings')
       .select('*')
-      .eq('userid', req.user.id)
+      .eq('user_id', req.user.id)
       .eq('meeting_source', 'calendly')
-      .or('is_deleted.is.null,is_deleted.eq.false')
+      .eq('is_deleted', false)
       .order('starttime', { ascending: false });
 
     if (error) {

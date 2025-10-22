@@ -306,9 +306,9 @@ class CalendarDeletionSync {
     const { data: deletedMeetings } = await getSupabase()
       .from('meetings')
       .select('*')
-      .eq('userid', userId)
+      .eq('user_id', userId)
       .eq('is_deleted', true)
-      .order('deleted_at', { ascending: false })
+      .order('updated_at', { ascending: false })
       .limit(limit);
 
     return deletedMeetings || [];
@@ -322,11 +322,10 @@ class CalendarDeletionSync {
       .from('meetings')
       .update({
         is_deleted: false,
-        deleted_at: null,
-        updatedat: new Date().toISOString()
+        updated_at: new Date().toISOString()
       })
-      .eq('googleeventid', eventId)
-      .eq('userid', userId)
+      .eq('external_id', eventId)
+      .eq('user_id', userId)
       .eq('is_deleted', true);
 
     if (error) {
