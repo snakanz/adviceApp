@@ -19,7 +19,6 @@ import {
   Upload,
   Check,
   Mail,
-  RefreshCw,
   Edit,
   List,
   CalendarDays,
