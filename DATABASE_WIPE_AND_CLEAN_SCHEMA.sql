@@ -81,7 +81,26 @@ CREATE TABLE calendar_connections (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 3. MEETINGS TABLE
+-- 3. CLIENTS TABLE (CREATE BEFORE MEETINGS)
+CREATE TABLE clients (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    name TEXT NOT NULL,
+    pipeline_stage TEXT DEFAULT 'prospect',
+    priority_level INTEGER DEFAULT 3 CHECK (priority_level BETWEEN 1 AND 5),
+    last_contact_date TIMESTAMP WITH TIME ZONE,
+    next_follow_up_date TIMESTAMP WITH TIME ZONE,
+    notes TEXT,
+    tags TEXT[],
+    source TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id, email)
+);
+
+-- 4. MEETINGS TABLE (AFTER CLIENTS)
 CREATE TABLE meetings (
     id SERIAL PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -102,25 +121,6 @@ CREATE TABLE meetings (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(user_id, external_id)
-);
-
--- 4. CLIENTS TABLE
-CREATE TABLE clients (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    email TEXT NOT NULL,
-    name TEXT NOT NULL,
-    pipeline_stage TEXT DEFAULT 'prospect',
-    priority_level INTEGER DEFAULT 3 CHECK (priority_level BETWEEN 1 AND 5),
-    last_contact_date TIMESTAMP WITH TIME ZONE,
-    next_follow_up_date TIMESTAMP WITH TIME ZONE,
-    notes TEXT,
-    tags TEXT[],
-    source TEXT,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(user_id, email)
 );
 
 -- 5. CLIENT_BUSINESS_TYPES TABLE
@@ -179,7 +179,7 @@ CREATE TABLE client_documents (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 9. ASK_THREADS TABLE
+-- 9. ASK_THREADS TABLE (CREATE BEFORE ASK_MESSAGES)
 CREATE TABLE ask_threads (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -190,7 +190,7 @@ CREATE TABLE ask_threads (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 10. ASK_MESSAGES TABLE
+-- 10. ASK_MESSAGES TABLE (AFTER ASK_THREADS)
 CREATE TABLE ask_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     thread_id UUID NOT NULL REFERENCES ask_threads(id) ON DELETE CASCADE,
