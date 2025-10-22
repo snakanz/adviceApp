@@ -305,6 +305,18 @@ class GoogleCalendarWebhookService {
 
       console.log(`✅ Sync complete: ${created} created, ${updated} updated, ${deleted} deleted`);
 
+      // Update last_sync_at timestamp
+      try {
+        await getSupabase()
+          .from('calendar_connections')
+          .update({ last_sync_at: new Date().toISOString() })
+          .eq('user_id', userId)
+          .eq('provider', 'google')
+          .eq('is_active', true);
+      } catch (updateError) {
+        console.warn('⚠️  Failed to update last_sync_at:', updateError.message);
+      }
+
       return { created, updated, deleted };
     } catch (error) {
       console.error('❌ Error syncing calendar events:', error);

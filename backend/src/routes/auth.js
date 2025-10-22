@@ -224,6 +224,16 @@ router.get('/google/callback', async (req, res) => {
           const webhookService = new GoogleCalendarWebhookService();
           await webhookService.setupCalendarWatch(user.id);
           console.log('✅ Webhook setup completed - meetings will sync automatically');
+
+          // Trigger initial sync to fetch existing meetings
+          try {
+            console.log('🔄 Triggering initial sync to fetch existing meetings...');
+            await webhookService.syncCalendarEvents(user.id);
+            console.log('✅ Initial sync completed - existing meetings fetched');
+          } catch (syncError) {
+            console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
+            // Don't fail the connection if initial sync fails
+          }
         } catch (webhookError) {
           console.warn('⚠️  Webhook setup failed (non-fatal):', webhookError.message);
           // Don't fail the connection if webhook setup fails
@@ -277,6 +287,16 @@ router.get('/google/callback', async (req, res) => {
           const webhookService = new GoogleCalendarWebhookService();
           await webhookService.setupCalendarWatch(user.id);
           console.log('✅ Webhook setup completed - meetings will sync automatically');
+
+          // Trigger initial sync to fetch existing meetings
+          try {
+            console.log('🔄 Triggering initial sync to fetch existing meetings...');
+            await webhookService.syncCalendarEvents(user.id);
+            console.log('✅ Initial sync completed - existing meetings fetched');
+          } catch (syncError) {
+            console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
+            // Don't fail the connection if initial sync fails
+          }
         } catch (webhookError) {
           console.warn('⚠️  Webhook setup failed (non-fatal):', webhookError.message);
           // Don't fail the connection if webhook setup fails
