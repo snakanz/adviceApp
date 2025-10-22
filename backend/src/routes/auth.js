@@ -40,11 +40,11 @@ router.get('/google/status', authenticateSupabaseUser, async (req, res) => {
 
     const userId = req.user.id;
 
-    // Check if user has Google Calendar tokens
-    const { data: calendarToken, error } = await getSupabase()
-      .from('calendartoken')
-      .select('accesstoken, refreshtoken, expiresat, provider')
-      .eq('userid', userId)
+    // Check if user has Google Calendar connection in new calendar_connections table
+    const { data: calendarConnection, error } = await req.supabase
+      .from('calendar_connections')
+      .select('access_token, refresh_token, token_expires_at, provider, is_active, sync_enabled')
+      .eq('user_id', userId)
       .eq('provider', 'google')
       .single();
 
@@ -56,23 +56,27 @@ router.get('/google/status', authenticateSupabaseUser, async (req, res) => {
       });
     }
 
-    if (!calendarToken) {
+    if (!calendarConnection) {
       return res.json({
         connected: false,
         message: 'Google Calendar not connected'
       });
     }
 
-    // Check if token is expired
-    const expiresAt = new Date(calendarToken.expiresat);
-    const now = new Date();
-    const isExpired = expiresAt <= now;
+    // Check if token is expired (if token_expires_at is set)
+    let isExpired = false;
+    if (calendarConnection.token_expires_at) {
+      const expiresAt = new Date(calendarConnection.token_expires_at);
+      const now = new Date();
+      isExpired = expiresAt <= now;
+    }
 
     return res.json({
-      connected: !isExpired,
+      connected: calendarConnection.is_active && !isExpired,
       user: req.user.email,
-      expiresAt: calendarToken.expiresat,
+      expiresAt: calendarConnection.token_expires_at,
       expired: isExpired,
+      syncEnabled: calendarConnection.sync_enabled,
       message: isExpired ? 'Google Calendar token expired' : 'Google Calendar connected'
     });
 
@@ -164,34 +168,9 @@ router.get('/google/callback', async (req, res) => {
       user = updatedUser;
     }
 
-    // Store/update calendar tokens
-    let expiresAt;
-    if (tokens.expiry_date) {
-      expiresAt = new Date(tokens.expiry_date);
-    } else if (tokens.expires_in) {
-      expiresAt = new Date(Date.now() + (tokens.expires_in * 1000));
-    } else {
-      // Fallback: set to 1 hour from now
-      expiresAt = new Date(Date.now() + 3600 * 1000);
-    }
-
-    // Upsert calendar tokens
-    const { error: tokenError } = await getSupabase()
-      .from('calendartoken')
-      .upsert({
-        id: `token_${user.id}`,
-        userid: user.id,
-        accesstoken: tokens.access_token,
-        refreshtoken: tokens.refresh_token || null,
-        expiresat: expiresAt.toISOString(),
-        provider: 'google',
-        updatedat: new Date().toISOString()
-      });
-
-    if (tokenError) {
-      console.error('Error upserting calendar token:', tokenError);
-      // Don't throw here as this is not critical for login
-    }
+    // NOTE: Calendar tokens are now stored in calendar_connections table
+    // This is handled by the auto-connect-calendar endpoint called from AuthCallback.js
+    // We no longer use the old calendartoken table
 
         // Generate JWT
         const jwtToken = jwt.sign(
