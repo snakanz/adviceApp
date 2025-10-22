@@ -311,9 +311,6 @@ export default function Meetings() {
   // Add import dialog state
   const [showImportDialog, setShowImportDialog] = useState(false);
 
-  // Add sync state
-  const [isSyncing, setIsSyncing] = useState(false);
-
   // Add action items state
   const [actionItems, setActionItems] = useState([]);
   const [loadingActionItems, setLoadingActionItems] = useState(false);
@@ -419,53 +416,6 @@ export default function Meetings() {
       // Default to Advicly Summary template (auto-template)
       const adviclyTemplate = loadedTemplates.find(t => t.id === 'auto-template') || loadedTemplates[0];
       setSelectedTemplate(adviclyTemplate);
-    }
-  }, []);
-
-  // Sync Google Calendar meetings
-  const syncGoogleCalendar = useCallback(async () => {
-    try {
-      setIsSyncing(true);
-      const token = localStorage.getItem('jwt');
-
-      if (!token) {
-        setShowSnackbar(true);
-        setSnackbarMessage('Authentication required. Please log in again.');
-        setSnackbarSeverity('error');
-        return;
-      }
-
-      console.log('🔄 Starting Google Calendar sync...');
-
-      const response = await fetch(`${API_URL}/api/calendar/sync-google`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to sync calendar');
-      }
-
-      const data = await response.json();
-      console.log('✅ Sync completed:', data);
-
-      setShowSnackbar(true);
-      setSnackbarMessage(`✅ Sync complete! Added ${data.results.added}, Updated ${data.results.updated}`);
-      setSnackbarSeverity('success');
-
-      // Refresh meetings after sync
-      await fetchMeetings();
-    } catch (error) {
-      console.error('❌ Sync error:', error);
-      setShowSnackbar(true);
-      setSnackbarMessage(`Sync failed: ${error.message}`);
-      setSnackbarSeverity('error');
-    } finally {
-      setIsSyncing(false);
     }
   }, []);
 
@@ -1914,26 +1864,6 @@ export default function Meetings() {
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-foreground">Meetings</h1>
             <div className="flex items-center gap-2">
-              <Button
-                onClick={syncGoogleCalendar}
-                disabled={isSyncing}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-                title="Sync meetings from your connected Google Calendar"
-              >
-                {isSyncing ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
-                    Syncing...
-                  </>
-                ) : (
-                  <>
-                    <Calendar className="w-4 h-4" />
-                    Sync Calendar
-                  </>
-                )}
-              </Button>
               <Button
                 onClick={() => setShowImportDialog(true)}
                 variant="outline"

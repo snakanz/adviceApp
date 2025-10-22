@@ -89,6 +89,20 @@ router.delete('/:id', authenticateSupabaseUser, async (req, res) => {
       }
     }
 
+    // Stop webhook if this is a Google Calendar connection
+    if (connection.provider === 'google') {
+      try {
+        console.log('🛑 Stopping Google Calendar webhook...');
+        const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
+        const webhookService = new GoogleCalendarWebhookService();
+        await webhookService.stopCalendarWatch(userId);
+        console.log('✅ Webhook stopped');
+      } catch (webhookError) {
+        console.warn('⚠️  Webhook cleanup failed (non-fatal):', webhookError.message);
+        // Don't fail the disconnect if webhook cleanup fails
+      }
+    }
+
     // Delete the connection
     const { error: deleteError } = await req.supabase
       .from('calendar_connections')

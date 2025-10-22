@@ -216,6 +216,18 @@ router.get('/google/callback', async (req, res) => {
         console.error('Error updating calendar connection:', updateError);
       } else {
         console.log('✅ Google Calendar connection updated successfully');
+
+        // Setup webhook for automatic sync
+        try {
+          console.log('📡 Setting up Google Calendar webhook for automatic sync...');
+          const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
+          const webhookService = new GoogleCalendarWebhookService();
+          await webhookService.setupCalendarWatch(user.id);
+          console.log('✅ Webhook setup completed - meetings will sync automatically');
+        } catch (webhookError) {
+          console.warn('⚠️  Webhook setup failed (non-fatal):', webhookError.message);
+          // Don't fail the connection if webhook setup fails
+        }
       }
     } else {
       console.log('✅ Creating new Google Calendar connection...');
@@ -257,6 +269,18 @@ router.get('/google/callback', async (req, res) => {
         console.error('Error creating calendar connection:', createError);
       } else {
         console.log('✅ Google Calendar connection created successfully');
+
+        // Setup webhook for automatic sync
+        try {
+          console.log('📡 Setting up Google Calendar webhook for automatic sync...');
+          const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
+          const webhookService = new GoogleCalendarWebhookService();
+          await webhookService.setupCalendarWatch(user.id);
+          console.log('✅ Webhook setup completed - meetings will sync automatically');
+        } catch (webhookError) {
+          console.warn('⚠️  Webhook setup failed (non-fatal):', webhookError.message);
+          // Don't fail the connection if webhook setup fails
+        }
       }
     }
 

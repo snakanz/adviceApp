@@ -28,21 +28,24 @@ class GoogleCalendarWebhookService {
         throw new Error('Database unavailable');
       }
 
-      // Get user's Google tokens
-      const { data: user, error: userError } = await getSupabase()
-        .from('users')
-        .select('googleaccesstoken, googlerefreshtoken, email')
-        .eq('id', userId)
+      // Get user's active Google Calendar connection
+      const { data: connection, error: connError } = await getSupabase()
+        .from('calendar_connections')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('provider', 'google')
+        .eq('is_active', true)
         .single();
 
-      if (userError || !user?.googleaccesstoken) {
+      if (connError || !connection?.access_token) {
         throw new Error('User not authenticated with Google Calendar');
       }
 
       // Set OAuth credentials
       this.oauth2Client.setCredentials({
-        access_token: user.googleaccesstoken,
-        refresh_token: user.googlerefreshtoken
+        access_token: connection.access_token,
+        refresh_token: connection.refresh_token,
+        expiry_date: connection.token_expires_at ? new Date(connection.token_expires_at).getTime() : null
       });
 
       const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
@@ -116,17 +119,20 @@ class GoogleCalendarWebhookService {
         return;
       }
 
-      // Get user's Google tokens
-      const { data: user } = await getSupabase()
-        .from('users')
-        .select('googleaccesstoken, googlerefreshtoken')
-        .eq('id', userId)
+      // Get user's active Google Calendar connection
+      const { data: connection } = await getSupabase()
+        .from('calendar_connections')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('provider', 'google')
+        .eq('is_active', true)
         .single();
 
-      if (user?.googleaccesstoken) {
+      if (connection?.access_token) {
         this.oauth2Client.setCredentials({
-          access_token: user.googleaccesstoken,
-          refresh_token: user.googlerefreshtoken
+          access_token: connection.access_token,
+          refresh_token: connection.refresh_token,
+          expiry_date: connection.token_expires_at ? new Date(connection.token_expires_at).getTime() : null
         });
 
         const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
@@ -215,20 +221,23 @@ class GoogleCalendarWebhookService {
     try {
       console.log(`🔄 Syncing calendar events for user ${userId}...`);
 
-      // Get user's Google tokens
-      const { data: user } = await getSupabase()
-        .from('users')
-        .select('googleaccesstoken, googlerefreshtoken')
-        .eq('id', userId)
+      // Get user's active Google Calendar connection
+      const { data: connection } = await getSupabase()
+        .from('calendar_connections')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('provider', 'google')
+        .eq('is_active', true)
         .single();
 
-      if (!user?.googleaccesstoken) {
-        throw new Error('User not authenticated');
+      if (!connection?.access_token) {
+        throw new Error('User not authenticated with Google Calendar');
       }
 
       this.oauth2Client.setCredentials({
-        access_token: user.googleaccesstoken,
-        refresh_token: user.googlerefreshtoken
+        access_token: connection.access_token,
+        refresh_token: connection.refresh_token,
+        expiry_date: connection.token_expires_at ? new Date(connection.token_expires_at).getTime() : null
       });
 
       const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
