@@ -1662,6 +1662,159 @@ router.get('/webhook/test', (req, res) => {
   });
 });
 
+// ============================================
+// CALENDLY OAUTH ENDPOINTS
+// ============================================
+
+const CalendlyOAuthService = require('../services/calendlyOAuth');
+
+/**
+ * GET /api/calendar/calendly/auth
+ * Generate Calendly OAuth authorization URL
+ */
+router.get('/calendly/auth', (req, res) => {
+  try {
+    const oauthService = new CalendlyOAuthService();
+
+    if (!oauthService.isConfigured()) {
+      return res.status(400).json({
+        error: 'Calendly OAuth not configured',
+        message: 'Please set CALENDLY_OAUTH_CLIENT_ID and CALENDLY_OAUTH_CLIENT_SECRET environment variables'
+      });
+    }
+
+    const state = Math.random().toString(36).substring(7);
+    const authUrl = oauthService.getAuthorizationUrl(state);
+
+    res.json({ url: authUrl, state });
+  } catch (error) {
+    console.error('Error generating Calendly auth URL:', error);
+    res.status(500).json({ error: 'Failed to generate authorization URL' });
+  }
+});
+
+/**
+ * GET /api/calendar/calendly/oauth/callback
+ * Handle Calendly OAuth callback
+ */
+router.get('/calendly/oauth/callback', async (req, res) => {
+  try {
+    const { code, error } = req.query;
+
+    if (error) {
+      return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=${encodeURIComponent(error)}`);
+    }
+
+    if (!code) {
+      return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=NoCode`);
+    }
+
+    if (!isSupabaseAvailable()) {
+      return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=DatabaseUnavailable`);
+    }
+
+    const oauthService = new CalendlyOAuthService();
+
+    if (!oauthService.isConfigured()) {
+      return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=OAuthNotConfigured`);
+    }
+
+    // Exchange code for tokens
+    const tokenData = await oauthService.exchangeCodeForToken(code);
+    const accessToken = tokenData.access_token;
+    const refreshToken = tokenData.refresh_token;
+
+    // Get user info from Calendly
+    const userResponse = await oauthService.getCurrentUser(accessToken);
+    const calendlyUser = userResponse.resource;
+
+    console.log(`✅ Calendly OAuth successful for user: ${calendlyUser.email}`);
+
+    // Find or create user in database
+    const { data: existingUser, error: findError } = await getSupabase()
+      .from('users')
+      .select('*')
+      .eq('email', calendlyUser.email)
+      .single();
+
+    if (findError && findError.code !== 'PGRST116') {
+      console.error('Error finding user:', findError);
+      return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=DatabaseError`);
+    }
+
+    let user = existingUser;
+
+    if (!user) {
+      // Create new user
+      const { data: newUser, error: createError } = await getSupabase()
+        .from('users')
+        .insert({
+          email: calendlyUser.email,
+          name: calendlyUser.name || calendlyUser.email,
+          provider: 'calendly',
+          providerid: calendlyUser.uri
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Error creating user:', createError);
+        return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=UserCreationFailed`);
+      }
+
+      user = newUser;
+    }
+
+    // Deactivate other active calendar connections for this user
+    await getSupabase()
+      .from('calendar_connections')
+      .update({ is_active: false })
+      .eq('user_id', user.id);
+
+    // Create or update Calendly connection
+    const { data: existingConnection } = await getSupabase()
+      .from('calendar_connections')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('provider', 'calendly')
+      .single();
+
+    if (existingConnection) {
+      // Update existing connection
+      await getSupabase()
+        .from('calendar_connections')
+        .update({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          is_active: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingConnection.id);
+
+      console.log(`✅ Updated Calendly connection for user ${user.id}`);
+    } else {
+      // Create new connection
+      await getSupabase()
+        .from('calendar_connections')
+        .insert({
+          user_id: user.id,
+          provider: 'calendly',
+          access_token: accessToken,
+          refresh_token: refreshToken,
+          is_active: true
+        });
+
+      console.log(`✅ Created new Calendly connection for user ${user.id}`);
+    }
+
+    // Redirect to settings with success message
+    res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?success=CalendlyConnected`);
+  } catch (error) {
+    console.error('Error in Calendly OAuth callback:', error);
+    res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=${encodeURIComponent(error.message)}`);
+  }
+});
+
 // Debug route to confirm calendar.js is loaded
 router.get('/debug-alive', (req, res) => {
   res.json({ status: 'calendar routes alive' });

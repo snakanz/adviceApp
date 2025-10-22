@@ -236,8 +236,34 @@ router.patch('/:id/set-primary', authenticateSupabaseUser, async (req, res) => {
 });
 
 /**
+ * GET /api/calendar-connections/calendly/auth-url
+ * Get Calendly OAuth authorization URL
+ */
+router.get('/calendly/auth-url', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const CalendlyOAuthService = require('../services/calendlyOAuth');
+    const oauthService = new CalendlyOAuthService();
+
+    if (!oauthService.isConfigured()) {
+      return res.status(400).json({
+        error: 'Calendly OAuth not configured',
+        message: 'Please set CALENDLY_OAUTH_CLIENT_ID and CALENDLY_OAUTH_CLIENT_SECRET environment variables'
+      });
+    }
+
+    const state = Math.random().toString(36).substring(7);
+    const authUrl = oauthService.getAuthorizationUrl(state);
+
+    res.json({ url: authUrl, state });
+  } catch (error) {
+    console.error('Error generating Calendly auth URL:', error);
+    res.status(500).json({ error: 'Failed to generate authorization URL' });
+  }
+});
+
+/**
  * POST /api/calendar-connections/calendly
- * Connect a Calendly account
+ * Connect a Calendly account (via API token)
  */
 router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
   try {
