@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import DataImport from '../components/DataImport';
 import NotificationSettings from '../components/NotificationSettings';
+import CalendarSettings from '../components/CalendarSettings';
 import {
   Settings as SettingsIcon,
   User,
@@ -10,11 +11,12 @@ import {
   Palette,
   Database,
   Upload,
-  ArrowLeft
+  ArrowLeft,
+  Calendar
 } from 'lucide-react';
 
 export default function Settings() {
-  const [activeSection, setActiveSection] = useState('main'); // 'main' or 'data-import'
+  const [activeSection, setActiveSection] = useState('main'); // 'main', 'data-import', or 'calendar-settings'
 
   if (activeSection === 'data-import') {
     return (
@@ -44,6 +46,39 @@ export default function Settings() {
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
           <DataImport />
+        </div>
+      </div>
+    );
+  }
+
+  if (activeSection === 'calendar-settings') {
+    return (
+      <div className="h-full flex flex-col bg-background">
+        {/* Header */}
+        <div className="border-b border-border/50 p-6 bg-card/50">
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setActiveSection('main')}
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to Settings
+            </Button>
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <Calendar className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Calendar Integrations</h1>
+              <p className="text-muted-foreground">Manage your calendar connections and sync settings</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <CalendarSettings />
         </div>
       </div>
     );
@@ -120,6 +155,29 @@ export default function Settings() {
               </p>
               <Button variant="outline" className="w-full">
                 Customize Theme
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Calendar Integrations */}
+          <Card className="border-border/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-primary" />
+                Calendar Integrations
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Manage your calendar connections, sync settings, and switch between Google Calendar and Calendly.
+              </p>
+              <Button
+                variant="outline"
+                className="w-full flex items-center gap-2"
+                onClick={() => setActiveSection('calendar-settings')}
+              >
+                <Calendar className="w-4 h-4" />
+                Manage Calendars
               </Button>
             </CardContent>
           </Card>

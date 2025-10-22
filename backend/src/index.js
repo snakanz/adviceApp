@@ -1408,6 +1408,10 @@ console.log('🔄 Mounting Calendly routes...');
 app.use('/api/calendly', require('./routes/calendly'));
 console.log('✅ Calendly routes mounted (includes sync, status, and webhook endpoints)');
 
+console.log('🔄 Mounting calendar-settings routes...');
+app.use('/api/calendar-connections', require('./routes/calendar-settings'));
+console.log('✅ Calendar-settings routes mounted');
+
 console.log('✅ All API routes mounted');
 
 // DISABLED: Routes are already mounted directly above
