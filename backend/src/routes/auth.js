@@ -589,21 +589,21 @@ router.post('/auto-connect-calendar', authenticateSupabaseUser, async (req, res)
 
     console.log('✅ Found Google provider token in Supabase Auth session');
 
-    // Get user's tenant_id
+    // Get user's tenant_id (optional - for backwards compatibility with pre-multi-tenant users)
     const { data: userData, error: userError } = await req.supabase
       .from('users')
       .select('tenant_id')
       .eq('id', userId)
       .single();
 
-    if (userError || !userData?.tenant_id) {
-      console.error('Error getting user tenant:', userError);
-      return res.status(400).json({
-        error: 'User must complete business profile setup first (tenant_id required)'
+    if (userError) {
+      console.error('Error getting user data:', userError);
+      return res.status(500).json({
+        error: 'Failed to fetch user data'
       });
     }
 
-    const tenantId = userData.tenant_id;
+    const tenantId = userData?.tenant_id || null; // Allow null for backwards compatibility
 
     // Check if calendar connection already exists
     const { data: existingConnection } = await req.supabase

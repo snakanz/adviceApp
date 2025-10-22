@@ -42,7 +42,7 @@ export default function CalendarSettings() {
       setIsLoading(true);
       setError('');
       const token = await getAccessToken();
-      
+
       const response = await axios.get(`${API_BASE_URL}/api/calendar-connections`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -50,7 +50,15 @@ export default function CalendarSettings() {
       setConnections(response.data.connections || []);
     } catch (err) {
       console.error('Error loading calendar connections:', err);
-      setError('Failed to load calendar connections');
+
+      // Provide more helpful error messages
+      if (err.response?.status === 404) {
+        setError('Calendar settings endpoint not found. The backend may still be deploying. Please wait a moment and refresh.');
+      } else if (err.response?.status === 503) {
+        setError('Database service unavailable. Please try again in a moment.');
+      } else {
+        setError(err.response?.data?.error || 'Failed to load calendar connections');
+      }
     } finally {
       setIsLoading(false);
     }

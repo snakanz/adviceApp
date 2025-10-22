@@ -260,17 +260,17 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
       });
     }
 
-    // Get user's tenant_id
+    // Get user's tenant_id (optional - for backwards compatibility)
     const { data: userData, error: userError } = await req.supabase
       .from('users')
       .select('tenant_id, email')
       .eq('id', userId)
       .single();
 
-    if (userError || !userData?.tenant_id) {
-      console.error('Error getting user tenant:', userError);
-      return res.status(400).json({
-        error: 'User must complete business profile setup first'
+    if (userError) {
+      console.error('Error getting user data:', userError);
+      return res.status(500).json({
+        error: 'Failed to fetch user data'
       });
     }
 
@@ -328,7 +328,7 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
       .from('calendar_connections')
       .insert({
         user_id: userId,
-        tenant_id: userData.tenant_id,
+        tenant_id: userData.tenant_id || null, // Allow null for backwards compatibility
         provider: 'calendly',
         provider_account_email: userData.email,
         access_token: api_token,
