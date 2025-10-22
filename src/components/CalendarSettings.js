@@ -34,6 +34,7 @@ export default function CalendarSettings() {
 
   useEffect(() => {
     loadConnections();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadConnections = async () => {
