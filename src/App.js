@@ -21,34 +21,44 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:300
 function PrivateRoute() {
   const { isAuthenticated, isLoading, getAccessToken } = useAuth();
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false);
   const navigate = useNavigate();
 
-  const checkOnboardingStatus = React.useCallback(async () => {
-    try {
-      const token = await getAccessToken();
-      const response = await axios.get(`${API_BASE_URL}/api/auth/onboarding/status`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      setCheckingOnboarding(false);
-
-      // Redirect to onboarding if not completed
-      if (!response.data.onboarding_completed) {
-        navigate('/onboarding');
-      }
-    } catch (error) {
-      console.error('Error checking onboarding status:', error);
-      setCheckingOnboarding(false);
-    }
-  }, [getAccessToken, navigate]);
-
   useEffect(() => {
-    // Initialize notification service when user is authenticated
-    if (isAuthenticated) {
+    // Only check onboarding status once when user first authenticates
+    if (isAuthenticated && !hasCheckedOnboarding) {
+      setHasCheckedOnboarding(true);
+
+      // Initialize notification service
       notificationService.initialize();
-      checkOnboardingStatus();
+
+      // Check onboarding status
+      const checkOnboarding = async () => {
+        try {
+          const token = await getAccessToken();
+          const response = await axios.get(`${API_BASE_URL}/api/auth/onboarding/status`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+
+          setCheckingOnboarding(false);
+
+          // Redirect to onboarding if not completed
+          if (!response.data.onboarding_completed) {
+            navigate('/onboarding');
+          }
+        } catch (error) {
+          console.error('Error checking onboarding status:', error);
+          setCheckingOnboarding(false);
+        }
+      };
+
+      checkOnboarding();
+    } else if (!isAuthenticated) {
+      // Reset check flag when user logs out
+      setHasCheckedOnboarding(false);
+      setCheckingOnboarding(true);
     }
-  }, [isAuthenticated, checkOnboardingStatus]);
+  }, [isAuthenticated, hasCheckedOnboarding, getAccessToken, navigate]);
 
   console.log('PrivateRoute: isAuthenticated:', isAuthenticated, 'isLoading:', isLoading);
 
