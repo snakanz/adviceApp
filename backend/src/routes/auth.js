@@ -43,7 +43,7 @@ router.get('/google/status', authenticateSupabaseUser, async (req, res) => {
     // Check if user has Google Calendar connection in new calendar_connections table
     const { data: calendarConnection, error } = await req.supabase
       .from('calendar_connections')
-      .select('access_token, refresh_token, token_expires_at, provider, is_active, sync_enabled')
+      .select('access_token, refresh_token, token_expires_at, provider, is_active')
       .eq('user_id', userId)
       .eq('provider', 'google')
       .single();
@@ -76,7 +76,6 @@ router.get('/google/status', authenticateSupabaseUser, async (req, res) => {
       user: req.user.email,
       expiresAt: calendarConnection.token_expires_at,
       expired: isExpired,
-      syncEnabled: calendarConnection.sync_enabled,
       message: isExpired ? 'Google Calendar token expired' : 'Google Calendar connected'
     });
 
@@ -174,19 +173,6 @@ router.get('/google/callback', async (req, res) => {
     // Store Google tokens in calendar_connections table
     console.log('💾 Storing Google Calendar tokens in calendar_connections...');
 
-    // Get user's tenant_id (optional - for backwards compatibility)
-    const { data: userData, error: userError } = await getSupabase()
-      .from('users')
-      .select('tenant_id')
-      .eq('id', user.id)
-      .single();
-
-    if (userError) {
-      console.error('Error getting user data:', userError);
-    }
-
-    const tenantId = userData?.tenant_id || null;
-
     // Check if calendar connection already exists for this specific email
     const { data: existingConnection } = await getSupabase()
       .from('calendar_connections')
@@ -207,7 +193,6 @@ router.get('/google/callback', async (req, res) => {
           refresh_token: tokens.refresh_token || null,
           token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
           is_active: true,
-          sync_enabled: true,
           updated_at: new Date().toISOString()
         })
         .eq('id', existingConnection.id);
@@ -264,15 +249,11 @@ router.get('/google/callback', async (req, res) => {
         .from('calendar_connections')
         .insert({
           user_id: user.id,
-          tenant_id: tenantId,
           provider: 'google',
-          provider_account_email: userInfo.data.email,
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token || null,
           token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
-          is_primary: true,
-          is_active: true,
-          sync_enabled: true
+          is_active: true
         });
 
       if (createError) {
@@ -431,7 +412,7 @@ router.get('/onboarding/status', authenticateSupabaseUser, async (req, res) => {
 
     const { data: user, error } = await req.supabase
       .from('users')
-      .select('onboarding_completed, onboarding_step, business_name, tenant_id')
+      .select('onboarding_completed, onboarding_step, business_name')
       .eq('id', userId)
       .single();
 
@@ -443,8 +424,7 @@ router.get('/onboarding/status', authenticateSupabaseUser, async (req, res) => {
     res.json({
       onboarding_completed: user.onboarding_completed || false,
       onboarding_step: user.onboarding_step || 0,
-      business_name: user.business_name,
-      tenant_id: user.tenant_id
+      business_name: user.business_name
     });
   } catch (error) {
     console.error('Error in GET /onboarding/status:', error);

@@ -524,10 +524,10 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
       .from('meetings')
       .select(`
         *,
-        client:clients(id, name, email)
+        clients(id, name, email)
       `)
-      .eq('googleeventid', meetingId)
-      .eq('userid', userId)
+      .eq('external_id', meetingId)
+      .eq('user_id', userId)
       .single();
 
     if (fetchError || !meeting) {
@@ -542,9 +542,9 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
     let clientName = 'Client';
     let clientEmail = null;
 
-    if (meeting.client) {
-      clientName = meeting.client.name || meeting.client.email.split('@')[0];
-      clientEmail = meeting.client.email;
+    if (meeting.clients) {
+      clientName = meeting.clients.name || meeting.clients.email.split('@')[0];
+      clientEmail = meeting.clients.email;
     } else if (meeting.attendees) {
       try {
         const attendees = JSON.parse(meeting.attendees);

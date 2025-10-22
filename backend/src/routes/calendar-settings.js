@@ -60,7 +60,7 @@ router.delete('/:id', authenticateSupabaseUser, async (req, res) => {
     // Verify the connection belongs to this user
     const { data: connection, error: fetchError } = await req.supabase
       .from('calendar_connections')
-      .select('id, provider, is_primary')
+      .select('id, provider, is_active')
       .eq('id', connectionId)
       .eq('user_id', userId)
       .single();
@@ -69,24 +69,6 @@ router.delete('/:id', authenticateSupabaseUser, async (req, res) => {
       return res.status(404).json({
         error: 'Calendar connection not found'
       });
-    }
-
-    // Check if this is the primary calendar
-    if (connection.is_primary) {
-      // Check if there are other connections
-      const { data: otherConnections } = await req.supabase
-        .from('calendar_connections')
-        .select('id')
-        .eq('user_id', userId)
-        .neq('id', connectionId);
-
-      if (otherConnections && otherConnections.length > 0) {
-        // Set another connection as primary
-        await req.supabase
-          .from('calendar_connections')
-          .update({ is_primary: true })
-          .eq('id', otherConnections[0].id);
-      }
     }
 
     // Stop webhook if this is a Google Calendar connection
@@ -132,7 +114,7 @@ router.delete('/:id', authenticateSupabaseUser, async (req, res) => {
 
 /**
  * PATCH /api/calendar-connections/:id/toggle-sync
- * Enable or disable sync for a calendar connection
+ * Enable or disable sync for a calendar connection (deprecated - kept for compatibility)
  */
 router.patch('/:id/toggle-sync', authenticateSupabaseUser, async (req, res) => {
   try {
@@ -152,11 +134,11 @@ router.patch('/:id/toggle-sync', authenticateSupabaseUser, async (req, res) => {
       });
     }
 
-    // Update the sync_enabled flag
+    // Update the is_active flag (sync_enabled column no longer exists)
     const { data, error } = await req.supabase
       .from('calendar_connections')
       .update({
-        sync_enabled,
+        is_active: sync_enabled,
         updated_at: new Date().toISOString()
       })
       .eq('id', connectionId)
@@ -187,7 +169,7 @@ router.patch('/:id/toggle-sync', authenticateSupabaseUser, async (req, res) => {
 
 /**
  * PATCH /api/calendar-connections/:id/set-primary
- * Set a calendar connection as the primary calendar
+ * Set a calendar connection as the primary calendar (deprecated - kept for compatibility)
  */
 router.patch('/:id/set-primary', authenticateSupabaseUser, async (req, res) => {
   try {
@@ -214,17 +196,17 @@ router.patch('/:id/set-primary', authenticateSupabaseUser, async (req, res) => {
       });
     }
 
-    // First, set all other connections to non-primary
+    // First, deactivate all other connections (only one active per user)
     await req.supabase
       .from('calendar_connections')
-      .update({ is_primary: false })
+      .update({ is_active: false })
       .eq('user_id', userId);
 
-    // Then set this connection as primary
+    // Then set this connection as active
     const { data, error } = await req.supabase
       .from('calendar_connections')
       .update({
-        is_primary: true,
+        is_active: true,
         updated_at: new Date().toISOString()
       })
       .eq('id', connectionId)
@@ -274,10 +256,10 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
       });
     }
 
-    // Get user's tenant_id (optional - for backwards compatibility)
+    // Get user's email
     const { data: userData, error: userError } = await req.supabase
       .from('users')
-      .select('tenant_id, email')
+      .select('email')
       .eq('id', userId)
       .single();
 
@@ -306,7 +288,6 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
         .update({
           access_token: api_token,
           is_active: true,
-          sync_enabled: true,
           updated_at: new Date().toISOString()
         })
         .eq('id', existingConnection.id)
@@ -351,13 +332,9 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
       .from('calendar_connections')
       .insert({
         user_id: userId,
-        tenant_id: userData.tenant_id || null, // Allow null for backwards compatibility
         provider: 'calendly',
-        provider_account_email: userData.email,
         access_token: api_token,
-        is_primary: true,
-        is_active: true,
-        sync_enabled: true
+        is_active: true
       })
       .select()
       .single();
