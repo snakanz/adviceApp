@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Calendar as CalendarIntegrationsIcon, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { api } from '../services/api';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 
@@ -13,14 +12,7 @@ export default function CalendarSyncButton() {
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    checkCalendarStatus();
-    // Check status every 30 seconds
-    const interval = setInterval(checkCalendarStatus, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const checkCalendarStatus = async () => {
+  const checkCalendarStatus = useCallback(async () => {
     try {
       setIsLoading(true);
       const token = await getAccessToken();
@@ -41,7 +33,14 @@ export default function CalendarSyncButton() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [getAccessToken]);
+
+  useEffect(() => {
+    checkCalendarStatus();
+    // Check status every 30 seconds
+    const interval = setInterval(checkCalendarStatus, 30000);
+    return () => clearInterval(interval);
+  }, [checkCalendarStatus]);
 
   return (
     <NavLink

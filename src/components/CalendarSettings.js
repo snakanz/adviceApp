@@ -8,13 +8,10 @@ import axios from 'axios';
 import {
   Calendar,
   CheckCircle,
-  XCircle,
-  RefreshCw,
   Trash2,
   Plus,
   AlertCircle,
   Loader2,
-  Star,
   Power
 } from 'lucide-react';
 
@@ -103,26 +100,6 @@ export default function CalendarSettings() {
     } catch (err) {
       console.error('Error toggling sync:', err);
       setError(err.response?.data?.error || 'Failed to toggle sync');
-    }
-  };
-
-  const handleSetPrimary = async (connectionId) => {
-    try {
-      setError('');
-      setSuccess('');
-      const token = await getAccessToken();
-      
-      await axios.patch(
-        `${API_BASE_URL}/api/calendar-connections/${connectionId}/set-primary`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      setSuccess('Primary calendar updated successfully');
-      loadConnections();
-    } catch (err) {
-      console.error('Error setting primary calendar:', err);
-      setError(err.response?.data?.error || 'Failed to set primary calendar');
     }
   };
 
