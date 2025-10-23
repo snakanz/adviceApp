@@ -238,6 +238,9 @@ router.patch('/:id/set-primary', authenticateSupabaseUser, async (req, res) => {
 /**
  * GET /api/calendar-connections/calendly/auth-url
  * Get Calendly OAuth authorization URL
+ *
+ * NOTE: The state parameter will be added by the frontend with the user ID
+ * This endpoint just returns the base URL without state
  */
 router.get('/calendly/auth-url', authenticateSupabaseUser, async (req, res) => {
   try {
@@ -251,10 +254,15 @@ router.get('/calendly/auth-url', authenticateSupabaseUser, async (req, res) => {
       });
     }
 
-    const state = Math.random().toString(36).substring(7);
+    // ✅ IMPORTANT: Don't generate state here - frontend will add user ID as state
+    // This ensures the OAuth callback knows which user is connecting
+    const state = 'placeholder'; // Will be replaced by frontend
     const authUrl = oauthService.getAuthorizationUrl(state);
 
-    res.json({ url: authUrl, state });
+    // Remove the placeholder state - frontend will add the real one
+    const baseUrl = authUrl.replace('state=placeholder', '');
+
+    res.json({ url: baseUrl });
   } catch (error) {
     console.error('Error generating Calendly auth URL:', error);
     res.status(500).json({ error: 'Failed to generate authorization URL' });
