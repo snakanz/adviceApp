@@ -252,11 +252,7 @@ class CalendlyService {
         is_deleted: false,
         last_calendar_sync: new Date().toISOString(),
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        // Calendly-specific columns
-        calendly_event_uri: calendlyEvent.uri,
-        calendly_event_uuid: calendlyEvent.uri.split('/').pop(),
-        client_email: clientEmail
+        updated_at: new Date().toISOString()
       };
     } catch (error) {
       console.error('Error transforming Calendly event:', error);
@@ -315,13 +311,6 @@ class CalendlyService {
         (existingMeetings || []).map(m => [m.external_id, m])
       );
 
-      // Also create a map by UUID for better matching
-      const existingUuidMap = new Map(
-        (existingMeetings || [])
-          .filter(m => m.calendly_event_uuid)
-          .map(m => [m.calendly_event_uuid, m])
-      );
-
       let syncedCount = 0;
       let errorCount = 0;
       let updatedCount = 0;
@@ -351,8 +340,7 @@ class CalendlyService {
                 location: meetingData.location,
                 is_deleted: false, // Restore if it was previously deleted
                 last_calendar_sync: meetingData.last_calendar_sync,
-                updated_at: meetingData.updated_at,
-                client_email: meetingData.client_email
+                updated_at: meetingData.updated_at
               })
               .eq('external_id', calendlyEventId)
               .eq('user_id', userId);
@@ -396,24 +384,20 @@ class CalendlyService {
           const eventUuid = event.uri.split('/').pop();
           const calendlyEventId = `calendly_${eventUuid}`;
 
-          // Try to find by googleeventid first, then by UUID
-          let existingMeeting = existingEventMap.get(calendlyEventId);
-          if (!existingMeeting) {
-            existingMeeting = existingUuidMap.get(eventUuid);
-          }
+          // Try to find by external_id
+          const existingMeeting = existingEventMap.get(calendlyEventId);
 
           if (existingMeeting) {
             if (!existingMeeting.is_deleted) {
-              // Mark as deleted - use both external_id and UUID for matching
+              // Mark as deleted
               const { error } = await getSupabase()
                 .from('meetings')
                 .update({
                   is_deleted: true,
                   updated_at: new Date().toISOString()
                 })
-                .eq('user_id', userId)
-                .eq('meeting_source', 'calendly')
-                .or(`external_id.eq.${calendlyEventId},calendly_event_uuid.eq.${eventUuid}`);
+                .eq('external_id', calendlyEventId)
+                .eq('user_id', userId);
 
               if (error) {
                 console.error(`Error marking canceled meeting ${eventUuid}:`, error);
