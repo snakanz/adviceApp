@@ -127,12 +127,33 @@ export default function CalendarSettings() {
       );
 
       if (response.data.url) {
-        window.location.href = response.data.url;
+        // Get current user ID from token to pass in state parameter
+        // This ensures the OAuth callback knows which user is connecting
+        const userIdFromToken = await getUserIdFromToken();
+        const urlWithState = `${response.data.url}&state=${userIdFromToken}`;
+        window.location.href = urlWithState;
       }
     } catch (err) {
       console.error('Error connecting Calendly via OAuth:', err);
       setError(err.response?.data?.error || 'Failed to connect Calendly');
       setIsConnecting(false);
+    }
+  };
+
+  const getUserIdFromToken = async () => {
+    try {
+      const token = await getAccessToken();
+      // Decode JWT to get user ID
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map((c) => {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+      }).join(''));
+      const payload = JSON.parse(jsonPayload);
+      return payload.sub || payload.id || '';
+    } catch (err) {
+      console.error('Error extracting user ID from token:', err);
+      return '';
     }
   };
 
@@ -198,7 +219,10 @@ export default function CalendarSettings() {
       );
 
       if (response.data.url) {
-        window.location.href = response.data.url;
+        // Get current user ID from token to pass in state parameter
+        const userIdFromToken = await getUserIdFromToken();
+        const urlWithState = `${response.data.url}&state=${userIdFromToken}`;
+        window.location.href = urlWithState;
       }
     } catch (err) {
       console.error('Error reconnecting Calendly:', err);

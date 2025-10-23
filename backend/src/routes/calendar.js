@@ -1724,59 +1724,50 @@ router.get('/calendly/oauth/callback', async (req, res) => {
     const accessToken = tokenData.access_token;
     const refreshToken = tokenData.refresh_token;
 
-    // Get user info from Calendly
+    // Get user info from Calendly (for logging/verification only)
     const userResponse = await oauthService.getCurrentUser(accessToken);
     const calendlyUser = userResponse.resource;
 
-    console.log(`✅ Calendly OAuth successful for user: ${calendlyUser.email}`);
+    console.log(`✅ Calendly OAuth successful for Calendly account: ${calendlyUser.email}`);
 
-    // Find or create user in database
-    const { data: existingUser, error: findError } = await getSupabase()
+    // ✅ CRITICAL FIX: Get authenticated user from state parameter (passed from frontend)
+    // The state parameter contains the authenticated user's ID
+    const { state } = req.query;
+    let userId = state;
+
+    if (!userId) {
+      console.error('❌ No user ID in state parameter - OAuth flow compromised');
+      return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=NoUserContext`);
+    }
+
+    console.log(`✅ Linking Calendly account to authenticated user: ${userId}`);
+
+    // Verify user exists in database
+    const { data: user, error: userError } = await getSupabase()
       .from('users')
-      .select('*')
-      .eq('email', calendlyUser.email)
+      .select('id, email')
+      .eq('id', userId)
       .single();
 
-    if (findError && findError.code !== 'PGRST116') {
-      console.error('Error finding user:', findError);
-      return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=DatabaseError`);
+    if (userError || !user) {
+      console.error('❌ Authenticated user not found in database:', userError);
+      return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=UserNotFound`);
     }
 
-    let user = existingUser;
-
-    if (!user) {
-      // Create new user
-      const { data: newUser, error: createError } = await getSupabase()
-        .from('users')
-        .insert({
-          email: calendlyUser.email,
-          name: calendlyUser.name || calendlyUser.email,
-          provider: 'calendly',
-          providerid: calendlyUser.uri
-        })
-        .select()
-        .single();
-
-      if (createError) {
-        console.error('Error creating user:', createError);
-        return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=UserCreationFailed`);
-      }
-
-      user = newUser;
-    }
+    console.log(`✅ Verified authenticated user: ${user.email} (${user.id})`);
 
     // Deactivate other active calendar connections for this user (but not Calendly)
     await getSupabase()
       .from('calendar_connections')
       .update({ is_active: false })
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .neq('provider', 'calendly');
 
-    // Create or update Calendly connection
+    // Create or update Calendly connection for the authenticated user
     const { data: existingConnection } = await getSupabase()
       .from('calendar_connections')
       .select('id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .eq('provider', 'calendly')
       .single();
 
@@ -1787,36 +1778,42 @@ router.get('/calendly/oauth/callback', async (req, res) => {
         .update({
           access_token: accessToken,
           refresh_token: refreshToken,
+          provider_account_email: calendlyUser.email,
           is_active: true,
           updated_at: new Date().toISOString()
         })
         .eq('id', existingConnection.id);
 
-      console.log(`✅ Updated Calendly connection for user ${user.id}`);
+      console.log(`✅ Updated Calendly connection for user ${userId}`);
     } else {
       // Create new connection
       await getSupabase()
         .from('calendar_connections')
         .insert({
-          user_id: user.id,
+          user_id: userId,
           provider: 'calendly',
           access_token: accessToken,
           refresh_token: refreshToken,
+          provider_account_email: calendlyUser.email,
           is_active: true
         });
 
-      console.log(`✅ Created new Calendly connection for user ${user.id}`);
+      console.log(`✅ Created new Calendly connection for user ${userId}`);
     }
 
-    // Trigger initial sync to fetch existing Calendly meetings
+    // Trigger initial sync to fetch existing Calendly meetings (in background, non-blocking)
     try {
-      console.log('🔄 Triggering initial Calendly sync...');
+      console.log('🔄 Triggering initial Calendly sync in background...');
       const CalendlyService = require('../services/calendlyService');
       const calendlyService = new CalendlyService();
-      const syncResult = await calendlyService.syncMeetingsToDatabase(user.id);
-      console.log('✅ Initial Calendly sync completed:', syncResult);
+      // Don't await - let it run in background
+      calendlyService.syncMeetingsToDatabase(userId).then(syncResult => {
+        console.log('✅ Initial Calendly sync completed:', syncResult);
+      }).catch(syncError => {
+        console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
+      });
     } catch (syncError) {
-      console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
+      console.warn('⚠️  Failed to start background sync:', syncError.message);
       // Don't fail the connection if sync fails
     }
 
