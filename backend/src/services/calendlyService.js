@@ -250,7 +250,6 @@ class CalendlyService {
         meeting_source: 'calendly',
         location: locationDetails,
         is_deleted: false,
-        last_calendar_sync: new Date().toISOString(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -301,7 +300,7 @@ class CalendlyService {
       // Get existing Calendly meetings from database
       const { data: existingMeetings } = await getSupabase()
         .from('meetings')
-        .select('external_id, is_deleted, calendly_event_uuid')
+        .select('external_id, is_deleted')
         .eq('user_id', userId)
         .eq('meeting_source', 'calendly');
 
@@ -339,7 +338,6 @@ class CalendlyService {
                 attendees: meetingData.attendees,
                 location: meetingData.location,
                 is_deleted: false, // Restore if it was previously deleted
-                last_calendar_sync: meetingData.last_calendar_sync,
                 updated_at: meetingData.updated_at
               })
               .eq('external_id', calendlyEventId)
