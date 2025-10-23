@@ -238,7 +238,7 @@ export default function CalendarSettings() {
       setSuccess('');
       const token = await getAccessToken();
 
-      const response = await axios.post(
+      await axios.post(
         `${API_BASE_URL}/api/calendly/sync`,
         {},
         { headers: { Authorization: `Bearer ${token}` } }
