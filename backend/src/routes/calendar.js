@@ -1765,11 +1765,12 @@ router.get('/calendly/oauth/callback', async (req, res) => {
       user = newUser;
     }
 
-    // Deactivate other active calendar connections for this user
+    // Deactivate other active calendar connections for this user (but not Calendly)
     await getSupabase()
       .from('calendar_connections')
       .update({ is_active: false })
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .neq('provider', 'calendly');
 
     // Create or update Calendly connection
     const { data: existingConnection } = await getSupabase()
@@ -1805,6 +1806,18 @@ router.get('/calendly/oauth/callback', async (req, res) => {
         });
 
       console.log(`✅ Created new Calendly connection for user ${user.id}`);
+    }
+
+    // Trigger initial sync to fetch existing Calendly meetings
+    try {
+      console.log('🔄 Triggering initial Calendly sync...');
+      const CalendlyService = require('../services/calendlyService');
+      const calendlyService = new CalendlyService();
+      const syncResult = await calendlyService.syncMeetingsToDatabase(user.id);
+      console.log('✅ Initial Calendly sync completed:', syncResult);
+    } catch (syncError) {
+      console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
+      // Don't fail the connection if sync fails
     }
 
     // Redirect to settings with success message

@@ -33,6 +33,14 @@ export default function CalendarSettings() {
 
   useEffect(() => {
     loadConnections();
+
+    // Check if redirected from OAuth callback
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('success') === 'CalendlyConnected') {
+      setSuccess('Calendly connected successfully!');
+      // Reload connections to show updated status
+      setTimeout(() => loadConnections(), 500);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
