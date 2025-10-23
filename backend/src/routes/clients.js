@@ -201,7 +201,7 @@ router.post('/upsert', async (req, res) => {
     const { data: existingClient, error: checkError } = await req.supabase
       .from('clients')
       .select('id')
-      .eq('advisor_id', advisorId)
+      .eq('user_id', advisorId)
       .eq('email', email)
       .single();
 
@@ -247,7 +247,7 @@ router.post('/upsert', async (req, res) => {
     } else {
       // Create new client
       const insertData = {
-        advisor_id: advisorId,
+        user_id: advisorId,
         email: email,
         name: name || null,
         business_type: business_type || null,
@@ -324,7 +324,7 @@ router.post('/update-name', async (req, res) => {
     const { data: client, error: findError } = await req.supabase
       .from('clients')
       .select('id')
-      .eq('advisor_id', advisorId)
+      .eq('user_id', advisorId)
       .eq('email', email)
       .single();
 
@@ -1396,7 +1396,7 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
 
     // Create new client
     const clientData = {
-      advisor_id: advisorId,
+      user_id: advisorId,
       name,
       email,
       phone: phone || null,

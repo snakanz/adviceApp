@@ -485,7 +485,7 @@ async function importData(fileBuffer, filename, userId, options = {}) {
         // Create new client from meeting data
         try {
           const newClientData = {
-            advisor_id: userId,
+            user_id: userId,
             email: validation.data.client_email,
             name: validation.data.full_name || validation.data.client_email.split('@')[0],
             pipeline_stage: 'unscheduled',

@@ -209,7 +209,7 @@ class ClientExtractionService {
     const { data: existingClient } = await getSupabase()
       .from('clients')
       .select('*')
-      .eq('advisor_id', userId)
+      .eq('user_id', userId)
       .eq('email', clientData.email)
       .single();
 
@@ -219,7 +219,7 @@ class ClientExtractionService {
 
     // Create new client
     const newClientData = {
-      advisor_id: userId,
+      user_id: userId,
       email: clientData.email,
       name: clientData.name,
       pipeline_stage: 'unscheduled',
