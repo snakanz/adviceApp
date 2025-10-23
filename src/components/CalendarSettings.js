@@ -29,6 +29,7 @@ export default function CalendarSettings() {
   const [showCalendlyForm, setShowCalendlyForm] = useState(false);
   const [calendlyToken, setCalendlyToken] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [calendlyAuthMethod, setCalendlyAuthMethod] = useState('oauth'); // 'oauth' or 'token'
 
   useEffect(() => {
@@ -170,7 +171,7 @@ export default function CalendarSettings() {
     try {
       setError('');
       const token = await getAccessToken();
-      
+
       const response = await axios.get(`${API_BASE_URL}/api/auth/google`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -181,6 +182,52 @@ export default function CalendarSettings() {
     } catch (err) {
       console.error('Error reconnecting Google Calendar:', err);
       setError('Failed to reconnect Google Calendar');
+    }
+  };
+
+  const handleReconnectCalendly = async () => {
+    try {
+      setIsConnecting(true);
+      setError('');
+      setSuccess('');
+      const token = await getAccessToken();
+
+      const response = await axios.get(
+        `${API_BASE_URL}/api/calendar-connections/calendly/auth-url`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.url) {
+        window.location.href = response.data.url;
+      }
+    } catch (err) {
+      console.error('Error reconnecting Calendly:', err);
+      setError(err.response?.data?.error || 'Failed to reconnect Calendly');
+      setIsConnecting(false);
+    }
+  };
+
+  const handleManualSyncCalendly = async () => {
+    try {
+      setIsSyncing(true);
+      setError('');
+      setSuccess('');
+      const token = await getAccessToken();
+
+      const response = await axios.post(
+        `${API_BASE_URL}/api/calendly/sync`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setSuccess('Calendly sync started. Meetings will be updated shortly.');
+      // Reload connections after a short delay to show updated sync status
+      setTimeout(() => loadConnections(), 2000);
+    } catch (err) {
+      console.error('Error syncing Calendly:', err);
+      setError(err.response?.data?.error || 'Failed to sync Calendly meetings');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -316,6 +363,48 @@ export default function CalendarSettings() {
                     </div>
 
                     <div className="flex flex-col gap-2">
+                      {connection.provider === 'calendly' && (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleManualSyncCalendly}
+                            disabled={isSyncing}
+                          >
+                            {isSyncing ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Syncing...
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Manual Sync
+                              </>
+                            )}
+                          </Button>
+
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleReconnectCalendly}
+                            disabled={isConnecting}
+                          >
+                            {isConnecting ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                Reconnecting...
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Reconnect
+                              </>
+                            )}
+                          </Button>
+                        </>
+                      )}
+
                       <Button
                         variant="outline"
                         size="sm"
@@ -376,26 +465,26 @@ export default function CalendarSettings() {
             </CardContent>
           </Card>
 
-          {/* Calendly */}
-          <Card
-            className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer"
-            onClick={() => setShowCalendlyForm(!showCalendlyForm)}
-          >
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="text-4xl">📅</div>
-                <div className="flex-1">
-                  <h4 className="font-semibold text-foreground mb-1">Calendly</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {connections.some(c => c.provider === 'calendly' && c.is_active)
-                      ? 'Currently connected'
-                      : "Can't connect work calendar? Use Calendly instead"}
-                  </p>
+          {/* Calendly - Only show if NOT already connected */}
+          {!connections.some(c => c.provider === 'calendly' && c.is_active) && (
+            <Card
+              className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer"
+              onClick={() => setShowCalendlyForm(!showCalendlyForm)}
+            >
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="text-4xl">📅</div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-foreground mb-1">Calendly</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Can't connect work calendar? Use Calendly instead
+                    </p>
+                  </div>
+                  <Plus className="w-5 h-5 text-primary" />
                 </div>
-                <Plus className="w-5 h-5 text-primary" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         {/* Calendly Connection Form */}
