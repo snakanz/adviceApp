@@ -1,24 +1,9 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
-const { isSupabaseAvailable } = require('../lib/supabase');
+const { isSupabaseAvailable, verifySupabaseToken, createUserClient } = require('../lib/supabase');
+const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 const dataImportService = require('../services/dataImport');
 
 const router = express.Router();
-
-// Middleware to authenticate user
-const authenticateSupabaseUser = (req, res, next) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token provided' });
-
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { id: decoded.id };
-    next();
-  } catch (error) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-};
 
 /**
  * POST /api/data-import/preview
