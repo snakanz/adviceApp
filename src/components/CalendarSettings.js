@@ -120,6 +120,31 @@ export default function CalendarSettings() {
     }
   };
 
+  const handleSwitchCalendar = async (connectionId, provider) => {
+    try {
+      setError('');
+      setSuccess('');
+      const token = await getAccessToken();
+
+      console.log(`🔄 Switching to ${getProviderName(provider)}...`);
+
+      // Activate this connection (which deactivates others)
+      await axios.patch(
+        `${API_BASE_URL}/api/calendar-connections/${connectionId}/toggle-sync`,
+        { sync_enabled: true },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setSuccess(`✅ Switched to ${getProviderName(provider)} - Now fetching meetings from this calendar`);
+
+      // Reload connections to show updated status
+      setTimeout(() => loadConnections(), 500);
+    } catch (err) {
+      console.error('Error switching calendar:', err);
+      setError(err.response?.data?.error || `Failed to switch to ${getProviderName(provider)}`);
+    }
+  };
+
   const handleDisconnect = async (connectionId, provider) => {
     if (!window.confirm(`Are you sure you want to disconnect this ${provider} calendar? Your meetings will not be synced anymore.`)) {
       return;
@@ -355,7 +380,7 @@ export default function CalendarSettings() {
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-foreground">Your Calendars</h3>
         <p className="text-sm text-muted-foreground">
-          View and manage all your connected calendars
+          Select which calendar to sync meetings from
         </p>
 
         {connections.length === 0 ? (
@@ -371,11 +396,16 @@ export default function CalendarSettings() {
             {connections.map((connection) => (
               <Card
                 key={connection.id}
-                className={`border-2 transition-all ${
+                className={`border-2 transition-all cursor-pointer ${
                   connection.is_active
-                    ? 'border-green-500/50 bg-green-500/5'
-                    : 'border-border/50 bg-muted/20'
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
+                    : 'border-border/50 bg-muted/20 hover:border-border'
                 }`}
+                onClick={() => {
+                  if (!connection.is_active) {
+                    handleSwitchCalendar(connection.id, connection.provider);
+                  }
+                }}
               >
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between gap-4">
@@ -384,13 +414,20 @@ export default function CalendarSettings() {
                       <div className="text-3xl flex-shrink-0">{getProviderIcon(connection.provider)}</div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="font-semibold text-foreground">
+                          <h4 className={`font-semibold ${connection.is_active ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'}`}>
                             {getProviderName(connection.provider)}
                           </h4>
-                          <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/10 text-green-600 text-xs font-medium rounded-full flex-shrink-0">
-                            <CheckCircle className="w-3 h-3" />
-                            Connected
-                          </span>
+                          {connection.is_active ? (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-bold rounded-full flex-shrink-0 animate-pulse">
+                              <Zap className="w-3 h-3" />
+                              ACTIVE - Fetching Meetings
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-gray-200/50 text-gray-600 text-xs font-medium rounded-full flex-shrink-0">
+                              <CheckCircle className="w-3 h-3" />
+                              Connected
+                            </span>
+                          )}
                         </div>
                         {connection.provider_account_email && (
                           <p className="text-xs text-muted-foreground mt-1">
@@ -399,24 +436,24 @@ export default function CalendarSettings() {
                         )}
 
                         {/* Webhook Status */}
-                        {webhookStatus[connection.id] && (
+                        {connection.is_active && webhookStatus[connection.id] && (
                           <div className="mt-2 flex items-center gap-1">
                             {webhookStatus[connection.id].sync_method === 'webhook' ? (
                               <>
                                 <Zap className="w-3 h-3 text-blue-600" />
-                                <span className="text-xs text-blue-600 font-medium">Real-time sync active</span>
+                                <span className="text-xs text-blue-600 font-medium">⚡ Real-time sync active</span>
                               </>
                             ) : (
                               <>
                                 <Clock className="w-3 h-3 text-amber-600" />
-                                <span className="text-xs text-amber-600 font-medium">Polling sync (15 min)</span>
+                                <span className="text-xs text-amber-600 font-medium">🕐 Polling sync (15 min)</span>
                               </>
                             )}
                           </div>
                         )}
 
                         {/* Last Sync Time */}
-                        {connection.last_sync_at && (
+                        {connection.is_active && connection.last_sync_at && (
                           <p className="text-xs text-muted-foreground mt-1">
                             Last synced: {new Date(connection.last_sync_at).toLocaleTimeString()}
                           </p>
@@ -424,17 +461,34 @@ export default function CalendarSettings() {
                       </div>
                     </div>
 
-                    {/* Right: Disconnect Button */}
+                    {/* Right: Action Buttons */}
                     <div className="flex gap-2 flex-shrink-0">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDisconnect(connection.id, getProviderName(connection.provider))}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50 whitespace-nowrap"
-                      >
-                        <Trash2 className="w-4 h-4 mr-1" />
-                        Disconnect
-                      </Button>
+                      {connection.is_active ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDisconnect(connection.id, getProviderName(connection.provider));
+                          }}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50 whitespace-nowrap"
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Disconnect
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSwitchCalendar(connection.id, connection.provider);
+                          }}
+                          className="whitespace-nowrap bg-blue-600 hover:bg-blue-700"
+                        >
+                          Switch to This
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>
