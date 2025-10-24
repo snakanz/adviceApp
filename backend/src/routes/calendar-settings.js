@@ -175,25 +175,69 @@ router.patch('/:id/toggle-sync', authenticateSupabaseUser, async (req, res) => {
 
     console.log(`✅ Sync ${sync_enabled ? 'enabled' : 'disabled'} for connection ${connectionId}`);
 
-    // If enabling Google Calendar, trigger a background sync
-    if (sync_enabled && data.provider === 'google') {
-      try {
-        console.log('🔄 Triggering Google Calendar sync in background...');
-        const CalendarSyncService = require('../services/calendarSync');
-        const syncService = new CalendarSyncService();
+    // If enabling a calendar, set up webhooks and trigger background sync
+    if (sync_enabled) {
+      // Google Calendar: Set up webhook and sync
+      if (data.provider === 'google') {
+        try {
+          console.log('📡 Setting up Google Calendar webhook...');
+          const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
+          const webhookService = new GoogleCalendarWebhookService();
 
-        // Don't await - let it run in background
-        syncService.syncUserCalendar(userId, {
-          timeRange: 'extended',
-          includeDeleted: true
-        }).then(syncResult => {
-          console.log('✅ Google Calendar sync completed:', syncResult);
-        }).catch(syncErr => {
-          console.warn('⚠️ Google Calendar sync failed (non-fatal):', syncErr.message);
+          // Set up webhook (non-blocking)
+          webhookService.setupCalendarWatch(userId).catch(err => {
+            console.warn('⚠️ Webhook setup failed (non-fatal):', err.message);
+          });
+
+          console.log('🔄 Triggering Google Calendar sync in background...');
+          const CalendarSyncService = require('../services/calendarSync');
+          const syncService = new CalendarSyncService();
+
+          // Don't await - let it run in background
+          syncService.syncUserCalendar(userId, {
+            timeRange: 'extended',
+            includeDeleted: true
+          }).then(syncResult => {
+            console.log('✅ Google Calendar sync completed:', syncResult);
+          }).catch(syncErr => {
+            console.warn('⚠️ Google Calendar sync failed (non-fatal):', syncErr.message);
+          });
+        } catch (syncErr) {
+          console.warn('⚠️ Failed to start background sync:', syncErr.message);
+        }
+      }
+
+      // Calendly: Trigger background sync
+      if (data.provider === 'calendly') {
+        try {
+          console.log('🔄 Triggering Calendly sync in background...');
+          const CalendlyService = require('../services/calendlyService');
+          const calendlyService = new CalendlyService(data.access_token);
+
+          // Don't await - let it run in background
+          calendlyService.syncMeetingsToDatabase(userId).then(syncResult => {
+            console.log('✅ Calendly sync completed:', syncResult);
+          }).catch(syncErr => {
+            console.warn('⚠️ Calendly sync failed (non-fatal):', syncErr.message);
+          });
+        } catch (syncErr) {
+          console.warn('⚠️ Failed to start Calendly sync:', syncErr.message);
+        }
+      }
+    }
+
+    // If disabling Google Calendar, stop the webhook
+    if (!sync_enabled && data.provider === 'google') {
+      try {
+        console.log('🛑 Stopping Google Calendar webhook...');
+        const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
+        const webhookService = new GoogleCalendarWebhookService();
+
+        webhookService.stopCalendarWatch(userId).catch(err => {
+          console.warn('⚠️ Webhook cleanup failed (non-fatal):', err.message);
         });
-      } catch (syncErr) {
-        console.warn('⚠️ Failed to start background sync:', syncErr.message);
-        // Don't fail the switch if sync fails
+      } catch (err) {
+        console.warn('⚠️ Failed to stop webhook:', err.message);
       }
     }
 
@@ -443,6 +487,22 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
 
     console.log(`✅ Calendly connected successfully for user ${userId}`);
 
+    // Trigger automatic sync in background
+    try {
+      console.log('🔄 Triggering initial Calendly sync in background...');
+      const CalendlyService = require('../services/calendlyService');
+      const calendlyService = new CalendlyService(api_token);
+
+      // Don't await - let it run in background
+      calendlyService.syncMeetingsToDatabase(userId).then(syncResult => {
+        console.log('✅ Initial Calendly sync completed:', syncResult);
+      }).catch(syncErr => {
+        console.warn('⚠️ Initial Calendly sync failed (non-fatal):', syncErr.message);
+      });
+    } catch (syncErr) {
+      console.warn('⚠️ Failed to start initial Calendly sync:', syncErr.message);
+    }
+
     res.json({
       success: true,
       message: 'Calendly connected successfully',
@@ -451,6 +511,89 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
 
   } catch (error) {
     console.error('Error in POST /calendar-connections/calendly:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/calendar-connections/:id/webhook-status
+ * Get webhook status for a calendar connection
+ * Returns webhook health info for UI display
+ */
+router.get('/:id/webhook-status', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const connectionId = req.params.id;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable'
+      });
+    }
+
+    // Get the connection
+    const { data: connection, error: connError } = await req.supabase
+      .from('calendar_connections')
+      .select('*')
+      .eq('id', connectionId)
+      .eq('user_id', userId)
+      .single();
+
+    if (connError || !connection) {
+      return res.status(404).json({
+        error: 'Calendar connection not found'
+      });
+    }
+
+    let webhookStatus = {
+      provider: connection.provider,
+      is_active: connection.is_active,
+      last_sync_at: connection.last_sync_at,
+      webhook_active: false,
+      webhook_expires_at: null,
+      days_until_expiration: null,
+      sync_method: 'polling' // Default to polling
+    };
+
+    // Check Google Calendar webhook status
+    if (connection.provider === 'google' && connection.is_active) {
+      try {
+        const { data: watchChannel, error: watchError } = await req.supabase
+          .from('calendar_watch_channels')
+          .select('expiration, created_at')
+          .eq('user_id', userId)
+          .single();
+
+        if (!watchError && watchChannel) {
+          const expirationDate = new Date(watchChannel.expiration);
+          const now = new Date();
+          const daysUntilExpiration = Math.ceil((expirationDate - now) / (1000 * 60 * 60 * 24));
+
+          webhookStatus.webhook_active = daysUntilExpiration > 0;
+          webhookStatus.webhook_expires_at = watchChannel.expiration;
+          webhookStatus.days_until_expiration = daysUntilExpiration;
+          webhookStatus.sync_method = daysUntilExpiration > 0 ? 'webhook' : 'polling';
+        }
+      } catch (err) {
+        console.warn('Error checking Google webhook status:', err.message);
+      }
+    }
+
+    // Check Calendly webhook status
+    if (connection.provider === 'calendly' && connection.is_active) {
+      // Calendly webhook is configured at organization level via environment variable
+      const hasCalendlyWebhookKey = !!process.env.CALENDLY_WEBHOOK_SIGNING_KEY;
+      webhookStatus.webhook_active = hasCalendlyWebhookKey;
+      webhookStatus.sync_method = hasCalendlyWebhookKey ? 'webhook' : 'polling';
+    }
+
+    res.json({
+      success: true,
+      webhook_status: webhookStatus
+    });
+
+  } catch (error) {
+    console.error('Error in GET /calendar-connections/:id/webhook-status:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

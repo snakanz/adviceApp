@@ -12,7 +12,7 @@ import {
   Plus,
   AlertCircle,
   Loader2,
-  Power,
+  Zap,
   Clock
 } from 'lucide-react';
 
@@ -29,8 +29,8 @@ export default function CalendarSettings() {
   const [showCalendlyForm, setShowCalendlyForm] = useState(false);
   const [calendlyToken, setCalendlyToken] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [calendlyAuthMethod, setCalendlyAuthMethod] = useState('oauth'); // 'oauth' or 'token'
+  const [webhookStatus, setWebhookStatus] = useState({});
 
   useEffect(() => {
     loadConnections();
@@ -80,7 +80,23 @@ export default function CalendarSettings() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      setConnections(response.data.connections || []);
+      const connections = response.data.connections || [];
+      setConnections(connections);
+
+      // Load webhook status for each connection
+      const statusMap = {};
+      for (const conn of connections) {
+        try {
+          const statusResponse = await axios.get(
+            `${API_BASE_URL}/api/calendar-connections/${conn.id}/webhook-status`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          statusMap[conn.id] = statusResponse.data.webhook_status;
+        } catch (err) {
+          console.warn(`Failed to load webhook status for ${conn.id}:`, err.message);
+        }
+      }
+      setWebhookStatus(statusMap);
     } catch (err) {
       console.error('Error loading calendar connections:', err);
 
@@ -119,25 +135,7 @@ export default function CalendarSettings() {
     }
   };
 
-  const handleToggleSync = async (connectionId, currentStatus) => {
-    try {
-      setError('');
-      setSuccess('');
-      const token = await getAccessToken();
 
-      await axios.patch(
-        `${API_BASE_URL}/api/calendar-connections/${connectionId}/toggle-sync`,
-        { sync_enabled: !currentStatus },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      setSuccess(`Sync ${!currentStatus ? 'enabled' : 'disabled'} successfully`);
-      loadConnections();
-    } catch (err) {
-      console.error('Error toggling sync:', err);
-      setError(err.response?.data?.error || 'Failed to toggle sync');
-    }
-  };
 
   const handleSwitchCalendar = async (connectionId, provider) => {
     try {
@@ -325,81 +323,7 @@ export default function CalendarSettings() {
     }
   };
 
-  const handleReconnectCalendly = async () => {
-    try {
-      setIsConnecting(true);
-      setError('');
-      setSuccess('');
-      const token = await getAccessToken();
 
-      const response = await axios.get(
-        `${API_BASE_URL}/api/calendar-connections/calendly/auth-url`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (response.data.url) {
-        // Get current user ID from token to pass in state parameter
-        const userIdFromToken = await getUserIdFromToken();
-        const urlWithState = `${response.data.url}&state=${userIdFromToken}`;
-
-        // ✅ FIX: Open OAuth in popup window instead of full page redirect
-        const width = 500;
-        const height = 600;
-        const left = window.screenX + (window.outerWidth - width) / 2;
-        const top = window.screenY + (window.outerHeight - height) / 2;
-
-        const popup = window.open(
-          urlWithState,
-          'CalendlyOAuth',
-          `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
-        );
-
-        if (!popup) {
-          setError('Popup blocked. Please allow popups for this site and try again.');
-          setIsConnecting(false);
-          return;
-        }
-
-        // Poll for popup closure and reload connections
-        const checkPopup = setInterval(() => {
-          if (popup.closed) {
-            clearInterval(checkPopup);
-            setIsConnecting(false);
-            // Reload connections to show updated status
-            setTimeout(() => loadConnections(), 500);
-          }
-        }, 500);
-      }
-    } catch (err) {
-      console.error('Error reconnecting Calendly:', err);
-      setError(err.response?.data?.error || 'Failed to reconnect Calendly');
-      setIsConnecting(false);
-    }
-  };
-
-  const handleManualSyncCalendly = async () => {
-    try {
-      setIsSyncing(true);
-      setError('');
-      setSuccess('');
-      const token = await getAccessToken();
-
-      await axios.post(
-        `${API_BASE_URL}/api/calendly/sync`,
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      setSuccess('Calendly sync started. Meetings will be updated shortly.');
-      // Reload connections after a short delay to show updated sync status
-      setTimeout(() => loadConnections(), 2000);
-    } catch (err) {
-      console.error('Error syncing Calendly:', err);
-      setError(err.response?.data?.error || 'Failed to sync Calendly meetings');
-    } finally {
-      setIsSyncing(false);
-    }
-  };
 
   const getProviderIcon = (provider) => {
     switch (provider) {
@@ -509,63 +433,45 @@ export default function CalendarSettings() {
                           <h4 className="font-semibold text-foreground">
                             {getProviderName(connection.provider)}
                           </h4>
-                          {connection.is_active ? (
-                            <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/10 text-green-600 text-xs font-medium rounded-full flex-shrink-0">
-                              <CheckCircle className="w-3 h-3" />
-                              Active
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1 px-2 py-0.5 bg-gray-500/10 text-gray-600 text-xs font-medium rounded-full flex-shrink-0">
-                              <Power className="w-3 h-3" />
-                              Inactive
-                            </span>
-                          )}
+                          <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/10 text-green-600 text-xs font-medium rounded-full flex-shrink-0">
+                            <CheckCircle className="w-3 h-3" />
+                            Connected
+                          </span>
                         </div>
                         {connection.provider_account_email && (
                           <p className="text-xs text-muted-foreground mt-1">
                             {connection.provider_account_email}
                           </p>
                         )}
+
+                        {/* Webhook Status */}
+                        {webhookStatus[connection.id] && (
+                          <div className="mt-2 flex items-center gap-1">
+                            {webhookStatus[connection.id].sync_method === 'webhook' ? (
+                              <>
+                                <Zap className="w-3 h-3 text-blue-600" />
+                                <span className="text-xs text-blue-600 font-medium">Real-time sync active</span>
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="w-3 h-3 text-amber-600" />
+                                <span className="text-xs text-amber-600 font-medium">Polling sync (15 min)</span>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Last Sync Time */}
+                        {connection.last_sync_at && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Last synced: {new Date(connection.last_sync_at).toLocaleTimeString()}
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    {/* Right: Action Buttons */}
+                    {/* Right: Disconnect Button */}
                     <div className="flex gap-2 flex-shrink-0">
-                      {/* Switch button - only show if not active */}
-                      {!connection.is_active && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleSwitchCalendar(connection.id, connection.provider)}
-                          className="bg-primary hover:bg-primary/90 whitespace-nowrap"
-                        >
-                          Activate
-                        </Button>
-                      )}
-
-                      {/* Manual Sync for Calendly */}
-                      {connection.provider === 'calendly' && connection.is_active && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleManualSyncCalendly}
-                          disabled={isSyncing}
-                          className="whitespace-nowrap"
-                        >
-                          {isSyncing ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                              Syncing
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="w-4 h-4 mr-1" />
-                              Sync
-                            </>
-                          )}
-                        </Button>
-                      )}
-
-                      {/* Disconnect button */}
                       <Button
                         variant="outline"
                         size="sm"
