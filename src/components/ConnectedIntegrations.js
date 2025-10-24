@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, CheckCircle, XCircle, Upload, Loader2, RefreshCw } from 'lucide-react';
 import { api } from '../services/api';
 import axios from 'axios';
@@ -17,14 +17,7 @@ const ConnectedIntegrations = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
-  useEffect(() => {
-    checkIntegrationStatus();
-    // Refresh every 30 seconds to detect connection changes
-    const interval = setInterval(checkIntegrationStatus, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const checkIntegrationStatus = async () => {
+  const checkIntegrationStatus = useCallback(async () => {
     try {
       const token = await getAccessToken();
 
@@ -115,7 +108,14 @@ const ConnectedIntegrations = () => {
     } catch (error) {
       console.error('Error checking integration status:', error);
     }
-  };
+  }, [getAccessToken]);
+
+  useEffect(() => {
+    checkIntegrationStatus();
+    // Refresh every 30 seconds to detect connection changes
+    const interval = setInterval(checkIntegrationStatus, 30000);
+    return () => clearInterval(interval);
+  }, [checkIntegrationStatus]);
 
   const handleCalendlySync = async () => {
     if (!integrations.calendly.connected) return;
