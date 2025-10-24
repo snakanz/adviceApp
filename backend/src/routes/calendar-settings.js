@@ -345,14 +345,14 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
     }
 
     // Get user's tenant_id
-    const { data: user, error: userError } = await req.supabase
+    const { data: user, error: tenantError } = await req.supabase
       .from('users')
       .select('tenant_id')
       .eq('id', userId)
       .single();
 
-    if (userError || !user) {
-      console.error('Error fetching user:', userError);
+    if (tenantError || !user) {
+      console.error('Error fetching user:', tenantError);
       return res.status(500).json({ error: 'Failed to fetch user data' });
     }
 
