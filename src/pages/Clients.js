@@ -122,7 +122,8 @@ export default function Clients() {
     if (!clientId) return;
 
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com'}/api/transcript-action-items/clients/${clientId}/action-items`, {
         headers: {
           'Authorization': `Bearer ${token}`,

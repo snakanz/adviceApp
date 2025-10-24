@@ -647,10 +647,13 @@ router.post('/auto-connect-calendar', authenticateSupabaseUser, async (req, res)
     const providerRefreshToken = authUser.app_metadata?.provider_refresh_token;
 
     if (!providerToken) {
-      console.log('⚠️ No provider token found - user may not have signed in with Google');
+      console.log('⚠️ No provider token found in app_metadata');
+      console.log('ℹ️ This may occur when switching calendars or if user did not sign in with Google');
+
       return res.json({
         success: false,
-        message: 'No Google Calendar access - user did not sign in with Google OAuth'
+        message: 'Cannot auto-connect Google Calendar. Please use the manual connection flow in Settings.',
+        reason: 'provider_token_not_available'
       });
     }
 
@@ -706,6 +709,23 @@ router.post('/auto-connect-calendar', authenticateSupabaseUser, async (req, res)
         message: 'Google Calendar connection updated',
         connection_id: existingConnection.id
       });
+    }
+
+    // Deactivate all other active connections (single active per user)
+    console.log('🔄 Deactivating other active calendar connections...');
+    const { error: deactivateError } = await req.supabase
+      .from('calendar_connections')
+      .update({
+        is_active: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
+    if (deactivateError) {
+      console.warn('Warning: Could not deactivate other connections:', deactivateError);
+    } else {
+      console.log('✅ Other connections deactivated');
     }
 
     // Create new calendar connection

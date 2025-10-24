@@ -64,7 +64,8 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
   // Fetch all client documents (including those linked to meetings)
   const fetchClientDocuments = useCallback(async () => {
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/client-documents/client/${clientId}`, {
         headers: {
           'Authorization': `Bearer ${token}`

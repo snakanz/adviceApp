@@ -48,9 +48,10 @@ export default function DocumentsTab({ meetingId, selectedMeeting }) {
     
     setLoading(true);
     setError(null);
-    
+
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/calendar/meetings/${meetingId}/documents`, {
         headers: {
           'Authorization': `Bearer ${token}`

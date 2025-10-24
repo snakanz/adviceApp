@@ -43,9 +43,8 @@ const AuthCallback = () => {
 
         console.log('✅ Session established:', session.user.email);
 
-        // Store the JWT token in localStorage for API calls
-        localStorage.setItem('jwt', session.access_token);
-        console.log('✅ JWT token stored in localStorage');
+        // Note: Supabase automatically manages token storage in localStorage
+        // No need to manually store the JWT token
 
         // Check if user profile exists and create if needed
         setMessage('Loading your profile...');

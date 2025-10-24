@@ -96,7 +96,8 @@ export default function ActionItems() {
   const fetchActionItems = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
 
       // Build query params
       const params = new URLSearchParams();
@@ -160,7 +161,8 @@ export default function ActionItems() {
 
   const fetchStarredMeetings = async () => {
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/calendar/meetings/starred`, {
         headers: {
           'Authorization': `Bearer ${token}`,

@@ -422,11 +422,12 @@ export default function Meetings() {
   const fetchMeetings = useCallback(async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('jwt');
-      console.log('🔑 Using JWT token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      console.log('🔑 Using access token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
 
       if (!token) {
-        console.error('❌ No JWT token found in localStorage');
+        console.error('❌ No access token found in session');
         setShowSnackbar(true);
         setSnackbarMessage('Authentication required. Please log in again.');
         setSnackbarSeverity('error');
@@ -1091,7 +1092,8 @@ export default function Meetings() {
 
     setLoadingActionItems(true);
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/transcript-action-items/meetings/${meetingId}/action-items`, {
         headers: {
           'Authorization': `Bearer ${token}`,

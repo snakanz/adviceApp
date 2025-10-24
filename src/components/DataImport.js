@@ -84,7 +84,8 @@ const DataImport = ({ onImportComplete }) => {
       const formData = new FormData();
       formData.append('file', file);
 
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/data-import/preview`, {
         method: 'POST',
         headers: {
@@ -122,7 +123,8 @@ const DataImport = ({ onImportComplete }) => {
       formData.append('skipDuplicates', importOptions.skipDuplicates.toString());
       formData.append('updateExisting', importOptions.updateExisting.toString());
 
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/data-import/execute`, {
         method: 'POST',
         headers: {
@@ -156,7 +158,8 @@ const DataImport = ({ onImportComplete }) => {
   // Download template
   const handleDownloadTemplate = async () => {
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/data-import/template`, {
         method: 'GET',
         headers: {
