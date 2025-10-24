@@ -114,7 +114,8 @@ router.delete('/:id', authenticateSupabaseUser, async (req, res) => {
 
 /**
  * PATCH /api/calendar-connections/:id/toggle-sync
- * Enable or disable sync for a calendar connection (deprecated - kept for compatibility)
+ * Enable or disable sync for a calendar connection
+ * When enabling, deactivates other connections and triggers sync for Google Calendar
  */
 router.patch('/:id/toggle-sync', authenticateSupabaseUser, async (req, res) => {
   try {
@@ -134,7 +135,26 @@ router.patch('/:id/toggle-sync', authenticateSupabaseUser, async (req, res) => {
       });
     }
 
-    // Update the is_active flag (sync_enabled column no longer exists)
+    // If enabling, deactivate all other connections first
+    if (sync_enabled) {
+      console.log(`🔄 Deactivating other active calendar connections for user ${userId}...`);
+      const { error: deactivateError } = await req.supabase
+        .from('calendar_connections')
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .neq('id', connectionId);
+
+      if (deactivateError) {
+        console.warn(`⚠️ Warning: Could not deactivate other connections:`, deactivateError);
+      } else {
+        console.log(`✅ Other connections deactivated for user ${userId}`);
+      }
+    }
+
+    // Update the is_active flag for this connection
     const { data, error } = await req.supabase
       .from('calendar_connections')
       .update({
@@ -154,6 +174,28 @@ router.patch('/:id/toggle-sync', authenticateSupabaseUser, async (req, res) => {
     }
 
     console.log(`✅ Sync ${sync_enabled ? 'enabled' : 'disabled'} for connection ${connectionId}`);
+
+    // If enabling Google Calendar, trigger a background sync
+    if (sync_enabled && data.provider === 'google') {
+      try {
+        console.log('🔄 Triggering Google Calendar sync in background...');
+        const CalendarSyncService = require('../services/calendarSync');
+        const syncService = new CalendarSyncService();
+
+        // Don't await - let it run in background
+        syncService.syncUserCalendar(userId, {
+          timeRange: 'extended',
+          includeDeleted: true
+        }).then(syncResult => {
+          console.log('✅ Google Calendar sync completed:', syncResult);
+        }).catch(syncErr => {
+          console.warn('⚠️ Google Calendar sync failed (non-fatal):', syncErr.message);
+        });
+      } catch (syncErr) {
+        console.warn('⚠️ Failed to start background sync:', syncErr.message);
+        // Don't fail the switch if sync fails
+      }
+    }
 
     res.json({
       success: true,

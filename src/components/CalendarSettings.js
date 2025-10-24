@@ -124,7 +124,7 @@ export default function CalendarSettings() {
       setError('');
       setSuccess('');
       const token = await getAccessToken();
-      
+
       await axios.patch(
         `${API_BASE_URL}/api/calendar-connections/${connectionId}/toggle-sync`,
         { sync_enabled: !currentStatus },
@@ -136,6 +136,44 @@ export default function CalendarSettings() {
     } catch (err) {
       console.error('Error toggling sync:', err);
       setError(err.response?.data?.error || 'Failed to toggle sync');
+    }
+  };
+
+  const handleSwitchCalendar = async (connectionId, provider) => {
+    try {
+      setError('');
+      setSuccess('');
+      const token = await getAccessToken();
+
+      // Activate this connection
+      await axios.patch(
+        `${API_BASE_URL}/api/calendar-connections/${connectionId}/toggle-sync`,
+        { sync_enabled: true },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setSuccess(`Switched to ${getProviderName(provider)}`);
+
+      // If switching to Google Calendar, trigger a sync
+      if (provider === 'google') {
+        try {
+          console.log('🔄 Triggering Google Calendar sync...');
+          await axios.post(
+            `${API_BASE_URL}/api/calendar/sync-google`,
+            {},
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          setSuccess(`Switched to ${getProviderName(provider)} and synced meetings`);
+        } catch (syncErr) {
+          console.warn('⚠️ Sync failed but calendar was switched:', syncErr);
+          // Don't fail the switch if sync fails
+        }
+      }
+
+      loadConnections();
+    } catch (err) {
+      console.error('Error switching calendar:', err);
+      setError(err.response?.data?.error || 'Failed to switch calendar');
     }
   };
 
@@ -563,42 +601,101 @@ export default function CalendarSettings() {
         )}
       </div>
 
-      {/* Switch Calendar Section */}
+      {/* Switch Calendar Section - Show all connected calendars */}
+      {connections.length > 1 && (
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-foreground">Switch Calendar</h3>
+          <p className="text-sm text-muted-foreground">
+            Click a calendar below to switch to it. Only one calendar can be active at a time.
+          </p>
+
+          <div className="space-y-3">
+            {connections.map((connection) => (
+              <Card
+                key={connection.id}
+                className={`border-2 transition-all ${
+                  connection.is_active
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border/50 hover:border-primary/50 cursor-pointer'
+                }`}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="text-3xl">{getProviderIcon(connection.provider)}</div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-foreground">
+                            {getProviderName(connection.provider)}
+                          </h4>
+                          {connection.is_active && (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/10 text-green-600 text-xs font-medium rounded-full">
+                              <CheckCircle className="w-3 h-3" />
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        {connection.provider_account_email && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {connection.provider_account_email}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {!connection.is_active && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleSwitchCalendar(connection.id, connection.provider)}
+                        className="bg-primary hover:bg-primary/90"
+                      >
+                        Switch
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Add Calendar Section */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-foreground">
-          {connections.length > 0 ? 'Switch Calendar' : 'Add Calendar'}
+          {connections.length === 0 ? 'Connect Calendar' : 'Add Another Calendar'}
         </h3>
 
         {connections.length > 0 && (
           <p className="text-sm text-muted-foreground">
-            Connecting a different calendar will disconnect your current one
+            Add another calendar to switch between them
           </p>
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Google Calendar */}
-          <Card
-            className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer"
-            onClick={handleReconnectGoogle}
-          >
-            <CardContent className="p-6">
-              <div className="flex items-center gap-4">
-                <div className="text-4xl">🗓️</div>
-                <div className="flex-1">
-                  <h4 className="font-semibold text-foreground mb-1">Google Calendar</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {connections.some(c => c.provider === 'google' && c.is_active)
-                      ? 'Currently connected'
-                      : 'Connect your Google Calendar to sync meetings'}
-                  </p>
+          {/* Google Calendar - Show if not already connected */}
+          {!connections.some(c => c.provider === 'google') && (
+            <Card
+              className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer"
+              onClick={handleReconnectGoogle}
+            >
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="text-4xl">🗓️</div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-foreground mb-1">Google Calendar</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Connect your Google Calendar to sync meetings
+                    </p>
+                  </div>
+                  <Plus className="w-5 h-5 text-primary" />
                 </div>
-                <Plus className="w-5 h-5 text-primary" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Calendly - Only show if NOT already connected */}
-          {!connections.some(c => c.provider === 'calendly' && c.is_active) && (
+          {/* Calendly - Show if not already connected */}
+          {!connections.some(c => c.provider === 'calendly') && (
             <Card
               className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer"
               onClick={() => setShowCalendlyForm(!showCalendlyForm)}
