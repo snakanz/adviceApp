@@ -344,6 +344,23 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
       });
     }
 
+    // Get user's tenant_id
+    const { data: user, error: userError } = await req.supabase
+      .from('users')
+      .select('tenant_id')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !user) {
+      console.error('Error fetching user:', userError);
+      return res.status(500).json({ error: 'Failed to fetch user data' });
+    }
+
+    if (!user.tenant_id) {
+      console.error('User has no tenant_id:', userId);
+      return res.status(400).json({ error: 'User must have a tenant to connect calendar' });
+    }
+
     // Deactivate all other active connections (single active connection per user)
     console.log(`🔄 Deactivating other active calendar connections for user ${userId}...`);
     const { error: deactivateError } = await req.supabase
@@ -366,6 +383,7 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
       .from('calendar_connections')
       .insert({
         user_id: userId,
+        tenant_id: user.tenant_id,
         provider: 'calendly',
         access_token: api_token,
         is_active: true

@@ -170,6 +170,41 @@ router.get('/google/callback', async (req, res) => {
       user = updatedUser;
     }
 
+    // Ensure user has a tenant (create default if needed)
+    let tenantId = user.tenant_id;
+    if (!tenantId) {
+      console.log('⚠️  User has no tenant, creating default tenant...');
+      const { data: newTenant, error: tenantError } = await getSupabase()
+        .from('tenants')
+        .insert({
+          name: `${user.name || user.email}'s Business`,
+          owner_id: user.id,
+          timezone: 'UTC',
+          currency: 'USD'
+        })
+        .select()
+        .single();
+
+      if (tenantError) {
+        console.error('Error creating default tenant:', tenantError);
+        throw new Error('Failed to create default tenant');
+      }
+
+      tenantId = newTenant.id;
+
+      // Update user with tenant_id
+      const { error: updateError } = await getSupabase()
+        .from('users')
+        .update({ tenant_id: tenantId })
+        .eq('id', user.id);
+
+      if (updateError) {
+        console.warn('Warning: Could not update user tenant_id:', updateError);
+      }
+
+      console.log(`✅ Created default tenant ${tenantId} for user ${user.id}`);
+    }
+
     // Store Google tokens in calendar_connections table
     console.log('💾 Storing Google Calendar tokens in calendar_connections...');
 
@@ -249,6 +284,7 @@ router.get('/google/callback', async (req, res) => {
         .from('calendar_connections')
         .insert({
           user_id: user.id,
+          tenant_id: tenantId,
           provider: 'google',
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token || null,

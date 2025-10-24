@@ -1742,10 +1742,10 @@ router.get('/calendly/oauth/callback', async (req, res) => {
 
     console.log(`✅ Linking Calendly account to authenticated user: ${userId}`);
 
-    // Verify user exists in database
+    // Verify user exists in database and get their tenant_id
     const { data: user, error: userError } = await getSupabase()
       .from('users')
-      .select('id, email')
+      .select('id, email, tenant_id')
       .eq('id', userId)
       .single();
 
@@ -1754,7 +1754,12 @@ router.get('/calendly/oauth/callback', async (req, res) => {
       return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=UserNotFound`);
     }
 
-    console.log(`✅ Verified authenticated user: ${user.email} (${user.id})`);
+    if (!user.tenant_id) {
+      console.error('❌ User has no tenant_id:', userId);
+      return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=NoTenant`);
+    }
+
+    console.log(`✅ Verified authenticated user: ${user.email} (${user.id}) in tenant ${user.tenant_id}`);
 
     // Deactivate other active calendar connections for this user (but not Calendly)
     await getSupabase()
@@ -1787,10 +1792,11 @@ router.get('/calendly/oauth/callback', async (req, res) => {
       console.log(`✅ Updated Calendly connection for user ${userId}`);
     } else {
       // Create new connection
-      await getSupabase()
+      const { error: insertError } = await getSupabase()
         .from('calendar_connections')
         .insert({
           user_id: userId,
+          tenant_id: user.tenant_id,
           provider: 'calendly',
           access_token: accessToken,
           refresh_token: refreshToken,
@@ -1798,7 +1804,12 @@ router.get('/calendly/oauth/callback', async (req, res) => {
           is_active: true
         });
 
-      console.log(`✅ Created new Calendly connection for user ${userId}`);
+      if (insertError) {
+        console.error('❌ Error creating Calendly connection:', insertError);
+        return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=ConnectionFailed`);
+      }
+
+      console.log(`✅ Created new Calendly connection for user ${userId} in tenant ${user.tenant_id}`);
     }
 
     // Trigger initial sync to fetch existing Calendly meetings (in background, non-blocking)
