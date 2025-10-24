@@ -366,7 +366,7 @@ router.post('/sync-google', authenticateSupabaseUser, async (req, res) => {
     }
 
     // Set up OAuth client with tokens from calendar_connections
-    const oauth2Client = new (require('googleapis').auth.OAuth2)(
+    const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
       process.env.GOOGLE_REDIRECT_URI
