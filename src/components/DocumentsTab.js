@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
 import { Upload, File, Image, Music, Video, Download, Trash2, AlertCircle } from 'lucide-react';
