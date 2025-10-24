@@ -1826,14 +1826,22 @@ router.post('/webhook', express.json(), async (req, res) => {
       return res.status(400).json({ error: 'Missing channel ID' });
     }
 
+    // Get Supabase client
+    if (!isSupabaseAvailable()) {
+      console.error('❌ Supabase not available');
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    const supabaseClient = getSupabase();
+
     // Look up the user for this channel
-    const { data: channel } = await req.supabase
+    const { data: channel, error: channelError } = await supabaseClient
       .from('calendar_watch_channels')
       .select('user_id')
       .eq('channel_id', channelId)
       .single();
 
-    if (!channel) {
+    if (channelError || !channel) {
       console.warn('⚠️  Unknown channel ID:', channelId);
       return res.status(404).json({ error: 'Unknown channel' });
     }
