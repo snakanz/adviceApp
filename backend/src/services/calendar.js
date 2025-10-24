@@ -234,24 +234,27 @@ class CalendarService {
   }
 
   async getAuthClient(userId) {
-    // Convert userId to string to match database format
-    const userIdStr = String(userId);
-
-    const { data: userTokens, error } = await getSupabase()
-      .from('calendartoken')
-      .select('accesstoken, refreshtoken')
-      .eq('userid', userIdStr)
+    // Get user's active Google Calendar connection from calendar_connections table
+    const { data: connection, error } = await getSupabase()
+      .from('calendar_connections')
+      .select('access_token, refresh_token, token_expires_at')
+      .eq('user_id', userId)
+      .eq('provider', 'google')
+      .eq('is_active', true)
       .single();
 
-    if (error || !userTokens?.accesstoken) {
-      console.error('Calendar token query error:', error);
-      console.error('Looking for user ID:', userIdStr);
+    if (error || !connection?.access_token) {
+      console.error('Calendar connection query error:', error);
+      console.error('Looking for user ID:', userId);
       throw new Error('User not connected to Google Calendar');
     }
 
+    const expiresAt = connection.token_expires_at ? new Date(connection.token_expires_at).getTime() : null;
+
     this.oauth2Client.setCredentials({
-      access_token: userTokens.accesstoken,
-      refresh_token: userTokens.refreshtoken
+      access_token: connection.access_token,
+      refresh_token: connection.refresh_token,
+      expiry_date: expiresAt
     });
 
     return this.oauth2Client;

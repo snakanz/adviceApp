@@ -17,7 +17,7 @@ class CalendarSyncService {
 
   /**
    * Full calendar sync with deletion detection
-   * @param {number} userId - User ID
+   * @param {string} userId - User ID (UUID)
    * @param {Object} options - Sync options
    */
   async syncUserCalendar(userId, options = {}) {
@@ -30,36 +30,42 @@ class CalendarSyncService {
     console.log(`🔄 Starting calendar sync for user ${userId}...`);
 
     try {
-      // Get user's calendar token from calendartoken table
-      const { data: calendarToken, error: tokenError } = await getSupabase()
-        .from('calendartoken')
+      // Get user's active Google Calendar connection from calendar_connections table
+      const { data: connection, error: connError } = await getSupabase()
+        .from('calendar_connections')
         .select('*')
-        .eq('userid', userId)
+        .eq('user_id', userId)
+        .eq('provider', 'google')
+        .eq('is_active', true)
         .single();
 
-      if (tokenError || !calendarToken) {
-        console.error('Calendar token error:', tokenError);
-        throw new Error(`No calendar token found for user ${userId}. Please reconnect your Google Calendar.`);
+      if (connError || !connection) {
+        console.error('Calendar connection error:', connError);
+        throw new Error(`No active Google Calendar connection found for user ${userId}. Please reconnect your Google Calendar.`);
       }
 
-      console.log(`📅 Found calendar token for user ${userId}, expires: ${calendarToken.expiresat}`);
+      if (!connection.access_token) {
+        throw new Error('Google Calendar token not available');
+      }
+
+      console.log(`📅 Found active Google Calendar connection for user ${userId}, expires: ${connection.token_expires_at}`);
 
       // Check if token is expired
-      const expiresAt = new Date(calendarToken.expiresat);
+      const expiresAt = connection.token_expires_at ? new Date(connection.token_expires_at) : null;
       const now = new Date();
-      const isExpired = expiresAt <= now;
+      const isExpired = expiresAt && expiresAt <= now;
 
-      console.log(`🔐 Token status: ${isExpired ? 'EXPIRED' : 'VALID'} (expires: ${expiresAt.toISOString()})`);
+      console.log(`🔐 Token status: ${isExpired ? 'EXPIRED' : 'VALID'} (expires: ${expiresAt?.toISOString() || 'unknown'})`);
 
       // Set up OAuth client
       this.oauth2Client.setCredentials({
-        access_token: calendarToken.accesstoken,
-        refresh_token: calendarToken.refreshtoken,
-        expiry_date: expiresAt.getTime()
+        access_token: connection.access_token,
+        refresh_token: connection.refresh_token,
+        expiry_date: expiresAt ? expiresAt.getTime() : null
       });
 
       // If token is expired, try to refresh it
-      if (isExpired && calendarToken.refreshtoken) {
+      if (isExpired && connection.refresh_token) {
         console.log('🔄 Refreshing expired access token...');
         try {
           const { credentials } = await this.oauth2Client.refreshAccessToken();
@@ -67,13 +73,13 @@ class CalendarSyncService {
           // Update the token in database
           const newExpiresAt = new Date(credentials.expiry_date);
           await getSupabase()
-            .from('calendartoken')
+            .from('calendar_connections')
             .update({
-              accesstoken: credentials.access_token,
-              expiresat: newExpiresAt.toISOString(),
-              updatedat: new Date().toISOString()
+              access_token: credentials.access_token,
+              token_expires_at: newExpiresAt.toISOString(),
+              updated_at: new Date().toISOString()
             })
-            .eq('userid', userId);
+            .eq('id', connection.id);
 
           console.log(`✅ Token refreshed successfully, new expiry: ${newExpiresAt.toISOString()}`);
         } catch (refreshError) {
