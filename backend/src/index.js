@@ -582,7 +582,7 @@ app.get('/api/dev/meetings', async (req, res) => {
       // Set default values and flags
       source: meeting.meeting_source || 'google',
       hasTranscript: !!meeting.transcript,
-      hasSummary: !!meeting.summary || !!meeting.quick_summary,
+      hasSummary: !!meeting.quick_summary || !!meeting.detailed_summary,
       hasEmailDraft: !!meeting.email_summary_draft,
       // Client info is already included from the join
     })) || [];
