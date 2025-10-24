@@ -1,0 +1,57 @@
+services:
+  - type: web
+    name: adviceapp-backend
+    env: node
+    plan: standard
+    buildCommand: cd backend && npm install
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: SUPABASE_URL
+        fromDatabase:
+          name: adviceapp
+          property: connectionString
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CALLBACK_URL
+        value: https://adviceapp-9rgw.onrender.com/api/auth/google/callback
+      - key: CALENDLY_CLIENT_ID
+        sync: false
+      - key: CALENDLY_CLIENT_SECRET
+        sync: false
+      - key: CALENDLY_REDIRECT_URI
+        value: https://adviceapp-9rgw.onrender.com/api/calendar/calendly/oauth/callback
+      - key: FRONTEND_URL
+        value: https://adviceapp.pages.dev
+      - key: JWT_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+    autoDeploy: true
+    healthCheckPath: /api/health
+    maxInstances: 3
+    minInstances: 1
+
+  - type: static_site
+    name: adviceapp-frontend
+    staticPublishPath: ./build
+    buildCommand: npm install && npm run build
+    envVars:
+      - key: REACT_APP_API_BASE_URL
+        value: https://adviceapp-9rgw.onrender.com
+      - key: REACT_APP_SUPABASE_URL
+        value: https://xjqjzievgepqpgtggcjx.supabase.co
+      - key: REACT_APP_SUPABASE_ANON_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqcWp6aWV2Z2VwcXBndGdnY2p4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5ODYyNTksImV4cCI6MjA2NzU2MjI1OX0.dWBeOIQ-Je3FfKtT4npLZgmIkaMUtquXrk64Jeg6yxk
+    autoDeploy: true
+    routes:
+      - path: /
+        destination: /index.html
+
