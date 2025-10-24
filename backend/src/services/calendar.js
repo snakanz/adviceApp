@@ -259,46 +259,51 @@ class CalendarService {
 
   async listMeetings(userId) {
     try {
-      const auth = await this.getAuthClient(userId);
-      const calendar = google.calendar({ version: 'v3', auth });
-      
-      // Get current date and date 2 weeks ago
       const now = new Date();
       const twoWeeksAgo = new Date();
       twoWeeksAgo.setDate(now.getDate() - 14);
 
-      const response = await calendar.events.list({
-        calendarId: 'primary',
-        timeMin: twoWeeksAgo.toISOString(),
-        maxResults: 100,
-        singleEvents: true,
-        orderBy: 'startTime'
-      });
-
-      // Get meeting records from our database
-      const eventIds = response.data.items.map(event => event.id);
-      const userIdStr = String(userId);
-      const { data: meetingRecords } = await getSupabase()
+      // ✅ FIX: Query database for ALL meetings (Google, Calendly, manual, Outlook)
+      // This is the single source of truth for meetings
+      const { data: meetings, error } = await getSupabase()
         .from('meetings')
         .select('*')
-        .eq('userid', userIdStr)
-        .in('googleeventid', eventIds);
+        .eq('user_id', userId)
+        .or('is_deleted.is.null,is_deleted.eq.false')
+        .gte('starttime', twoWeeksAgo.toISOString())
+        .order('starttime', { ascending: true });
 
-      // Map meeting records to their Google Calendar events
-      const meetingRecordsMap = new Map(
-        (meetingRecords || []).map(record => [record.googleeventid, record])
-      );
+      if (error) {
+        console.error('Error fetching meetings from database:', error);
+        throw error;
+      }
 
-      // Combine Google Calendar data with our database records
-      return response.data.items.map(event => {
-        const meetingRecord = meetingRecordsMap.get(event.id);
-        const eventEndTime = new Date(event.end.dateTime || event.end.date);
-
+      // Format meetings for frontend
+      return (meetings || []).map(meeting => {
+        const eventEndTime = new Date(meeting.endtime || meeting.starttime);
         return {
-          ...event,
-          hasRecording: !!meetingRecord?.recallbotid,
-          hasTranscript: !!meetingRecord?.transcript,
-          hasSummary: !!meetingRecord?.summary,
+          id: meeting.external_id || meeting.id,
+          title: meeting.title,
+          summary: meeting.summary,
+          description: meeting.description,
+          start: {
+            dateTime: meeting.starttime
+          },
+          end: {
+            dateTime: meeting.endtime
+          },
+          attendees: meeting.attendees,
+          location: meeting.location,
+          source: meeting.meeting_source,
+          external_id: meeting.external_id,
+          client_id: meeting.client_id,
+          transcript: meeting.transcript,
+          quick_summary: meeting.quick_summary,
+          detailed_summary: meeting.detailed_summary,
+          action_points: meeting.action_points,
+          hasRecording: !!meeting.recallbotid,
+          hasTranscript: !!meeting.transcript,
+          hasSummary: !!meeting.quick_summary || !!meeting.detailed_summary,
           isPast: eventEndTime < now
         };
       });

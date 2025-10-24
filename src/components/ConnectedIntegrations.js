@@ -1,73 +1,115 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, CheckCircle, XCircle, Upload, Loader2, RefreshCw } from 'lucide-react';
 import { api } from '../services/api';
+import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
 const ConnectedIntegrations = () => {
+  const { getAccessToken } = useAuth();
   const [integrations, setIntegrations] = useState({
     google: { connected: false, loading: true },
     calendly: { connected: false, loading: true },
     manual: { connected: true, loading: false } // Always available
   });
+  const [activeProvider, setActiveProvider] = useState(null); // Track which calendar is active
   const [isExpanded, setIsExpanded] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     checkIntegrationStatus();
+    // Refresh every 30 seconds to detect connection changes
+    const interval = setInterval(checkIntegrationStatus, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const checkIntegrationStatus = async () => {
     try {
-      // Check Google Calendar status
-      setIntegrations(prev => ({
-        ...prev,
-        google: { ...prev.google, loading: true }
-      }));
+      const token = await getAccessToken();
 
+      // ✅ FIX: Fetch active calendar connection from database
       try {
-        const googleResponse = await api.request('/auth/google/status');
-        setIntegrations(prev => ({
-          ...prev,
-          google: { 
-            connected: googleResponse.connected || false, 
-            loading: false,
-            user: googleResponse.user
-          }
-        }));
-      } catch (error) {
-        setIntegrations(prev => ({
-          ...prev,
-          google: { connected: false, loading: false, error: 'Failed to check status' }
-        }));
-      }
+        const response = await axios.get(`${API_BASE_URL}/api/calendar-connections`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
 
-      // Check Calendly status
-      setIntegrations(prev => ({
-        ...prev,
-        calendly: { ...prev.calendly, loading: true }
-      }));
+        const connections = response.data.connections || [];
+        const activeConnection = connections.find(conn => conn.is_active);
 
-      try {
-        const calendlyResponse = await api.request('/calendly/status');
-        setIntegrations(prev => ({
-          ...prev,
-          calendly: { 
-            connected: calendlyResponse.connected || false, 
-            loading: false,
-            configured: calendlyResponse.configured || false,
-            user: calendlyResponse.user,
-            error: calendlyResponse.error
+        if (activeConnection) {
+          setActiveProvider(activeConnection.provider);
+        }
+
+        // Update integrations based on connections
+        const newIntegrations = {
+          google: { connected: false, loading: false },
+          calendly: { connected: false, loading: false },
+          manual: { connected: true, loading: false }
+        };
+
+        connections.forEach(conn => {
+          if (conn.provider === 'google') {
+            newIntegrations.google = {
+              connected: true,
+              loading: false,
+              active: conn.is_active,
+              email: conn.provider_account_email
+            };
+          } else if (conn.provider === 'calendly') {
+            newIntegrations.calendly = {
+              connected: true,
+              loading: false,
+              active: conn.is_active,
+              email: conn.provider_account_email
+            };
           }
-        }));
+        });
+
+        setIntegrations(newIntegrations);
       } catch (error) {
-        setIntegrations(prev => ({
-          ...prev,
-          calendly: { 
-            connected: false, 
-            loading: false, 
-            configured: false,
-            error: 'Failed to check status' 
-          }
-        }));
+        console.error('Error fetching calendar connections:', error);
+        // Fallback to legacy status checks
+        try {
+          const googleResponse = await api.request('/auth/google/status');
+          setIntegrations(prev => ({
+            ...prev,
+            google: {
+              connected: googleResponse.connected || false,
+              loading: false,
+              user: googleResponse.user
+            }
+          }));
+        } catch (err) {
+          setIntegrations(prev => ({
+            ...prev,
+            google: { connected: false, loading: false, error: 'Failed to check status' }
+          }));
+        }
+
+        try {
+          const calendlyResponse = await api.request('/calendly/status');
+          setIntegrations(prev => ({
+            ...prev,
+            calendly: {
+              connected: calendlyResponse.connected || false,
+              loading: false,
+              configured: calendlyResponse.configured || false,
+              user: calendlyResponse.user,
+              error: calendlyResponse.error
+            }
+          }));
+        } catch (err) {
+          setIntegrations(prev => ({
+            ...prev,
+            calendly: {
+              connected: false,
+              loading: false,
+              configured: false,
+              error: 'Failed to check status'
+            }
+          }));
+        }
       }
 
     } catch (error) {
@@ -108,7 +150,11 @@ const ConnectedIntegrations = () => {
   const getStatusText = (key, integration) => {
     if (integration.loading) return 'Checking...';
     if (key === 'calendly' && !integration.configured) return 'Not configured';
-    if (integration.connected) return 'Connected';
+    if (integration.connected) {
+      // ✅ FIX: Show if this is the active calendar
+      if (integration.active) return '✓ Active';
+      return 'Connected (inactive)';
+    }
     return 'Disconnected';
   };
 
@@ -141,15 +187,28 @@ const ConnectedIntegrations = () => {
         <button
           onClick={() => setIsExpanded(true)}
           className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 hover:shadow-xl transition-shadow duration-200 flex items-center space-x-2"
+          title={activeProvider ? `Active: ${activeProvider}` : 'No calendar connected'}
         >
           <div className="flex items-center space-x-1">
-            {Object.entries(integrations).map(([key, integration]) => (
+            {/* Show only the active calendar provider */}
+            {activeProvider && integrations[activeProvider] && (
+              <div className="relative">
+                {getIntegrationIcon(activeProvider)}
+                <div className="absolute -bottom-1 -right-1">
+                  <CheckCircle className="w-3 h-3 text-green-500" />
+                </div>
+              </div>
+            )}
+            {/* Show all providers if none is active */}
+            {!activeProvider && Object.entries(integrations).map(([key, integration]) => (
               <div key={key} className="relative">
                 {getStatusIcon(integration)}
               </div>
             ))}
           </div>
-          <span className="text-sm font-medium text-gray-700">Integrations</span>
+          <span className="text-sm font-medium text-gray-700">
+            {activeProvider ? `${activeProvider.charAt(0).toUpperCase() + activeProvider.slice(1)}` : 'Integrations'}
+          </span>
         </button>
       )}
 
@@ -177,19 +236,27 @@ const ConnectedIntegrations = () => {
 
           <div className="space-y-3">
             {Object.entries(integrations).map(([key, integration]) => (
-              <div key={key} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+              <div
+                key={key}
+                className={`flex items-center justify-between p-2 rounded-lg transition-colors ${
+                  integration.active
+                    ? 'bg-green-50 border border-green-200'
+                    : 'bg-gray-50'
+                }`}
+              >
                 <div className="flex items-center space-x-3">
                   {getIntegrationIcon(key)}
                   <div>
                     <div className="text-sm font-medium text-gray-900">
                       {getIntegrationName(key)}
+                      {integration.active && <span className="ml-2 text-xs font-semibold text-green-600">ACTIVE</span>}
                     </div>
-                    <div className="text-xs text-gray-500">
+                    <div className={`text-xs ${integration.active ? 'text-green-600 font-medium' : 'text-gray-500'}`}>
                       {getStatusText(key, integration)}
                     </div>
-                    {integration.user && (
+                    {(integration.user || integration.email) && (
                       <div className="text-xs text-gray-400">
-                        {integration.user.email || integration.user.name}
+                        {integration.email || integration.user?.email || integration.user?.name}
                       </div>
                     )}
                     {integration.error && (

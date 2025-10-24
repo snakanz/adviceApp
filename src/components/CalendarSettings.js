@@ -35,13 +35,32 @@ export default function CalendarSettings() {
   useEffect(() => {
     loadConnections();
 
-    // Check if redirected from OAuth callback
+    // ✅ FIX: Listen for postMessage from OAuth popup window
+    const handleOAuthMessage = (event) => {
+      // Only accept messages from same origin for security
+      if (event.origin !== window.location.origin) return;
+
+      if (event.data.type === 'CALENDLY_OAUTH_SUCCESS') {
+        setSuccess('Calendly connected successfully!');
+        // Reload connections to show updated status
+        setTimeout(() => loadConnections(), 500);
+      } else if (event.data.type === 'CALENDLY_OAUTH_ERROR') {
+        setError(`Connection failed: ${event.data.error}`);
+      }
+    };
+
+    window.addEventListener('message', handleOAuthMessage);
+
+    // Also check for legacy redirect-based callback (backward compatibility)
     const params = new URLSearchParams(window.location.search);
     if (params.get('success') === 'CalendlyConnected') {
       setSuccess('Calendly connected successfully!');
-      // Reload connections to show updated status
       setTimeout(() => loadConnections(), 500);
     }
+
+    return () => {
+      window.removeEventListener('message', handleOAuthMessage);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -128,10 +147,37 @@ export default function CalendarSettings() {
 
       if (response.data.url) {
         // Get current user ID from token to pass in state parameter
-        // This ensures the OAuth callback knows which user is connecting
         const userIdFromToken = await getUserIdFromToken();
         const urlWithState = `${response.data.url}&state=${userIdFromToken}`;
-        window.location.href = urlWithState;
+
+        // ✅ FIX: Open OAuth in popup window instead of full page redirect
+        // This keeps the main window intact and returns focus after auth
+        const width = 500;
+        const height = 600;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+
+        const popup = window.open(
+          urlWithState,
+          'CalendlyOAuth',
+          `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+        );
+
+        if (!popup) {
+          setError('Popup blocked. Please allow popups for this site and try again.');
+          setIsConnecting(false);
+          return;
+        }
+
+        // Poll for popup closure and reload connections
+        const checkPopup = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(checkPopup);
+            setIsConnecting(false);
+            // Reload connections to show updated status
+            setTimeout(() => loadConnections(), 500);
+          }
+        }, 500);
       }
     } catch (err) {
       console.error('Error connecting Calendly via OAuth:', err);
@@ -222,7 +268,34 @@ export default function CalendarSettings() {
         // Get current user ID from token to pass in state parameter
         const userIdFromToken = await getUserIdFromToken();
         const urlWithState = `${response.data.url}&state=${userIdFromToken}`;
-        window.location.href = urlWithState;
+
+        // ✅ FIX: Open OAuth in popup window instead of full page redirect
+        const width = 500;
+        const height = 600;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+
+        const popup = window.open(
+          urlWithState,
+          'CalendlyOAuth',
+          `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+        );
+
+        if (!popup) {
+          setError('Popup blocked. Please allow popups for this site and try again.');
+          setIsConnecting(false);
+          return;
+        }
+
+        // Poll for popup closure and reload connections
+        const checkPopup = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(checkPopup);
+            setIsConnecting(false);
+            // Reload connections to show updated status
+            setTimeout(() => loadConnections(), 500);
+          }
+        }, 500);
       }
     } catch (err) {
       console.error('Error reconnecting Calendly:', err);

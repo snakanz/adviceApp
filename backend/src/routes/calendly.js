@@ -1,29 +1,12 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const CalendlyService = require('../services/calendlyService');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
+const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 
 const router = express.Router();
 
 console.log('🔄 Calendly routes loaded successfully');
-
-// Middleware to authenticate user
-const authenticateSupabaseUser = (req, res, next) => {
-  const auth = req.headers.authorization;
-  if (!auth) {
-    return res.status(401).json({ error: 'No authorization header' });
-  }
-
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = { id: decoded.id };
-    next();
-  } catch (error) {
-    return res.status(401).json({ error: 'Invalid token' });
-  }
-};
 
 // Test Calendly connection
 router.get('/test-connection', authenticateSupabaseUser, async (req, res) => {

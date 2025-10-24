@@ -1817,11 +1817,53 @@ router.get('/calendly/oauth/callback', async (req, res) => {
       // Don't fail the connection if sync fails
     }
 
-    // Redirect to settings with success message
-    res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?success=CalendlyConnected`);
+    // ✅ FIX: Close popup window and notify parent window instead of redirecting
+    // This keeps the main window intact and returns focus after auth
+    res.send(`
+      <html>
+        <head>
+          <title>Calendly Connected</title>
+        </head>
+        <body>
+          <script>
+            // Notify parent window of successful connection
+            if (window.opener) {
+              window.opener.postMessage({
+                type: 'CALENDLY_OAUTH_SUCCESS',
+                message: 'Calendly connected successfully'
+              }, '*');
+            }
+            // Close this popup window
+            window.close();
+          </script>
+          <p>Calendly connected successfully! This window will close automatically.</p>
+        </body>
+      </html>
+    `);
   } catch (error) {
     console.error('Error in Calendly OAuth callback:', error);
-    res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=${encodeURIComponent(error.message)}`);
+    // ✅ FIX: Send error to parent window and close popup
+    res.send(`
+      <html>
+        <head>
+          <title>Connection Error</title>
+        </head>
+        <body>
+          <script>
+            // Notify parent window of error
+            if (window.opener) {
+              window.opener.postMessage({
+                type: 'CALENDLY_OAUTH_ERROR',
+                error: '${error.message}'
+              }, '*');
+            }
+            // Close this popup window
+            window.close();
+          </script>
+          <p>Error: ${error.message}</p>
+        </body>
+      </html>
+    `);
   }
 });
 

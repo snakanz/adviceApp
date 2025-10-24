@@ -540,20 +540,9 @@ app.get('/api/dev/meetings', async (req, res) => {
 
     console.log(`✅ Token verified for Supabase user: ${user.id} (${user.email})`);
 
-    // Look up the user in our users table to get the integer ID
-    const { data: dbUser, error: userError } = await getSupabase()
-      .from('users')
-      .select('id, email')
-      .eq('email', user.email)
-      .single();
-
-    if (userError || !dbUser) {
-      console.log('❌ User not found in database:', userError?.message);
-      return res.status(404).json({ error: 'User not found in database' });
-    }
-
-    const userId = dbUser.id;
-    console.log(`✅ Found user in database: ID ${userId}, Email ${dbUser.email}`);
+    // Use the Supabase user ID directly (UUID)
+    const userId = user.id;
+    console.log(`✅ Using Supabase user ID: ${userId}`);
 
     // Database query with client information
     console.log('🔍 Querying database for meetings with client info...');
