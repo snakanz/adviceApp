@@ -13,7 +13,7 @@ const fileUploadService = require('../services/fileUpload'); // Legacy - kept fo
 const clientDocumentsService = require('../services/clientDocuments'); // Unified document system
 const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
 
-// Get Google Calendar auth URL
+// Get Google Calendar auth URL (for popup-based reconnection)
 router.get('/auth/google', async (req, res) => {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID,
@@ -31,19 +31,63 @@ router.get('/auth/google', async (req, res) => {
     scope: scopes,
     prompt: 'consent'
   });
-  res.redirect(url);
+  // Return URL instead of redirecting (for popup-based flow)
+  res.json({ url });
 });
 
 // Handle Google Calendar OAuth callback
-// This route handles the full Google OAuth flow and should NOT require authenticateSupabaseUser
+// This route handles both initial login and reconnection from settings
+// If state parameter is present, it's a reconnection from settings (popup-based)
+// Otherwise, it's an initial login (redirect-based)
 router.get('/auth/google/callback', async (req, res) => {
-  const { code, error } = req.query;
+  const { code, error, state } = req.query;
+
   if (error) {
+    // If this is a popup-based reconnection, send error to parent window
+    if (state) {
+      return res.send(`
+        <html>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'GOOGLE_OAUTH_ERROR',
+                  error: '${error}'
+                }, '*');
+              }
+              window.close();
+            </script>
+            <p>Error: ${error}</p>
+          </body>
+        </html>
+      `);
+    }
+    // Otherwise, redirect to login page
     return res.redirect(`${process.env.FRONTEND_URL}/login?error=${encodeURIComponent(error)}`);
   }
+
   if (!code) {
+    if (state) {
+      return res.send(`
+        <html>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'GOOGLE_OAUTH_ERROR',
+                  error: 'No authorization code received'
+                }, '*');
+              }
+              window.close();
+            </script>
+            <p>Error: No authorization code received</p>
+          </body>
+        </html>
+      `);
+    }
     return res.redirect(`${process.env.FRONTEND_URL}/login?error=NoCode`);
   }
+
   try {
     const oauth2Client = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
@@ -56,6 +100,149 @@ router.get('/auth/google/callback', async (req, res) => {
     // Get user info from Google
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const { data: userInfo } = await oauth2.userinfo.get();
+
+    // ✅ POPUP-BASED RECONNECTION (state parameter present)
+    if (state) {
+      console.log(`🔄 Google OAuth reconnection for user: ${state}`);
+
+      // Verify user exists and get tenant_id
+      const { data: user, error: userError } = await getSupabase()
+        .from('users')
+        .select('id, email, tenant_id')
+        .eq('id', state)
+        .single();
+
+      if (userError || !user) {
+        console.error('❌ User not found:', userError);
+        return res.send(`
+          <html>
+            <body>
+              <script>
+                if (window.opener) {
+                  window.opener.postMessage({
+                    type: 'GOOGLE_OAUTH_ERROR',
+                    error: 'User not found'
+                  }, '*');
+                }
+                window.close();
+              </script>
+              <p>Error: User not found</p>
+            </body>
+          </html>
+        `);
+      }
+
+      if (!user.tenant_id) {
+        console.error('❌ User has no tenant_id:', state);
+        return res.send(`
+          <html>
+            <body>
+              <script>
+                if (window.opener) {
+                  window.opener.postMessage({
+                    type: 'GOOGLE_OAUTH_ERROR',
+                    error: 'User has no tenant'
+                  }, '*');
+                }
+                window.close();
+              </script>
+              <p>Error: User has no tenant</p>
+            </body>
+          </html>
+        `);
+      }
+
+      // Deactivate other active connections
+      await getSupabase()
+        .from('calendar_connections')
+        .update({ is_active: false })
+        .eq('user_id', state)
+        .neq('provider', 'google');
+
+      // Create or update Google connection
+      const { data: existingConnection } = await getSupabase()
+        .from('calendar_connections')
+        .select('id')
+        .eq('user_id', state)
+        .eq('provider', 'google')
+        .single();
+
+      if (existingConnection) {
+        // Update existing connection
+        await getSupabase()
+          .from('calendar_connections')
+          .update({
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token || null,
+            token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
+            is_active: true,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingConnection.id);
+
+        console.log(`✅ Updated Google Calendar connection for user ${state}`);
+      } else {
+        // Create new connection
+        const { error: insertError } = await getSupabase()
+          .from('calendar_connections')
+          .insert({
+            user_id: state,
+            tenant_id: user.tenant_id,
+            provider: 'google',
+            provider_account_email: userInfo.email,
+            access_token: tokens.access_token,
+            refresh_token: tokens.refresh_token || null,
+            token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
+            is_active: true
+          });
+
+        if (insertError) {
+          console.error('❌ Error creating Google connection:', insertError);
+          return res.send(`
+            <html>
+              <body>
+                <script>
+                  if (window.opener) {
+                    window.opener.postMessage({
+                      type: 'GOOGLE_OAUTH_ERROR',
+                      error: 'Failed to save connection'
+                    }, '*');
+                  }
+                  window.close();
+                </script>
+                <p>Error: Failed to save connection</p>
+              </body>
+            </html>
+          `);
+        }
+
+        console.log(`✅ Created new Google Calendar connection for user ${state}`);
+      }
+
+      // Close popup and notify parent window
+      return res.send(`
+        <html>
+          <head>
+            <title>Google Calendar Connected</title>
+          </head>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'GOOGLE_OAUTH_SUCCESS',
+                  message: 'Google Calendar connected successfully'
+                }, '*');
+              }
+              window.close();
+            </script>
+            <p>Google Calendar connected successfully! This window will close automatically.</p>
+          </body>
+        </html>
+      `);
+    }
+
+    // ✅ INITIAL LOGIN (no state parameter)
+    console.log(`✅ Google OAuth login for: ${userInfo.email}`);
 
     // Find or create user in DB
     let user = await prisma.user.findUnique({ where: { email: userInfo.email } });
@@ -94,6 +281,25 @@ router.get('/auth/google/callback', async (req, res) => {
     // Redirect to frontend with token in URL
     res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${jwtToken}`);
   } catch (err) {
+    console.error('Error in Google OAuth callback:', err);
+    if (state) {
+      return res.send(`
+        <html>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'GOOGLE_OAUTH_ERROR',
+                  error: '${err.message}'
+                }, '*');
+              }
+              window.close();
+            </script>
+            <p>Error: ${err.message}</p>
+          </body>
+        </html>
+      `);
+    }
     res.redirect(`${process.env.FRONTEND_URL}/login?error=OAuthFailed`);
   }
 });

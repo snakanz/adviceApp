@@ -35,7 +35,7 @@ export default function CalendarSettings() {
   useEffect(() => {
     loadConnections();
 
-    // ✅ FIX: Listen for postMessage from OAuth popup window
+    // ✅ FIX: Listen for postMessage from OAuth popup windows
     const handleOAuthMessage = (event) => {
       // Only accept messages from same origin for security
       if (event.origin !== window.location.origin) return;
@@ -45,7 +45,13 @@ export default function CalendarSettings() {
         // Reload connections to show updated status
         setTimeout(() => loadConnections(), 500);
       } else if (event.data.type === 'CALENDLY_OAUTH_ERROR') {
-        setError(`Connection failed: ${event.data.error}`);
+        setError(`Calendly connection failed: ${event.data.error}`);
+      } else if (event.data.type === 'GOOGLE_OAUTH_SUCCESS') {
+        setSuccess('Google Calendar connected successfully!');
+        // Reload connections to show updated status
+        setTimeout(() => loadConnections(), 500);
+      } else if (event.data.type === 'GOOGLE_OAUTH_ERROR') {
+        setError(`Google Calendar connection failed: ${event.data.error}`);
       }
     };
 
@@ -244,7 +250,36 @@ export default function CalendarSettings() {
       });
 
       if (response.data.url) {
-        window.location.href = response.data.url;
+        // Get current user ID from token to pass in state parameter
+        const userIdFromToken = await getUserIdFromToken();
+        const urlWithState = `${response.data.url}&state=${userIdFromToken}`;
+
+        // ✅ FIX: Open OAuth in popup window instead of full page redirect
+        // This keeps the main window intact and returns focus after auth
+        const width = 500;
+        const height = 600;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+
+        const popup = window.open(
+          urlWithState,
+          'GoogleOAuth',
+          `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+        );
+
+        if (!popup) {
+          setError('Popup blocked. Please allow popups for this site and try again.');
+          return;
+        }
+
+        // Poll for popup closure and reload connections
+        const checkPopup = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(checkPopup);
+            // Reload connections to show updated status
+            setTimeout(() => loadConnections(), 500);
+          }
+        }, 500);
       }
     } catch (err) {
       console.error('Error reconnecting Google Calendar:', err);
