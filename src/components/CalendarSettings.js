@@ -122,7 +122,7 @@ export default function CalendarSettings() {
       setError('');
       setSuccess('');
       const token = await getAccessToken();
-      
+
       await axios.delete(`${API_BASE_URL}/api/calendar-connections/${connectionId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -132,46 +132,6 @@ export default function CalendarSettings() {
     } catch (err) {
       console.error('Error disconnecting calendar:', err);
       setError(err.response?.data?.error || 'Failed to disconnect calendar');
-    }
-  };
-
-
-
-  const handleSwitchCalendar = async (connectionId, provider) => {
-    try {
-      setError('');
-      setSuccess('');
-      const token = await getAccessToken();
-
-      // Activate this connection
-      await axios.patch(
-        `${API_BASE_URL}/api/calendar-connections/${connectionId}/toggle-sync`,
-        { sync_enabled: true },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      setSuccess(`Switched to ${getProviderName(provider)}`);
-
-      // If switching to Google Calendar, trigger a sync
-      if (provider === 'google') {
-        try {
-          console.log('🔄 Triggering Google Calendar sync...');
-          await axios.post(
-            `${API_BASE_URL}/api/calendar/sync-google`,
-            {},
-            { headers: { Authorization: `Bearer ${token}` } }
-          );
-          setSuccess(`Switched to ${getProviderName(provider)} and synced meetings`);
-        } catch (syncErr) {
-          console.warn('⚠️ Sync failed but calendar was switched:', syncErr);
-          // Don't fail the switch if sync fails
-        }
-      }
-
-      loadConnections();
-    } catch (err) {
-      console.error('Error switching calendar:', err);
-      setError(err.response?.data?.error || 'Failed to switch calendar');
     }
   };
 
@@ -349,19 +309,6 @@ export default function CalendarSettings() {
       default:
         return provider;
     }
-  };
-
-  const formatLastSync = (lastSync) => {
-    if (!lastSync) return 'Never';
-    const date = new Date(lastSync);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} minutes ago`;
-    if (diffMins < 1440) return `${Math.floor(diffMins / 60)} hours ago`;
-    return date.toLocaleDateString();
   };
 
   if (isLoading) {
