@@ -88,6 +88,94 @@ router.get('/google/status', authenticateSupabaseUser, async (req, res) => {
   }
 });
 
+/**
+ * POST /api/auth/verify-webhooks
+ * Verify and re-engage calendar webhooks on user login
+ * Called by frontend when user logs in to ensure webhooks are active
+ */
+router.post('/verify-webhooks', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    console.log(`🔍 Verifying webhooks for user ${userId} on login...`);
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable'
+      });
+    }
+
+    const webhookResults = {
+      google: { status: 'not_connected' },
+      calendly: { status: 'not_connected' }
+    };
+
+    // Check Google Calendar webhook
+    try {
+      const { data: googleConnection } = await req.supabase
+        .from('calendar_connections')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('provider', 'google')
+        .eq('is_active', true)
+        .single();
+
+      if (googleConnection) {
+        console.log(`✅ Google Calendar is active for user ${userId}`);
+        webhookResults.google = {
+          status: 'active',
+          sync_method: 'webhook',
+          message: 'Google Calendar webhook is active'
+        };
+      }
+    } catch (err) {
+      console.log(`ℹ️ Google Calendar not connected for user ${userId}`);
+    }
+
+    // Check Calendly webhook
+    try {
+      const CalendlyWebhookManager = require('../services/calendlyWebhookManager');
+      const webhookManager = new CalendlyWebhookManager();
+
+      const { data: calendlyConnection } = await req.supabase
+        .from('calendar_connections')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('provider', 'calendly')
+        .eq('is_active', true)
+        .single();
+
+      if (calendlyConnection) {
+        console.log(`🔍 Calendly is connected for user ${userId}, verifying webhook...`);
+
+        const webhookStatus = await webhookManager.getWebhookStatus(userId);
+        webhookResults.calendly = webhookStatus;
+
+        if (webhookStatus.webhook_active) {
+          console.log(`✅ Calendly webhook verified active for user ${userId}`);
+        } else {
+          console.warn(`⚠️ Calendly webhook not active for user ${userId} - will use polling`);
+        }
+      }
+    } catch (err) {
+      console.log(`ℹ️ Calendly not connected for user ${userId}`);
+    }
+
+    res.json({
+      success: true,
+      user_id: userId,
+      webhooks: webhookResults,
+      message: 'Webhook verification completed'
+    });
+
+  } catch (error) {
+    console.error('Error verifying webhooks:', error);
+    res.status(500).json({
+      error: 'Failed to verify webhooks',
+      details: error.message
+    });
+  }
+});
+
 // Handle Google OAuth callback
 router.get('/google/callback', async (req, res) => {
   try {

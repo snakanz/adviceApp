@@ -54,6 +54,8 @@ export const AuthProvider = ({ children }) => {
         switch (event) {
           case 'SIGNED_IN':
             console.log('✅ User signed in:', session?.user?.email);
+            // Verify webhooks are active on login
+            verifyWebhooksOnLogin(session);
             break;
           case 'SIGNED_OUT':
             console.log('👋 User signed out');
@@ -66,6 +68,10 @@ export const AuthProvider = ({ children }) => {
             break;
           case 'INITIAL_SESSION':
             console.log('🎯 Initial session loaded:', session?.user?.email);
+            // Verify webhooks on initial session load
+            if (session) {
+              verifyWebhooksOnLogin(session);
+            }
             break;
           default:
             console.log('ℹ️ Auth event:', event);
@@ -107,6 +113,52 @@ export const AuthProvider = ({ children }) => {
 
     return () => clearInterval(checkTokenExpiration);
   }, [session]);
+
+  /**
+   * Verify calendar webhooks are active on user login
+   * Called when user signs in or session is restored
+   */
+  const verifyWebhooksOnLogin = async (session) => {
+    try {
+      if (!session?.access_token) {
+        console.log('⚠️ No session token available for webhook verification');
+        return;
+      }
+
+      const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
+
+      console.log('🔍 Verifying calendar webhooks on login...');
+      const response = await fetch(`${API_BASE_URL}/api/auth/verify-webhooks`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Webhook verification completed:', data.webhooks);
+
+        // Log webhook status for debugging
+        if (data.webhooks.google?.status === 'active') {
+          console.log('✅ Google Calendar webhook is active');
+        }
+        if (data.webhooks.calendly?.webhook_active) {
+          console.log('✅ Calendly webhook is active');
+        } else if (data.webhooks.calendly?.status === 'not_connected') {
+          console.log('ℹ️ Calendly not connected');
+        } else {
+          console.log('⚠️ Calendly using polling sync (webhook not active)');
+        }
+      } else {
+        console.warn('⚠️ Failed to verify webhooks:', response.statusText);
+      }
+    } catch (error) {
+      console.warn('⚠️ Error verifying webhooks on login:', error.message);
+      // Don't fail auth if webhook verification fails
+    }
+  };
 
   /**
    * Sign in with email and password

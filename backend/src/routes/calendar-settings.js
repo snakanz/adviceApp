@@ -581,10 +581,27 @@ router.get('/:id/webhook-status', authenticateSupabaseUser, async (req, res) => 
 
     // Check Calendly webhook status
     if (connection.provider === 'calendly' && connection.is_active) {
-      // Calendly webhook is configured at organization level via environment variable
-      const hasCalendlyWebhookKey = !!process.env.CALENDLY_WEBHOOK_SIGNING_KEY;
-      webhookStatus.webhook_active = hasCalendlyWebhookKey;
-      webhookStatus.sync_method = hasCalendlyWebhookKey ? 'webhook' : 'polling';
+      try {
+        const CalendlyWebhookManager = require('../services/calendlyWebhookManager');
+        const webhookManager = new CalendlyWebhookManager();
+
+        // Get detailed webhook status
+        const calendlyWebhookStatus = await webhookManager.getWebhookStatus(userId);
+        webhookStatus.webhook_active = calendlyWebhookStatus.webhook_active;
+        webhookStatus.sync_method = calendlyWebhookStatus.sync_method;
+        webhookStatus.message = calendlyWebhookStatus.message;
+
+        console.log(`📊 Calendly webhook status for user ${userId}:`, {
+          webhook_active: webhookStatus.webhook_active,
+          sync_method: webhookStatus.sync_method
+        });
+      } catch (err) {
+        console.warn('Error checking Calendly webhook status:', err.message);
+        // Fallback: check if signing key is configured
+        const hasCalendlyWebhookKey = !!process.env.CALENDLY_WEBHOOK_SIGNING_KEY;
+        webhookStatus.webhook_active = hasCalendlyWebhookKey;
+        webhookStatus.sync_method = hasCalendlyWebhookKey ? 'webhook' : 'polling';
+      }
     }
 
     res.json({
