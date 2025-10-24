@@ -473,165 +473,51 @@ export default function CalendarSettings() {
         </div>
       )}
 
-      {/* Current Connection Status */}
+      {/* Calendar Status Overview - Show all calendars */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-foreground">Current Connection</h3>
+        <h3 className="text-lg font-semibold text-foreground">Your Calendars</h3>
+        <p className="text-sm text-muted-foreground">
+          View and manage all your connected calendars
+        </p>
 
         {connections.length === 0 ? (
           <Card className="border-border/50 bg-muted/30">
             <CardContent className="p-8 text-center">
               <Calendar className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground mb-2">No calendar connected</p>
+              <p className="text-muted-foreground mb-2">No calendars connected</p>
               <p className="text-sm text-muted-foreground mb-6">Connect a calendar to start syncing your meetings</p>
-              <Button onClick={handleReconnectGoogle} className="bg-primary hover:bg-primary/90">
-                <Plus className="w-4 h-4 mr-2" />
-                Connect Google Calendar
-              </Button>
             </CardContent>
           </Card>
         ) : (
-          // Show only active connections (should be max 1)
-          connections
-            .filter(conn => conn.is_active)
-            .map((connection) => (
-              <Card key={connection.id} className="border-primary/30 bg-primary/5">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-4 flex-1">
-                      <div className="text-4xl">{getProviderIcon(connection.provider)}</div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-3">
-                          <h4 className="font-semibold text-foreground text-lg">
-                            {getProviderName(connection.provider)}
-                          </h4>
-                          <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/10 text-green-600 text-xs font-medium rounded-full">
-                            <CheckCircle className="w-3 h-3" />
-                            Connected
-                          </span>
-                        </div>
-
-                        {connection.provider_account_email && (
-                          <p className="text-sm text-muted-foreground mb-3">
-                            <span className="font-medium">Account:</span> {connection.provider_account_email}
-                          </p>
-                        )}
-
-                        <div className="flex items-center gap-4 text-sm">
-                          <div className="flex items-center gap-1 text-muted-foreground">
-                            <Clock className="w-4 h-4" />
-                            <span>Last sync: {formatLastSync(connection.last_sync_at)}</span>
-                          </div>
-
-                          {connection.sync_enabled && (
-                            <div className="flex items-center gap-1 text-green-600">
-                              <CheckCircle className="w-4 h-4" />
-                              <span>Sync enabled</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      {connection.provider === 'calendly' && (
-                        <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleManualSyncCalendly}
-                            disabled={isSyncing}
-                          >
-                            {isSyncing ? (
-                              <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Syncing...
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle className="w-4 h-4 mr-2" />
-                                Manual Sync
-                              </>
-                            )}
-                          </Button>
-
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={handleReconnectCalendly}
-                            disabled={isConnecting}
-                          >
-                            {isConnecting ? (
-                              <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                Reconnecting...
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle className="w-4 h-4 mr-2" />
-                                Reconnect
-                              </>
-                            )}
-                          </Button>
-                        </>
-                      )}
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleToggleSync(connection.id, connection.sync_enabled)}
-                      >
-                        <Power className="w-4 h-4 mr-2" />
-                        {connection.sync_enabled ? 'Disable Sync' : 'Enable Sync'}
-                      </Button>
-
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDisconnect(connection.id, getProviderName(connection.provider))}
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        Disconnect
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-        )}
-      </div>
-
-      {/* Switch Calendar Section - Show all connected calendars */}
-      {connections.length > 1 && (
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-foreground">Switch Calendar</h3>
-          <p className="text-sm text-muted-foreground">
-            Click a calendar below to switch to it. Only one calendar can be active at a time.
-          </p>
-
           <div className="space-y-3">
             {connections.map((connection) => (
               <Card
                 key={connection.id}
                 className={`border-2 transition-all ${
                   connection.is_active
-                    ? 'border-primary bg-primary/5'
-                    : 'border-border/50 hover:border-primary/50 cursor-pointer'
+                    ? 'border-green-500/50 bg-green-500/5'
+                    : 'border-border/50 bg-muted/20'
                 }`}
               >
                 <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 flex-1">
-                      <div className="text-3xl">{getProviderIcon(connection.provider)}</div>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between gap-4">
+                    {/* Left: Icon and Info */}
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className="text-3xl flex-shrink-0">{getProviderIcon(connection.provider)}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <h4 className="font-semibold text-foreground">
                             {getProviderName(connection.provider)}
                           </h4>
-                          {connection.is_active && (
-                            <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/10 text-green-600 text-xs font-medium rounded-full">
+                          {connection.is_active ? (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-green-500/10 text-green-600 text-xs font-medium rounded-full flex-shrink-0">
                               <CheckCircle className="w-3 h-3" />
                               Active
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 px-2 py-0.5 bg-gray-500/10 text-gray-600 text-xs font-medium rounded-full flex-shrink-0">
+                              <Power className="w-3 h-3" />
+                              Inactive
                             </span>
                           )}
                         </div>
@@ -643,27 +529,65 @@ export default function CalendarSettings() {
                       </div>
                     </div>
 
-                    {!connection.is_active && (
+                    {/* Right: Action Buttons */}
+                    <div className="flex gap-2 flex-shrink-0">
+                      {/* Switch button - only show if not active */}
+                      {!connection.is_active && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleSwitchCalendar(connection.id, connection.provider)}
+                          className="bg-primary hover:bg-primary/90 whitespace-nowrap"
+                        >
+                          Activate
+                        </Button>
+                      )}
+
+                      {/* Manual Sync for Calendly */}
+                      {connection.provider === 'calendly' && connection.is_active && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleManualSyncCalendly}
+                          disabled={isSyncing}
+                          className="whitespace-nowrap"
+                        >
+                          {isSyncing ? (
+                            <>
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                              Syncing
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              Sync
+                            </>
+                          )}
+                        </Button>
+                      )}
+
+                      {/* Disconnect button */}
                       <Button
+                        variant="outline"
                         size="sm"
-                        onClick={() => handleSwitchCalendar(connection.id, connection.provider)}
-                        className="bg-primary hover:bg-primary/90"
+                        onClick={() => handleDisconnect(connection.id, getProviderName(connection.provider))}
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50 whitespace-nowrap"
                       >
-                        Switch
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Disconnect
                       </Button>
-                    )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Add Calendar Section */}
+      {/* Add/Reconnect Calendar Section */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-foreground">
-          {connections.length === 0 ? 'Connect Calendar' : 'Add Another Calendar'}
+          {connections.length === 0 ? 'Connect a Calendar' : 'Add Another Calendar'}
         </h3>
 
         {connections.length > 0 && (
@@ -673,8 +597,8 @@ export default function CalendarSettings() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Google Calendar - Show if not already connected */}
-          {!connections.some(c => c.provider === 'google') && (
+          {/* Google Calendar */}
+          {!connections.some(c => c.provider === 'google') ? (
             <Card
               className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer"
               onClick={handleReconnectGoogle}
@@ -685,17 +609,31 @@ export default function CalendarSettings() {
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground mb-1">Google Calendar</h4>
                     <p className="text-sm text-muted-foreground">
-                      Connect your Google Calendar to sync meetings
+                      Connect to sync meetings
                     </p>
                   </div>
                   <Plus className="w-5 h-5 text-primary" />
                 </div>
               </CardContent>
             </Card>
+          ) : (
+            <Card className="border-border/50 bg-muted/20">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="text-4xl">🗓️</div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-foreground mb-1">Google Calendar</h4>
+                    <p className="text-sm text-green-600">
+                      ✓ Connected
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
-          {/* Calendly - Show if not already connected */}
-          {!connections.some(c => c.provider === 'calendly') && (
+          {/* Calendly */}
+          {!connections.some(c => c.provider === 'calendly') ? (
             <Card
               className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer"
               onClick={() => setShowCalendlyForm(!showCalendlyForm)}
@@ -706,10 +644,24 @@ export default function CalendarSettings() {
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground mb-1">Calendly</h4>
                     <p className="text-sm text-muted-foreground">
-                      Can't connect work calendar? Use Calendly instead
+                      Connect to sync meetings
                     </p>
                   </div>
                   <Plus className="w-5 h-5 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-border/50 bg-muted/20">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="text-4xl">📅</div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-foreground mb-1">Calendly</h4>
+                    <p className="text-sm text-green-600">
+                      ✓ Connected
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
