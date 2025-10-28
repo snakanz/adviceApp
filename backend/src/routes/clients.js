@@ -23,14 +23,9 @@ const upload = multer({
 });
 
 // Get all clients for an advisor with their meetings
-router.get('/', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.get('/', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
+    const userId = req.user.id;
 
     // Get filter parameter for upcoming meetings
     const filter = req.query.filter; // 'all', 'with-upcoming', 'no-upcoming'
@@ -43,6 +38,7 @@ router.get('/', async (req, res) => {
     }
 
     // Get ALL clients for this advisor (not just those with meetings)
+    // RLS policy enforces user_id = auth.uid()
     const { data: clients, error: clientsError } = await req.supabase
       .from('clients')
       .select(`
@@ -60,7 +56,7 @@ router.get('/', async (req, res) => {
           action_points
         )
       `)
-      .eq('advisor_id', userId)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (clientsError) {
@@ -168,14 +164,9 @@ router.get('/', async (req, res) => {
 });
 
 // Upsert client (create or update)
-router.post('/upsert', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.post('/upsert', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const userId = req.user.id;
     const {
       email,
       name,
@@ -201,7 +192,7 @@ router.post('/upsert', async (req, res) => {
     const { data: existingClient, error: checkError } = await req.supabase
       .from('clients')
       .select('id')
-      .eq('user_id', advisorId)
+      .eq('user_id', userId)
       .eq('email', email)
       .single();
 
@@ -247,7 +238,7 @@ router.post('/upsert', async (req, res) => {
     } else {
       // Create new client
       const insertData = {
-        user_id: advisorId,
+        user_id: userId,
         email: email,
         name: name || null,
         business_type: business_type || null,
@@ -288,14 +279,9 @@ router.post('/upsert', async (req, res) => {
 });
 
 // Update client name and pipeline data
-router.post('/update-name', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.post('/update-name', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const userId = req.user.id;
     const {
       email,
       name,
@@ -324,7 +310,7 @@ router.post('/update-name', async (req, res) => {
     const { data: client, error: findError } = await req.supabase
       .from('clients')
       .select('id')
-      .eq('user_id', advisorId)
+      .eq('user_id', userId)
       .eq('email', email)
       .single();
 
@@ -344,7 +330,6 @@ router.post('/update-name', async (req, res) => {
       .from('clients')
       .update(clientUpdateData)
       .eq('id', client.id)
-      .eq('advisor_id', advisorId)
       .select()
       .single();
 
@@ -429,14 +414,9 @@ router.post('/update-name', async (req, res) => {
 });
 
 // Get specific client by ID (can be UUID or email for backward compatibility)
-router.get('/:clientId', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.get('/:clientId', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
+    const userId = req.user.id;
     const clientIdentifier = decodeURIComponent(req.params.clientId);
 
     // Check if Supabase is available
@@ -464,7 +444,7 @@ router.get('/:clientId', async (req, res) => {
           action_points
         )
       `)
-      .eq('advisor_id', userId);
+      .eq('user_id', userId);
 
     // Check if clientIdentifier looks like a UUID
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientIdentifier);
@@ -553,14 +533,9 @@ router.get('/:clientId', async (req, res) => {
 });
 
 // Get meetings for a specific client
-router.get('/:clientId/meetings', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.get('/:clientId/meetings', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
+    const userId = req.user.id;
     const clientIdentifier = decodeURIComponent(req.params.clientId);
 
     // Check if Supabase is available
@@ -574,7 +549,7 @@ router.get('/:clientId/meetings', async (req, res) => {
     let clientQuery = req.supabase
       .from('clients')
       .select('id')
-      .eq('advisor_id', userId);
+      .eq('user_id', userId);
 
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientIdentifier);
 
@@ -630,14 +605,9 @@ router.get('/:clientId/meetings', async (req, res) => {
 });
 
 // Update specific client by ID
-router.put('/:clientId', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.put('/:clientId', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const userId = req.user.id;
     const clientId = req.params.clientId;
     const {
       name,
@@ -682,7 +652,7 @@ router.put('/:clientId', async (req, res) => {
     const { data: updatedClient, error: updateError } = await req.supabase
       .from('clients')
       .update(updateData)
-      .eq('advisor_id', advisorId)
+      .eq('user_id', userId)
       .eq('id', clientId)
       .select()
       .single();
@@ -704,14 +674,9 @@ router.put('/:clientId', async (req, res) => {
 });
 
 // Upload client avatar
-router.post('/:clientId/avatar', upload.single('avatar'), async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.post('/:clientId/avatar', authenticateSupabaseUser, upload.single('avatar'), async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const userId = req.user.id;
     const { clientId } = req.params;
 
     if (!req.file) {
@@ -729,7 +694,7 @@ router.post('/:clientId/avatar', upload.single('avatar'), async (req, res) => {
       .from('clients')
       .select('id, name')
       .eq('id', clientId)
-      .eq('advisor_id', advisorId)
+      .eq('user_id', userId)
       .single();
 
     if (clientError || !client) {
@@ -771,7 +736,7 @@ router.post('/:clientId/avatar', upload.single('avatar'), async (req, res) => {
         updated_at: new Date().toISOString()
       })
       .eq('id', clientId)
-      .eq('advisor_id', advisorId)
+      .eq('user_id', userId)
       .select()
       .single();
 
@@ -793,16 +758,9 @@ router.post('/:clientId/avatar', upload.single('avatar'), async (req, res) => {
 });
 
 // Extract clients from meeting attendees and link meetings
-router.post('/extract-clients', async (req, res) => {
+router.post('/extract-clients', authenticateSupabaseUser, async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({ error: 'Authorization token required' });
-    }
-
-    const token = authHeader.substring(7);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
+    const userId = req.user.id;
 
     console.log('🔗 Starting client extraction for user:', userId);
 
@@ -828,14 +786,9 @@ router.post('/extract-clients', async (req, res) => {
 });
 
 // Create pipeline entry for client without future meetings
-router.post('/:clientId/pipeline-entry', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.post('/:clientId/pipeline-entry', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const userId = req.user.id;
     const clientId = req.params.clientId;
 
     const {
@@ -886,7 +839,7 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
       .from('clients')
       .select('id, name, email')
       .eq('id', clientId)
-      .eq('advisor_id', advisorId)
+      .eq('user_id', userId)
       .single();
 
     if (clientError || !client) {
@@ -923,7 +876,7 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
       .from('clients')
       .update(clientUpdateData)
       .eq('id', clientId)
-      .eq('advisor_id', advisorId)
+      .eq('user_id', userId)
       .select()
       .single();
 
@@ -1029,7 +982,7 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
         .from('pipeline_activities')
         .insert({
           client_id: clientId,
-          advisor_id: advisorId,
+          user_id: userId,
           activity_type: 'stage_change',
           title: `Pipeline entry created - ${pipeline_stage}`,
           description: `Pipeline entry created with stage: ${pipeline_stage}. Business types: ${businessTypeSummary}${pipeline_notes ? `. Notes: ${pipeline_notes}` : ''}`,
@@ -1053,7 +1006,7 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
       const meetingEndTime = new Date(meetingDateTime.getTime() + 60 * 60 * 1000); // 1 hour default
 
       const meetingData = {
-        userid: advisorId,
+        user_id: userId,
         client_id: clientId,
         title: meeting_title,
         starttime: meetingDateTime.toISOString(),
@@ -1062,7 +1015,7 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
         meeting_source: 'manual',
         location_type: meeting_type || 'video',
         location_details: meeting_location || null,
-        created_by: advisorId,
+        created_by: userId,
         attendees: JSON.stringify([{
           email: client.email,
           displayName: client.name,
@@ -1089,7 +1042,7 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
             .from('pipeline_activities')
             .insert({
               client_id: clientId,
-              advisor_id: advisorId,
+              user_id: userId,
               activity_type: 'meeting',
               title: `Meeting scheduled: ${meeting_title}`,
               description: `Meeting scheduled for ${meetingDateTime.toLocaleDateString()} at ${meetingDateTime.toLocaleTimeString()}`,
@@ -1126,19 +1079,26 @@ router.post('/:clientId/pipeline-entry', async (req, res) => {
 
 // Get client business types
 router.get('/:clientId/business-types', authenticateSupabaseUser, async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No authorization header' });
-
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const userId = req.user.id;
     const clientId = req.params.clientId;
 
     if (!isSupabaseAvailable()) {
       return res.status(503).json({
         error: 'Database service unavailable. Please contact support.'
       });
+    }
+
+    // Verify client belongs to user (defense-in-depth)
+    const { data: client, error: clientError } = await req.supabase
+      .from('clients')
+      .select('id')
+      .eq('id', clientId)
+      .eq('user_id', userId)
+      .single();
+
+    if (clientError || !client) {
+      return res.status(404).json({ error: 'Client not found' });
     }
 
     // Get client business types
@@ -1162,13 +1122,8 @@ router.get('/:clientId/business-types', authenticateSupabaseUser, async (req, re
 
 // Update client business types
 router.put('/:clientId/business-types', authenticateSupabaseUser, async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No authorization header' });
-
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const userId = req.user.id;
     const clientId = req.params.clientId;
     const { businessTypes } = req.body;
 
@@ -1182,12 +1137,12 @@ router.put('/:clientId/business-types', authenticateSupabaseUser, async (req, re
       });
     }
 
-    // Verify client belongs to advisor
+    // Verify client belongs to user
     const { data: client, error: clientError } = await req.supabase
       .from('clients')
       .select('id')
       .eq('id', clientId)
-      .eq('advisor_id', advisorId)
+      .eq('user_id', userId)
       .single();
 
     if (clientError || !client) {
@@ -1240,13 +1195,8 @@ router.put('/:clientId/business-types', authenticateSupabaseUser, async (req, re
 
 // Mark a business type as not proceeding
 router.patch('/business-types/:businessTypeId/not-proceeding', authenticateSupabaseUser, async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No authorization header' });
-
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const userId = req.user.id;
     const businessTypeId = req.params.businessTypeId;
     const { not_proceeding, not_proceeding_reason } = req.body;
 
@@ -1262,14 +1212,14 @@ router.patch('/business-types/:businessTypeId/not-proceeding', authenticateSupab
       });
     }
 
-    // Verify business type exists and belongs to advisor's client
+    // Verify business type exists and belongs to user's client
     const { data: businessType, error: fetchError } = await req.supabase
       .from('client_business_types')
       .select(`
         *,
         client:clients!inner(
           id,
-          advisor_id
+          user_id
         )
       `)
       .eq('id', businessTypeId)
@@ -1280,7 +1230,7 @@ router.patch('/business-types/:businessTypeId/not-proceeding', authenticateSupab
       return res.status(404).json({ error: 'Business type not found' });
     }
 
-    if (businessType.client.advisor_id !== advisorId) {
+    if (businessType.client.user_id !== userId) {
       console.error('❌ Unauthorized access attempt');
       return res.status(403).json({ error: 'Unauthorized' });
     }
@@ -1319,13 +1269,8 @@ router.patch('/business-types/:businessTypeId/not-proceeding', authenticateSupab
 
 // Create new client with pipeline integration and business types
 router.post('/create', authenticateSupabaseUser, async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No authorization header' });
-
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const userId = req.user.id;
 
     const {
       // Basic client info
@@ -1381,7 +1326,7 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
     const { data: existingClient, error: checkError } = await req.supabase
       .from('clients')
       .select('id')
-      .eq('advisor_id', advisorId)
+      .eq('user_id', userId)
       .eq('email', email)
       .single();
 
@@ -1396,7 +1341,7 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
 
     // Create new client
     const clientData = {
-      user_id: advisorId,
+      user_id: userId,
       name,
       email,
       phone: phone || null,
@@ -1450,7 +1395,7 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
         .from('pipeline_activities')
         .insert({
           client_id: newClient.id,
-          advisor_id: advisorId,
+          user_id: userId,
           activity_type: 'note',
           title: 'Client created',
           description: `New client created with pipeline stage: ${pipeline_stage}`,
@@ -1477,14 +1422,9 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
 });
 
 // Generate AI summary for a client
-router.post('/:clientId/generate-summary', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.post('/:clientId/generate-summary', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const userId = req.user.id;
     const clientId = req.params.clientId;
 
     if (!isSupabaseAvailable()) {
@@ -1498,7 +1438,7 @@ router.post('/:clientId/generate-summary', async (req, res) => {
       .from('clients')
       .select('*')
       .eq('id', clientId)
-      .eq('advisor_id', advisorId)
+      .eq('user_id', userId)
       .single();
 
     if (clientError || !client) {
@@ -1510,7 +1450,7 @@ router.post('/:clientId/generate-summary', async (req, res) => {
       .from('meetings')
       .select('*')
       .eq('client_id', clientId)
-      .eq('user_id', advisorId)
+      .eq('user_id', userId)
       .order('starttime', { ascending: false })
       .limit(5); // Get last 5 meetings
 
@@ -1622,14 +1562,9 @@ Keep it professional, factual, and under 100 words.`;
 });
 
 // Generate AI "Next Steps to Close" summary for pipeline
-router.post('/:clientId/generate-pipeline-summary', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.post('/:clientId/generate-pipeline-summary', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const userId = req.user.id;
     const clientId = req.params.clientId;
 
     if (!isSupabaseAvailable()) {
@@ -1643,7 +1578,7 @@ router.post('/:clientId/generate-pipeline-summary', async (req, res) => {
       .from('clients')
       .select('*')
       .eq('id', clientId)
-      .eq('advisor_id', advisorId)
+      .eq('user_id', userId)
       .single();
 
     if (clientError || !client) {
@@ -1661,7 +1596,7 @@ router.post('/:clientId/generate-pipeline-summary', async (req, res) => {
       .from('meetings')
       .select('*')
       .eq('client_id', clientId)
-      .eq('userid', advisorId)
+      .eq('user_id', userId)
       .order('starttime', { ascending: false })
       .limit(3);
 
