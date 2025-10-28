@@ -45,7 +45,7 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
         *,
         meetings:meetings(
           id,
-          googleeventid,
+          external_id,
           title,
           starttime,
           endtime,
@@ -89,7 +89,7 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
     const now = new Date();
     const formattedClients = (clients || []).map(client => {
       const meetings = (client.meetings || []).map(meeting => ({
-        id: meeting.googleeventid,
+        id: meeting.id,
         title: meeting.title,
         starttime: meeting.starttime,
         endtime: meeting.endtime,
@@ -433,7 +433,7 @@ router.get('/:clientId', authenticateSupabaseUser, async (req, res) => {
         *,
         meetings:meetings(
           id,
-          googleeventid,
+          external_id,
           title,
           starttime,
           endtime,
@@ -513,7 +513,7 @@ router.get('/:clientId', authenticateSupabaseUser, async (req, res) => {
       updated_at: client.updated_at,
       avatar_url: client.avatar_url,
       meetings: (client.meetings || []).map(meeting => ({
-        id: meeting.googleeventid,
+        id: meeting.id,
         title: meeting.title,
         starttime: meeting.starttime,
         endtime: meeting.endtime,
@@ -584,7 +584,7 @@ router.get('/:clientId/meetings', authenticateSupabaseUser, async (req, res) => 
 
     // Format the meetings
     const formattedMeetings = (meetings || []).map(meeting => ({
-      id: meeting.googleeventid,
+      id: meeting.id,
       title: meeting.title,
       starttime: meeting.starttime,
       endtime: meeting.endtime,
