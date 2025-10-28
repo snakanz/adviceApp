@@ -1061,8 +1061,8 @@ app.post('/api/meetings/:meetingId/summary', async (req, res) => {
         *,
         client:clients(id, name, email)
       `)
-      .eq('googleeventid', meetingId)
-      .eq('userid', userId)
+      .eq('external_id', meetingId)
+      .eq('user_id', userId)
       .single();
 
     if (fetchError || !meeting) {

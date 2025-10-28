@@ -423,7 +423,7 @@ class CalendarSyncService {
     const { data: meetings } = await getSupabase()
       .from('meetings')
       .select('is_deleted, imported_from_ics, last_calendar_sync')
-      .eq('userid', userId);
+      .eq('user_id', userId);
 
     const stats = {
       total: meetings?.length || 0,

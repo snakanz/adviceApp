@@ -87,14 +87,14 @@ router.get('/debug/meetings', async (req, res) => {
   try {
     const { data: meetings } = await req.supabase
       .from('meetings')
-      .select('googleeventid, title, starttime, attendees, transcript, quick_summary, email_summary_draft')
+      .select('external_id, title, starttime, attendees, transcript, quick_summary, email_summary_draft')
       .order('starttime', { ascending: false })
       .limit(10);
 
     res.json({
       count: meetings?.length || 0,
       meetings: meetings?.map(m => ({
-        googleeventid: m.googleeventid,
+        external_id: m.external_id,
         title: m.title,
         starttime: m.starttime,
         attendees: m.attendees,

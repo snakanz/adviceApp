@@ -67,7 +67,7 @@ class ComprehensiveCalendarSync {
     const { data: meetings } = await getSupabase()
       .from('meetings')
       .select('*')
-      .eq('userid', userId)
+      .eq('user_id', userId)
       .order('starttime', { ascending: false });
 
     return meetings || [];
