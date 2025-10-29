@@ -167,6 +167,29 @@ export default function CalendarSettings() {
     }
   };
 
+  const handleToggleTranscription = async (connectionId, enabled) => {
+    try {
+      setError('');
+      const token = await getAccessToken();
+
+      await axios.patch(
+        `${API_BASE_URL}/api/calendar-connections/${connectionId}/toggle-transcription`,
+        { transcription_enabled: enabled },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setSuccess(`✅ Transcription ${enabled ? 'enabled' : 'disabled'} - Recall.ai will ${enabled ? 'automatically record' : 'not record'} your meetings`);
+
+      // Reload connections to show updated status
+      setTimeout(() => loadConnections(), 500);
+    } catch (err) {
+      console.error('Error toggling transcription:', err);
+      setError(err.response?.data?.error || 'Failed to update transcription setting');
+      // Reload to reset the toggle if it failed
+      setTimeout(() => loadConnections(), 500);
+    }
+  };
+
   const handleConnectCalendlyOAuth = async () => {
     try {
       setIsConnecting(true);
@@ -458,6 +481,23 @@ export default function CalendarSettings() {
                             Last synced: {new Date(connection.last_sync_at).toLocaleTimeString()}
                           </p>
                         )}
+
+                        {/* Transcription Toggle */}
+                        <div className="mt-3 flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id={`transcription-${connection.id}`}
+                            checked={connection.transcription_enabled || false}
+                            onChange={(e) => handleToggleTranscription(connection.id, e.target.checked)}
+                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <label
+                            htmlFor={`transcription-${connection.id}`}
+                            className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1"
+                          >
+                            <span>🎙️ Auto-record with Recall.ai</span>
+                          </label>
+                        </div>
                       </div>
                     </div>
 

@@ -516,6 +516,75 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
 });
 
 /**
+ * PATCH /api/calendar-connections/:id/toggle-transcription
+ * Enable or disable Recall.ai transcription for a calendar connection
+ */
+router.patch('/:id/toggle-transcription', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const connectionId = req.params.id;
+    const { transcription_enabled } = req.body;
+
+    if (typeof transcription_enabled !== 'boolean') {
+      return res.status(400).json({
+        error: 'transcription_enabled must be a boolean'
+      });
+    }
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable'
+      });
+    }
+
+    // Verify the connection belongs to this user
+    const { data: connection, error: fetchError } = await req.supabase
+      .from('calendar_connections')
+      .select('id, provider, transcription_enabled')
+      .eq('id', connectionId)
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError || !connection) {
+      return res.status(404).json({
+        error: 'Calendar connection not found'
+      });
+    }
+
+    // Update transcription_enabled
+    const { data, error } = await req.supabase
+      .from('calendar_connections')
+      .update({
+        transcription_enabled,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', connectionId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.error('Error toggling transcription:', error);
+      return res.status(500).json({
+        error: 'Failed to update transcription setting'
+      });
+    }
+
+    console.log(`✅ Transcription ${transcription_enabled ? 'enabled' : 'disabled'} for connection ${connectionId}`);
+
+    res.json({
+      success: true,
+      message: `Transcription ${transcription_enabled ? 'enabled' : 'disabled'} successfully`,
+      connection: data
+    });
+
+  } catch (error) {
+    console.error('Error in PATCH /calendar-connections/:id/toggle-transcription:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
  * GET /api/calendar-connections/:id/webhook-status
  * Get webhook status for a calendar connection
  * Returns webhook health info for UI display

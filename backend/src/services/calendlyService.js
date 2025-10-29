@@ -272,6 +272,17 @@ class CalendlyService {
         return { synced: 0, errors: 0, message: 'Calendly not configured' };
       }
 
+      // Check if transcription is enabled for Calendly connection
+      const { data: connection } = await getSupabase()
+        .from('calendar_connections')
+        .select('transcription_enabled')
+        .eq('user_id', userId)
+        .eq('provider', 'calendly')
+        .eq('is_active', true)
+        .single();
+
+      const transcriptionEnabled = connection?.transcription_enabled === true;
+
       // Check if initial sync has been completed
       const { data: userData } = await getSupabase()
         .from('users')
@@ -357,9 +368,11 @@ class CalendlyService {
             }
           } else {
             // Insert new meeting
-            const { error } = await getSupabase()
+            const { data: newMeeting, error } = await getSupabase()
               .from('meetings')
-              .insert(meetingData);
+              .insert(meetingData)
+              .select('id')
+              .single();
 
             if (error) {
               console.error(`Error inserting new meeting ${eventUuid}:`, error);
@@ -367,6 +380,16 @@ class CalendlyService {
             } else {
               console.log(`✅ Created new meeting: ${meetingData.title}`);
               syncedCount++;
+
+              // Schedule Recall bot if transcription is enabled
+              if (transcriptionEnabled && newMeeting) {
+                try {
+                  await this.scheduleRecallBotForCalendlyEvent(event, newMeeting.id, userId);
+                } catch (recallError) {
+                  console.warn(`⚠️  Failed to schedule Recall bot for meeting ${newMeeting.id}:`, recallError.message);
+                  // Don't fail the sync if Recall scheduling fails
+                }
+              }
             }
           }
         } catch (error) {
@@ -460,6 +483,82 @@ class CalendlyService {
 
     } catch (error) {
       console.error('Error in Calendly sync:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Schedule Recall bot for a Calendly event
+   */
+  async scheduleRecallBotForCalendlyEvent(event, meetingId, userId) {
+    try {
+      // Extract meeting URL from Calendly event
+      let meetingUrl = null;
+
+      if (event.location) {
+        if (event.location.type === 'zoom' && event.location.join_url) {
+          meetingUrl = event.location.join_url;
+        } else if (event.location.type === 'google_meet' && event.location.join_url) {
+          meetingUrl = event.location.join_url;
+        } else if (event.location.type === 'microsoft_teams' && event.location.join_url) {
+          meetingUrl = event.location.join_url;
+        } else if (event.location.type === 'webex' && event.location.join_url) {
+          meetingUrl = event.location.join_url;
+        } else if (event.location.type === 'gotomeeting' && event.location.join_url) {
+          meetingUrl = event.location.join_url;
+        }
+      }
+
+      if (!meetingUrl) {
+        console.log(`⚠️  No meeting URL found for Calendly event ${event.uri}`);
+        return;
+      }
+
+      // Create Recall bot
+      const axios = require('axios');
+      const apiKey = process.env.RECALL_API_KEY;
+      const baseUrl = 'https://api.recall.ai/api/v1';
+
+      if (!apiKey) {
+        console.warn('⚠️  RECALL_API_KEY not configured');
+        return;
+      }
+
+      const response = await axios.post(`${baseUrl}/bot/`, {
+        meeting_url: meetingUrl,
+        recording_config: {
+          transcript: {
+            provider: {
+              meeting_captions: {} // FREE transcription
+            }
+          }
+        },
+        metadata: {
+          user_id: userId,
+          meeting_id: meetingId,
+          source: 'advicly'
+        }
+      }, {
+        headers: {
+          'Authorization': `Token ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      // Store bot ID in meeting
+      await getSupabase()
+        .from('meetings')
+        .update({
+          recall_bot_id: response.data.id,
+          recall_status: 'recording',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', meetingId);
+
+      console.log(`✅ Recall bot scheduled for Calendly meeting ${meetingId}: ${response.data.id}`);
+
+    } catch (error) {
+      console.error('Error scheduling Recall bot for Calendly event:', error.response?.data || error.message);
       throw error;
     }
   }
