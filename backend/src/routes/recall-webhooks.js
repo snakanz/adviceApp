@@ -518,12 +518,24 @@ Return only the JSON array:`;
       console.log('Detailed summary length:', detailedSummary?.length || 0);
 
       // Save individual action items to PENDING table (awaiting approval)
+      console.log(`\n📋 Action Items Processing:`);
+      console.log(`   Total action items extracted: ${actionPointsArray.length}`);
+      console.log(`   Action items:`, actionPointsArray);
+
       if (actionPointsArray.length > 0) {
+        console.log(`   Saving to pending_transcript_action_items table...`);
+
         // First, delete existing pending action items for this meeting
-        await supabase
+        const { error: deleteError } = await supabase
           .from('pending_transcript_action_items')
           .delete()
           .eq('meeting_id', meeting.id);
+
+        if (deleteError) {
+          console.warn(`⚠️  Error deleting old action items:`, deleteError);
+        } else {
+          console.log(`   ✅ Deleted old action items for meeting ${meeting.id}`);
+        }
 
         // Insert new pending action items
         const actionItemsToInsert = actionPointsArray.map((actionText, index) => ({
@@ -534,16 +546,21 @@ Return only the JSON array:`;
           display_order: index
         }));
 
+        console.log(`   Inserting ${actionItemsToInsert.length} new action items:`, actionItemsToInsert);
+
         const { error: actionItemsError } = await supabase
           .from('pending_transcript_action_items')
           .insert(actionItemsToInsert);
 
         if (actionItemsError) {
-          console.error('Error saving pending action items:', actionItemsError);
+          console.error('❌ Error saving pending action items:', actionItemsError);
+          console.error('   Error details:', JSON.stringify(actionItemsError, null, 2));
           // Don't fail the whole request, just log the error
         } else {
           console.log(`✅ Saved ${actionPointsArray.length} PENDING action items for meeting ${meeting.id} (awaiting approval)`);
         }
+      } else {
+        console.log(`   ℹ️  No action items to save (array is empty)`);
       }
 
       console.log(`✅ Summary generation completed for meeting ${meeting.id}`);
@@ -665,6 +682,20 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     const eventSubCode = payload.data?.sub_code;
     const meetingId = payload.bot?.metadata?.meeting_id;
     const userId = payload.bot?.metadata?.user_id;
+
+    // CRITICAL: Validate required fields
+    if (!botId) {
+      console.error('❌ CRITICAL: Bot ID missing from webhook payload');
+      console.error('   Payload structure:', JSON.stringify(payload, null, 2));
+      return res.status(400).json({ error: 'Bot ID missing from payload' });
+    }
+
+    if (!userId) {
+      console.error('❌ CRITICAL: User ID missing from webhook metadata');
+      console.error('   Bot metadata:', JSON.stringify(payload.bot?.metadata, null, 2));
+      console.error('   This means the Recall bot was created without user_id in metadata');
+      return res.status(400).json({ error: 'User ID missing from bot metadata' });
+    }
 
     // Generate a unique webhook ID (SVIX ID is in headers, but we use bot_id + timestamp for uniqueness)
     const webhookId = `${botId}-${eventCode}-${Date.now()}`;
