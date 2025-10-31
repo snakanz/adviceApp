@@ -999,50 +999,10 @@ Return only the JSON array:`;
   }
 });
 
-// DELETE transcript endpoint
-app.delete('/api/calendar/meetings/:id/transcript', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
-    const meetingId = req.params.id;
-
-    console.log('🗑️  Deleting transcript for meeting:', meetingId, 'user:', userId);
-
-    // Check if Supabase is available
-    if (!isSupabaseAvailable()) {
-      return res.status(503).json({
-        error: 'Database service unavailable. Please configure Supabase environment variables.'
-      });
-    }
-
-    const { error: deleteError } = await getSupabase()
-      .from('meetings')
-      .update({
-        transcript: null,
-        quick_summary: null,
-        email_summary_draft: null,
-        email_template_id: null,
-        last_summarized_at: null,
-        updatedat: new Date().toISOString()
-      })
-      .eq('googleeventid', meetingId)
-      .eq('userid', userId);
-
-    if (deleteError) {
-      console.error('Error deleting transcript from database:', deleteError);
-      return res.status(500).json({ error: 'Failed to delete transcript from database' });
-    }
-
-    console.log('✅ Successfully deleted transcript and summaries for meeting:', meetingId);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Transcript delete error:', error);
-    res.status(500).json({ error: 'Failed to delete transcript' });
-  }
-});
+// DELETE transcript endpoint - DEPRECATED
+// This endpoint has been moved to backend/src/routes/calendar.js
+// The new endpoint uses correct schema (external_id, user_id instead of googleeventid, userid)
+// Keeping this comment for reference only - the actual endpoint is in calendar.js
 
 // POST /api/meetings/:meetingId/summary - generate/update AI summary for a meeting
 app.post('/api/meetings/:meetingId/summary', async (req, res) => {
