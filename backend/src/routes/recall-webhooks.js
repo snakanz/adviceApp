@@ -326,7 +326,14 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
     // Parse payload
     console.log(`\n📦 Parsing payload...`);
-    const payload = JSON.parse(req.body);
+    const fullPayload = JSON.parse(req.body);
+
+    // CRITICAL: Unwrap SVIX envelope
+    // Svix wraps the actual event in a "data" field
+    // Structure: { data: { bot: {...}, data: {...}, ... } }
+    const payload = fullPayload.data || fullPayload;
+
+    console.log(`🔍 DEBUG: Payload structure keys:`, Object.keys(payload));
 
     // Extract fields from actual Recall.ai webhook structure
     // The payload structure is: { bot: {...}, data: {...}, meeting_metadata: {...}, recording: {...} }
