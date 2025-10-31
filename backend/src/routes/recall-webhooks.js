@@ -39,7 +39,19 @@ function verifySvixSignature(rawBody, headers, webhookSecret) {
 
     // Construct signed content (Svix format)
     // CRITICAL: Convert rawBody Buffer to string, otherwise it becomes "[object Object]"
-    const signedContent = `${svixId}.${svixTimestamp}.${rawBody.toString()}`;
+    console.log(`\n🔍 DEBUG: rawBody type: ${typeof rawBody}, isBuffer: ${Buffer.isBuffer(rawBody)}`);
+    console.log(`🔍 DEBUG: rawBody length: ${rawBody.length}`);
+
+    let bodyString;
+    if (Buffer.isBuffer(rawBody)) {
+      bodyString = rawBody.toString('utf8');
+    } else if (typeof rawBody === 'string') {
+      bodyString = rawBody;
+    } else {
+      bodyString = String(rawBody);
+    }
+
+    const signedContent = `${svixId}.${svixTimestamp}.${bodyString}`;
     console.log(`\n📝 Signed content (first 100 chars): ${signedContent.substring(0, 100)}...`);
 
     // Extract base64 secret (after 'whsec_' prefix)
