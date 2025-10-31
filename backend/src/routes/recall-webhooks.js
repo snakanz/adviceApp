@@ -108,6 +108,9 @@ function verifySvixSignature(rawBody, headers, webhookSecret) {
 /**
  * Fetch transcript from Recall.ai API
  * Called when transcript.done webhook is received
+ *
+ * Recall.ai API structure:
+ * bot.recordings[0].media_shortcuts.transcript.data.download_url
  */
 async function fetchTranscriptFromRecall(botId) {
   try {
@@ -132,25 +135,70 @@ async function fetchTranscriptFromRecall(botId) {
 
     const bot = botResponse.data;
     console.log(`✅ Bot found: ${bot.id}`);
-    console.log(`   Recording ID: ${bot.recording_id}`);
-    console.log(`   Status: ${bot.status}`);
 
-    if (!bot.recording_id) {
-      console.error('❌ No recording_id in bot data');
+    // Check if bot has recordings
+    if (!bot.recordings || bot.recordings.length === 0) {
+      console.error('❌ No recordings found for bot');
       return null;
     }
 
-    // Fetch transcript
-    console.log(`\n🔍 Step 2: Fetching transcript...`);
-    const transcriptResponse = await axios.get(
-      `${baseUrl}/recording/${bot.recording_id}/transcript/`,
-      { headers: { 'Authorization': `Token ${apiKey}` } }
-    );
+    const recording = bot.recordings[0];
+    console.log(`   Recording ID: ${recording.id}`);
+    console.log(`   Status: ${recording.status?.code}`);
 
-    const transcript = transcriptResponse.data;
-    const transcriptText = transcript.text || transcript.transcript || '';
+    // Check if recording has transcript
+    if (!recording.media_shortcuts?.transcript?.data?.download_url) {
+      console.error('❌ No transcript download URL in recording');
+      return null;
+    }
 
-    console.log(`✅ Transcript retrieved`);
+    const transcriptUrl = recording.media_shortcuts.transcript.data.download_url;
+    console.log(`\n🔍 Step 2: Downloading transcript from URL...`);
+    console.log(`   URL: ${transcriptUrl.substring(0, 100)}...`);
+
+    // Download transcript JSON file
+    const transcriptResponse = await axios.get(transcriptUrl);
+    const transcriptData = transcriptResponse.data;
+
+    console.log(`✅ Transcript file downloaded`);
+    console.log(`   Type: ${typeof transcriptData}`);
+
+    // Parse transcript based on format
+    let transcriptText = '';
+
+    if (Array.isArray(transcriptData)) {
+      // If it's an array of segments, join them
+      console.log(`   Format: Array with ${transcriptData.length} segments`);
+      transcriptText = transcriptData
+        .map(segment => {
+          if (segment.words && Array.isArray(segment.words)) {
+            return segment.words.map(w => w.text).join(' ');
+          }
+          return segment.text || '';
+        })
+        .filter(text => text.length > 0)
+        .join('\n');
+    } else if (typeof transcriptData === 'object' && transcriptData.segments) {
+      // If it has segments property
+      console.log(`   Format: Object with segments`);
+      transcriptText = transcriptData.segments
+        .map(segment => {
+          if (segment.words && Array.isArray(segment.words)) {
+            return segment.words.map(w => w.text).join(' ');
+          }
+          return segment.text || '';
+        })
+        .filter(text => text.length > 0)
+        .join('\n');
+    } else if (typeof transcriptData === 'string') {
+      // If it's already a string
+      transcriptText = transcriptData;
+    } else {
+      // Try to extract text from common fields
+      transcriptText = transcriptData.text || transcriptData.transcript || JSON.stringify(transcriptData);
+    }
+
+    console.log(`✅ Transcript parsed`);
     console.log(`   Length: ${transcriptText.length} characters`);
     console.log(`   Preview: ${transcriptText.substring(0, 100)}...`);
     console.log(`=====================================\n`);
