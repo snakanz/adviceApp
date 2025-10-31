@@ -75,8 +75,9 @@ const corsOptions = {
 console.log('Setting up CORS...');
 app.use(cors(corsOptions));
 
-// Handle preflight requests - CORS middleware already handles OPTIONS requests
-// Removed: app.options('*', cors(corsOptions)); - This was causing path-to-regexp error
+// Explicit OPTIONS handler for CORS preflight requests
+// This must come BEFORE route-specific middleware like express.raw()
+app.options('*', cors(corsOptions));
 
 app.use(express.json());
 console.log('✅ CORS and middleware configured');
