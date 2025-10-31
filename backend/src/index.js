@@ -75,6 +75,17 @@ const corsOptions = {
 console.log('Setting up CORS...');
 app.use(cors(corsOptions));
 
+// CRITICAL: Mount webhook routes BEFORE express.json() middleware
+// This ensures the raw body is available for signature verification
+try {
+  console.log('Mounting Recall V2 webhook routes (BEFORE JSON middleware)...');
+  const recallWebhooksRouter = require('./routes/recall-webhooks');
+  app.use('/api/webhooks', recallWebhooksRouter);
+  console.log('✅ Recall V2 webhook routes mounted successfully');
+} catch (error) {
+  console.warn('Failed to mount Recall V2 webhook routes:', error.message);
+}
+
 app.use(express.json());
 console.log('✅ CORS and middleware configured');
 
@@ -1248,16 +1259,14 @@ try {
   console.warn('Failed to mount Ask Advicly routes:', error.message);
 }
 
-// Mount Recall V2 routes
+// Mount Recall V2 calendar routes (webhooks already mounted before JSON middleware)
 try {
-  console.log('Mounting Recall V2 routes...');
-  const recallWebhooksRouter = require('./routes/recall-webhooks');
+  console.log('Mounting Recall V2 calendar routes...');
   const recallCalendarRouter = require('./routes/recall-calendar');
-  app.use('/api/webhooks', recallWebhooksRouter);
   app.use('/api/recall', recallCalendarRouter);
-  console.log('Recall V2 routes mounted successfully');
+  console.log('Recall V2 calendar routes mounted successfully');
 } catch (error) {
-  console.warn('Failed to mount Recall V2 routes:', error.message);
+  console.warn('Failed to mount Recall V2 calendar routes:', error.message);
 }
 
 // Mount Data Import routes
