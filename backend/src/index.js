@@ -75,10 +75,6 @@ const corsOptions = {
 console.log('Setting up CORS...');
 app.use(cors(corsOptions));
 
-// Explicit OPTIONS handler for CORS preflight requests
-// This must come BEFORE route-specific middleware like express.raw()
-app.options('*', cors(corsOptions));
-
 app.use(express.json());
 console.log('✅ CORS and middleware configured');
 
