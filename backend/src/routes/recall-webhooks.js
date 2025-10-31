@@ -272,8 +272,281 @@ async function handleTranscriptComplete(botId, data) {
 
     // Trigger AI summary generation
     try {
-      await generateMeetingSummary(meeting.id, meeting.user_id);
-      console.log(`✅ Summary generation triggered for meeting ${meeting.id}`);
+      if (!transcriptText || !transcriptText.trim()) {
+        console.warn(`⚠️  No transcript text available for meeting ${meeting.id}`);
+        return;
+      }
+
+      console.log(`🤖 Starting AI summary generation for meeting ${meeting.id}`);
+
+      // Fetch full meeting data with client info for personalization
+      const { data: fullMeeting, error: fetchError } = await supabase
+        .from('meetings')
+        .select(`
+          *,
+          client:clients(id, name, email)
+        `)
+        .eq('id', meeting.id)
+        .single();
+
+      if (fetchError || !fullMeeting) {
+        console.error('Error fetching full meeting data:', fetchError);
+        return;
+      }
+
+      // Extract client information for email personalization
+      let clientName = 'Client';
+      let clientEmail = null;
+
+      if (fullMeeting?.client) {
+        clientName = fullMeeting.client.name || fullMeeting.client.email.split('@')[0];
+        clientEmail = fullMeeting.client.email;
+      } else if (fullMeeting?.attendees) {
+        try {
+          const attendees = JSON.parse(fullMeeting.attendees);
+          const clientAttendee = attendees.find(a => a.email);
+          if (clientAttendee) {
+            clientName = clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0];
+            clientEmail = clientAttendee.email;
+          }
+        } catch (e) {
+          // Ignore parsing errors
+        }
+      }
+
+      // Generate Quick Summary (single sentence for Clients page)
+      const quickSummaryPrompt = `# SYSTEM PROMPT: Advicly Quick Summary Generator
+You are an expert financial advisor creating a single-sentence summary of a client meeting.
+
+Generate ONE concise sentence that captures what was discussed in the meeting. Focus on the main topic or purpose of the meeting.
+
+Examples:
+- "Discussed client's retirement planning goals and reviewed current 401k allocation."
+- "Reviewed portfolio performance and explored ESG investment opportunities."
+- "Initial consultation covering financial goals, risk tolerance, and investment preferences."
+
+Transcript:
+${transcriptText}
+
+Respond with ONLY the single sentence summary, no additional text.`;
+
+      const quickSummary = await generateMeetingSummary(transcriptText, 'standard', { prompt: quickSummaryPrompt });
+
+      // Generate Detailed Summary (structured format for Meetings page)
+      const detailedSummaryPrompt = `# SYSTEM PROMPT: Advicly Detailed Summary Generator
+You are an expert financial advisor creating a structured summary of a client meeting.
+
+Generate a summary in this exact format:
+
+[Single sentence overview of what was discussed]
+
+**Key Points Discussed:**
+- [Bullet point 1]
+- [Bullet point 2]
+- [Bullet point 3 if applicable]
+
+**Important Decisions or Outcomes:**
+[Brief description of any decisions made or outcomes reached]
+
+**Next Steps:**
+[What will happen next or action items]
+
+Keep it professional and concise. Use the exact format shown above.
+
+Transcript:
+${transcriptText}`;
+
+      const detailedSummary = await generateMeetingSummary(transcriptText, 'standard', { prompt: detailedSummaryPrompt });
+
+      // Generate Email Summary using Auto template with client name
+      const autoTemplate = `Role: You are Nelson Greenwood, a professional financial advisor creating a concise follow-up email for a client.
+
+Goal: Generate a brief, clean email (NO markdown formatting) that summarizes the meeting and confirms next steps.
+
+Constraints:
+1. NO markdown symbols (no **, ##, *, or bullet points)
+2. Keep it SHORT - maximum 200 words total
+3. Use plain text with simple numbered lists
+4. Professional but warm tone
+5. Include specific numbers/dates from the transcript
+6. Focus on what matters most to the client
+
+Format:
+
+Hi ${clientName},
+
+[One sentence: pleasure meeting + main topic discussed]
+
+[2-3 short paragraphs covering the key points with specific numbers/details]
+
+Best regards,
+Nelson Greenwood
+Financial Advisor
+
+Transcript:
+${transcriptText}
+
+Respond with the **email body only** — no headers or subject lines.`;
+
+      const emailSummary = await generateMeetingSummary(transcriptText, 'standard', { prompt: autoTemplate });
+
+      // Extract action items from transcript
+      const actionPointsPrompt = `You are an AI assistant that extracts action items from meeting transcripts.
+
+Extract ONLY concrete, actionable tasks from this meeting transcript.
+
+INCLUDE ONLY:
+- Specific tasks with clear deliverables (e.g., "Send the updated Suitability Letter")
+- Follow-up meetings to schedule (e.g., "Schedule follow-up meeting after budget")
+- Documents to send, sign, or complete (e.g., "Complete internal BA check")
+- Account setups or administrative tasks (e.g., "Set up online account logins")
+- Client-facing actions that must be DONE (not discussed)
+
+EXCLUDE:
+- Advisor preparation work (e.g., "Research...", "Prepare information...")
+- Discussion topics (e.g., "Discuss...", "Review options...")
+- General notes or meeting agenda items
+- Vague or exploratory items
+- Anything that is not a concrete action
+
+CRITICAL: Return ONLY a valid JSON array of strings. No markdown, no code blocks, no explanations.
+Format: ["action 1", "action 2", "action 3"]
+Limit: Maximum 5-7 most important action items.
+
+Transcript:
+${transcriptText}
+
+Return only the JSON array:`;
+
+      const actionPointsResponse = await generateMeetingSummary(transcriptText, 'standard', { prompt: actionPointsPrompt });
+
+      // Parse action points JSON with robust error handling
+      let actionPointsArray = [];
+      let actionPoints = actionPointsResponse;
+
+      try {
+        // Clean the response - remove markdown code blocks if present
+        let cleanedResponse = actionPointsResponse.trim();
+
+        // Remove markdown code block markers
+        cleanedResponse = cleanedResponse.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '');
+
+        // Try to extract JSON array from the response
+        const jsonMatch = cleanedResponse.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          cleanedResponse = jsonMatch[0];
+        }
+
+        // Parse the JSON
+        const parsed = JSON.parse(cleanedResponse);
+
+        if (Array.isArray(parsed)) {
+          // Filter out invalid entries (empty strings, non-strings, broken JSON fragments)
+          actionPointsArray = parsed
+            .filter(item => typeof item === 'string' && item.trim().length > 0)
+            .filter(item => {
+              // Exclude broken JSON artifacts
+              const trimmed = item.trim();
+              return trimmed !== 'json' &&
+                     trimmed !== '[' &&
+                     trimmed !== ']' &&
+                     trimmed !== '"""' &&
+                     trimmed !== '"' &&
+                     trimmed !== '{' &&
+                     trimmed !== '}' &&
+                     !trimmed.match(/^["'\[\]{}]+$/);
+            })
+            .map(item => item.trim())
+            .slice(0, 7); // Enforce max 7 items
+
+          // Convert to bullet list for display
+          actionPoints = actionPointsArray.join('\n• ');
+          if (actionPoints) actionPoints = '• ' + actionPoints;
+        } else {
+          console.warn('Action points response is not an array:', parsed);
+          actionPointsArray = [];
+          actionPoints = '';
+        }
+      } catch (e) {
+        console.error('Failed to parse action points JSON:', e.message);
+        console.error('Raw response:', actionPointsResponse);
+
+        // Fallback: try to extract clean bullet points from plain text
+        const lines = actionPointsResponse
+          .split('\n')
+          .map(line => line.trim())
+          .filter(line => line.length > 0)
+          .map(line => line.replace(/^[•\-\*\d]+[\.\)]\s*/, '').trim())
+          .filter(line => {
+            // Exclude broken JSON artifacts and invalid entries
+            return line.length > 10 && // Minimum length for valid action item
+                   line !== 'json' &&
+                   line !== '[' &&
+                   line !== ']' &&
+                   line !== '"""' &&
+                   !line.match(/^["'\[\]{}]+$/) &&
+                   !line.toLowerCase().startsWith('research') &&
+                   !line.toLowerCase().startsWith('prepare to discuss');
+          })
+          .slice(0, 7);
+
+        actionPointsArray = lines;
+        actionPoints = lines.length > 0 ? '• ' + lines.join('\n• ') : '';
+      }
+
+      // Save summaries to database
+      const { error: updateError } = await supabase
+        .from('meetings')
+        .update({
+          quick_summary: quickSummary,           // Single sentence for Clients page
+          detailed_summary: detailedSummary,     // Structured format for Meetings page
+          email_summary_draft: emailSummary,     // Email format
+          action_points: actionPoints,           // Action items for user
+          last_summarized_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', meeting.id);
+
+      if (updateError) {
+        console.error('Error saving summaries to database:', updateError);
+        throw new Error('Failed to save summaries to database');
+      }
+
+      console.log('✅ Successfully saved summaries to database for meeting:', meeting.id);
+      console.log('Quick summary length:', quickSummary?.length || 0);
+      console.log('Detailed summary length:', detailedSummary?.length || 0);
+
+      // Save individual action items to PENDING table (awaiting approval)
+      if (actionPointsArray.length > 0) {
+        // First, delete existing pending action items for this meeting
+        await supabase
+          .from('pending_transcript_action_items')
+          .delete()
+          .eq('meeting_id', meeting.id);
+
+        // Insert new pending action items
+        const actionItemsToInsert = actionPointsArray.map((actionText, index) => ({
+          meeting_id: meeting.id,
+          client_id: fullMeeting.client_id,
+          advisor_id: meeting.user_id,
+          action_text: actionText,
+          display_order: index
+        }));
+
+        const { error: actionItemsError } = await supabase
+          .from('pending_transcript_action_items')
+          .insert(actionItemsToInsert);
+
+        if (actionItemsError) {
+          console.error('Error saving pending action items:', actionItemsError);
+          // Don't fail the whole request, just log the error
+        } else {
+          console.log(`✅ Saved ${actionPointsArray.length} PENDING action items for meeting ${meeting.id} (awaiting approval)`);
+        }
+      }
+
+      console.log(`✅ Summary generation completed for meeting ${meeting.id}`);
+
     } catch (error) {
       console.error('Error generating summary:', error);
       // Don't fail the webhook if summary generation fails
