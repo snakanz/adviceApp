@@ -35,7 +35,7 @@ function extractMeetingUrl(event) {
 async function createRecallBot(meetingUrl, meetingId, userId) {
   try {
     const apiKey = process.env.RECALL_API_KEY;
-    const baseUrl = 'https://api.recall.ai/api/v1';
+    const baseUrl = 'https://us-west-2.recall.ai/api/v1';
 
     if (!apiKey) {
       console.error('❌ RECALL_API_KEY not configured');
@@ -132,7 +132,7 @@ router.get('/bot/:botId', authenticateSupabaseUser, async (req, res) => {
   try {
     const { botId } = req.params;
     const apiKey = process.env.RECALL_API_KEY;
-    const baseUrl = 'https://api.recall.ai/api/v1';
+    const baseUrl = 'https://us-west-2.recall.ai/api/v1';
 
     if (!apiKey) {
       return res.status(500).json({ error: 'Recall API not configured' });
@@ -160,7 +160,7 @@ router.get('/transcript/:botId', authenticateSupabaseUser, async (req, res) => {
   try {
     const { botId } = req.params;
     const apiKey = process.env.RECALL_API_KEY;
-    const baseUrl = 'https://api.recall.ai/api/v1';
+    const baseUrl = 'https://us-west-2.recall.ai/api/v1';
 
     if (!apiKey) {
       return res.status(500).json({ error: 'Recall API not configured' });

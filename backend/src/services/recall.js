@@ -3,7 +3,7 @@ const axios = require('axios');
 class RecallService {
     constructor() {
         this.apiKey = process.env.RECALL_API_KEY;
-        this.baseUrl = 'https://api.recall.ai/api/v1';
+        this.baseUrl = 'https://us-west-2.recall.ai/api/v1';
         this.client = axios.create({
             baseURL: this.baseUrl,
             headers: {

@@ -517,7 +517,7 @@ class CalendlyService {
       // Create Recall bot
       const axios = require('axios');
       const apiKey = process.env.RECALL_API_KEY;
-      const baseUrl = 'https://api.recall.ai/api/v1';
+      const baseUrl = 'https://us-west-2.recall.ai/api/v1';
 
       if (!apiKey) {
         console.warn('⚠️  RECALL_API_KEY not configured');
