@@ -248,7 +248,7 @@ async function handleBotStatusChange(botId, data) {
     }
 
     const supabase = getSupabase();
-    const status = data.status || 'unknown';
+    const status = data.code || 'unknown';
 
     // Find meeting by recall_bot_id
     const { data: meeting, error: meetingError } = await supabase
@@ -327,13 +327,42 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     // Parse payload
     console.log(`\n📦 Parsing payload...`);
     const payload = JSON.parse(req.body);
-    const { id: webhookId, bot_id, event_type, data } = payload;
+
+    // Extract fields from actual Recall.ai webhook structure
+    // The payload structure is: { bot: {...}, data: {...}, meeting_metadata: {...}, recording: {...} }
+    const botId = payload.bot?.id;
+    const eventCode = payload.data?.code;
+    const eventSubCode = payload.data?.sub_code;
+    const meetingId = payload.bot?.metadata?.meeting_id;
+    const userId = payload.bot?.metadata?.user_id;
+
+    // Generate a unique webhook ID (SVIX ID is in headers, but we use bot_id + timestamp for uniqueness)
+    const webhookId = `${botId}-${eventCode}-${Date.now()}`;
+
+    // Map event code to event type
+    const eventTypeMap = {
+      'joining_call': 'bot.joining_call',
+      'in_waiting_room': 'bot.in_waiting_room',
+      'in_call_not_recording': 'bot.in_call_not_recording',
+      'recording_permission_allowed': 'bot.recording_permission_allowed',
+      'recording_permission_denied': 'bot.recording_permission_denied',
+      'in_call_recording': 'bot.in_call_recording',
+      'call_ended': 'bot.call_ended',
+      'done': 'bot.done',
+      'fatal': 'bot.fatal',
+      'processing': 'transcript.processing'
+    };
+
+    const eventType = eventTypeMap[eventCode] || `bot.${eventCode}`;
 
     console.log(`✅ Payload parsed`);
     console.log(`   Webhook ID: ${webhookId}`);
-    console.log(`   Bot ID: ${bot_id}`);
-    console.log(`   Event Type: ${event_type}`);
-    console.log(`   Data:`, JSON.stringify(data, null, 2));
+    console.log(`   Bot ID: ${botId}`);
+    console.log(`   Event Type: ${eventType}`);
+    console.log(`   Event Code: ${eventCode}`);
+    console.log(`   Meeting ID: ${meetingId}`);
+    console.log(`   User ID: ${userId}`);
+    console.log(`   Data:`, JSON.stringify(payload.data, null, 2));
 
     // Check Supabase
     if (!isSupabaseAvailable()) {
@@ -364,10 +393,10 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       .from('recall_webhook_events')
       .insert({
         webhook_id: webhookId,
-        bot_id,
-        event_type,
-        status: data?.status,
-        payload: JSON.stringify(data),
+        bot_id: botId,
+        event_type: eventType,
+        status: eventCode,
+        payload: JSON.stringify(payload),
         created_at: new Date().toISOString()
       });
 
@@ -379,16 +408,27 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     console.log(`✅ Webhook event recorded`);
 
     // Handle event types
-    console.log(`\n🎯 Processing event type: ${event_type}`);
+    console.log(`\n🎯 Processing event type: ${eventType} (code: ${eventCode})`);
 
-    if (event_type === 'transcript.done') {
-      await handleTranscriptComplete(bot_id, data);
-    } else if (event_type === 'bot.status_change') {
-      await handleBotStatusChange(bot_id, data);
-    } else if (event_type === 'recording.done') {
-      console.log(`✅ Recording complete for bot ${bot_id}`);
+    // Handle bot status changes
+    if (eventCode === 'in_call_recording') {
+      console.log(`✅ Bot is recording for meeting ${meetingId}`);
+      await handleBotStatusChange(botId, { code: eventCode, sub_code: eventSubCode });
+    } else if (eventCode === 'call_ended') {
+      console.log(`✅ Call ended for bot ${botId}`);
+      await handleBotStatusChange(botId, { code: eventCode, sub_code: eventSubCode });
+    } else if (eventCode === 'done') {
+      console.log(`✅ Bot processing complete for ${botId}`);
+      // Transcript should be ready now
+      await handleTranscriptComplete(botId, payload);
+    } else if (eventCode === 'fatal') {
+      console.error(`❌ Bot encountered fatal error: ${eventSubCode}`);
+      await handleBotStatusChange(botId, { code: eventCode, sub_code: eventSubCode });
+    } else if (eventCode === 'processing') {
+      console.log(`⏳ Transcript processing for bot ${botId}`);
     } else {
-      console.log(`⚠️  Unhandled event type: ${event_type}`);
+      console.log(`ℹ️  Bot status: ${eventCode}`);
+      await handleBotStatusChange(botId, { code: eventCode, sub_code: eventSubCode });
     }
 
     console.log('\n✅ WEBHOOK PROCESSING COMPLETE\n');
