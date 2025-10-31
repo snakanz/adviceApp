@@ -218,7 +218,7 @@ async function fetchTranscriptFromRecall(botId) {
  * Handle transcript completion
  * Downloads transcript and stores in database
  */
-async function handleTranscriptComplete(botId, data) {
+async function handleTranscriptComplete(botId, data, userId) {
   try {
     if (!isSupabaseAvailable()) {
       console.error('❌ Supabase not available for transcript handling');
@@ -227,15 +227,16 @@ async function handleTranscriptComplete(botId, data) {
 
     const supabase = getSupabase();
 
-    // Find meeting by recall_bot_id
+    // Find meeting by recall_bot_id AND user_id (prevents duplicate meeting issues)
     const { data: meeting, error: meetingError } = await supabase
       .from('meetings')
       .select('id, user_id, transcript')
       .eq('recall_bot_id', botId)
+      .eq('user_id', userId)
       .single();
 
     if (meetingError || !meeting) {
-      console.error(`❌ No meeting found for bot ${botId}. Error: ${meetingError?.message || 'Not found'}`);
+      console.error(`❌ No meeting found for bot ${botId} and user ${userId}. Error: ${meetingError?.message || 'Not found'}`);
       return;
     }
 
@@ -561,7 +562,7 @@ Return only the JSON array:`;
  * Handle bot status change
  * Updates recall_status in database
  */
-async function handleBotStatusChange(botId, data) {
+async function handleBotStatusChange(botId, data, userId) {
   try {
     if (!isSupabaseAvailable()) {
       console.error('❌ Supabase not available for status update');
@@ -571,15 +572,16 @@ async function handleBotStatusChange(botId, data) {
     const supabase = getSupabase();
     const status = data.code || 'unknown';
 
-    // Find meeting by recall_bot_id
+    // Find meeting by recall_bot_id AND user_id (prevents duplicate meeting issues)
     const { data: meeting, error: meetingError } = await supabase
       .from('meetings')
       .select('id')
       .eq('recall_bot_id', botId)
+      .eq('user_id', userId)
       .single();
 
     if (meetingError || !meeting) {
-      console.error(`❌ No meeting found for bot ${botId}. Error: ${meetingError?.message || 'Not found'}`);
+      console.error(`❌ No meeting found for bot ${botId} and user ${userId}. Error: ${meetingError?.message || 'Not found'}`);
       return;
     }
 
@@ -741,22 +743,22 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     // Handle bot status changes
     if (eventCode === 'in_call_recording') {
       console.log(`✅ Bot is recording for meeting ${meetingId}`);
-      await handleBotStatusChange(botId, { code: eventCode, sub_code: eventSubCode });
+      await handleBotStatusChange(botId, { code: eventCode, sub_code: eventSubCode }, userId);
     } else if (eventCode === 'call_ended') {
       console.log(`✅ Call ended for bot ${botId}`);
-      await handleBotStatusChange(botId, { code: eventCode, sub_code: eventSubCode });
+      await handleBotStatusChange(botId, { code: eventCode, sub_code: eventSubCode }, userId);
     } else if (eventCode === 'done') {
       console.log(`✅ Bot processing complete for ${botId}`);
       // Transcript should be ready now
-      await handleTranscriptComplete(botId, payload);
+      await handleTranscriptComplete(botId, payload, userId);
     } else if (eventCode === 'fatal') {
       console.error(`❌ Bot encountered fatal error: ${eventSubCode}`);
-      await handleBotStatusChange(botId, { code: eventCode, sub_code: eventSubCode });
+      await handleBotStatusChange(botId, { code: eventCode, sub_code: eventSubCode }, userId);
     } else if (eventCode === 'processing') {
       console.log(`⏳ Transcript processing for bot ${botId}`);
     } else {
       console.log(`ℹ️  Bot status: ${eventCode}`);
-      await handleBotStatusChange(botId, { code: eventCode, sub_code: eventSubCode });
+      await handleBotStatusChange(botId, { code: eventCode, sub_code: eventSubCode }, userId);
     }
 
     console.log('\n✅ WEBHOOK PROCESSING COMPLETE\n');
