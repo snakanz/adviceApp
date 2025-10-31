@@ -6,47 +6,88 @@ const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 const { generateMeetingSummary } = require('../services/openai');
 
 /**
- * Verify Recall.ai webhook signature using Svix format
- * Uses HMAC-SHA256 with the webhook secret (not API key)
- * Signature format: msg_id.timestamp.signature
+ * SVIX Webhook Verification (Correct Implementation)
+ * Recall.ai uses Svix for webhook delivery
  */
-function verifyRecallWebhookSignature(rawBody, signatureHeader, webhookSecret) {
+function verifySvixSignature(rawBody, headers, webhookSecret) {
   try {
-    if (!signatureHeader || !webhookSecret) {
-      console.error('❌ Missing signature header or webhook secret');
+    console.log('\n🔐 SVIX SIGNATURE VERIFICATION');
+    console.log('================================');
+
+    // Extract SVIX headers
+    const svixId = headers['svix-id'];
+    const svixTimestamp = headers['svix-timestamp'];
+    const svixSignature = headers['svix-signature'];
+
+    console.log(`📋 Headers received:`);
+    console.log(`   svix-id: ${svixId}`);
+    console.log(`   svix-timestamp: ${svixTimestamp}`);
+    console.log(`   svix-signature: ${svixSignature}`);
+    console.log(`   webhook-secret: ${webhookSecret ? '✅ Present' : '❌ MISSING'}`);
+
+    // Validate headers exist
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      console.error('❌ Missing SVIX headers!');
+      console.error(`   Available headers:`, Object.keys(headers).filter(h => h.includes('svix') || h.includes('x-recall')));
       return false;
     }
 
-    // Parse Svix signature format: msg_id.timestamp.signature
-    const parts = signatureHeader.split('.');
-    if (parts.length !== 3) {
-      console.error('❌ Invalid signature format. Expected: msg_id.timestamp.signature');
+    if (!webhookSecret) {
+      console.error('❌ RECALL_WEBHOOK_SECRET environment variable not set!');
       return false;
     }
 
-    const [msgId, timestamp, signature] = parts;
+    // Construct signed content (Svix format)
+    const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`;
+    console.log(`\n📝 Signed content (first 100 chars): ${signedContent.substring(0, 100)}...`);
 
-    // Reconstruct the signed content: msg_id.timestamp.body
-    const signedContent = `${msgId}.${timestamp}.${rawBody}`;
+    // Extract base64 secret (after 'whsec_' prefix)
+    const secretParts = webhookSecret.split('_');
+    if (secretParts.length !== 2) {
+      console.error('❌ Invalid webhook secret format. Expected: whsec_<base64>');
+      return false;
+    }
+
+    const secretBase64 = secretParts[1];
+    console.log(`🔑 Secret (base64): ${secretBase64.substring(0, 20)}...`);
+
+    // Decode base64 secret to bytes
+    const secretBytes = Buffer.from(secretBase64, 'base64');
+    console.log(`🔑 Secret bytes length: ${secretBytes.length}`);
 
     // Compute HMAC-SHA256
-    const hash = crypto
-      .createHmac('sha256', webhookSecret)
+    const computedSignature = crypto
+      .createHmac('sha256', secretBytes)
       .update(signedContent)
-      .digest('hex');
+      .digest('base64');
 
-    // Compare signatures
-    const isValid = hash === signature;
+    console.log(`\n✅ Computed signature: ${computedSignature}`);
 
-    if (!isValid) {
-      console.error('❌ Webhook signature verification failed');
-      console.error(`   Expected: ${signature}`);
-      console.error(`   Got: ${hash}`);
+    // Parse received signature (format: v1,<signature>)
+    const signatureParts = svixSignature.split(',');
+    if (signatureParts.length < 2) {
+      console.error('❌ Invalid signature format. Expected: v1,<signature>');
+      return false;
     }
 
+    const [version, receivedSignature] = signatureParts;
+    console.log(`📌 Received signature: ${receivedSignature}`);
+    console.log(`📌 Version: ${version}`);
+
+    // Compare signatures (constant-time comparison)
+    const isValid = crypto.timingSafeEqual(
+      Buffer.from(computedSignature),
+      Buffer.from(receivedSignature)
+    );
+
+    console.log(`\n${isValid ? '✅ SIGNATURE VALID' : '❌ SIGNATURE INVALID'}`);
+    console.log('================================\n');
+
     return isValid;
+
   } catch (error) {
-    console.error('❌ Error verifying webhook signature:', error);
+    console.error('❌ Error verifying SVIX signature:', error.message);
+    console.error(error.stack);
     return false;
   }
 }
@@ -60,28 +101,34 @@ async function fetchTranscriptFromRecall(botId) {
     const apiKey = process.env.RECALL_API_KEY;
     const baseUrl = 'https://us-west-2.recall.ai/api/v1';
 
+    console.log(`\n📥 FETCHING TRANSCRIPT FROM RECALL.AI`);
+    console.log(`=====================================`);
+    console.log(`Bot ID: ${botId}`);
+    console.log(`API Key: ${apiKey ? '✅ Present' : '❌ MISSING'}`);
+
     if (!apiKey) {
       console.error('❌ RECALL_API_KEY not configured');
       return null;
     }
 
-    console.log(`🔍 Fetching bot details for ${botId}...`);
-
-    // Get bot details to find recording_id
+    // Fetch bot details first
+    console.log(`\n🔍 Step 1: Fetching bot details...`);
     const botResponse = await axios.get(`${baseUrl}/bot/${botId}/`, {
       headers: { 'Authorization': `Token ${apiKey}` }
     });
 
     const bot = botResponse.data;
-    console.log(`✅ Bot details retrieved. Recording ID: ${bot.recording_id}`);
+    console.log(`✅ Bot found: ${bot.id}`);
+    console.log(`   Recording ID: ${bot.recording_id}`);
+    console.log(`   Status: ${bot.status}`);
 
     if (!bot.recording_id) {
-      console.warn(`⚠️  No recording_id found for bot ${botId}`);
+      console.error('❌ No recording_id in bot data');
       return null;
     }
 
-    // Get transcript from recording
-    console.log(`🔍 Fetching transcript for recording ${bot.recording_id}...`);
+    // Fetch transcript
+    console.log(`\n🔍 Step 2: Fetching transcript...`);
     const transcriptResponse = await axios.get(
       `${baseUrl}/recording/${bot.recording_id}/transcript/`,
       { headers: { 'Authorization': `Token ${apiKey}` } }
@@ -90,13 +137,17 @@ async function fetchTranscriptFromRecall(botId) {
     const transcript = transcriptResponse.data;
     const transcriptText = transcript.text || transcript.transcript || '';
 
-    console.log(`✅ Transcript retrieved. Length: ${transcriptText.length} characters`);
+    console.log(`✅ Transcript retrieved`);
+    console.log(`   Length: ${transcriptText.length} characters`);
+    console.log(`   Preview: ${transcriptText.substring(0, 100)}...`);
+    console.log(`=====================================\n`);
+
     return transcriptText;
   } catch (error) {
-    console.error('❌ Error fetching transcript from Recall:', error.message);
+    console.error('❌ Error fetching transcript:', error.message);
     if (error.response) {
-      console.error(`   Status: ${error.response.status}`);
-      console.error(`   Data:`, error.response.data);
+      console.error(`   HTTP Status: ${error.response.status}`);
+      console.error(`   Response:`, error.response.data);
     }
     return null;
   }
@@ -220,69 +271,103 @@ async function handleBotStatusChange(botId, data) {
 }
 
 /**
- * Main webhook endpoint
+ * Main webhook endpoint - WITH COMPREHENSIVE DEBUGGING
  * Receives events from Recall.ai using Svix
  * Uses raw body for signature verification
  */
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  try {
-    const signatureHeader = req.headers['x-recall-signature'];
-    const webhookSecret = process.env.RECALL_WEBHOOK_SECRET;
+  console.log('\n\n╔════════════════════════════════════════════════════════════╗');
+  console.log('║         RECALL.AI WEBHOOK RECEIVED                         ║');
+  console.log('╚════════════════════════════════════════════════════════════╝\n');
 
-    if (!signatureHeader || !webhookSecret) {
-      console.error('❌ Missing signature header or RECALL_WEBHOOK_SECRET environment variable');
-      return res.status(401).json({ error: 'Invalid request' });
+  try {
+    // Log all headers
+    console.log('📨 ALL REQUEST HEADERS:');
+    Object.entries(req.headers).forEach(([key, value]) => {
+      if (key.includes('svix') || key.includes('recall') || key.includes('signature')) {
+        console.log(`   ${key}: ${value}`);
+      }
+    });
+
+    // Get webhook secret
+    const webhookSecret = process.env.RECALL_WEBHOOK_SECRET;
+    console.log(`\n🔑 Webhook Secret: ${webhookSecret ? '✅ Configured' : '❌ NOT CONFIGURED'}`);
+
+    if (!webhookSecret) {
+      console.error('❌ CRITICAL: RECALL_WEBHOOK_SECRET not set in environment!');
+      console.error('   Set it in your .env file: RECALL_WEBHOOK_SECRET=whsec_...');
+      return res.status(401).json({ error: 'Webhook secret not configured' });
     }
 
-    // Verify webhook signature using raw body (Svix format)
-    if (!verifyRecallWebhookSignature(req.body, signatureHeader, webhookSecret)) {
-      console.error('❌ Invalid Recall webhook signature - rejecting event');
+    // Verify SVIX signature
+    console.log(`\n🔐 Verifying SVIX signature...`);
+    if (!verifySvixSignature(req.body, req.headers, webhookSecret)) {
+      console.error('❌ SIGNATURE VERIFICATION FAILED - Rejecting webhook');
       return res.status(401).json({ error: 'Invalid signature' });
     }
 
-    // Return 200 OK immediately (process async)
+    console.log('✅ Signature verified successfully!');
+
+    // Return 200 immediately (process async)
     res.status(200).json({ received: true });
 
-    // Parse body after verification
+    // Parse payload
+    console.log(`\n📦 Parsing payload...`);
     const payload = JSON.parse(req.body);
     const { id: webhookId, bot_id, event_type, data } = payload;
 
-    console.log(`📥 Received Recall webhook: ${event_type} for bot ${bot_id}`);
-    console.log(`📋 Full payload:`, JSON.stringify(payload, null, 2));
-    console.log(`📋 Data object:`, JSON.stringify(data, null, 2));
+    console.log(`✅ Payload parsed`);
+    console.log(`   Webhook ID: ${webhookId}`);
+    console.log(`   Bot ID: ${bot_id}`);
+    console.log(`   Event Type: ${event_type}`);
+    console.log(`   Data:`, JSON.stringify(data, null, 2));
 
+    // Check Supabase
     if (!isSupabaseAvailable()) {
-      console.error('❌ Supabase not available');
+      console.error('❌ Supabase not available!');
       return;
     }
 
     const supabase = getSupabase();
 
-    // Prevent duplicate processing
-    const { data: existing, error: checkError } = await supabase
+    // Prevent duplicates
+    console.log(`\n🔍 Checking for duplicate webhooks...`);
+    const { data: existing } = await supabase
       .from('recall_webhook_events')
       .select('id')
       .eq('webhook_id', webhookId)
       .single();
 
     if (existing) {
-      console.log(`⏭️  Webhook ${webhookId} already processed`);
+      console.log(`⏭️  Webhook already processed (ID: ${webhookId})`);
       return;
     }
 
-    // Record webhook event with full payload for debugging
-    await supabase
+    console.log(`✅ New webhook (not a duplicate)`);
+
+    // Record webhook event
+    console.log(`\n💾 Recording webhook event in database...`);
+    const { error: insertError } = await supabase
       .from('recall_webhook_events')
       .insert({
         webhook_id: webhookId,
         bot_id,
         event_type,
         status: data?.status,
-        payload: JSON.stringify(data),  // ✅ Capture full data for debugging
+        payload: JSON.stringify(data),
         created_at: new Date().toISOString()
       });
 
-    // Handle different event types
+    if (insertError) {
+      console.error('❌ Error recording webhook:', insertError);
+      return;
+    }
+
+    console.log(`✅ Webhook event recorded`);
+
+    // Handle event types
+    console.log(`\n🎯 Processing event type: ${event_type}`);
+
     if (event_type === 'transcript.done') {
       await handleTranscriptComplete(bot_id, data);
     } else if (event_type === 'bot.status_change') {
@@ -293,9 +378,11 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       console.log(`⚠️  Unhandled event type: ${event_type}`);
     }
 
+    console.log('\n✅ WEBHOOK PROCESSING COMPLETE\n');
+
   } catch (error) {
-    console.error('❌ Webhook error:', error);
-    // Always return 200 to prevent Recall from retrying
+    console.error('\n❌ WEBHOOK ERROR:', error.message);
+    console.error(error.stack);
     res.status(200).json({ received: true, error: error.message });
   }
 });
@@ -308,6 +395,11 @@ router.get('/webhook/test', (req, res) => {
     success: true,
     message: 'Recall.ai webhook endpoint is accessible',
     url: `${req.protocol}://${req.get('host')}/api/webhooks/webhook`,
+    environment: {
+      webhookSecretConfigured: !!process.env.RECALL_WEBHOOK_SECRET,
+      apiKeyConfigured: !!process.env.RECALL_API_KEY,
+      supabaseConfigured: !!process.env.SUPABASE_URL
+    },
     instructions: [
       '1. Go to Recall.ai dashboard → Webhooks',
       '2. Create new endpoint with URL above',
