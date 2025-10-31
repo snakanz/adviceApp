@@ -1318,6 +1318,8 @@ router.delete('/meetings/manual/:meetingId', authenticateSupabaseUser, async (re
 });
 
 // Update meeting transcript (for both manual and Google meetings)
+// IMPORTANT: This endpoint is for MANUAL transcript uploads only
+// The PRIMARY path is Recall.ai webhook which auto-generates summaries
 router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -1328,15 +1330,42 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
       return res.status(400).json({ error: 'Transcript is required' });
     }
 
-    // Verify meeting exists and user has access
-    const { data: existingMeeting, error: fetchError } = await req.supabase
+    console.log(`📝 Manual transcript upload for meeting ${meetingId} by user ${userId}`);
+
+    // Try to find meeting by numeric ID first (primary), then by external_id
+    let existingMeeting = null;
+    let fetchError = null;
+
+    // First try: numeric ID (works for all meeting types)
+    const { data: meetingById, error: errorById } = await req.supabase
       .from('meetings')
       .select('*')
-      .eq('external_id', meetingId)
+      .eq('id', parseInt(meetingId))
       .eq('user_id', userId)
       .single();
 
+    if (!errorById && meetingById) {
+      existingMeeting = meetingById;
+      console.log(`✅ Found meeting by numeric ID: ${meetingId}`);
+    } else {
+      // Second try: external_id (for Google Calendar meetings)
+      const { data: meetingByExtId, error: errorByExtId } = await req.supabase
+        .from('meetings')
+        .select('*')
+        .eq('external_id', meetingId)
+        .eq('user_id', userId)
+        .single();
+
+      if (!errorByExtId && meetingByExtId) {
+        existingMeeting = meetingByExtId;
+        console.log(`✅ Found meeting by external_id: ${meetingId}`);
+      } else {
+        fetchError = errorByExtId || errorById;
+      }
+    }
+
     if (fetchError || !existingMeeting) {
+      console.error(`❌ Meeting not found for ID ${meetingId}:`, fetchError);
       return res.status(404).json({ error: 'Meeting not found' });
     }
 
@@ -1345,31 +1374,120 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
       .from('meetings')
       .update({
         transcript: transcript,
+        transcript_source: 'manual',
         updated_at: new Date().toISOString()
       })
-      .eq('external_id', meetingId)
+      .eq('id', existingMeeting.id)
       .eq('user_id', userId)
       .select()
       .single();
 
     if (updateError) {
-      console.error('Error updating meeting transcript:', updateError);
+      console.error('❌ Error updating meeting transcript:', updateError);
       return res.status(500).json({ error: 'Failed to update transcript' });
     }
+
+    console.log(`✅ Transcript updated for meeting ${existingMeeting.id}`);
 
     res.json({
       message: 'Transcript updated successfully',
       meeting: {
         ...updatedMeeting,
-        id: updatedMeeting.external_id,
+        id: updatedMeeting.id,
         startTime: updatedMeeting.starttime,
         googleEventId: updatedMeeting.external_id
       }
     });
 
   } catch (error) {
-    console.error('Error updating meeting transcript:', error);
+    console.error('❌ Error updating meeting transcript:', error);
     res.status(500).json({ error: 'Failed to update transcript' });
+  }
+});
+
+// Delete meeting transcript
+// Removes transcript and all associated summaries/action items
+router.delete('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { meetingId } = req.params;
+
+    console.log(`🗑️  Deleting transcript for meeting ${meetingId} by user ${userId}`);
+
+    // Try to find meeting by numeric ID first (primary), then by external_id
+    let existingMeeting = null;
+    let fetchError = null;
+
+    // First try: numeric ID (works for all meeting types)
+    const { data: meetingById, error: errorById } = await req.supabase
+      .from('meetings')
+      .select('*')
+      .eq('id', parseInt(meetingId))
+      .eq('user_id', userId)
+      .single();
+
+    if (!errorById && meetingById) {
+      existingMeeting = meetingById;
+      console.log(`✅ Found meeting by numeric ID: ${meetingId}`);
+    } else {
+      // Second try: external_id (for Google Calendar meetings)
+      const { data: meetingByExtId, error: errorByExtId } = await req.supabase
+        .from('meetings')
+        .select('*')
+        .eq('external_id', meetingId)
+        .eq('user_id', userId)
+        .single();
+
+      if (!errorByExtId && meetingByExtId) {
+        existingMeeting = meetingByExtId;
+        console.log(`✅ Found meeting by external_id: ${meetingId}`);
+      } else {
+        fetchError = errorByExtId || errorById;
+      }
+    }
+
+    if (fetchError || !existingMeeting) {
+      console.error(`❌ Meeting not found for ID ${meetingId}:`, fetchError);
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    // Delete transcript and all related summaries
+    const { error: updateError } = await req.supabase
+      .from('meetings')
+      .update({
+        transcript: null,
+        quick_summary: null,
+        detailed_summary: null,
+        email_summary_draft: null,
+        action_points: null,
+        transcript_source: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', existingMeeting.id)
+      .eq('user_id', userId);
+
+    if (updateError) {
+      console.error('❌ Error deleting transcript:', updateError);
+      return res.status(500).json({ error: 'Failed to delete transcript' });
+    }
+
+    console.log(`✅ Transcript deleted for meeting ${existingMeeting.id}`);
+
+    res.json({
+      message: 'Transcript deleted successfully',
+      meeting: {
+        id: existingMeeting.id,
+        transcript: null,
+        quick_summary: null,
+        detailed_summary: null,
+        email_summary_draft: null,
+        action_points: null
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error deleting transcript:', error);
+    res.status(500).json({ error: 'Failed to delete transcript' });
   }
 });
 
