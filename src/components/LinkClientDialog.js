@@ -5,7 +5,7 @@ import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import { AlertCircle, Loader2, Link2 } from 'lucide-react';
 import { Alert, AlertDescription } from './ui/alert';
-import { supabase } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabase';
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
