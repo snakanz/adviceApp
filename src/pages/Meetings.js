@@ -40,6 +40,7 @@ import OutlookIcon from '../components/OutlookIcon';
 import DocumentsTab from '../components/DocumentsTab';
 import CreateMeetingDialog from '../components/CreateMeetingDialog';
 import EditMeetingDialog from '../components/EditMeetingDialog';
+import LinkClientDialog from '../components/LinkClientDialog';
 import DataImport from '../components/DataImport';
 import {
   Tooltip,
@@ -332,6 +333,10 @@ export default function Meetings() {
   const [newPendingItemText, setNewPendingItemText] = useState('');
   const [newPendingItemPriority, setNewPendingItemPriority] = useState(3);
   const [savingNewPendingItem, setSavingNewPendingItem] = useState(false);
+
+  // Link client dialog state
+  const [showLinkClientDialog, setShowLinkClientDialog] = useState(false);
+  const [linkClientMeeting, setLinkClientMeeting] = useState(null);
 
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
   
@@ -1719,55 +1724,73 @@ export default function Meetings() {
                 </div>
 
                 {/* Client Information - Enhanced to show linked client or attendee */}
-                {(() => {
-                  // First, check if there's a linked client from the database
-                  if (meeting.client) {
-                    return (
-                      <div className="flex items-center gap-1 mb-2 text-xs">
-                        <Mail className="w-3 h-3 text-primary/60 flex-shrink-0" />
-                        <span className="font-medium text-primary truncate">
-                          {meeting.client.name || meeting.client.email.split('@')[0]}
-                        </span>
-                        <span className="text-muted-foreground">•</span>
-                        <span className="text-muted-foreground truncate">
-                          {meeting.client.email}
-                        </span>
-                      </div>
-                    );
-                  }
-
-                  // Fallback to attendees if no linked client
-                  if (meeting.attendees) {
-                    try {
-                      const attendees = JSON.parse(meeting.attendees);
-                      const clientAttendee = attendees.find(a => a.email && a.email !== user?.email);
-                      if (clientAttendee) {
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex-1">
+                    {(() => {
+                      // First, check if there's a linked client from the database
+                      if (meeting.client) {
                         return (
-                          <div className="flex items-center gap-1 mb-2 text-xs">
-                            <Mail className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" />
-                            <span className="font-medium text-muted-foreground truncate">
-                              {clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0]}
+                          <div className="flex items-center gap-1 text-xs">
+                            <Mail className="w-3 h-3 text-primary/60 flex-shrink-0" />
+                            <span className="font-medium text-primary truncate">
+                              {meeting.client.name || meeting.client.email.split('@')[0]}
                             </span>
-                            <span className="text-muted-foreground/60">•</span>
-                            <span className="text-muted-foreground/80 truncate">
-                              {clientAttendee.email}
+                            <span className="text-muted-foreground">•</span>
+                            <span className="text-muted-foreground truncate">
+                              {meeting.client.email}
                             </span>
                           </div>
                         );
                       }
-                    } catch (e) {
-                      return null;
-                    }
-                  }
 
-                  // Show "No client linked" if neither exists
-                  return (
-                    <div className="flex items-center gap-1 mb-2 text-xs text-muted-foreground/60">
-                      <Mail className="w-3 h-3 flex-shrink-0" />
-                      <span className="italic">No client linked</span>
-                    </div>
-                  );
-                })()}
+                      // Fallback to attendees if no linked client
+                      if (meeting.attendees) {
+                        try {
+                          const attendees = JSON.parse(meeting.attendees);
+                          const clientAttendee = attendees.find(a => a.email && a.email !== user?.email);
+                          if (clientAttendee) {
+                            return (
+                              <div className="flex items-center gap-1 text-xs">
+                                <Mail className="w-3 h-3 text-muted-foreground/60 flex-shrink-0" />
+                                <span className="font-medium text-muted-foreground truncate">
+                                  {clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0]}
+                                </span>
+                                <span className="text-muted-foreground/60">•</span>
+                                <span className="text-muted-foreground/80 truncate">
+                                  {clientAttendee.email}
+                                </span>
+                              </div>
+                            );
+                          }
+                        } catch (e) {
+                          return null;
+                        }
+                      }
+
+                      // Show "No client linked" if neither exists
+                      return (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground/60">
+                          <Mail className="w-3 h-3 flex-shrink-0" />
+                          <span className="italic">No client linked</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  {/* Link Client Button */}
+                  {!meeting.client && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setLinkClientMeeting(meeting);
+                        setShowLinkClientDialog(true);
+                      }}
+                      className="ml-2 text-xs h-6"
+                    >
+                      Link Client
+                    </Button>
+                  )}
+                </div>
 
                 {/* Bottom Row: Status Indicators and Actions */}
                 <div className="flex items-center justify-between">
@@ -3158,6 +3181,19 @@ Example:
         onOpenChange={setShowEditDialog}
         onMeetingUpdated={handleMeetingUpdated}
       />
+
+      {/* Link Client Dialog */}
+      {linkClientMeeting && (
+        <LinkClientDialog
+          meeting={linkClientMeeting}
+          open={showLinkClientDialog}
+          onOpenChange={setShowLinkClientDialog}
+          onClientLinked={() => {
+            // Refresh meetings to show updated client link
+            fetchMeetings();
+          }}
+        />
+      )}
 
       {/* Snackbar */}
       {showSnackbar && (

@@ -2210,6 +2210,169 @@ router.get('/calendly/oauth/callback', async (req, res) => {
   }
 });
 
+// Link a meeting to a client and auto-link other meetings with the same email
+router.post('/meetings/:meetingId/link-client', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const { meetingId } = req.params;
+    const userId = req.user.id;
+    const { clientId, clientEmail, clientName } = req.body;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    // Validate input
+    if (!clientId && !clientEmail) {
+      return res.status(400).json({ error: 'Either clientId or clientEmail is required' });
+    }
+
+    console.log(`🔗 Linking meeting ${meetingId} to client ${clientId || clientEmail}`);
+
+    // Get the meeting to find attendee email
+    const { data: meeting, error: meetingError } = await req.supabase
+      .from('meetings')
+      .select('*')
+      .eq('id', parseInt(meetingId))
+      .eq('user_id', userId)
+      .single();
+
+    if (meetingError || !meeting) {
+      return res.status(404).json({ error: 'Meeting not found' });
+    }
+
+    // If clientId is provided, use it directly
+    let finalClientId = clientId;
+
+    // If only clientEmail is provided, find or create the client
+    if (!finalClientId && clientEmail) {
+      // Check if client exists
+      const { data: existingClient } = await req.supabase
+        .from('clients')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('email', clientEmail)
+        .single();
+
+      if (existingClient) {
+        finalClientId = existingClient.id;
+      } else {
+        // Create new client
+        const { data: newClient, error: createError } = await req.supabase
+          .from('clients')
+          .insert({
+            user_id: userId,
+            email: clientEmail,
+            name: clientName || clientEmail.split('@')[0],
+            pipeline_stage: 'need_to_book_meeting',
+            priority_level: 3,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('Error creating client:', createError);
+          return res.status(500).json({ error: 'Failed to create client' });
+        }
+
+        finalClientId = newClient.id;
+        console.log(`✅ Created new client: ${newClient.email}`);
+      }
+    }
+
+    if (!finalClientId) {
+      return res.status(400).json({ error: 'Could not determine client ID' });
+    }
+
+    // Link the meeting to the client
+    const { error: updateError } = await req.supabase
+      .from('meetings')
+      .update({ client_id: finalClientId })
+      .eq('id', meeting.id)
+      .eq('user_id', userId);
+
+    if (updateError) {
+      console.error('Error linking meeting to client:', updateError);
+      return res.status(500).json({ error: 'Failed to link meeting to client' });
+    }
+
+    console.log(`✅ Linked meeting ${meeting.id} to client ${finalClientId}`);
+
+    // Now find all other meetings with the same attendee email and link them too
+    let linkedCount = 1; // Count the current meeting
+    let attendeeEmail = null;
+
+    // Extract attendee email from meeting attendees
+    if (meeting.attendees) {
+      try {
+        const attendees = JSON.parse(meeting.attendees);
+        if (Array.isArray(attendees) && attendees.length > 0) {
+          // Find the first non-advisor attendee
+          const clientAttendee = attendees.find(a =>
+            a.email &&
+            a.email !== userId &&
+            !a.email.includes('noreply') &&
+            !a.email.includes('calendar') &&
+            !a.email.includes('google')
+          );
+          if (clientAttendee) {
+            attendeeEmail = clientAttendee.email;
+          }
+        }
+      } catch (e) {
+        console.log('Could not parse attendees:', e.message);
+      }
+    }
+
+    // If we found an attendee email, link all other meetings with that email
+    if (attendeeEmail) {
+      console.log(`🔍 Looking for other meetings with attendee: ${attendeeEmail}`);
+
+      // Get all meetings for this user
+      const { data: allMeetings, error: allMeetingsError } = await req.supabase
+        .from('meetings')
+        .select('id, attendees')
+        .eq('user_id', userId)
+        .is('client_id', null); // Only unlinked meetings
+
+      if (!allMeetingsError && allMeetings) {
+        for (const m of allMeetings) {
+          try {
+            const attendees = JSON.parse(m.attendees || '[]');
+            const hasAttendee = attendees.some(a => a.email === attendeeEmail);
+
+            if (hasAttendee && m.id !== meeting.id) {
+              // Link this meeting too
+              await req.supabase
+                .from('meetings')
+                .update({ client_id: finalClientId })
+                .eq('id', m.id);
+
+              linkedCount++;
+              console.log(`✅ Auto-linked meeting ${m.id}`);
+            }
+          } catch (e) {
+            // Skip if we can't parse attendees
+          }
+        }
+      }
+    }
+
+    console.log(`✅ Successfully linked ${linkedCount} meeting(s) to client`);
+
+    res.json({
+      success: true,
+      message: `Linked ${linkedCount} meeting(s) to client`,
+      clientId: finalClientId,
+      linkedCount
+    });
+  } catch (error) {
+    console.error('Error linking meeting to client:', error);
+    res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+});
+
 // Debug route to confirm calendar.js is loaded
 router.get('/debug-alive', (req, res) => {
   res.json({ status: 'calendar routes alive' });
