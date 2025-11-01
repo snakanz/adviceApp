@@ -2305,11 +2305,22 @@ export default function Meetings() {
                     }
                   }
 
-                  // Show "No client linked" if neither exists
+                  // Show "No client linked" with inline button if neither exists
                   return (
-                    <div className="flex items-center mb-2 text-sm text-muted-foreground/60">
-                      <Mail className="h-4 w-4 mr-2" />
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground/60">
+                      <Mail className="h-4 w-4 flex-shrink-0" />
                       <span className="italic">No client linked</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setLinkClientMeeting(selectedMeeting);
+                          setShowLinkClientDialog(true);
+                        }}
+                        className="h-5 px-2 text-xs text-muted-foreground/70 hover:text-muted-foreground hover:bg-muted/50"
+                      >
+                        Link
+                      </Button>
                     </div>
                   );
                 })()}
