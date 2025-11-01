@@ -360,23 +360,9 @@ export default function Clients() {
     setEditForm({
       name: client.name || '',
       email: client.email || '',
-      pipeline_stage: client.pipeline_stage || '',
-      business_type: client.business_type || '',
-      iaf_expected: client.iaf_expected || client.likely_value || '', // Handle both old and new field names
-      business_amount: client.business_amount || '',
-      regular_contribution_type: client.regular_contribution_type || '',
-      regular_contribution_amount: client.regular_contribution_amount || '',
-      likely_close_month: client.likely_close_month || ''
+      date_of_birth: client.date_of_birth || '',
+      gender: client.gender || ''
     });
-
-    // Load client business types
-    try {
-      const businessTypes = await api.request(`/clients/${client.id}/business-types`);
-      setClientBusinessTypes(businessTypes);
-    } catch (error) {
-      console.error('Error loading business types:', error);
-      setClientBusinessTypes([]);
-    }
 
     // Open the Edit Client Details modal
     setShowEditClientModal(true);
@@ -468,13 +454,8 @@ export default function Clients() {
         body: JSON.stringify({
           email: editingClient.email,
           name: editForm.name.trim(),
-          pipeline_stage: editForm.pipeline_stage,
-          business_type: editForm.business_type,
-          iaf_expected: editForm.iaf_expected,
-          business_amount: editForm.business_amount,
-          regular_contribution_type: editForm.regular_contribution_type,
-          regular_contribution_amount: editForm.regular_contribution_amount,
-          likely_close_month: editForm.likely_close_month
+          date_of_birth: editForm.date_of_birth || null,
+          gender: editForm.gender || null
         })
       });
 
@@ -499,12 +480,8 @@ export default function Clients() {
     setEditForm({
       name: '',
       email: '',
-      business_type: '',
-      iaf_expected: '',
-      business_amount: '',
-      regular_contribution_type: '',
-      regular_contribution_amount: '',
-      likely_close_month: ''
+      date_of_birth: '',
+      gender: ''
     });
   };
 
@@ -1359,89 +1336,26 @@ export default function Clients() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Pipeline Stage</label>
+                <label className="block text-sm font-medium mb-2">Date of Birth</label>
+                <input
+                  type="date"
+                  value={editForm.date_of_birth}
+                  onChange={(e) => setEditForm({ ...editForm, date_of_birth: e.target.value })}
+                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
+                  placeholder="YYYY-MM-DD"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Gender</label>
                 <select
-                  value={editForm.pipeline_stage}
-                  onChange={(e) => setEditForm({ ...editForm, pipeline_stage: e.target.value })}
+                  value={editForm.gender}
+                  onChange={(e) => setEditForm({ ...editForm, gender: e.target.value })}
                   className="w-full p-2 border border-border rounded-md bg-background text-foreground"
                 >
-                  <option value="">Select pipeline stage</option>
-                  <option value="Client Signed">Client Signed</option>
-                  <option value="Waiting to Sign">Waiting to Sign</option>
-                  <option value="Waiting on Paraplanning">Waiting on Paraplanning</option>
-                  <option value="Have Not Written Advice">Have Not Written Advice</option>
-                  <option value="Need to Book Meeting">Need to Book Meeting</option>
-                  <option value="Can't Contact Client">Can't Contact Client</option>
+                  <option value="">Select gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
                 </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Business Type</label>
-                <select
-                  value={editForm.business_type}
-                  onChange={(e) => setEditForm({ ...editForm, business_type: e.target.value })}
-                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
-                >
-                  <option value="">Select business type</option>
-                  <option value="Pension">Pension</option>
-                  <option value="ISA">ISA</option>
-                  <option value="Bond">Bond</option>
-                  <option value="Investment">Investment</option>
-                  <option value="Insurance">Insurance</option>
-                  <option value="Mortgage">Mortgage</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">IAF Expected (£)</label>
-                <input
-                  type="number"
-                  value={editForm.iaf_expected}
-                  onChange={(e) => setEditForm({ ...editForm, iaf_expected: e.target.value })}
-                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
-                  placeholder="Enter IAF expected in pounds"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Business Amount (£)</label>
-                <input
-                  type="number"
-                  value={editForm.business_amount}
-                  onChange={(e) => setEditForm({ ...editForm, business_amount: e.target.value })}
-                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
-                  placeholder="Enter business amount"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Regular Contribution Type</label>
-                <input
-                  type="text"
-                  value={editForm.regular_contribution_type}
-                  onChange={(e) => setEditForm({ ...editForm, regular_contribution_type: e.target.value })}
-                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
-                  placeholder="e.g., Pension Regular Monthly"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Regular Contribution Amount</label>
-                <input
-                  type="text"
-                  value={editForm.regular_contribution_amount}
-                  onChange={(e) => setEditForm({ ...editForm, regular_contribution_amount: e.target.value })}
-                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
-                  placeholder="e.g., £3,000 per month"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Next IAF Expected</label>
-                <input
-                  type="month"
-                  value={editForm.likely_close_month}
-                  onChange={(e) => setEditForm({ ...editForm, likely_close_month: e.target.value })}
-                  className="w-full p-2 border border-border rounded-md bg-background text-foreground"
-                />
               </div>
               <div className="flex gap-2 justify-end">
                 <Button variant="outline" onClick={handleCancelEdit}>
