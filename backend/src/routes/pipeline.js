@@ -1,18 +1,13 @@
 require('dotenv').config();
 const express = require('express');
 const router = express.Router();
-const jwt = require('jsonwebtoken');
-const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
+const { isSupabaseAvailable } = require('../lib/supabase');
+const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 
 // Get pipeline data grouped by month
-router.get('/', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.get('/', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
+    const userId = req.user.id;
 
     console.log('Pipeline request for userId:', userId);
 
@@ -24,6 +19,7 @@ router.get('/', async (req, res) => {
     }
 
     // Fetch clients with pipeline data
+    // RLS policies automatically filter by user_id = auth.uid()
     const { data: clients, error: clientsError } = await req.supabase
       .from('clients')
       .select(`
@@ -42,7 +38,7 @@ router.get('/', async (req, res) => {
         created_at,
         updated_at
       `)
-      .eq('advisor_id', userId)
+      .eq('user_id', userId)
       .order('likely_close_month', { ascending: true, nullsFirst: false });
 
     if (clientsError) {
@@ -185,14 +181,9 @@ router.get('/', async (req, res) => {
 });
 
 // Update client pipeline stage and close month (for drag and drop and inline editing)
-router.put('/client/:clientId', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.put('/client/:clientId', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
+    const userId = req.user.id;
     const { clientId } = req.params;
     const { likely_close_month, pipeline_stage, priority_level, likelihood, iaf_expected } = req.body;
 
@@ -207,7 +198,7 @@ router.put('/client/:clientId', async (req, res) => {
       .from('clients')
       .select('id, pipeline_stage')
       .eq('id', clientId)
-      .eq('advisor_id', userId)
+      .eq('user_id', userId)
       .single();
 
     if (clientError || !client) {
@@ -276,14 +267,9 @@ router.put('/client/:clientId', async (req, res) => {
 });
 
 // Get todos for a specific client
-router.get('/client/:clientId/todos', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.get('/client/:clientId/todos', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
+    const userId = req.user.id;
     const { clientId } = req.params;
 
     if (!isSupabaseAvailable()) {
@@ -297,7 +283,7 @@ router.get('/client/:clientId/todos', async (req, res) => {
       .from('clients')
       .select('id')
       .eq('id', clientId)
-      .eq('advisor_id', userId)
+      .eq('user_id', userId)
       .single();
 
     if (clientError || !client) {
@@ -326,14 +312,9 @@ router.get('/client/:clientId/todos', async (req, res) => {
 });
 
 // Create a new todo for a client
-router.post('/client/:clientId/todos', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.post('/client/:clientId/todos', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
+    const userId = req.user.id;
     const { clientId } = req.params;
     const { title, description, priority, due_date, category } = req.body;
 
@@ -352,7 +333,7 @@ router.post('/client/:clientId/todos', async (req, res) => {
       .from('clients')
       .select('id')
       .eq('id', clientId)
-      .eq('advisor_id', userId)
+      .eq('user_id', userId)
       .single();
 
     if (clientError || !client) {
@@ -387,14 +368,9 @@ router.post('/client/:clientId/todos', async (req, res) => {
 });
 
 // Update a todo
-router.put('/todos/:todoId', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.put('/todos/:todoId', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
+    const userId = req.user.id;
     const { todoId } = req.params;
     const { title, description, priority, due_date, status, category } = req.body;
 
@@ -468,14 +444,9 @@ router.put('/todos/:todoId', async (req, res) => {
 });
 
 // Delete a todo
-router.delete('/todos/:todoId', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.delete('/todos/:todoId', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
+    const userId = req.user.id;
     const { todoId } = req.params;
 
     if (!isSupabaseAvailable()) {

@@ -95,7 +95,7 @@ const verifySupabaseToken = async (token) => {
       return { user: null, error: new Error('Invalid token format') };
     }
 
-    if (!decoded || !decoded.sub) {
+    if (!decoded) {
       console.log('❌ Invalid token structure');
       return { user: null, error: new Error('Invalid token structure') };
     }
@@ -106,10 +106,16 @@ const verifySupabaseToken = async (token) => {
       return { user: null, error: new Error('Token expired') };
     }
 
-    // Verify the user exists in Supabase auth by querying the users table
-    // The token's 'sub' field contains the Supabase user ID
-    const userId = decoded.sub;
+    // Support BOTH token formats:
+    // 1. Supabase JWT: has 'sub' field (user UUID)
+    // 2. Custom JWT: has 'id' field (user UUID)
+    const userId = decoded.sub || decoded.id;
     const userEmail = decoded.email;
+
+    if (!userId) {
+      console.log('❌ No user ID found in token (missing both sub and id fields)');
+      return { user: null, error: new Error('Invalid token: no user ID') };
+    }
 
     if (!userEmail) {
       console.log('❌ No email in token');

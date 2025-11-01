@@ -429,14 +429,8 @@ router.get('/google/callback', async (req, res) => {
 });
 
 // Verify token and return user info
-router.get('/verify', async (req, res) => {
+router.get('/verify', authenticateSupabaseUser, async (req, res) => {
     try {
-        const token = req.headers.authorization?.split(' ')[1];
-
-        if (!token) {
-            return res.status(401).json({ error: 'No token provided' });
-        }
-
         // Check if Supabase is available
         if (!isSupabaseAvailable()) {
             return res.status(503).json({
@@ -444,11 +438,11 @@ router.get('/verify', async (req, res) => {
             });
         }
 
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        const { data: user } = await getSupabase()
+        const userId = req.user.id;
+        const { data: user } = await req.supabase
             .from('users')
             .select('id, email, name, profilepicture')
-            .eq('id', decoded.id)
+            .eq('id', userId)
             .single();
 
         if (!user) {

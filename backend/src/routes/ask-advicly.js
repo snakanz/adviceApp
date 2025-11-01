@@ -1,6 +1,6 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
-const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
+const { isSupabaseAvailable } = require('../lib/supabase');
+const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 const { generateMeetingSummary, generateChatResponse } = require('../services/openai');
 
 // Generate proactive insights based on meeting content
@@ -113,14 +113,9 @@ router.get('/debug/meetings', async (req, res) => {
 console.log('Test route registered');
 
 // Get all threads for an advisor with enhanced context support
-router.get('/threads', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.get('/threads', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const advisorId = req.user.id;
 
     if (!isSupabaseAvailable()) {
       return res.status(503).json({
@@ -175,14 +170,9 @@ router.get('/threads', async (req, res) => {
 });
 
 // Get messages for a specific thread
-router.get('/threads/:threadId/messages', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.get('/threads/:threadId/messages', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const advisorId = req.user.id;
     const { threadId } = req.params;
 
     if (!isSupabaseAvailable()) {
@@ -222,14 +212,9 @@ router.get('/threads/:threadId/messages', async (req, res) => {
 });
 
 // Create a new thread with enhanced context support
-router.post('/threads', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.post('/threads', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const advisorId = req.user.id;
     const {
       clientId,
       title = 'New Conversation',
@@ -294,14 +279,9 @@ router.post('/threads', async (req, res) => {
 });
 
 // Send a message to a thread
-router.post('/threads/:threadId/messages', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.post('/threads/:threadId/messages', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const advisorId = req.user.id;
     const { threadId } = req.params;
     const { content, mentionedClients = [] } = req.body;
 
@@ -643,14 +623,9 @@ router.post('/threads/:threadId/messages', async (req, res) => {
 });
 
 // Update thread title
-router.patch('/threads/:threadId', async (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-
+router.patch('/threads/:threadId', authenticateSupabaseUser, async (req, res) => {
   try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const advisorId = decoded.id;
+    const advisorId = req.user.id;
     const { threadId } = req.params;
     const { title } = req.body;
 
@@ -666,7 +641,7 @@ router.patch('/threads/:threadId', async (req, res) => {
 
     const { data: thread, error } = await req.supabase
       .from('ask_threads')
-      .update({ 
+      .update({
         title: title.trim(),
         updated_at: new Date().toISOString()
       })
