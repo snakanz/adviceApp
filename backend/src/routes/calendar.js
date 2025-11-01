@@ -570,6 +570,65 @@ router.post('/meetings/:id/record/stop', authenticateSupabaseUser, async (req, r
   }
 });
 
+// Get all starred/review meetings for current user
+// IMPORTANT: This route MUST come BEFORE /meetings/:eventId to match correctly
+router.get('/meetings/starred', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Get all meetings marked as annual review (starred)
+    const { data: meetings, error } = await req.supabase
+      .from('meetings')
+      .select(`
+        id,
+        external_id,
+        title,
+        starttime,
+        endtime,
+        transcript,
+        quick_summary,
+        detailed_summary,
+        action_points,
+        client_id,
+        client:clients (
+          id,
+          name,
+          email
+        )
+      `)
+      .eq('user_id', userId)
+      .eq('is_annual_review', true)
+      .order('starttime', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching starred meetings:', error);
+      return res.status(500).json({ error: 'Failed to fetch starred meetings' });
+    }
+
+    // Format the response
+    const formattedMeetings = (meetings || []).map(meeting => ({
+      id: meeting.id,
+      googleEventId: meeting.googleeventid,
+      title: meeting.title,
+      startTime: meeting.starttime,
+      endTime: meeting.endtime,
+      hasTranscript: !!meeting.transcript,
+      hasQuickSummary: !!meeting.quick_summary,
+      hasEmailSummary: !!meeting.email_summary_draft,
+      client: meeting.clients ? {
+        id: meeting.clients.id,
+        name: meeting.clients.name,
+        email: meeting.clients.email
+      } : null
+    }));
+
+    res.json(formattedMeetings);
+  } catch (error) {
+    console.error('Error fetching starred meetings:', error);
+    res.status(500).json({ error: 'Failed to fetch starred meetings' });
+  }
+});
+
 // Get meeting details including transcript and recording if available
 router.get('/meetings/:eventId', authenticateSupabaseUser, async (req, res) => {
     try {
@@ -1565,64 +1624,6 @@ router.get('/annual-reviews/dashboard', authenticateSupabaseUser, async (req, re
   } catch (error) {
     console.error('Error fetching annual review dashboard:', error);
     res.status(500).json({ error: 'Failed to fetch annual review dashboard' });
-  }
-});
-
-// Get all starred/review meetings for current user
-router.get('/meetings/starred', authenticateSupabaseUser, async (req, res) => {
-  try {
-    const userId = req.user.id;
-
-    // Get all meetings marked as annual review (starred)
-    const { data: meetings, error } = await req.supabase
-      .from('meetings')
-      .select(`
-        id,
-        external_id,
-        title,
-        starttime,
-        endtime,
-        transcript,
-        quick_summary,
-        detailed_summary,
-        action_points,
-        client_id,
-        client:clients (
-          id,
-          name,
-          email
-        )
-      `)
-      .eq('user_id', userId)
-      .eq('is_annual_review', true)
-      .order('starttime', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching starred meetings:', error);
-      return res.status(500).json({ error: 'Failed to fetch starred meetings' });
-    }
-
-    // Format the response
-    const formattedMeetings = (meetings || []).map(meeting => ({
-      id: meeting.id,
-      googleEventId: meeting.googleeventid,
-      title: meeting.title,
-      startTime: meeting.starttime,
-      endTime: meeting.endtime,
-      hasTranscript: !!meeting.transcript,
-      hasQuickSummary: !!meeting.quick_summary,
-      hasEmailSummary: !!meeting.email_summary_draft,
-      client: meeting.clients ? {
-        id: meeting.clients.id,
-        name: meeting.clients.name,
-        email: meeting.clients.email
-      } : null
-    }));
-
-    res.json(formattedMeetings);
-  } catch (error) {
-    console.error('Error fetching starred meetings:', error);
-    res.status(500).json({ error: 'Failed to fetch starred meetings' });
   }
 });
 
