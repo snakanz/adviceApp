@@ -86,7 +86,7 @@ CREATE TABLE clients (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     email TEXT NOT NULL,
-    name TEXT NOT NULL,
+    name TEXT,
     pipeline_stage TEXT DEFAULT 'prospect',
     priority_level INTEGER DEFAULT 3 CHECK (priority_level BETWEEN 1 AND 5),
     last_contact_date TIMESTAMP WITH TIME ZONE,

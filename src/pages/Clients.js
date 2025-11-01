@@ -343,9 +343,10 @@ export default function Clients() {
 
 
 
-  const getUserInitials = (name) => {
-    if (!name) return 'C';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const getUserInitials = (name, email) => {
+    const displayName = name || email;
+    if (!displayName) return 'C';
+    return displayName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   // Add/remove email fields
@@ -758,12 +759,12 @@ export default function Clients() {
                     <div className="col-span-3 flex items-center gap-3">
                       <Avatar className="w-10 h-10 bg-primary/10 text-primary flex-shrink-0">
                         <AvatarFallback className="bg-primary/10 text-primary text-sm font-bold">
-                          {getUserInitials(client.name)}
+                          {getUserInitials(client.name, client.email)}
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0 flex-1">
                         <div className="font-semibold text-foreground truncate mb-1">
-                          {client.name || 'Unnamed Client'}
+                          {client.name || client.email}
                         </div>
                         <div className="text-xs text-muted-foreground truncate">
                           {client.email && client.email.includes('@') ? client.email : 'No email provided'}

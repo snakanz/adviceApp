@@ -68,8 +68,8 @@ export default function LinkClientDialog({
       return;
     }
 
-    if (mode === 'create' && (!newClientName || !newClientEmail)) {
-      setError('Please enter client name and email');
+    if (mode === 'create' && !newClientEmail) {
+      setError('Please enter client email');
       return;
     }
 
@@ -195,23 +195,23 @@ export default function LinkClientDialog({
           {mode === 'create' && (
             <div className="space-y-3">
               <div>
-                <Label htmlFor="client-name">Client Name</Label>
-                <Input
-                  id="client-name"
-                  value={newClientName}
-                  onChange={(e) => setNewClientName(e.target.value)}
-                  placeholder="Enter client name"
-                  disabled={loading}
-                />
-              </div>
-              <div>
-                <Label htmlFor="client-email">Client Email</Label>
+                <Label htmlFor="client-email">Client Email <span className="text-red-500">*</span></Label>
                 <Input
                   id="client-email"
                   type="email"
                   value={newClientEmail}
                   onChange={(e) => setNewClientEmail(e.target.value)}
                   placeholder="Enter client email"
+                  disabled={loading}
+                />
+              </div>
+              <div>
+                <Label htmlFor="client-name">Client Name <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <Input
+                  id="client-name"
+                  value={newClientName}
+                  onChange={(e) => setNewClientName(e.target.value)}
+                  placeholder="Enter client name (optional)"
                   disabled={loading}
                 />
               </div>

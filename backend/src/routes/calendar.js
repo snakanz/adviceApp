@@ -2257,12 +2257,13 @@ router.post('/meetings/:meetingId/link-client', authenticateSupabaseUser, async 
         finalClientId = existingClient.id;
       } else {
         // Create new client
+        // Note: name is optional (email-first architecture)
         const { data: newClient, error: createError } = await req.supabase
           .from('clients')
           .insert({
             user_id: userId,
             email: clientEmail,
-            name: clientName || clientEmail.split('@')[0],
+            name: clientName || null,
             pipeline_stage: 'need_to_book_meeting',
             priority_level: 3,
             created_at: new Date().toISOString(),

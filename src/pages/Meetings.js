@@ -1733,12 +1733,16 @@ export default function Meetings() {
                           <div className="flex items-center gap-1 text-xs">
                             <Mail className="w-3 h-3 text-primary/60 flex-shrink-0" />
                             <span className="font-medium text-primary truncate">
-                              {meeting.client.name || meeting.client.email.split('@')[0]}
+                              {meeting.client.name || meeting.client.email}
                             </span>
-                            <span className="text-muted-foreground">•</span>
-                            <span className="text-muted-foreground truncate">
-                              {meeting.client.email}
-                            </span>
+                            {meeting.client.name && (
+                              <>
+                                <span className="text-muted-foreground">•</span>
+                                <span className="text-muted-foreground truncate">
+                                  {meeting.client.email}
+                                </span>
+                              </>
+                            )}
                           </div>
                         );
                       }
@@ -1767,29 +1771,26 @@ export default function Meetings() {
                         }
                       }
 
-                      // Show "No client linked" if neither exists
+                      // Show "No client linked" with inline button if neither exists
                       return (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground/60">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground/60">
                           <Mail className="w-3 h-3 flex-shrink-0" />
                           <span className="italic">No client linked</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setLinkClientMeeting(meeting);
+                              setShowLinkClientDialog(true);
+                            }}
+                            className="h-5 px-2 text-xs text-muted-foreground/70 hover:text-muted-foreground hover:bg-muted/50"
+                          >
+                            Link
+                          </Button>
                         </div>
                       );
                     })()}
                   </div>
-                  {/* Link Client Button */}
-                  {!meeting.client && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setLinkClientMeeting(meeting);
-                        setShowLinkClientDialog(true);
-                      }}
-                      className="ml-2 text-xs h-6"
-                    >
-                      Link Client
-                    </Button>
-                  )}
                 </div>
 
                 {/* Bottom Row: Status Indicators and Actions */}

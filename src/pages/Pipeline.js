@@ -296,6 +296,18 @@ export default function Pipeline() {
     return 'text-red-600';
   };
 
+  // Helper function to get initials from name or email
+  const getInitials = (name, email) => {
+    const displayName = name || email;
+    if (!displayName) return '?';
+    return displayName
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
   const getStageColor = (stage) => {
     const colors = {
       'Client Signed': 'bg-emerald-100 text-emerald-800',
@@ -872,12 +884,12 @@ export default function Pipeline() {
                   <div className="col-span-3 flex items-center gap-3">
                     <Avatar className="w-10 h-10 flex-shrink-0">
                       <AvatarFallback className="text-sm bg-primary/10 text-primary font-semibold">
-                        {client.name.split(' ').map(n => n[0]).join('')}
+                        {getInitials(client.name, client.email)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
                       <div className="font-semibold text-sm text-foreground truncate mb-1">
-                        {client.name}
+                        {client.name || client.email}
                       </div>
                       <div className="text-xs text-muted-foreground truncate mb-1">
                         {client.email}
@@ -1252,7 +1264,7 @@ export default function Pipeline() {
                   <div className="flex items-center gap-4">
                     <Avatar className="w-14 h-14 flex-shrink-0">
                       <AvatarFallback className="bg-primary/10 text-primary text-lg font-bold">
-                        {selectedClient.name.split(' ').map(n => n[0]).join('')}
+                        {getInitials(selectedClient.name, selectedClient.email)}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
@@ -1264,7 +1276,7 @@ export default function Pipeline() {
                         }}
                         title="View client details"
                       >
-                        {selectedClient.name}
+                        {selectedClient.name || selectedClient.email}
                       </h3>
                       <p className="text-sm text-muted-foreground truncate mb-2">{selectedClient.email}</p>
                       <div className="flex flex-wrap gap-1">

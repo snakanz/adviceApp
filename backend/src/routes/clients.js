@@ -203,8 +203,9 @@ router.post('/upsert', authenticateSupabaseUser, async (req, res) => {
 
     if (existingClient) {
       // Update existing client
+      // Note: name is optional (email-first architecture)
       const updateData = {
-        name: name || null,
+        name: name !== undefined ? name : null,
         business_type: business_type || null,
         likely_close_month: likely_close_month || null,
         updated_at: new Date().toISOString()
