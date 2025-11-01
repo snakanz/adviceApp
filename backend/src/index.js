@@ -662,7 +662,10 @@ app.post('/api/dev/sync-calendly', async (req, res) => {
 
 // Clients endpoint is now handled by the clients router (routes/clients.js)
 
-// Transcript upload endpoint
+// DEPRECATED: Transcript upload endpoint moved to backend/src/routes/calendar.js
+// The new endpoint uses proper Supabase Auth verification and correct schema
+// This old endpoint is kept commented out for reference only
+/*
 app.post('/api/calendar/meetings/:id/transcript', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
@@ -998,6 +1001,7 @@ Return only the JSON array:`;
     res.status(500).json({ error: 'Failed to upload transcript' });
   }
 });
+*/
 
 // DELETE transcript endpoint - DEPRECATED
 // This endpoint has been moved to backend/src/routes/calendar.js
