@@ -356,13 +356,28 @@ export default function Clients() {
   // const handleEmailChange = (idx, value) => setEditForm(f => ({ ...f, emails: f.emails.map((e, i) => i === idx ? value : e) }));
 
   const handleEditClient = async (client) => {
-    setEditingClient(client);
-    setEditForm({
-      name: client.name || '',
-      email: client.email || '',
-      date_of_birth: client.date_of_birth || '',
-      gender: client.gender || ''
-    });
+    try {
+      // Fetch fresh client data from the server to ensure we have the latest values
+      const freshClient = await api.request(`/clients/${client.id}`);
+
+      setEditingClient(freshClient);
+      setEditForm({
+        name: freshClient.name || '',
+        email: freshClient.email || '',
+        date_of_birth: freshClient.date_of_birth || '',
+        gender: freshClient.gender || ''
+      });
+    } catch (err) {
+      // Fallback to the passed client if fetch fails
+      console.error('Error fetching fresh client data:', err);
+      setEditingClient(client);
+      setEditForm({
+        name: client.name || '',
+        email: client.email || '',
+        date_of_birth: client.date_of_birth || '',
+        gender: client.gender || ''
+      });
+    }
 
     // Open the Edit Client Details modal
     setShowEditClientModal(true);

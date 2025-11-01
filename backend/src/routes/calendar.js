@@ -576,7 +576,7 @@ router.get('/meetings/starred', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Get all meetings marked as annual review (starred)
+    // Get all meetings with transcripts (starred meetings)
     const { data: meetings, error } = await req.supabase
       .from('meetings')
       .select(`
@@ -589,15 +589,10 @@ router.get('/meetings/starred', authenticateSupabaseUser, async (req, res) => {
         quick_summary,
         detailed_summary,
         action_points,
-        client_id,
-        client:clients (
-          id,
-          name,
-          email
-        )
+        client_id
       `)
       .eq('user_id', userId)
-      .eq('is_annual_review', true)
+      .not('transcript', 'is', null)
       .order('starttime', { ascending: false });
 
     if (error) {
@@ -615,11 +610,7 @@ router.get('/meetings/starred', authenticateSupabaseUser, async (req, res) => {
       hasTranscript: !!meeting.transcript,
       hasQuickSummary: !!meeting.quick_summary,
       hasEmailSummary: !!meeting.email_summary_draft,
-      client: meeting.client ? {
-        id: meeting.client.id,
-        name: meeting.client.name,
-        email: meeting.client.email
-      } : null
+      clientId: meeting.client_id
     }));
 
     res.json(formattedMeetings);

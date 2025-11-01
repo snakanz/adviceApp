@@ -345,20 +345,7 @@ router.get('/action-items/by-client', authenticateSupabaseUser, async (req, res)
     // Build query - use req.supabase (user-scoped) not getSupabase() (service role)
     let query = req.supabase
       .from('transcript_action_items')
-      .select(`
-        *,
-        meeting:meetings(
-          id,
-          title,
-          starttime,
-          external_id
-        ),
-        client:clients(
-          id,
-          name,
-          email
-        )
-      `)
+      .select('*')
       .eq('advisor_id', userId);
 
     // Apply priority filter if specified
@@ -382,13 +369,44 @@ router.get('/action-items/by-client', authenticateSupabaseUser, async (req, res)
       return res.status(500).json({ error: 'Failed to fetch action items' });
     }
 
+    // Fetch meetings separately to avoid relationship issues
+    const meetingIds = [...new Set(actionItems.map(item => item.meeting_id))];
+    let meetingsMap = {};
+
+    if (meetingIds.length > 0) {
+      const { data: meetings } = await req.supabase
+        .from('meetings')
+        .select('id, title, starttime, external_id')
+        .in('id', meetingIds);
+
+      if (meetings) {
+        meetingsMap = Object.fromEntries(meetings.map(m => [m.id, m]));
+      }
+    }
+
+    // Fetch clients separately to avoid relationship issues
+    const clientIds = [...new Set(actionItems.map(item => item.client_id).filter(Boolean))];
+    let clientsMap = {};
+
+    if (clientIds.length > 0) {
+      const { data: clients } = await req.supabase
+        .from('clients')
+        .select('id, name, email')
+        .in('id', clientIds);
+
+      if (clients) {
+        clientsMap = Object.fromEntries(clients.map(c => [c.id, c]));
+      }
+    }
+
     // Group by client
     const groupedByClient = {};
-    
+
     actionItems.forEach(item => {
       const clientId = item.client_id || 'no-client';
-      const clientName = item.client?.name || 'Unknown Client';
-      const clientEmail = item.client?.email || '';
+      const client = clientsMap[clientId];
+      const clientName = client?.name || 'Unknown Client';
+      const clientEmail = client?.email || '';
 
       if (!groupedByClient[clientId]) {
         groupedByClient[clientId] = {
@@ -399,6 +417,8 @@ router.get('/action-items/by-client', authenticateSupabaseUser, async (req, res)
         };
       }
 
+      const meeting = meetingsMap[item.meeting_id];
+
       groupedByClient[clientId].actionItems.push({
         id: item.id,
         actionText: item.action_text,
@@ -408,10 +428,10 @@ router.get('/action-items/by-client', authenticateSupabaseUser, async (req, res)
         priority: item.priority || 3, // Default to medium priority
         createdAt: item.created_at,
         meeting: {
-          id: item.meeting.id,
-          title: item.meeting.title,
-          startTime: item.meeting.starttime,
-          googleEventId: item.meeting.external_id
+          id: item.meeting_id,
+          title: meeting?.title || 'Unknown Meeting',
+          startTime: meeting?.starttime || null,
+          googleEventId: meeting?.external_id || null
         }
       });
     });
@@ -637,23 +657,10 @@ router.get('/pending/all', authenticateSupabaseUser, async (req, res) => {
 
     console.log(`📋 Fetching all pending action items for advisor ${userId}`);
 
-    // Fetch all pending action items with client and meeting info
+    // Fetch all pending action items
     const { data: pendingItems, error } = await req.supabase
       .from('pending_transcript_action_items')
-      .select(`
-        *,
-        meeting:meetings(
-          id,
-          title,
-          starttime,
-          external_id
-        ),
-        client:clients(
-          id,
-          name,
-          email
-        )
-      `)
+      .select('*')
       .eq('advisor_id', userId)
       .order('created_at', { ascending: false });
 
@@ -662,13 +669,44 @@ router.get('/pending/all', authenticateSupabaseUser, async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch pending action items' });
     }
 
+    // Fetch meetings separately to avoid relationship issues
+    const meetingIds = [...new Set(pendingItems.map(item => item.meeting_id))];
+    let meetingsMap = {};
+
+    if (meetingIds.length > 0) {
+      const { data: meetings } = await req.supabase
+        .from('meetings')
+        .select('id, title, starttime, external_id')
+        .in('id', meetingIds);
+
+      if (meetings) {
+        meetingsMap = Object.fromEntries(meetings.map(m => [m.id, m]));
+      }
+    }
+
+    // Fetch clients separately to avoid relationship issues
+    const clientIds = [...new Set(pendingItems.map(item => item.client_id).filter(Boolean))];
+    let clientsMap = {};
+
+    if (clientIds.length > 0) {
+      const { data: clients } = await req.supabase
+        .from('clients')
+        .select('id, name, email')
+        .in('id', clientIds);
+
+      if (clients) {
+        clientsMap = Object.fromEntries(clients.map(c => [c.id, c]));
+      }
+    }
+
     // Group by client
     const groupedByClient = {};
 
     pendingItems.forEach(item => {
       const clientId = item.client_id || 'no-client';
-      const clientName = item.client?.name || 'Unknown Client';
-      const clientEmail = item.client?.email || '';
+      const client = clientsMap[clientId];
+      const clientName = client?.name || 'Unknown Client';
+      const clientEmail = client?.email || '';
 
       if (!groupedByClient[clientId]) {
         groupedByClient[clientId] = {
@@ -680,12 +718,14 @@ router.get('/pending/all', authenticateSupabaseUser, async (req, res) => {
       }
 
       const meetingId = item.meeting_id;
+      const meeting = meetingsMap[meetingId];
+
       if (!groupedByClient[clientId].meetings[meetingId]) {
         groupedByClient[clientId].meetings[meetingId] = {
           meetingId,
-          meetingTitle: item.meeting.title,
-          meetingStartTime: item.meeting.starttime,
-          googleEventId: item.meeting.external_id,
+          meetingTitle: meeting?.title || 'Unknown Meeting',
+          meetingStartTime: meeting?.starttime || null,
+          googleEventId: meeting?.external_id || null,
           pendingItems: []
         };
       }
