@@ -118,7 +118,7 @@ export default function EditMeetingDialog({
         }
       } else {
         // For Google meetings, only update transcript
-        const response = await fetch(`${API_URL}/api/calendar/meetings/${meeting.googleeventid || meeting.id}/transcript`, {
+        const response = await fetch(`${API_URL}/api/calendar/meetings/${meeting.id}/transcript`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -811,8 +811,8 @@ export default function Meetings() {
         }
       }, 1000);
 
-      // Use googleeventid for the API call (backend expects this field)
-      const meetingIdentifier = selectedMeeting.googleeventid || selectedMeeting.id;
+      // Use numeric meeting ID for the API call
+      const meetingIdentifier = selectedMeeting.id;
       console.log('📤 Uploading transcript for meeting:', meetingIdentifier);
 
       const res = await fetch(`${API_URL}/api/calendar/meetings/${meetingIdentifier}/transcript`, {
