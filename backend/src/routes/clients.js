@@ -321,13 +321,12 @@ router.post('/update-name', authenticateSupabaseUser, async (req, res) => {
       return res.status(404).json({ error: 'Client not found' });
     }
 
-    // Update client name, date_of_birth, gender, pipeline_stage, and likely_close_month
+    // Update client name, date_of_birth, gender, and pipeline_stage
     const clientUpdateData = {
       name: name,
       date_of_birth: date_of_birth || null,
       gender: gender || null,
       pipeline_stage: pipeline_stage || null,
-      likely_close_month: likely_close_month || null,
       updated_at: new Date().toISOString()
     };
 
