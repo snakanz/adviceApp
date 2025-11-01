@@ -1,6 +1,7 @@
 const { google } = require('googleapis');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 const crypto = require('crypto');
+const clientExtractionService = require('./clientExtraction');
 
 /**
  * Google Calendar Webhook Service
@@ -322,6 +323,18 @@ class GoogleCalendarWebhookService {
       }
 
       console.log(`✅ Sync complete: ${created} created, ${updated} updated, ${deleted} deleted`);
+
+      // After syncing meetings, extract and associate clients
+      if (created > 0 || updated > 0) {
+        try {
+          console.log('🔄 Starting client extraction for Google Calendar meetings...');
+          const extractionResult = await clientExtractionService.linkMeetingsToClients(userId);
+          console.log('✅ Client extraction completed for Google Calendar meetings:', extractionResult);
+        } catch (error) {
+          console.error('❌ Error extracting clients from Google Calendar meetings:', error);
+          // Don't fail the whole sync if client extraction fails
+        }
+      }
 
       // Update last_sync_at timestamp
       try {
