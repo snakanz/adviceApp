@@ -706,7 +706,8 @@ export default function Meetings() {
   const autoGenerateSummaries = async (meetingId, forceRegenerate = false) => {
     setAutoGenerating(true);
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/calendar/meetings/${meetingId}/auto-generate-summaries`, {
         method: 'POST',
         headers: {
@@ -800,7 +801,8 @@ export default function Meetings() {
     setGeneratingAISummaries(false);
 
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
 
       // Show generating summaries state after a brief delay
       setTimeout(() => {
@@ -908,7 +910,8 @@ export default function Meetings() {
 
     setDeletingTranscript(true);
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const res = await fetch(`${API_URL}/api/calendar/meetings/${selectedMeeting.id}/transcript`, {
         method: 'DELETE',
         headers: {
@@ -987,7 +990,8 @@ export default function Meetings() {
 
       // Save the new template version to database
       try {
-        const token = localStorage.getItem('jwt');
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
         const templateId = selectedTemplate?.id || 'auto-template';
         await fetch(`${API_URL}/api/calendar/meetings/${selectedMeeting.id}/update-summary`, {
           method: 'POST',
@@ -1020,7 +1024,8 @@ export default function Meetings() {
   // New function to generate summary with custom template
   const generateAISummaryWithTemplate = async (transcript, prompt) => {
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/calendar/generate-summary`, {
         method: 'POST',
         headers: {
@@ -1052,7 +1057,8 @@ export default function Meetings() {
   // Toggle annual review flag for a meeting
   const toggleAnnualReview = async (meetingId, currentValue) => {
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const newValue = !currentValue;
 
       const response = await fetch(`${API_URL}/api/calendar/meetings/${meetingId}/annual-review`, {
@@ -1162,7 +1168,8 @@ export default function Meetings() {
   // Update priority of a pending action item
   const updatePendingItemPriority = async (itemId, priority) => {
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/transcript-action-items/pending/${itemId}/priority`, {
         method: 'PATCH',
         headers: {
@@ -1210,7 +1217,8 @@ export default function Meetings() {
 
     try {
       setSavingPendingEdit(true);
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/transcript-action-items/pending/${itemId}/text`, {
         method: 'PATCH',
         headers: {
@@ -1274,7 +1282,8 @@ export default function Meetings() {
 
     try {
       setSavingNewPendingItem(true);
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/transcript-action-items/pending`, {
         method: 'POST',
         headers: {
@@ -1322,7 +1331,13 @@ export default function Meetings() {
     }
 
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error('No authentication token available');
+      }
+
       const response = await fetch(`${API_URL}/api/transcript-action-items/approve`, {
         method: 'POST',
         headers: {
@@ -1365,7 +1380,13 @@ export default function Meetings() {
     }
 
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error('No authentication token available');
+      }
+
       const response = await fetch(`${API_URL}/api/transcript-action-items/pending`, {
         method: 'DELETE',
         headers: {
@@ -1420,7 +1441,8 @@ export default function Meetings() {
   // Toggle action item completion
   const toggleActionItem = async (actionItemId) => {
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/transcript-action-items/action-items/${actionItemId}/toggle`, {
         method: 'PATCH',
         headers: {
