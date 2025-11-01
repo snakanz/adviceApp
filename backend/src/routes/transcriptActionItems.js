@@ -351,7 +351,7 @@ router.get('/action-items/by-client', authenticateSupabaseUser, async (req, res)
           id,
           title,
           starttime,
-          googleeventid
+          external_id
         ),
         client:clients(
           id,
@@ -411,7 +411,7 @@ router.get('/action-items/by-client', authenticateSupabaseUser, async (req, res)
           id: item.meeting.id,
           title: item.meeting.title,
           startTime: item.meeting.starttime,
-          googleEventId: item.meeting.googleeventid
+          googleEventId: item.meeting.external_id
         }
       });
     });
@@ -465,7 +465,7 @@ router.get('/action-items/all', authenticateSupabaseUser, async (req, res) => {
           id,
           title,
           starttime,
-          googleeventid
+          external_id
         ),
         client:clients(
           id,
@@ -510,7 +510,7 @@ router.get('/action-items/all', authenticateSupabaseUser, async (req, res) => {
         id: item.meeting.id,
         title: item.meeting.title,
         startTime: item.meeting.starttime,
-        googleEventId: item.meeting.googleeventid
+        googleEventId: item.meeting.external_id
       },
       client: item.client ? {
         id: item.client.id,
@@ -545,7 +545,7 @@ router.get('/clients/:clientId/action-items', authenticateSupabaseUser, async (r
           id,
           title,
           starttime,
-          googleeventid
+          external_id
         )
       `)
       .eq('client_id', clientId)
@@ -569,7 +569,7 @@ router.get('/clients/:clientId/action-items', authenticateSupabaseUser, async (r
           meetingId,
           meetingTitle: item.meeting.title,
           meetingStartTime: item.meeting.starttime,
-          googleEventId: item.meeting.googleeventid,
+          googleEventId: item.meeting.external_id,
           actionItems: []
         };
       }
@@ -646,7 +646,7 @@ router.get('/pending/all', authenticateSupabaseUser, async (req, res) => {
           id,
           title,
           starttime,
-          googleeventid
+          external_id
         ),
         client:clients(
           id,
@@ -685,7 +685,7 @@ router.get('/pending/all', authenticateSupabaseUser, async (req, res) => {
           meetingId,
           meetingTitle: item.meeting.title,
           meetingStartTime: item.meeting.starttime,
-          googleEventId: item.meeting.googleeventid,
+          googleEventId: item.meeting.external_id,
           pendingItems: []
         };
       }

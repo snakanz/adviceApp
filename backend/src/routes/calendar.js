@@ -608,17 +608,17 @@ router.get('/meetings/starred', authenticateSupabaseUser, async (req, res) => {
     // Format the response
     const formattedMeetings = (meetings || []).map(meeting => ({
       id: meeting.id,
-      googleEventId: meeting.googleeventid,
+      googleEventId: meeting.external_id,
       title: meeting.title,
       startTime: meeting.starttime,
       endTime: meeting.endtime,
       hasTranscript: !!meeting.transcript,
       hasQuickSummary: !!meeting.quick_summary,
       hasEmailSummary: !!meeting.email_summary_draft,
-      client: meeting.clients ? {
-        id: meeting.clients.id,
-        name: meeting.clients.name,
-        email: meeting.clients.email
+      client: meeting.client ? {
+        id: meeting.client.id,
+        name: meeting.client.name,
+        email: meeting.client.email
       } : null
     }));
 
