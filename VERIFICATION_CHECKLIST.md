@@ -1,5 +1,26 @@
 # ✅ Verification Checklist
 
+## 🔴 CRITICAL FIXES APPLIED (Nov 1, 2025)
+**Commit**: `61b1bb7` - Deployed to main branch
+
+### Bugs Fixed:
+1. ✅ **401 Unauthorized** on `/api/transcript-action-items/pending/all`
+   - Fixed: Use Supabase session token instead of localStorage JWT
+
+2. ✅ **500 Error** on `/api/transcript-action-items/action-items/by-client`
+   - Fixed: Use req.supabase (user-scoped) instead of getSupabase() (service role)
+
+3. ✅ **500 Error** on `/api/calendar/meetings/starred`
+   - Fixed: Correct relationship name from 'clients' to 'client:clients'
+
+### What This Fixes:
+- ✅ Clients with email `snaka1003@gmail.com` will now display
+- ✅ Action items will display grouped by client
+- ✅ Pending approval items will load without 401 errors
+- ✅ Starred meetings will load without 500 errors
+
+---
+
 ## Deployment Verification
 
 ### Backend (Render)
