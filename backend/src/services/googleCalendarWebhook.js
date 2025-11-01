@@ -439,6 +439,7 @@ class GoogleCalendarWebhookService {
       endtime: endTime,
       location: event.location || null,
       description: event.description || null,
+      attendees: JSON.stringify(event.attendees || []),
       meeting_source: 'google',
       is_deleted: false,
       created_at: new Date().toISOString(),
