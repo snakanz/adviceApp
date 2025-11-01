@@ -187,26 +187,14 @@ router.post('/action-items/assign-priorities', authenticateSupabaseUser, async (
     }
 
     // Fetch action items to prioritize - use req.supabase (user-scoped) not getSupabase() (service role)
-    const query = req.supabase
+    let query = req.supabase
       .from('transcript_action_items')
-      .select(`
-        *,
-        meeting:meetings(
-          id,
-          title,
-          starttime,
-          transcript
-        ),
-        client:clients(
-          id,
-          name
-        )
-      `)
+      .select('*')
       .eq('advisor_id', userId);
 
     // If specific IDs provided, filter by them
     if (actionItemIds && Array.isArray(actionItemIds) && actionItemIds.length > 0) {
-      query.in('id', actionItemIds);
+      query = query.in('id', actionItemIds);
     }
 
     const { data: actionItems, error: fetchError } = await query;
@@ -220,6 +208,36 @@ router.post('/action-items/assign-priorities', authenticateSupabaseUser, async (
       return res.json({ message: 'No action items to prioritize', updatedCount: 0 });
     }
 
+    // Fetch meetings separately to avoid relationship issues
+    const meetingIds = [...new Set(actionItems.map(item => item.meeting_id))];
+    let meetingsMap = {};
+
+    if (meetingIds.length > 0) {
+      const { data: meetings } = await req.supabase
+        .from('meetings')
+        .select('id, title, starttime, transcript')
+        .in('id', meetingIds);
+
+      if (meetings) {
+        meetingsMap = Object.fromEntries(meetings.map(m => [m.id, m]));
+      }
+    }
+
+    // Fetch clients separately to avoid relationship issues
+    const clientIds = [...new Set(actionItems.map(item => item.client_id).filter(Boolean))];
+    let clientsMap = {};
+
+    if (clientIds.length > 0) {
+      const { data: clients } = await req.supabase
+        .from('clients')
+        .select('id, name')
+        .in('id', clientIds);
+
+      if (clients) {
+        clientsMap = Object.fromEntries(clients.map(c => [c.id, c]));
+      }
+    }
+
     console.log(`🤖 Assigning priorities to ${actionItems.length} action items using AI...`);
 
     // Initialize OpenAI
@@ -228,13 +246,18 @@ router.post('/action-items/assign-priorities', authenticateSupabaseUser, async (
     });
 
     // Prepare action items for AI analysis
-    const itemsForAnalysis = actionItems.map(item => ({
-      id: item.id,
-      text: item.action_text,
-      meetingTitle: item.meeting?.title || 'Unknown Meeting',
-      meetingDate: item.meeting?.starttime || null,
-      clientName: item.client?.name || 'Unknown Client'
-    }));
+    const itemsForAnalysis = actionItems.map(item => {
+      const meeting = meetingsMap[item.meeting_id];
+      const client = clientsMap[item.client_id];
+
+      return {
+        id: item.id,
+        text: item.action_text,
+        meetingTitle: meeting?.title || 'Unknown Meeting',
+        meetingDate: meeting?.starttime || null,
+        clientName: client?.name || 'Unknown Client'
+      };
+    });
 
     // Call OpenAI to analyze and assign priorities
     const prompt = `You are an AI assistant helping a financial advisor prioritize action items.
@@ -479,20 +502,7 @@ router.get('/action-items/all', authenticateSupabaseUser, async (req, res) => {
     // Build query - use req.supabase (user-scoped) not getSupabase() (service role)
     let query = req.supabase
       .from('transcript_action_items')
-      .select(`
-        *,
-        meeting:meetings(
-          id,
-          title,
-          starttime,
-          external_id
-        ),
-        client:clients(
-          id,
-          name,
-          email
-        )
-      `)
+      .select('*')
       .eq('advisor_id', userId);
 
     // Apply priority filter if specified
@@ -517,27 +527,62 @@ router.get('/action-items/all', authenticateSupabaseUser, async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch action items' });
     }
 
+    // Fetch meetings separately to avoid relationship issues
+    const meetingIds = [...new Set(actionItems.map(item => item.meeting_id))];
+    let meetingsMap = {};
+
+    if (meetingIds.length > 0) {
+      const { data: meetings } = await req.supabase
+        .from('meetings')
+        .select('id, title, starttime, external_id')
+        .in('id', meetingIds);
+
+      if (meetings) {
+        meetingsMap = Object.fromEntries(meetings.map(m => [m.id, m]));
+      }
+    }
+
+    // Fetch clients separately to avoid relationship issues
+    const clientIds = [...new Set(actionItems.map(item => item.client_id).filter(Boolean))];
+    let clientsMap = {};
+
+    if (clientIds.length > 0) {
+      const { data: clients } = await req.supabase
+        .from('clients')
+        .select('id, name, email')
+        .in('id', clientIds);
+
+      if (clients) {
+        clientsMap = Object.fromEntries(clients.map(c => [c.id, c]));
+      }
+    }
+
     // Format response
-    const formattedItems = actionItems.map(item => ({
-      id: item.id,
-      actionText: item.action_text,
-      completed: item.completed,
-      completedAt: item.completed_at,
-      displayOrder: item.display_order,
-      priority: item.priority || 3,
-      createdAt: item.created_at,
-      meeting: {
-        id: item.meeting.id,
-        title: item.meeting.title,
-        startTime: item.meeting.starttime,
-        googleEventId: item.meeting.external_id
-      },
-      client: item.client ? {
-        id: item.client.id,
-        name: item.client.name,
-        email: item.client.email
-      } : null
-    }));
+    const formattedItems = actionItems.map(item => {
+      const meeting = meetingsMap[item.meeting_id];
+      const client = clientsMap[item.client_id];
+
+      return {
+        id: item.id,
+        actionText: item.action_text,
+        completed: item.completed,
+        completedAt: item.completed_at,
+        displayOrder: item.display_order,
+        priority: item.priority || 3,
+        createdAt: item.created_at,
+        meeting: {
+          id: item.meeting_id,
+          title: meeting?.title || 'Unknown Meeting',
+          startTime: meeting?.starttime || null,
+          googleEventId: meeting?.external_id || null
+        },
+        client: client ? {
+          id: client.id,
+          name: client.name,
+          email: client.email
+        } : null
+      };
+    });
 
     res.json({ actionItems: formattedItems });
   } catch (error) {
@@ -559,15 +604,7 @@ router.get('/clients/:clientId/action-items', authenticateSupabaseUser, async (r
     // Fetch action items for the client
     const { data: actionItems, error } = await req.supabase
       .from('transcript_action_items')
-      .select(`
-        *,
-        meeting:meetings(
-          id,
-          title,
-          starttime,
-          external_id
-        )
-      `)
+      .select('*')
       .eq('client_id', clientId)
       .eq('advisor_id', userId)
       .order('completed', { ascending: true })
@@ -578,18 +615,34 @@ router.get('/clients/:clientId/action-items', authenticateSupabaseUser, async (r
       return res.status(500).json({ error: 'Failed to fetch action items' });
     }
 
+    // Fetch meetings separately to avoid relationship issues
+    const meetingIds = [...new Set(actionItems.map(item => item.meeting_id))];
+    let meetingsMap = {};
+
+    if (meetingIds.length > 0) {
+      const { data: meetings } = await req.supabase
+        .from('meetings')
+        .select('id, title, starttime, external_id')
+        .in('id', meetingIds);
+
+      if (meetings) {
+        meetingsMap = Object.fromEntries(meetings.map(m => [m.id, m]));
+      }
+    }
+
     // Group by meeting
     const groupedByMeeting = {};
-    
+
     actionItems.forEach(item => {
       const meetingId = item.meeting_id;
-      
+      const meeting = meetingsMap[meetingId];
+
       if (!groupedByMeeting[meetingId]) {
         groupedByMeeting[meetingId] = {
           meetingId,
-          meetingTitle: item.meeting.title,
-          meetingStartTime: item.meeting.starttime,
-          googleEventId: item.meeting.external_id,
+          meetingTitle: meeting?.title || 'Unknown Meeting',
+          meetingStartTime: meeting?.starttime || null,
+          googleEventId: meeting?.external_id || null,
           actionItems: []
         };
       }
