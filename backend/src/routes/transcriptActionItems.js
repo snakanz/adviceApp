@@ -191,7 +191,7 @@ router.post('/action-items/assign-priorities', authenticateSupabaseUser, async (
       .from('transcript_action_items')
       .select(`
         *,
-        meeting:meetings!inner(
+        meeting:meetings(
           id,
           title,
           starttime,
@@ -347,7 +347,7 @@ router.get('/action-items/by-client', authenticateSupabaseUser, async (req, res)
       .from('transcript_action_items')
       .select(`
         *,
-        meeting:meetings!inner(
+        meeting:meetings(
           id,
           title,
           starttime,
@@ -461,7 +461,7 @@ router.get('/action-items/all', authenticateSupabaseUser, async (req, res) => {
       .from('transcript_action_items')
       .select(`
         *,
-        meeting:meetings!inner(
+        meeting:meetings(
           id,
           title,
           starttime,
@@ -541,7 +541,7 @@ router.get('/clients/:clientId/action-items', authenticateSupabaseUser, async (r
       .from('transcript_action_items')
       .select(`
         *,
-        meeting:meetings!inner(
+        meeting:meetings(
           id,
           title,
           starttime,
@@ -642,7 +642,7 @@ router.get('/pending/all', authenticateSupabaseUser, async (req, res) => {
       .from('pending_transcript_action_items')
       .select(`
         *,
-        meeting:meetings!inner(
+        meeting:meetings(
           id,
           title,
           starttime,

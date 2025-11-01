@@ -1594,6 +1594,7 @@ router.get('/meetings/starred', authenticateSupabaseUser, async (req, res) => {
         )
       `)
       .eq('user_id', userId)
+      .eq('is_annual_review', true)
       .order('starttime', { ascending: false });
 
     if (error) {

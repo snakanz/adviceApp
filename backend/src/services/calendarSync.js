@@ -104,7 +104,8 @@ class CalendarSyncService {
         maxResults: 2500, // Increased for comprehensive sync
         singleEvents: true,
         orderBy: 'startTime',
-        showDeleted: includeDeleted // This is key for deletion detection
+        showDeleted: includeDeleted, // This is key for deletion detection
+        fields: 'items(id,summary,start,end,location,description,attendees,status)' // Request attendees data
       });
 
       const calendarEvents = response.data.items || [];

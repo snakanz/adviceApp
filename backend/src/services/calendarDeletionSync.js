@@ -94,7 +94,8 @@ class CalendarDeletionSync {
         maxResults: 1000,
         singleEvents: true,
         orderBy: 'startTime',
-        showDeleted: true // This is the key for deletion detection
+        showDeleted: true, // This is the key for deletion detection
+        fields: 'items(id,summary,start,end,location,description,attendees,status)' // Request attendees data
       });
 
       const calendarEvents = response.data.items || [];

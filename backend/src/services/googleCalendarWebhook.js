@@ -255,7 +255,8 @@ class GoogleCalendarWebhookService {
         maxResults: 500,
         singleEvents: true,
         orderBy: 'startTime',
-        showDeleted: true // Important: detect deleted events
+        showDeleted: true, // Important: detect deleted events
+        fields: 'items(id,summary,start,end,location,description,attendees,status)' // Request attendees data
       });
 
       const events = response.data.items || [];
