@@ -186,7 +186,8 @@ export default function ActionItems() {
   const fetchPendingApprovalItems = async () => {
     try {
       setLoadingPendingApproval(true);
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/transcript-action-items/pending/all`, {
         headers: {
           'Authorization': `Bearer ${token}`,

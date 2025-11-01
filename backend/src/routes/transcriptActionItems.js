@@ -186,8 +186,8 @@ router.post('/action-items/assign-priorities', authenticateSupabaseUser, async (
       return res.status(503).json({ error: 'OpenAI API key not configured' });
     }
 
-    // Fetch action items to prioritize
-    const query = getSupabase()
+    // Fetch action items to prioritize - use req.supabase (user-scoped) not getSupabase() (service role)
+    const query = req.supabase
       .from('transcript_action_items')
       .select(`
         *,
@@ -342,8 +342,8 @@ router.get('/action-items/by-client', authenticateSupabaseUser, async (req, res)
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
-    // Build query
-    let query = getSupabase()
+    // Build query - use req.supabase (user-scoped) not getSupabase() (service role)
+    let query = req.supabase
       .from('transcript_action_items')
       .select(`
         *,
@@ -456,8 +456,8 @@ router.get('/action-items/all', authenticateSupabaseUser, async (req, res) => {
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
-    // Build query
-    let query = getSupabase()
+    // Build query - use req.supabase (user-scoped) not getSupabase() (service role)
+    let query = req.supabase
       .from('transcript_action_items')
       .select(`
         *,

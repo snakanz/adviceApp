@@ -1587,7 +1587,7 @@ router.get('/meetings/starred', authenticateSupabaseUser, async (req, res) => {
         detailed_summary,
         action_points,
         client_id,
-        clients (
+        client:clients (
           id,
           name,
           email
