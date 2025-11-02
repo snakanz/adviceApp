@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { Button } from './components/ui/button';
 import { Avatar, AvatarFallback } from './components/ui/avatar';
 import ConnectedIntegrations from './components/ConnectedIntegrations';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
 } from './components/ui/dropdown-menu';
+import { getSupabase, isSupabaseAvailable } from './lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { cn } from './lib/utils';
 import {
@@ -43,7 +44,33 @@ const analyticsNav = [
 
 export default function Layout() {
   const [open, setOpen] = useState(false);
+  const [calendarConnection, setCalendarConnection] = useState(null);
   const { logout, user } = useAuth();
+
+  // Fetch active calendar connection for transcription status
+  useEffect(() => {
+    const fetchCalendarConnection = async () => {
+      if (!user?.id || !isSupabaseAvailable()) return;
+
+      try {
+        const supabase = getSupabase();
+        const { data, error } = await supabase
+          .from('calendar_connections')
+          .select('id, provider, provider_account_email, transcription_enabled, is_active')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .single();
+
+        if (data) {
+          setCalendarConnection(data);
+        }
+      } catch (err) {
+        console.error('Error fetching calendar connection:', err);
+      }
+    };
+
+    fetchCalendarConnection();
+  }, [user?.id]);
 
   const handleLogout = () => {
     logout();
@@ -70,9 +97,26 @@ export default function Layout() {
               <MenuIcon />
             </Button>
           </div>
-          
+
           <div className="flex-1" />
-          
+
+          {/* Transcription Status Indicator */}
+          {calendarConnection && (
+            <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 mr-4">
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${calendarConnection.transcription_enabled ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <div className="flex flex-col items-start">
+                  <span className="text-xs font-medium text-blue-900">
+                    {calendarConnection.transcription_enabled ? '🟢 Transcription ON' : '🔴 Transcription OFF'}
+                  </span>
+                  <span className="text-xs text-blue-700">
+                    {calendarConnection.provider_account_email}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* User Profile Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

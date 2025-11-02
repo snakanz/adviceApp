@@ -2166,6 +2166,72 @@ router.post('/meetings/:meetingId/link-client', authenticateSupabaseUser, async 
   }
 });
 
+// Toggle Recall bot for a specific meeting
+router.patch('/meetings/:meetingId/toggle-bot', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { meetingId } = req.params;
+    const { skip_transcription_for_meeting } = req.body;
+
+    if (typeof skip_transcription_for_meeting !== 'boolean') {
+      return res.status(400).json({
+        error: 'skip_transcription_for_meeting must be a boolean'
+      });
+    }
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable'
+      });
+    }
+
+    // Verify the meeting belongs to this user
+    const { data: meeting, error: fetchError } = await req.supabase
+      .from('meetings')
+      .select('id, user_id')
+      .eq('id', meetingId)
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError || !meeting) {
+      return res.status(404).json({
+        error: 'Meeting not found'
+      });
+    }
+
+    // Update skip_transcription_for_meeting
+    const { data, error } = await req.supabase
+      .from('meetings')
+      .update({
+        skip_transcription_for_meeting,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', meetingId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.error('Error toggling bot:', error);
+      return res.status(500).json({
+        error: 'Failed to toggle bot'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: skip_transcription_for_meeting ? 'Bot disabled for this meeting' : 'Bot enabled for this meeting',
+      meeting: data
+    });
+  } catch (error) {
+    console.error('Error toggling bot:', error);
+    res.status(500).json({
+      error: 'Internal server error',
+      details: error.message
+    });
+  }
+});
+
 // Debug route to confirm calendar.js is loaded
 router.get('/debug-alive', (req, res) => {
   res.json({ status: 'calendar routes alive' });

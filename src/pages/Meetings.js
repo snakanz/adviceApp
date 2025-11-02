@@ -37,6 +37,8 @@ import { useAuth } from '../context/AuthContext';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
 import DocumentsTab from '../components/DocumentsTab';
+import { getRecallBotStatus, getStatusColor, getStatusIcon } from '../utils/recallBotStatus';
+import { getSupabase, isSupabaseAvailable } from '../lib/supabase';
 import CreateMeetingDialog from '../components/CreateMeetingDialog';
 import EditMeetingDialog from '../components/EditMeetingDialog';
 import LinkClientDialog from '../components/LinkClientDialog';
@@ -276,6 +278,9 @@ export default function Meetings() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [meetingView, setMeetingView] = useState('past');
+  const [calendarConnection, setCalendarConnection] = useState(null);
+  const [botStatus, setBotStatus] = useState(null);
+  const [togglingBot, setTogglingBot] = useState(false);
   const [viewMode, setViewMode] = useState('calendar'); // 'calendar' or 'list'
   const [editingMeeting, setEditingMeeting] = useState(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -638,6 +643,42 @@ export default function Meetings() {
       }
     }
   }, [meetings, searchParams, navigate, setSelectedMeetingId, setActiveTab, setQuickSummary, setEmailSummary, setSummaryContent]);
+
+  // Fetch calendar connection for bot status
+  useEffect(() => {
+    const fetchCalendarConnection = async () => {
+      if (!user?.id || !isSupabaseAvailable()) return;
+
+      try {
+        const supabase = getSupabase();
+        const { data, error } = await supabase
+          .from('calendar_connections')
+          .select('id, provider, provider_account_email, transcription_enabled, is_active')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .single();
+
+        if (data) {
+          setCalendarConnection(data);
+        }
+      } catch (err) {
+        console.error('Error fetching calendar connection:', err);
+      }
+    };
+
+    fetchCalendarConnection();
+  }, [user?.id]);
+
+  // Update bot status when meeting is selected
+  useEffect(() => {
+    if (selectedMeetingId && calendarConnection) {
+      const selectedMeeting = [...meetings.past, ...meetings.future].find(m => m.id === selectedMeetingId);
+      if (selectedMeeting) {
+        const status = getRecallBotStatus(selectedMeeting, calendarConnection);
+        setBotStatus(status);
+      }
+    }
+  }, [selectedMeetingId, calendarConnection, meetings]);
 
   const handleMeetingSelect = async (meeting) => {
     console.log('Meeting selected:', meeting); // Debug log
@@ -1220,6 +1261,55 @@ export default function Meetings() {
     setAddingPendingItem(false);
     setNewPendingItemText('');
     setNewPendingItemPriority(3);
+  };
+
+  // Toggle Recall bot for this specific meeting
+  const handleToggleBotForMeeting = async () => {
+    if (!selectedMeetingId || !selectedMeeting) return;
+
+    try {
+      setTogglingBot(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const newSkipValue = !selectedMeeting.skip_transcription_for_meeting;
+
+      const response = await fetch(`${API_URL}/api/meetings/${selectedMeetingId}/toggle-bot`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ skip_transcription_for_meeting: newSkipValue })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle bot');
+      }
+
+      // Update local state
+      const updatedMeeting = { ...selectedMeeting, skip_transcription_for_meeting: newSkipValue };
+      setMeetings(prev => ({
+        ...prev,
+        past: prev.past.map(m => m.id === selectedMeetingId ? updatedMeeting : m),
+        future: prev.future.map(m => m.id === selectedMeetingId ? updatedMeeting : m)
+      }));
+
+      // Update bot status
+      const newStatus = getRecallBotStatus(updatedMeeting, calendarConnection);
+      setBotStatus(newStatus);
+
+      setShowSnackbar(true);
+      setSnackbarMessage(newSkipValue ? 'Bot disabled for this meeting' : 'Bot enabled for this meeting');
+      setSnackbarSeverity('success');
+    } catch (error) {
+      console.error('Error toggling bot:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to toggle bot');
+      setSnackbarSeverity('error');
+    } finally {
+      setTogglingBot(false);
+    }
   };
 
   const saveNewPendingItem = async () => {
@@ -2330,6 +2420,38 @@ export default function Meetings() {
           {/* Meeting Content - Scrollable */}
           <div className="flex-1 overflow-y-auto">
             <div className="p-6 space-y-6">
+              {/* Recall Bot Status Indicator */}
+              {botStatus && (
+                <div className={`p-4 rounded-lg border-2 ${getStatusColor(botStatus.status)}`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-lg">{getStatusIcon(botStatus.willJoin)}</span>
+                        <h3 className="font-semibold text-sm">
+                          {botStatus.willJoin ? 'Advicly Bot WILL join this meeting' : 'Advicly Bot WILL NOT join this meeting'}
+                        </h3>
+                      </div>
+                      <p className="text-xs opacity-90">
+                        {botStatus.reason}
+                      </p>
+                    </div>
+                    {botStatus.willJoin && (
+                      <div className="flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleToggleBotForMeeting}
+                          disabled={togglingBot}
+                          className="text-xs h-8"
+                        >
+                          {togglingBot ? 'Updating...' : 'Disable bot'}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Tabs */}
               <div className="flex border-b border-border/50 mb-4">
                 <button
