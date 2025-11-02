@@ -649,7 +649,7 @@ export default function Meetings() {
       if (!user?.id) return;
 
       try {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('calendar_connections')
           .select('id, provider, provider_account_email, transcription_enabled, is_active')
           .eq('user_id', user.id)
