@@ -83,8 +83,8 @@ export default function Layout() {
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          // Update when transcription_enabled changes
-          if (payload.new?.is_active) {
+          // Update on ANY change to the connection (transcription_enabled, is_active, etc.)
+          if (payload.new) {
             setCalendarConnection(payload.new);
           }
         }

@@ -679,8 +679,8 @@ export default function Meetings() {
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          // Update when transcription_enabled changes
-          if (payload.new?.is_active) {
+          // Update on ANY change to the connection (transcription_enabled, is_active, etc.)
+          if (payload.new) {
             setCalendarConnection(payload.new);
           }
         }
@@ -691,6 +691,36 @@ export default function Meetings() {
       subscription.unsubscribe();
     };
   }, [user?.id]);
+
+  // Subscribe to real-time updates on meetings table for bot status changes
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const meetingsSubscription = supabase
+      .channel(`meetings:user_id=eq.${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'meetings',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          // When a meeting is updated (e.g., bot joins, transcript generated)
+          if (payload.new) {
+            console.log('🔄 Meeting updated via real-time:', payload.new.id, payload.new.recall_bot_id);
+            // Refresh meetings to get updated data
+            fetchMeetings();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      meetingsSubscription.unsubscribe();
+    };
+  }, [user?.id, fetchMeetings]);
 
   // Update bot status when meeting is selected
   useEffect(() => {

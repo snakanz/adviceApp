@@ -570,6 +570,10 @@ app.get('/api/dev/meetings', async (req, res) => {
         action_points,
         meeting_source,
         client_id,
+        recall_bot_id,
+        recall_status,
+        recall_recording_id,
+        skip_transcription_for_meeting,
         clients(id, name, email)
       `)
       .eq('user_id', userId)
