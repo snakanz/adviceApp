@@ -26,7 +26,6 @@ import {
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
-  Star,
   X,
   Edit2,
   Plus,

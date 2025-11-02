@@ -11,7 +11,6 @@ import {
   User,
   ChevronDown,
   ChevronUp,
-  Star,
   FileText,
   Check,
   X,
@@ -44,7 +43,7 @@ export default function ActionItems() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [activeTab, setActiveTab] = useState('action-items'); // 'action-items', 'pending-approval', or 'review-meetings'
+  const [activeTab, setActiveTab] = useState('action-items'); // 'action-items' or 'pending-approval'
   const [filter, setFilter] = useState('all'); // 'all', 'pending', 'completed'
   const [expandedClients, setExpandedClients] = useState(new Set());
   const navigate = useNavigate();
@@ -157,8 +156,6 @@ export default function ActionItems() {
       setLoading(false);
     }
   };
-
-
 
   const fetchPendingApprovalItems = async () => {
     try {
@@ -713,7 +710,6 @@ export default function ActionItems() {
               </Badge>
             )}
           </Button>
-
         </div>
 
         {/* Statistics - Only show for Action Items tab */}
@@ -1342,7 +1338,7 @@ export default function ActionItems() {
                   </div>
                 )}
               </>
-            ) : activeTab === 'action-items' ? (
+            ) : (
               // All Items View
               <>
                 {allActionItems.length === 0 ? (
@@ -1482,6 +1478,7 @@ export default function ActionItems() {
                   </div>
                 )}
               </>
+            )}
           </>
         ) : null}
       </div>
