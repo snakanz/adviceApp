@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const CalendlyService = require('./calendlyService');
+const GoogleCalendarWebhook = require('./googleCalendarWebhook');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 
 /**
@@ -9,6 +10,7 @@ const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 class SyncScheduler {
   constructor() {
     this.calendlyService = new CalendlyService();
+    this.googleCalendarWebhook = new GoogleCalendarWebhook();
     this.isRunning = false;
     this.scheduledTasks = [];
   }
@@ -38,9 +40,22 @@ class SyncScheduler {
       schedule: 'Every 15 minutes'
     });
 
+    // Schedule Google Calendar webhook renewal every day at 2 AM
+    // 0 2 * * * = every day at 2:00 AM
+    const webhookRenewalTask = cron.schedule('0 2 * * *', async () => {
+      await this.renewGoogleCalendarWebhooksForAllUsers();
+    });
+
+    this.scheduledTasks.push({
+      name: 'Google Calendar Webhook Renewal',
+      task: webhookRenewalTask,
+      schedule: 'Every day at 2:00 AM'
+    });
+
     this.isRunning = true;
     console.log('✅ Sync scheduler started successfully');
     console.log('📅 Calendly sync will run every 15 minutes');
+    console.log('📡 Google Calendar webhooks will renew daily at 2:00 AM');
   }
 
   /**
@@ -131,11 +146,77 @@ class SyncScheduler {
   }
 
   /**
+   * Renew Google Calendar webhooks for all users
+   * Prevents webhook expiration (7-day limit)
+   */
+  async renewGoogleCalendarWebhooksForAllUsers() {
+    try {
+      console.log('\n📡 [Webhook Renewal] Starting Google Calendar webhook renewal...');
+
+      if (!isSupabaseAvailable()) {
+        console.log('❌ [Webhook Renewal] Database unavailable, skipping renewal');
+        return;
+      }
+
+      // Get all users with active Google Calendar connections
+      const { data: connections, error } = await getSupabase()
+        .from('calendar_connections')
+        .select('user_id')
+        .eq('provider', 'google')
+        .eq('is_active', true);
+
+      if (error) {
+        console.error('❌ [Webhook Renewal] Error fetching connections:', error);
+        return;
+      }
+
+      if (!connections || connections.length === 0) {
+        console.log('⚠️  [Webhook Renewal] No active Google Calendar connections found');
+        return;
+      }
+
+      console.log(`📊 [Webhook Renewal] Found ${connections.length} active Google Calendar connection(s)`);
+
+      // Renew webhook for each user
+      let renewed = 0;
+      let failed = 0;
+
+      for (const connection of connections) {
+        try {
+          console.log(`  🔄 Renewing webhook for user ${connection.user_id}...`);
+
+          await this.googleCalendarWebhook.setupCalendarWatch(connection.user_id);
+
+          renewed++;
+          console.log(`  ✅ Webhook renewed for user ${connection.user_id}`);
+        } catch (userError) {
+          console.error(`  ❌ Error renewing webhook for user ${connection.user_id}:`, userError.message);
+          failed++;
+        }
+      }
+
+      console.log(`\n✅ [Webhook Renewal] Completed: ${renewed} renewed, ${failed} failed`);
+      console.log(`⏰ Next renewal in 24 hours\n`);
+
+    } catch (error) {
+      console.error('❌ [Webhook Renewal] Fatal error:', error);
+    }
+  }
+
+  /**
    * Manually trigger a sync (for testing or immediate sync needs)
    */
   async triggerManualSync() {
     console.log('🔄 Manual sync triggered...');
     await this.syncCalendlyForAllUsers();
+  }
+
+  /**
+   * Manually trigger webhook renewal (for testing or immediate renewal needs)
+   */
+  async triggerManualWebhookRenewal() {
+    console.log('📡 Manual webhook renewal triggered...');
+    await this.renewGoogleCalendarWebhooksForAllUsers();
   }
 
   /**
