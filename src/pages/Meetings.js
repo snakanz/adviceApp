@@ -1327,7 +1327,7 @@ export default function Meetings() {
 
       const newSkipValue = !selectedMeeting.skip_transcription_for_meeting;
 
-      const response = await fetch(`${API_URL}/api/meetings/${selectedMeetingId}/toggle-bot`, {
+      const response = await fetch(`${API_URL}/api/calendar/meetings/${selectedMeetingId}/toggle-bot`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -2481,14 +2481,16 @@ export default function Meetings() {
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-lg">{getStatusIcon(botStatus.willJoin)}</span>
                         <h3 className="font-semibold text-sm">
-                          {botStatus.willJoin ? 'Advicly Bot WILL join this meeting' : 'Advicly Bot WILL NOT join this meeting'}
+                          {botStatus.reason}
                         </h3>
                       </div>
-                      <p className="text-xs opacity-90">
-                        {botStatus.reason}
-                      </p>
+                      {!botStatus.willJoin && botStatus.status === 'error' && (
+                        <p className="text-xs opacity-90">
+                          💡 Hint: {botStatus.reason}
+                        </p>
+                      )}
                     </div>
-                    {botStatus.willJoin && (
+                    {botStatus.showToggleButton && (
                       <div className="flex-shrink-0">
                         <Button
                           variant="outline"
@@ -2497,7 +2499,7 @@ export default function Meetings() {
                           disabled={togglingBot}
                           className="text-xs h-8"
                         >
-                          {togglingBot ? 'Updating...' : 'Disable bot'}
+                          {togglingBot ? 'Updating...' : selectedMeeting?.skip_transcription_for_meeting ? 'Enable bot' : 'Disable bot'}
                         </Button>
                       </div>
                     )}

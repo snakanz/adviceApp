@@ -45,15 +45,19 @@ export const getRecallBotStatus = (meeting, calendarConnection) => {
       // Past meeting - bot already joined
       return {
         willJoin: true,
-        reason: 'Advicly Bot joined this meeting',
-        status: 'success'
+        reason: 'Bot successfully joined this call',
+        status: 'success',
+        isMeetingPast: true,
+        showToggleButton: false
       };
     } else {
       // Future meeting - bot is scheduled to join
       return {
         willJoin: true,
-        reason: 'Advicly Bot is scheduled to join this meeting',
-        status: 'success'
+        reason: 'Bot scheduled to join this call',
+        status: 'success',
+        isMeetingPast: false,
+        showToggleButton: true
       };
     }
   }
@@ -68,24 +72,30 @@ export const getRecallBotStatus = (meeting, calendarConnection) => {
     if (!hasValidUrl) {
       return {
         willJoin: false,
-        reason: 'No calendar meeting detected',
-        status: 'error'
+        reason: 'Add a video meeting link for the bot to join',
+        status: 'error',
+        isMeetingPast: false,
+        showToggleButton: false
       };
     }
 
     // Future meeting with valid URL - bot will join
     return {
       willJoin: true,
-      reason: 'Advicly Bot will join this meeting',
-      status: 'success'
+      reason: 'Bot scheduled to join this call',
+      status: 'success',
+      isMeetingPast: false,
+      showToggleButton: true
     };
   }
 
   // Past meeting without bot record - bot did not join
   return {
     willJoin: false,
-    reason: 'Meeting has ended',
-    status: 'warning'
+    reason: 'Bot is not connected to join this meeting',
+    status: 'warning',
+    isMeetingPast: true,
+    showToggleButton: false
   };
 };
 
