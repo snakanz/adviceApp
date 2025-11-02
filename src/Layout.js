@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from './components/ui/dropdown-menu';
-import { getSupabase, isSupabaseAvailable } from './lib/supabase';
+import { supabase } from './lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from './components/ui/card';
 import { cn } from './lib/utils';
 import {
@@ -50,10 +50,9 @@ export default function Layout() {
   // Fetch active calendar connection for transcription status
   useEffect(() => {
     const fetchCalendarConnection = async () => {
-      if (!user?.id || !isSupabaseAvailable()) return;
+      if (!user?.id) return;
 
       try {
-        const supabase = getSupabase();
         const { data, error } = await supabase
           .from('calendar_connections')
           .select('id, provider, provider_account_email, transcription_enabled, is_active')

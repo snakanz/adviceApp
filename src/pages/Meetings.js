@@ -38,7 +38,6 @@ import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
 import DocumentsTab from '../components/DocumentsTab';
 import { getRecallBotStatus, getStatusColor, getStatusIcon } from '../utils/recallBotStatus';
-import { getSupabase, isSupabaseAvailable } from '../lib/supabase';
 import CreateMeetingDialog from '../components/CreateMeetingDialog';
 import EditMeetingDialog from '../components/EditMeetingDialog';
 import LinkClientDialog from '../components/LinkClientDialog';
@@ -647,10 +646,9 @@ export default function Meetings() {
   // Fetch calendar connection for bot status
   useEffect(() => {
     const fetchCalendarConnection = async () => {
-      if (!user?.id || !isSupabaseAvailable()) return;
+      if (!user?.id) return;
 
       try {
-        const supabase = getSupabase();
         const { data, error } = await supabase
           .from('calendar_connections')
           .select('id, provider, provider_account_email, transcription_enabled, is_active')
