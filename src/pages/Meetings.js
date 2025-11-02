@@ -1054,49 +1054,7 @@ export default function Meetings() {
   // NOTE: Calendar sync is now handled automatically via webhooks
   // Manual sync buttons have been removed from the UI
 
-  // Toggle annual review flag for a meeting
-  const toggleAnnualReview = async (meetingId, currentValue) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const newValue = !currentValue;
 
-      const response = await fetch(`${API_URL}/api/calendar/meetings/${meetingId}/annual-review`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ isAnnualReview: newValue })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to update annual review status');
-      }
-
-      // Update local state
-      const updatedMeetings = {
-        ...meetings,
-        past: meetings.past.map(m =>
-          m.id === meetingId ? { ...m, is_annual_review: newValue } : m
-        ),
-        future: meetings.future.map(m =>
-          m.id === meetingId ? { ...m, is_annual_review: newValue } : m
-        )
-      };
-      setMeetings(updatedMeetings);
-
-      setShowSnackbar(true);
-      setSnackbarMessage(newValue ? 'Meeting marked as Annual Review' : 'Annual Review flag removed');
-      setSnackbarSeverity('success');
-    } catch (error) {
-      console.error('Error toggling annual review:', error);
-      setShowSnackbar(true);
-      setSnackbarMessage(error.message || 'Failed to update annual review status');
-      setSnackbarSeverity('error');
-    }
-  };
 
   // Fetch action items for a meeting
   const fetchActionItems = async (meetingId) => {
@@ -1736,12 +1694,7 @@ export default function Meetings() {
                       {getMeetingSource(meeting) === 'Google Calendar' ? 'Google' :
                        getMeetingSource(meeting) === 'Calendly' ? 'Calendly' : 'Manual'}
                     </div>
-                    {meeting.is_annual_review && (
-                      <div className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 text-xs font-medium">
-                        <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
-                        <span>Annual</span>
-                      </div>
-                    )}
+
                   </div>
                 </div>
 
@@ -2185,12 +2138,7 @@ export default function Meetings() {
                                         <span>Manual</span>
                                       </div>
                                     )}
-                                    {meeting.is_annual_review && (
-                                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-xs font-medium">
-                                        <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
-                                        <span>Annual Review</span>
-                                      </div>
-                                    )}
+
                                   </div>
 
                                   {/* Completion Status Indicators */}
@@ -2358,33 +2306,6 @@ export default function Meetings() {
                 </div>
               </div>
               <div className="flex items-center gap-1 ml-2">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant={selectedMeeting.is_annual_review ? "default" : "ghost"}
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleAnnualReview(selectedMeeting.id, selectedMeeting.is_annual_review);
-                        }}
-                        className={cn(
-                          "h-8 w-8 p-0",
-                          selectedMeeting.is_annual_review && "bg-amber-500 hover:bg-amber-600 text-white"
-                        )}
-                        title={selectedMeeting.is_annual_review ? "Remove Annual Review flag" : "Mark as Annual Review"}
-                      >
-                        <Star className={cn(
-                          "w-4 h-4",
-                          selectedMeeting.is_annual_review && "fill-white"
-                        )} />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{selectedMeeting.is_annual_review ? "Remove Annual Review flag" : "Mark as Annual Review"}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
                 <Button
                   variant="ghost"
                   size="sm"

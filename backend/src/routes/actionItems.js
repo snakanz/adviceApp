@@ -26,14 +26,7 @@ router.get('/dashboard', authenticateSupabaseUser, async (req, res) => {
       return res.status(500).json({ error: 'Failed to fetch action items' });
     }
 
-    // Get annual review dashboard data - RLS auto-filters by auth.uid()
-    const { data: annualReviews, error: reviewError } = await req.supabase
-      .from('annual_review_dashboard')
-      .select('*')
-      .order('computed_status', { ascending: true })
-      .order('client_name', { ascending: true });
-
-    if (reviewError) {
+    if (false) {
       console.error('Error fetching annual reviews:', reviewError);
       // Continue without annual reviews rather than failing completely
     }
@@ -42,8 +35,7 @@ router.get('/dashboard', authenticateSupabaseUser, async (req, res) => {
     const groupedItems = {
       transcriptNeeded: actionItems.filter(item => item.action_type === 'transcript_needed'),
       emailPending: actionItems.filter(item => item.action_type === 'email_pending'),
-      adHocTasks: actionItems.filter(item => item.action_type === 'ad_hoc_task'),
-      annualReviews: annualReviews || []
+      adHocTasks: actionItems.filter(item => item.action_type === 'ad_hoc_task')
     };
 
     res.json(groupedItems);
