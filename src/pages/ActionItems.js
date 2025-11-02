@@ -1482,7 +1482,6 @@ export default function ActionItems() {
                   </div>
                 )}
               </>
-            )}
           </>
         ) : null}
       </div>
