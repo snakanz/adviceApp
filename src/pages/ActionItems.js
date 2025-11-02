@@ -1342,7 +1342,7 @@ export default function ActionItems() {
                   </div>
                 )}
               </>
-            ) : (
+            ) : activeTab === 'action-items' ? (
               // All Items View
               <>
                 {allActionItems.length === 0 ? (
@@ -1482,9 +1482,7 @@ export default function ActionItems() {
                   </div>
                 )}
               </>
-            )}
-          </>
-        )}
+            ) : null}
       </div>
     </div>
   );
