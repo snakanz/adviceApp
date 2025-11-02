@@ -27,29 +27,7 @@ export const getRecallBotStatus = (meeting, calendarConnection) => {
     };
   }
 
-  // Check 3: Does the meeting have a valid URL?
-  const hasValidUrl = hasValidMeetingUrl(meeting);
-  if (!hasValidUrl) {
-    return {
-      willJoin: false,
-      reason: 'No calendar meeting detected',
-      status: 'error'
-    };
-  }
-
-  // Check 4: Is the meeting in the past?
-  if (meeting?.endtime) {
-    const endTime = new Date(meeting.endtime);
-    if (endTime < new Date()) {
-      return {
-        willJoin: false,
-        reason: 'Meeting has ended',
-        status: 'warning'
-      };
-    }
-  }
-
-  // Check 5: Is there an active calendar connection?
+  // Check 3: Is there an active calendar connection?
   if (!calendarConnection?.is_active) {
     return {
       willJoin: false,
@@ -58,11 +36,56 @@ export const getRecallBotStatus = (meeting, calendarConnection) => {
     };
   }
 
-  // All checks passed - bot will join
+  // Check 4: Did the bot already join this meeting? (for past meetings)
+  if (meeting?.recall_bot_id) {
+    const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
+    const isMeetingPast = endTime && endTime < new Date();
+
+    if (isMeetingPast) {
+      // Past meeting - bot already joined
+      return {
+        willJoin: true,
+        reason: 'Advicly Bot joined this meeting',
+        status: 'success'
+      };
+    } else {
+      // Future meeting - bot is scheduled to join
+      return {
+        willJoin: true,
+        reason: 'Advicly Bot is scheduled to join this meeting',
+        status: 'success'
+      };
+    }
+  }
+
+  // Check 5: For future meetings without bot scheduled yet, check for valid URL
+  const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
+  const isMeetingPast = endTime && endTime < new Date();
+
+  if (!isMeetingPast) {
+    // Future meeting - check if it has a valid URL for bot to join
+    const hasValidUrl = hasValidMeetingUrl(meeting);
+    if (!hasValidUrl) {
+      return {
+        willJoin: false,
+        reason: 'No calendar meeting detected',
+        status: 'error'
+      };
+    }
+
+    // Future meeting with valid URL - bot will join
+    return {
+      willJoin: true,
+      reason: 'Advicly Bot will join this meeting',
+      status: 'success'
+    };
+  }
+
+  // Past meeting without bot record - bot did not join
   return {
-    willJoin: true,
-    reason: 'Advicly Bot will join this meeting',
-    status: 'success'
+    willJoin: false,
+    reason: 'Meeting has ended',
+    status: 'warning'
   };
 };
 

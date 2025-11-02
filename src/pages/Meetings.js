@@ -643,11 +643,11 @@ export default function Meetings() {
     }
   }, [meetings, searchParams, navigate, setSelectedMeetingId, setActiveTab, setQuickSummary, setEmailSummary, setSummaryContent]);
 
-  // Fetch calendar connection for bot status
+  // Fetch calendar connection for bot status with real-time updates
   useEffect(() => {
-    const fetchCalendarConnection = async () => {
-      if (!user?.id) return;
+    if (!user?.id) return;
 
+    const fetchCalendarConnection = async () => {
       try {
         const { data } = await supabase
           .from('calendar_connections')
@@ -664,7 +664,32 @@ export default function Meetings() {
       }
     };
 
+    // Initial fetch
     fetchCalendarConnection();
+
+    // Subscribe to real-time updates on calendar_connections table
+    const subscription = supabase
+      .channel(`calendar_connections:user_id=eq.${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'calendar_connections',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          // Update when transcription_enabled changes
+          if (payload.new?.is_active) {
+            setCalendarConnection(payload.new);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [user?.id]);
 
   // Update bot status when meeting is selected
