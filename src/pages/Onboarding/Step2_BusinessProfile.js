@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import axios from 'axios';
@@ -80,20 +79,27 @@ const Step2_BusinessProfile = ({ data, onNext, user }) => {
     };
 
     return (
-        <div className="max-w-2xl mx-auto">
-            <Card className="shadow-large border-border/50">
-                <CardHeader className="text-center space-y-2">
-                    <CardTitle className="text-3xl font-bold">
-                        Tell us about your business
-                    </CardTitle>
-                    <CardDescription className="text-base">
-                        This helps us personalize your experience
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
+        <div className="max-w-6xl mx-auto px-6 py-16">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+                {/* LEFT COLUMN - Content */}
+                <div className="space-y-8">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">
+                        Question 1 of 4
+                    </p>
+
+                    <div className="space-y-3">
+                        <h1 className="text-4xl font-bold text-foreground">
+                            Tell us about your business
+                        </h1>
+                        <p className="text-lg text-muted-foreground">
+                            This helps us personalize your experience
+                        </p>
+                    </div>
+
                     <form onSubmit={handleSubmit} className="space-y-6">
+                        {/* Business Name */}
                         <div className="space-y-2">
-                            <Label htmlFor="business_name">
+                            <Label htmlFor="business_name" className="text-sm font-medium text-foreground">
                                 Business Name <span className="text-red-500">*</span>
                             </Label>
                             <Input
@@ -107,53 +113,59 @@ const Step2_BusinessProfile = ({ data, onNext, user }) => {
                                 required
                                 className="text-base"
                             />
-                            <p className="text-sm text-muted-foreground">
-                                This will be displayed on your dashboard and reports
-                            </p>
                         </div>
 
+                        {/* Business Type - Button Pills */}
                         <div className="space-y-2">
-                            <Label htmlFor="business_type">
+                            <Label className="text-sm font-medium text-foreground">
                                 Business Type
                             </Label>
-                            <select
-                                id="business_type"
-                                name="business_type"
-                                value={formData.business_type}
-                                onChange={handleChange}
-                                disabled={isLoading}
-                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
+                            <div className="flex flex-wrap gap-2">
                                 {BUSINESS_TYPES.map(type => (
-                                    <option key={type} value={type}>
+                                    <button
+                                        key={type}
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, business_type: type }))}
+                                        disabled={isLoading}
+                                        className={`px-4 py-2 rounded-lg border-2 transition-all ${
+                                            formData.business_type === type
+                                                ? 'border-primary bg-primary/10 text-primary'
+                                                : 'border-border text-foreground hover:border-primary/50'
+                                        }`}
+                                    >
                                         {type}
-                                    </option>
+                                    </button>
                                 ))}
-                            </select>
+                            </div>
                         </div>
 
+                        {/* Team Size - Button Pills */}
                         <div className="space-y-2">
-                            <Label htmlFor="team_size">
+                            <Label className="text-sm font-medium text-foreground">
                                 Team Size
                             </Label>
-                            <select
-                                id="team_size"
-                                name="team_size"
-                                value={formData.team_size}
-                                onChange={handleChange}
-                                disabled={isLoading}
-                                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
+                            <div className="flex flex-wrap gap-2">
                                 {TEAM_SIZES.map(size => (
-                                    <option key={size.value} value={size.value}>
+                                    <button
+                                        key={size.value}
+                                        type="button"
+                                        onClick={() => setFormData(prev => ({ ...prev, team_size: size.value }))}
+                                        disabled={isLoading}
+                                        className={`px-4 py-2 rounded-lg border-2 transition-all ${
+                                            formData.team_size === size.value
+                                                ? 'border-primary bg-primary/10 text-primary'
+                                                : 'border-border text-foreground hover:border-primary/50'
+                                        }`}
+                                    >
                                         {size.label}
-                                    </option>
+                                    </button>
                                 ))}
-                            </select>
+                            </div>
                         </div>
 
+                        {/* Timezone */}
                         <div className="space-y-2">
-                            <Label htmlFor="timezone">
+                            <Label htmlFor="timezone" className="text-sm font-medium text-foreground">
                                 Timezone
                             </Label>
                             <Input
@@ -165,7 +177,7 @@ const Step2_BusinessProfile = ({ data, onNext, user }) => {
                                 disabled={isLoading}
                                 className="text-base"
                             />
-                            <p className="text-sm text-muted-foreground">
+                            <p className="text-xs text-muted-foreground">
                                 Detected automatically from your browser
                             </p>
                         </div>
@@ -176,19 +188,26 @@ const Step2_BusinessProfile = ({ data, onNext, user }) => {
                             </div>
                         )}
 
-                        <div className="flex justify-end pt-4">
+                        <div className="flex gap-3 pt-8">
                             <Button
                                 type="submit"
                                 size="lg"
                                 disabled={isLoading}
-                                className="min-w-[150px]"
+                                className="ml-auto"
                             >
                                 {isLoading ? 'Saving...' : 'Continue'}
                             </Button>
                         </div>
                     </form>
-                </CardContent>
-            </Card>
+                </div>
+
+                {/* RIGHT COLUMN - Illustration */}
+                <div className="hidden lg:flex items-center justify-center">
+                    <div className="w-full h-96 bg-gradient-to-br from-yellow-100 to-yellow-50 rounded-lg flex items-center justify-center border border-border">
+                        <span className="text-muted-foreground text-sm">Business Setup Illustration</span>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

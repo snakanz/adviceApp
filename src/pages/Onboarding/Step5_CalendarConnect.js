@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Input } from '../../components/ui/input';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import axios from 'axios';
@@ -124,21 +123,46 @@ const Step5_CalendarConnect = ({ data, onNext, onBack, onSkip }) => {
     };
 
     return (
-        <div className="max-w-2xl mx-auto">
-            <Card className="shadow-large border-border/50">
-                <CardHeader className="text-center space-y-2">
-                    <CardTitle className="text-3xl font-bold">
-                        {provider === 'google' ? 'Connect Google Calendar' : 'Connect Calendly'}
-                    </CardTitle>
-                    <CardDescription className="text-base">
-                        {provider === 'google' 
-                            ? 'Authorize Advicly to access your Google Calendar'
-                            : 'Enter your Calendly API token to sync your meetings'
-                        }
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    {!isConnected ? (
+        <div className="max-w-6xl mx-auto px-6 py-16">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+                {/* LEFT COLUMN - Content */}
+                <div className="space-y-8">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">
+                        Question 4 of 4
+                    </p>
+
+                    <div className="space-y-3">
+                        <h1 className="text-4xl font-bold text-foreground">
+                            {provider === 'google' ? 'Connect Google Calendar' : provider === 'outlook' ? 'Outlook Calendar' : 'Connect Calendly'}
+                        </h1>
+                        <p className="text-lg text-muted-foreground">
+                            {provider === 'google'
+                                ? 'Authorize Advicly to access your Google Calendar'
+                                : provider === 'outlook'
+                                ? 'Outlook integration coming soon. Please select a different provider.'
+                                : 'Enter your Calendly API token to sync your meetings'
+                            }
+                        </p>
+                    </div>
+
+                    <div className="space-y-6">
+                    {provider === 'outlook' ? (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center space-y-4">
+                            <p className="text-sm font-medium text-yellow-900">
+                                Outlook integration is coming soon!
+                            </p>
+                            <p className="text-sm text-yellow-800">
+                                Please select Google Calendar or Calendly to continue with your onboarding.
+                            </p>
+                            <Button
+                                variant="outline"
+                                onClick={onBack}
+                                className="w-full"
+                            >
+                                Go Back to Select Provider
+                            </Button>
+                        </div>
+                    ) : !isConnected ? (
                         <>
                             {provider === 'google' && (
                                 <div className="space-y-4">
@@ -285,8 +309,8 @@ const Step5_CalendarConnect = ({ data, onNext, onBack, onSkip }) => {
                     )}
 
                     {/* Action Buttons */}
-                    <div className="flex justify-between items-center pt-4 border-t">
-                        <div className="flex space-x-3">
+                    {provider !== 'outlook' && (
+                        <div className="flex gap-3 pt-8">
                             <Button
                                 variant="outline"
                                 onClick={onBack}
@@ -295,25 +319,23 @@ const Step5_CalendarConnect = ({ data, onNext, onBack, onSkip }) => {
                                 Back
                             </Button>
                             <Button
-                                variant="ghost"
-                                onClick={onSkip}
-                                disabled={isConnecting}
-                                className="text-muted-foreground"
+                                onClick={handleContinue}
+                                disabled={!isConnected || isConnecting}
+                                className="ml-auto"
                             >
-                                Skip for now
+                                Continue
                             </Button>
                         </div>
-                        <Button
-                            onClick={handleContinue}
-                            disabled={!isConnected || isConnecting}
-                            size="lg"
-                            className="min-w-[150px]"
-                        >
-                            Continue
-                        </Button>
+                    )}
                     </div>
-                </CardContent>
-            </Card>
+
+                {/* RIGHT COLUMN - Illustration */}
+                <div className="hidden lg:flex items-center justify-center">
+                    <div className="w-full h-96 bg-gradient-to-br from-green-100 to-green-50 rounded-lg flex items-center justify-center border border-border">
+                        <span className="text-muted-foreground text-sm">Connection Security Illustration</span>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

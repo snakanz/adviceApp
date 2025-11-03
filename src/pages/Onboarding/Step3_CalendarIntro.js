@@ -1,7 +1,6 @@
 import React from 'react';
 import { Button } from '../../components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { Calendar, Clock, Users, Zap, CheckCircle2 } from 'lucide-react';
+import { Calendar, Users, Zap, CheckCircle2 } from 'lucide-react';
 
 const Step3_CalendarIntro = ({ onNext, onBack }) => {
     const benefits = [
@@ -28,39 +27,33 @@ const Step3_CalendarIntro = ({ onNext, onBack }) => {
     ];
 
     return (
-        <div className="max-w-2xl mx-auto">
-            <Card className="shadow-large border-border/50">
-                <CardHeader className="text-center space-y-4">
-                    <div className="flex justify-center">
-                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-                            <Calendar className="w-8 h-8 text-blue-600" />
-                        </div>
-                    </div>
-                    <CardTitle className="text-3xl font-bold">
-                        Connect your calendar
-                    </CardTitle>
-                    <CardDescription className="text-base">
-                        Sync your meetings and let Advicly handle the rest
-                    </CardDescription>
-                </CardHeader>
+        <div className="max-w-6xl mx-auto px-6 py-16">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+                {/* LEFT COLUMN - Content */}
+                <div className="space-y-8">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">
+                        Question 2 of 4
+                    </p>
 
-                <CardContent className="space-y-8">
-                    {/* Benefits Grid */}
+                    <div className="space-y-3">
+                        <h1 className="text-4xl font-bold text-foreground">
+                            Connect your calendar
+                        </h1>
+                        <p className="text-lg text-muted-foreground">
+                            Sync your meetings and let Advicly handle the rest
+                        </p>
+                    </div>
+
+                    {/* Benefits */}
                     <div className="space-y-4">
-                        <h3 className="font-semibold text-sm uppercase text-muted-foreground text-center">
-                            Why connect your calendar:
-                        </h3>
-                        <div className="grid gap-4">
-                            {benefits.map((benefit, index) => (
-                                <div
-                                    key={index}
-                                    className="flex items-start space-x-4 p-4 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
-                                >
+                        {benefits.map((benefit, index) => (
+                            <div key={index} className="space-y-2">
+                                <div className="flex items-start space-x-3">
                                     <div className="flex-shrink-0 mt-1">
                                         {benefit.icon}
                                     </div>
                                     <div>
-                                        <h4 className="font-semibold mb-1">
+                                        <h4 className="font-semibold text-foreground">
                                             {benefit.title}
                                         </h4>
                                         <p className="text-sm text-muted-foreground">
@@ -68,8 +61,8 @@ const Step3_CalendarIntro = ({ onNext, onBack }) => {
                                         </p>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        ))}
                     </div>
 
                     {/* Trust Badge */}
@@ -85,30 +78,30 @@ const Step3_CalendarIntro = ({ onNext, onBack }) => {
                         </div>
                     </div>
 
-                    {/* CTA Buttons */}
-                    <div className="space-y-3">
+                    {/* Buttons */}
+                    <div className="flex gap-3 pt-8">
                         <Button
-                            onClick={onNext}
-                            size="lg"
-                            className="w-full text-lg h-12"
-                        >
-                            Connect Your Calendar
-                        </Button>
-                        <Button
-                            onClick={onBack}
                             variant="outline"
-                            size="lg"
-                            className="w-full text-lg h-12"
+                            onClick={onBack}
                         >
                             Back
                         </Button>
+                        <Button
+                            onClick={onNext}
+                            className="ml-auto"
+                        >
+                            Continue
+                        </Button>
                     </div>
+                </div>
 
-                    <p className="text-xs text-muted-foreground text-center">
-                        You can also connect your calendar later from Settings
-                    </p>
-                </CardContent>
-            </Card>
+                {/* RIGHT COLUMN - Illustration */}
+                <div className="hidden lg:flex items-center justify-center">
+                    <div className="w-full h-96 bg-gradient-to-br from-blue-100 to-blue-50 rounded-lg flex items-center justify-center border border-border">
+                        <span className="text-muted-foreground text-sm">Calendar Integration Illustration</span>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
