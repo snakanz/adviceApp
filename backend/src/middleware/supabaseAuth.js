@@ -128,35 +128,35 @@ const optionalSupabaseAuth = async (req, res, next) => {
 };
 
 /**
- * Middleware to check if user has completed onboarding
- * Redirects to onboarding if not completed
+ * Middleware to check if user has completed onboarding AND has active subscription
+ * ✅ SECURITY FIX: Verify both onboarding completion and subscription status
  */
 const requireOnboarding = async (req, res, next) => {
   try {
     if (!req.user || !req.supabase) {
-      return res.status(401).json({ 
+      return res.status(401).json({
         error: 'Not authenticated',
         message: 'Please log in first'
       });
     }
 
     // Check onboarding status
-    const { data: userData, error } = await req.supabase
+    const { data: userData, error: userError } = await req.supabase
       .from('users')
       .select('onboarding_completed, onboarding_step')
       .eq('id', req.user.id)
       .single();
 
-    if (error) {
-      console.error('Error checking onboarding status:', error);
-      return res.status(500).json({ 
+    if (userError) {
+      console.error('Error checking onboarding status:', userError);
+      return res.status(500).json({
         error: 'Database error',
         message: 'Failed to check onboarding status'
       });
     }
 
     if (!userData.onboarding_completed) {
-      return res.status(403).json({ 
+      return res.status(403).json({
         error: 'Onboarding not completed',
         message: 'Please complete onboarding first',
         onboarding_step: userData.onboarding_step || 0,
@@ -164,10 +164,60 @@ const requireOnboarding = async (req, res, next) => {
       });
     }
 
+    // ✅ SECURITY FIX: Also check subscription status
+    const { data: subscription, error: subError } = await req.supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .single();
+
+    if (subError && subError.code !== 'PGRST116') {
+      // PGRST116 is "not found" - other errors are real problems
+      console.error('Error checking subscription:', subError);
+      return res.status(500).json({
+        error: 'Database error',
+        message: 'Failed to check subscription status'
+      });
+    }
+
+    // Check if subscription exists and is active
+    if (!subscription) {
+      console.warn(`⚠️  User ${req.user.id} has no subscription`);
+      return res.status(403).json({
+        error: 'No active subscription',
+        message: 'Please complete your subscription to access the app',
+        redirect: '/onboarding'
+      });
+    }
+
+    // Check subscription status
+    const validStatuses = ['active', 'trialing'];
+    if (!validStatuses.includes(subscription.status)) {
+      console.warn(`⚠️  User ${req.user.id} has invalid subscription status: ${subscription.status}`);
+      return res.status(403).json({
+        error: 'Subscription not active',
+        message: 'Your subscription is not active. Please renew your subscription.',
+        redirect: '/settings'
+      });
+    }
+
+    // Check if trial has expired
+    if (subscription.status === 'trialing' && subscription.trial_ends_at) {
+      const trialEndDate = new Date(subscription.trial_ends_at);
+      if (trialEndDate < new Date()) {
+        console.warn(`⚠️  User ${req.user.id} trial has expired`);
+        return res.status(403).json({
+          error: 'Trial expired',
+          message: 'Your trial has expired. Please upgrade to continue.',
+          redirect: '/settings'
+        });
+      }
+    }
+
     next();
   } catch (error) {
     console.error('Onboarding check error:', error);
-    return res.status(500).json({ 
+    return res.status(500).json({
       error: 'Server error',
       message: 'Failed to verify onboarding status'
     });

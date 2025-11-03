@@ -632,11 +632,63 @@ router.post('/onboarding/business-profile', authenticateSupabaseUser, async (req
 /**
  * POST /api/auth/onboarding/complete
  * Mark onboarding as complete
+ * ✅ SECURITY FIX: Verify user has active subscription or trial before completing
  */
 router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
 
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    // ✅ CRITICAL: Verify user has active subscription or trial
+    const { data: subscription, error: subError } = await req.supabase
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (subError && subError.code !== 'PGRST116') {
+      // PGRST116 is "not found" - other errors are real problems
+      console.error('Error checking subscription:', subError);
+      return res.status(500).json({ error: 'Failed to verify subscription' });
+    }
+
+    // Check if subscription exists and is active
+    if (!subscription) {
+      console.warn(`⚠️  User ${userId} attempted to complete onboarding without subscription`);
+      return res.status(403).json({
+        error: 'Subscription required',
+        message: 'Please complete your subscription before finishing onboarding'
+      });
+    }
+
+    // Check subscription status
+    const validStatuses = ['active', 'trialing'];
+    if (!validStatuses.includes(subscription.status)) {
+      console.warn(`⚠️  User ${userId} has invalid subscription status: ${subscription.status}`);
+      return res.status(403).json({
+        error: 'Invalid subscription status',
+        message: 'Your subscription is not active. Please renew your subscription.'
+      });
+    }
+
+    // Check if trial has expired
+    if (subscription.status === 'trialing' && subscription.trial_ends_at) {
+      const trialEndDate = new Date(subscription.trial_ends_at);
+      if (trialEndDate < new Date()) {
+        console.warn(`⚠️  User ${userId} trial has expired`);
+        return res.status(403).json({
+          error: 'Trial expired',
+          message: 'Your trial has expired. Please upgrade to continue.'
+        });
+      }
+    }
+
+    console.log(`✅ Verified subscription for user ${userId}: status=${subscription.status}`);
+
+    // ✅ Only now mark onboarding as complete
     const { error } = await req.supabase
       .from('users')
       .update({
@@ -651,7 +703,7 @@ router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) =
       return res.status(500).json({ error: 'Failed to complete onboarding' });
     }
 
-    console.log(`✅ User ${userId} completed onboarding`);
+    console.log(`✅ User ${userId} completed onboarding with active subscription`);
 
     res.json({
       success: true,

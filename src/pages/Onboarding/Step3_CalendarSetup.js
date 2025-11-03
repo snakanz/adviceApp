@@ -8,13 +8,46 @@ import axios from 'axios';
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
 const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
-    const { getAccessToken } = useAuth();
+    const { getAccessToken, user } = useAuth();
     const [selectedProvider, setSelectedProvider] = useState(data.calendar_provider || null);
     const [isConnecting, setIsConnecting] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
     const [error, setError] = useState('');
     const [calendlyToken, setCalendlyToken] = useState('');
     const [showTokenInput, setShowTokenInput] = useState(false);
+
+    // Listen for OAuth messages from popup windows
+    useEffect(() => {
+        const handleOAuthMessage = (event) => {
+            // Verify origin for security
+            if (!event.origin.includes('localhost') && !event.origin.includes('advicly')) {
+                return;
+            }
+
+            if (event.data.type === 'GOOGLE_OAUTH_SUCCESS') {
+                console.log('✅ Google Calendar OAuth successful');
+                setIsConnected(true);
+                setIsConnecting(false);
+                setError('');
+            } else if (event.data.type === 'GOOGLE_OAUTH_ERROR') {
+                console.error('❌ Google Calendar OAuth error:', event.data.error);
+                setError(event.data.error || 'Failed to connect to Google Calendar');
+                setIsConnecting(false);
+            } else if (event.data.type === 'CALENDLY_OAUTH_SUCCESS') {
+                console.log('✅ Calendly OAuth successful');
+                setIsConnected(true);
+                setIsConnecting(false);
+                setError('');
+            } else if (event.data.type === 'CALENDLY_OAUTH_ERROR') {
+                console.error('❌ Calendly OAuth error:', event.data.error);
+                setError(event.data.error || 'Failed to connect to Calendly');
+                setIsConnecting(false);
+            }
+        };
+
+        window.addEventListener('message', handleOAuthMessage);
+        return () => window.removeEventListener('message', handleOAuthMessage);
+    }, []);
 
     // Check if already connected
     useEffect(() => {
@@ -52,13 +85,34 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
 
         try {
             const token = await getAccessToken();
+
+            // Get OAuth URL from calendar endpoint (not auth endpoint)
+            // This endpoint returns a URL that can be used for popup-based OAuth
             const response = await axios.get(
-                `${API_BASE_URL}/api/auth/google`,
+                `${API_BASE_URL}/api/calendar/auth/google`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            if (response.data.url) {
-                window.location.href = response.data.url;
+            if (response.data.url && user?.id) {
+                // Add state parameter with user ID for popup-based flow
+                const oauthUrl = `${response.data.url}&state=${user.id}`;
+
+                // Open OAuth in popup window instead of full-page redirect
+                const width = 600;
+                const height = 700;
+                const left = window.screen.width / 2 - width / 2;
+                const top = window.screen.height / 2 - height / 2;
+
+                const popup = window.open(
+                    oauthUrl,
+                    'Google Calendar OAuth',
+                    `width=${width},height=${height},left=${left},top=${top}`
+                );
+
+                if (!popup) {
+                    setError('Popup blocked. Please allow popups and try again.');
+                    setIsConnecting(false);
+                }
             }
         } catch (err) {
             console.error('Error connecting to Google:', err);
@@ -74,12 +128,30 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         try {
             const token = await getAccessToken();
             const response = await axios.get(
-                `${API_BASE_URL}/api/calendar-connections/calendly/auth-url`,
+                `${API_BASE_URL}/api/calendar/calendly/auth-url`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            if (response.data.url) {
-                window.location.href = response.data.url;
+            if (response.data.url && user?.id) {
+                // Add state parameter with user ID for popup-based flow
+                const oauthUrl = `${response.data.url}&state=${user.id}`;
+
+                // Open OAuth in popup window instead of full-page redirect
+                const width = 600;
+                const height = 700;
+                const left = window.screen.width / 2 - width / 2;
+                const top = window.screen.height / 2 - height / 2;
+
+                const popup = window.open(
+                    oauthUrl,
+                    'Calendly OAuth',
+                    `width=${width},height=${height},left=${left},top=${top}`
+                );
+
+                if (!popup) {
+                    setError('Popup blocked. Please allow popups and try again.');
+                    setIsConnecting(false);
+                }
             }
         } catch (err) {
             console.error('Error connecting to Calendly via OAuth:', err);
