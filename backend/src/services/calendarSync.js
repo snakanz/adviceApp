@@ -306,9 +306,11 @@ class CalendarSyncService {
     } else {
       // Add new meeting
       if (!dryRun) {
-        const { error: insertError } = await getSupabase()
+        const { error: insertError, data: newMeeting } = await getSupabase()
           .from('meetings')
-          .insert(meetingData);
+          .insert(meetingData)
+          .select()
+          .single();
 
         if (insertError) {
           console.error(`❌ Failed to insert meeting "${calendarEvent.summary}":`, insertError);
@@ -318,6 +320,31 @@ class CalendarSyncService {
             error: insertError.message
           });
           return; // Skip this meeting
+        }
+
+        // Schedule Recall bot if transcription is enabled AND meeting is in the future
+        try {
+          const connection = await getSupabase()
+            .from('calendar_connections')
+            .select('transcription_enabled')
+            .eq('user_id', userId)
+            .eq('provider', 'google')
+            .eq('is_active', true)
+            .single();
+
+          if (connection.data?.transcription_enabled) {
+            const now = new Date();
+            const meetingStart = new Date(calendarEvent.start.dateTime || calendarEvent.start.date);
+
+            if (meetingStart > now) {
+              await this.scheduleRecallBotForMeeting(calendarEvent, newMeeting.id, userId);
+            } else {
+              console.log(`⏭️  Skipping Recall bot for past meeting: ${calendarEvent.summary} (${meetingStart.toISOString()})`);
+            }
+          }
+        } catch (recallError) {
+          console.warn(`⚠️  Failed to schedule Recall bot for meeting ${newMeeting?.id}:`, recallError.message);
+          // Don't fail the sync if Recall scheduling fails
         }
       }
 
@@ -415,6 +442,89 @@ class CalendarSyncService {
       meeting_source: 'google',
       last_calendar_sync: new Date().toISOString()
     };
+  }
+
+  /**
+   * Schedule Recall bot for a meeting (only for future meetings)
+   */
+  async scheduleRecallBotForMeeting(event, meetingId, userId) {
+    try {
+      // Extract meeting URL from event
+      let meetingUrl = null;
+
+      // Google Meet
+      if (event.conferenceData?.entryPoints) {
+        const videoEntry = event.conferenceData.entryPoints
+          .find(ep => ep.entryPointType === 'video');
+        if (videoEntry) meetingUrl = videoEntry.uri;
+      }
+
+      // Zoom/Teams/Webex in location or description
+      if (!meetingUrl) {
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        const urls = (event.location || event.description || '').match(urlRegex) || [];
+
+        for (const url of urls) {
+          if (url.includes('zoom.us') || url.includes('teams.microsoft.com') ||
+              url.includes('webex.com') || url.includes('meet.google.com')) {
+            meetingUrl = url;
+            break;
+          }
+        }
+      }
+
+      if (!meetingUrl) {
+        console.log(`⚠️  No meeting URL found for event ${event.id}`);
+        return;
+      }
+
+      // Create Recall bot
+      const axios = require('axios');
+      const apiKey = process.env.RECALL_API_KEY;
+      const baseUrl = 'https://us-west-2.recall.ai/api/v1';
+
+      if (!apiKey) {
+        console.warn('⚠️  RECALL_API_KEY not configured');
+        return;
+      }
+
+      const response = await axios.post(`${baseUrl}/bot/`, {
+        meeting_url: meetingUrl,
+        recording_config: {
+          transcript: {
+            provider: {
+              meeting_captions: {} // FREE transcription
+            }
+          }
+        },
+        metadata: {
+          user_id: userId,
+          meeting_id: meetingId,
+          source: 'advicly'
+        }
+      }, {
+        headers: {
+          'Authorization': `Token ${apiKey}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      // Store bot ID in meeting
+      await getSupabase()
+        .from('meetings')
+        .update({
+          recall_bot_id: response.data.id,
+          recall_status: 'recording',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', meetingId);
+
+      console.log(`✅ Recall bot scheduled for meeting ${meetingId}: ${response.data.id}`);
+
+    } catch (error) {
+      console.error('Error scheduling Recall bot:', error.response?.data || error.message);
+      throw error;
+    }
   }
 
   /**
