@@ -369,7 +369,7 @@ router.get('/action-items/by-client', authenticateSupabaseUser, async (req, res)
     let query = req.supabase
       .from('transcript_action_items')
       .select('*')
-      .eq('advisor_id', userId);
+      .eq('user_id', userId);
 
     // Apply priority filter if specified
     if (priorityFilter && priorityFilter !== 'all') {

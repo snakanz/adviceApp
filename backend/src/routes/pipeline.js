@@ -295,7 +295,7 @@ router.get('/client/:clientId/todos', authenticateSupabaseUser, async (req, res)
       .from('client_todos')
       .select('*')
       .eq('client_id', clientId)
-      .eq('advisor_id', userId)
+      .eq('user_id', userId)
       .order('priority', { ascending: true })
       .order('created_at', { ascending: false });
 
@@ -345,7 +345,7 @@ router.post('/client/:clientId/todos', authenticateSupabaseUser, async (req, res
       .from('client_todos')
       .insert({
         client_id: clientId,
-        advisor_id: userId,
+        user_id: userId,
         title: title.trim(),
         description: description?.trim() || null,
         priority: priority || 3,
@@ -385,7 +385,7 @@ router.put('/todos/:todoId', authenticateSupabaseUser, async (req, res) => {
       .from('client_todos')
       .select('*')
       .eq('id', todoId)
-      .eq('advisor_id', userId)
+      .eq('user_id', userId)
       .single();
 
     if (todoError || !existingTodo) {
@@ -413,7 +413,7 @@ router.put('/todos/:todoId', authenticateSupabaseUser, async (req, res) => {
       .from('client_todos')
       .update(updateData)
       .eq('id', todoId)
-      .eq('advisor_id', userId)
+      .eq('user_id', userId)
       .select()
       .single();
 
@@ -428,7 +428,7 @@ router.put('/todos/:todoId', authenticateSupabaseUser, async (req, res) => {
         .from('pipeline_activities')
         .insert({
           client_id: existingTodo.client_id,
-          advisor_id: userId,
+          user_id: userId,
           activity_type: 'todo_completed',
           title: `Completed: ${updatedTodo.title}`,
           description: `Todo item "${updatedTodo.title}" was marked as completed`,

@@ -176,12 +176,12 @@ async function deleteFile(fileId, advisorId) {
  */
 async function getClientDocuments(clientId, advisorId) {
   const supabase = getSupabase();
-  
+
   const { data, error } = await supabase
     .from('client_documents')
     .select('*')
     .eq('client_id', clientId)
-    .eq('advisor_id', advisorId)
+    .eq('user_id', advisorId)
     .eq('is_deleted', false)
     .order('uploaded_at', { ascending: false });
 
@@ -215,7 +215,7 @@ async function getMeetingDocuments(meetingId, advisorId) {
     .from('client_documents')
     .select('*')
     .eq('meeting_id', meetingId)
-    .eq('advisor_id', advisorId)
+    .eq('user_id', advisorId)
     .eq('is_deleted', false)
     .order('uploaded_at', { ascending: false });
 
@@ -248,7 +248,7 @@ async function getUnassignedDocuments(advisorId) {
   const { data, error } = await supabase
     .from('client_documents')
     .select('*')
-    .eq('advisor_id', advisorId)
+    .eq('user_id', advisorId)
     .is('client_id', null)
     .eq('is_deleted', false)
     .order('uploaded_at', { ascending: false});
@@ -284,7 +284,7 @@ async function assignDocumentToClient(documentId, clientId, advisorId) {
     .from('client_documents')
     .select('id')
     .eq('id', documentId)
-    .eq('advisor_id', advisorId)
+    .eq('user_id', advisorId)
     .single();
 
   if (docError || !doc) {
@@ -296,7 +296,7 @@ async function assignDocumentToClient(documentId, clientId, advisorId) {
     .from('clients')
     .select('id')
     .eq('id', clientId)
-    .eq('advisor_id', advisorId)
+    .eq('user_id', advisorId)
     .single();
 
   if (clientError || !client) {

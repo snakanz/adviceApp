@@ -89,7 +89,7 @@ class CascadeDeletionManager {
         .from('ask_threads')
         .select('id, title, is_archived')
         .eq('client_id', clientId)
-        .eq('advisor_id', userId)
+        .eq('user_id', userId)
         .eq('is_archived', false);
 
       if (threads && threads.length > 0) {
