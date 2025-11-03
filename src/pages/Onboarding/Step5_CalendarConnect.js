@@ -327,6 +327,7 @@ const Step5_CalendarConnect = ({ data, onNext, onBack, onSkip }) => {
                             </Button>
                         </div>
                     )}
+                    </div>
                 </div>
 
                 {/* RIGHT COLUMN - Illustration */}
