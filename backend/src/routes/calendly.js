@@ -24,38 +24,68 @@ router.get('/test-connection', authenticateSupabaseUser, async (req, res) => {
   }
 });
 
-// Get Calendly connection status
+// Get Calendly connection status - Check USER-SPECIFIC connection, not global backend token
 router.get('/status', authenticateSupabaseUser, async (req, res) => {
   try {
-    const calendlyService = new CalendlyService();
-    const isConfigured = calendlyService.isConfigured();
+    const userId = req.user.id;
 
-    if (!isConfigured) {
-      return res.json({
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
         connected: false,
-        configured: false,
-        message: 'Calendly personal access token not configured'
+        error: 'Database service unavailable'
       });
     }
 
-    // Test the connection
-    const connectionTest = await calendlyService.testConnection();
+    // Check if user has an active Calendly connection in the database
+    const { data: connection, error } = await req.supabase
+      .from('calendar_connections')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('provider', 'calendly')
+      .eq('is_active', true)
+      .single();
 
-    return res.json({
-      connected: connectionTest.connected,
-      configured: true,
-      user: connectionTest.user?.name || 'Unknown',
-      message: connectionTest.connected ? 'Calendly integration working!' : connectionTest.error
-    });
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching Calendly connection:', error);
+      return res.status(500).json({
+        connected: false,
+        error: 'Failed to check connection status'
+      });
+    }
 
-    // // Test the connection
-    // const connectionTest = await calendlyService.testConnection();
-    // res.json({
-    //   connected: connectionTest.connected,
-    //   configured: true,
-    //   user: connectionTest.user || null,
-    //   error: connectionTest.error || null
-    // });
+    // If no active connection found
+    if (!connection) {
+      return res.json({
+        connected: false,
+        configured: false,
+        message: 'No active Calendly connection found'
+      });
+    }
+
+    // Connection exists - verify the token is still valid by testing it
+    try {
+      const CalendlyOAuthService = require('../services/calendlyOAuth');
+      const oauthService = new CalendlyOAuthService();
+      const testResult = await oauthService.testConnection(connection.access_token);
+
+      return res.json({
+        connected: testResult.connected,
+        configured: true,
+        user: testResult.user?.name || connection.account_email || 'Unknown',
+        email: connection.account_email,
+        message: testResult.connected ? 'Calendly integration working!' : testResult.error
+      });
+    } catch (tokenError) {
+      console.error('Error testing Calendly token:', tokenError);
+      // Token might be expired, but connection exists
+      return res.json({
+        connected: false,
+        configured: true,
+        email: connection.account_email,
+        message: 'Calendly token may have expired. Please reconnect.',
+        error: tokenError.message
+      });
+    }
   } catch (error) {
     console.error('Error checking Calendly status:', error);
     res.status(500).json({

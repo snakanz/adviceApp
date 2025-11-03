@@ -4,9 +4,31 @@ const { adjustMeetingSummary, improveTemplate, isOpenAIAvailable } = require('./
 const calendarRoutes = require('./routes/calendar');
 // const calendlyRoutes = require('./routes/calendly');
 
-// Calendly integration endpoint - directly in routes.js for reliability
+// Calendly integration endpoint - Check USER-SPECIFIC connection
+// NOTE: This endpoint is deprecated in favor of /api/calendly/status in calendly.js
+// Keeping for backward compatibility but redirecting to proper user-specific check
 router.get('/calendly/status', async (req, res) => {
   try {
+    // If user is authenticated, use the proper user-specific check
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      const jwt = require('jsonwebtoken');
+      try {
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+
+        // User is authenticated - delegate to proper endpoint
+        // This will be handled by the calendly.js routes which check user-specific connections
+        return res.json({
+          message: 'Please use the authenticated endpoint at /api/calendly/status',
+          connected: false
+        });
+      } catch (e) {
+        // Token invalid, fall through to global check
+      }
+    }
+
+    // Fallback: Check global backend token (for backward compatibility only)
     const token = process.env.CALENDLY_PERSONAL_ACCESS_TOKEN;
     if (!token || token === 'YOUR_TOKEN_HERE') {
       return res.json({
