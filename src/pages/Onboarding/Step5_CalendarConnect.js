@@ -327,7 +327,7 @@ const Step5_CalendarConnect = ({ data, onNext, onBack, onSkip }) => {
                             </Button>
                         </div>
                     )}
-                    </div>
+                </div>
 
                 {/* RIGHT COLUMN - Illustration */}
                 <div className="hidden lg:flex items-center justify-center">

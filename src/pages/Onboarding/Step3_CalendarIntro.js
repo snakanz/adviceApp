@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '../../components/ui/button';
-import { Calendar, Users, Zap, CheckCircle2 } from 'lucide-react';
+import { Calendar, Clock, Users, Zap, CheckCircle2 } from 'lucide-react';
 
 const Step3_CalendarIntro = ({ onNext, onBack }) => {
     const benefits = [
