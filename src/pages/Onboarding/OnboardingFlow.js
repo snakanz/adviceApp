@@ -5,12 +5,12 @@ import { Button } from '../../components/ui/button';
 import { LogOut } from 'lucide-react';
 import axios from 'axios';
 import BusinessProfile from './Step2_BusinessProfile';
-// Calendar steps removed - calendar is auto-connected during Google OAuth login
-// import CalendarChoice from './Step3_CalendarChoice';
-// import CalendarConnect from './Step4_CalendarConnect';
-import SubscriptionPlan from './Step7_SubscriptionPlan';
-import InitialSync from './Step5_InitialSync';
-import Complete from './Step6_Complete';
+import CalendarIntro from './Step3_CalendarIntro';
+import CalendarChoice from './Step4_CalendarChoice';
+import CalendarConnect from './Step5_CalendarConnect';
+import SubscriptionPlan from './Step6_SubscriptionPlan';
+import InitialSync from './Step7_InitialSync';
+import Complete from './Step8_Complete';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
@@ -166,7 +166,7 @@ const OnboardingFlow = () => {
                         </div>
                         <div className="flex items-center space-x-4">
                             <span className="text-sm text-muted-foreground">
-                                Step {currentStep - 1} of 6
+                                Step {currentStep - 1} of 8
                             </span>
                             <Button
                                 variant="ghost"
@@ -182,7 +182,7 @@ const OnboardingFlow = () => {
                     <div className="w-full bg-muted rounded-full h-2">
                         <div
                             className="bg-primary h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${((currentStep - 1) / 6) * 100}%` }}
+                            style={{ width: `${((currentStep - 1) / 8) * 100}%` }}
                         />
                     </div>
                 </div>
@@ -199,17 +199,34 @@ const OnboardingFlow = () => {
                     />
                 )}
 
-                {/* Step 3: Initial Sync (calendar steps removed) */}
+                {/* Step 3: Calendar Intro */}
                 {currentStep === 3 && (
-                    <InitialSync
+                    <CalendarIntro
+                        onNext={handleNext}
+                        onBack={handleBack}
+                    />
+                )}
+
+                {/* Step 4: Calendar Provider Choice */}
+                {currentStep === 4 && (
+                    <CalendarChoice
                         data={onboardingData}
                         onNext={handleNext}
                         onBack={handleBack}
                     />
                 )}
 
-                {/* Step 4: Subscription Plan */}
-                {currentStep === 4 && (
+                {/* Step 5: Calendar OAuth Connection */}
+                {currentStep === 5 && (
+                    <CalendarConnect
+                        data={onboardingData}
+                        onNext={handleNext}
+                        onBack={handleBack}
+                    />
+                )}
+
+                {/* Step 6: Subscription Plan */}
+                {currentStep === 6 && (
                     <SubscriptionPlan
                         data={onboardingData}
                         onNext={handleNext}
@@ -217,8 +234,17 @@ const OnboardingFlow = () => {
                     />
                 )}
 
-                {/* Step 5: Complete */}
-                {currentStep === 5 && (
+                {/* Step 7: Initial Sync */}
+                {currentStep === 7 && (
+                    <InitialSync
+                        data={onboardingData}
+                        onNext={handleNext}
+                        onBack={handleBack}
+                    />
+                )}
+
+                {/* Step 8: Complete */}
+                {currentStep === 8 && (
                     <Complete
                         data={onboardingData}
                         onComplete={handleComplete}

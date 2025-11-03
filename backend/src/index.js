@@ -1032,6 +1032,10 @@ console.log('🔄 Mounting calendar-settings routes...');
 app.use('/api/calendar-connections', require('./routes/calendar-settings'));
 console.log('✅ Calendar-settings routes mounted');
 
+console.log('🔄 Mounting billing routes...');
+app.use('/api/billing', require('./routes/billing'));
+console.log('✅ Billing routes mounted');
+
 console.log('✅ All API routes mounted');
 
 // DISABLED: Routes are already mounted directly above
