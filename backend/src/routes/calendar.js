@@ -280,39 +280,143 @@ router.get('/auth/google/callback', async (req, res) => {
     // ✅ INITIAL LOGIN (no state parameter)
     console.log(`✅ Google OAuth login for: ${userInfo.email}`);
 
-    // Find or create user in DB
-    let user = await prisma.user.findUnique({ where: { email: userInfo.email } });
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
+    // Find or create user in DB using Supabase
+    const { data: existingUser, error: findError } = await getSupabase()
+      .from('users')
+      .select('*')
+      .eq('email', userInfo.email)
+      .single();
+
+    let user;
+    if (!existingUser) {
+      // Create new user
+      const { data: newUser, error: createError } = await getSupabase()
+        .from('users')
+        .insert({
+          id: userInfo.id,  // Use Google's user ID as UUID
           email: userInfo.email,
           name: userInfo.name,
           provider: 'google',
-          providerId: userInfo.id
-        }
-      });
+          providerid: userInfo.id
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('❌ Error creating user:', createError);
+        throw new Error('Database error while creating user');
+      }
+      user = newUser;
+      console.log(`✅ Created new user: ${user.id}`);
+    } else {
+      user = existingUser;
+      console.log(`✅ Found existing user: ${user.id}`);
     }
 
-    // Store/Update calendar tokens
-    await prisma.calendarToken.upsert({
-      where: { userId: user.id },
-      update: {
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token || undefined,
-        expiresAt: new Date(tokens.expiry_date),
-        provider: 'google'
-      },
-      create: {
-        userId: user.id,
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-        expiresAt: new Date(tokens.expiry_date),
-        provider: 'google'
+    // Ensure user has a tenant
+    let tenantId = user.tenant_id;
+    if (!tenantId) {
+      const { data: newTenant, error: tenantError } = await getSupabase()
+        .from('tenants')
+        .insert({
+          name: `${user.name || user.email}'s Business`,
+          owner_id: user.id,
+          timezone: 'UTC',
+          currency: 'USD'
+        })
+        .select()
+        .single();
+
+      if (tenantError) {
+        console.error('❌ Error creating tenant:', tenantError);
+        throw new Error('Failed to create tenant');
       }
-    });
+
+      tenantId = newTenant.id;
+
+      // Update user with tenant_id
+      await getSupabase()
+        .from('users')
+        .update({ tenant_id: tenantId })
+        .eq('id', user.id);
+
+      console.log(`✅ Created new tenant: ${tenantId}`);
+    }
+
+    // Create or update calendar connection
+    const { data: existingConnection } = await getSupabase()
+      .from('calendar_connections')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('provider', 'google')
+      .single();
+
+    if (existingConnection) {
+      // Update existing connection
+      const { error: updateError } = await getSupabase()
+        .from('calendar_connections')
+        .update({
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token || null,
+          token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
+          is_active: true,
+          is_primary: true,
+          sync_enabled: true,
+          transcription_enabled: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingConnection.id);
+
+      if (updateError) {
+        console.error('❌ Error updating calendar connection:', updateError);
+        throw new Error('Failed to update calendar connection');
+      }
+      console.log(`✅ Updated existing Google Calendar connection`);
+    } else {
+      // Create new connection
+      const { error: insertError } = await getSupabase()
+        .from('calendar_connections')
+        .insert({
+          user_id: user.id,
+          tenant_id: tenantId,
+          provider: 'google',
+          provider_account_email: userInfo.email,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token || null,
+          token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
+          is_active: true,
+          is_primary: true,
+          sync_enabled: true,
+          transcription_enabled: true
+        });
+
+      if (insertError) {
+        console.error('❌ Error creating calendar connection:', insertError);
+        throw new Error('Failed to create calendar connection');
+      }
+      console.log(`✅ Created new Google Calendar connection`);
+    }
+
+    // Trigger initial sync to fetch existing Google Calendar meetings (in background, non-blocking)
+    try {
+      console.log('🔄 Triggering initial Google Calendar sync in background...');
+      const calendarSyncService = require('../services/calendarSync');
+      // Don't await - let it run in background
+      calendarSyncService.syncGoogleCalendar(user.id).then(syncResult => {
+        console.log('✅ Initial Google Calendar sync completed:', syncResult);
+      }).catch(syncError => {
+        console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
+      });
+    } catch (syncError) {
+      console.warn('⚠️  Failed to start background sync:', syncError.message);
+      // Don't fail the connection if sync fails
+    }
 
     // Issue JWT
-    const jwtToken = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+    const jwtToken = jwt.sign({
+      userId: user.id,
+      email: user.email
+    }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
     // Redirect to frontend with token in URL
     res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${jwtToken}`);
