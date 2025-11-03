@@ -308,10 +308,17 @@ class GoogleCalendarWebhookService {
             if (!error && newMeeting) {
               created++;
 
-              // Schedule Recall bot if transcription is enabled
+              // Schedule Recall bot if transcription is enabled AND meeting is in the future
               if (transcriptionEnabled) {
                 try {
-                  await this.scheduleRecallBotForMeeting(event, newMeeting.id, userId);
+                  const now = new Date();
+                  const meetingStart = new Date(event.start.dateTime || event.start.date);
+
+                  if (meetingStart > now) {
+                    await this.scheduleRecallBotForMeeting(event, newMeeting.id, userId);
+                  } else {
+                    console.log(`⏭️  Skipping Recall bot for past meeting: ${event.summary} (${meetingStart.toISOString()})`);
+                  }
                 } catch (recallError) {
                   console.warn(`⚠️  Failed to schedule Recall bot for meeting ${newMeeting.id}:`, recallError.message);
                   // Don't fail the sync if Recall scheduling fails

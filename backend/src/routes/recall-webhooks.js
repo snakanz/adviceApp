@@ -576,6 +576,27 @@ Return only the JSON array:`;
 }
 
 /**
+ * Map Recall.ai webhook status codes to valid database values
+ */
+function mapRecallStatusToDatabase(webhookStatus) {
+  const statusMap = {
+    'in_call_recording': 'recording',
+    'call_ended': 'recording',
+    'done': 'completed',
+    'fatal': 'error',
+    'failed': 'error',
+    'processing': 'recording',
+    'pending': 'pending',
+    'recording': 'recording',
+    'completed': 'completed',
+    'error': 'error',
+    'unknown': 'unknown'
+  };
+
+  return statusMap[webhookStatus] || 'unknown';
+}
+
+/**
  * Handle bot status change
  * Updates recall_status in database
  */
@@ -587,7 +608,8 @@ async function handleBotStatusChange(botId, data, userId) {
     }
 
     const supabase = getSupabase();
-    const status = data.code || 'unknown';
+    const webhookStatus = data.code || 'unknown';
+    const dbStatus = mapRecallStatusToDatabase(webhookStatus);
 
     // Find meeting by recall_bot_id AND user_id (prevents duplicate meeting issues)
     const { data: meeting, error: meetingError } = await supabase
@@ -602,11 +624,11 @@ async function handleBotStatusChange(botId, data, userId) {
       return;
     }
 
-    // Update recall_status
+    // Update recall_status with mapped value
     const { error: updateError } = await supabase
       .from('meetings')
       .update({
-        recall_status: status,
+        recall_status: dbStatus,
         updated_at: new Date().toISOString()
       })
       .eq('id', meeting.id);
@@ -616,7 +638,7 @@ async function handleBotStatusChange(botId, data, userId) {
       return;
     }
 
-    console.log(`✅ Bot status updated to "${status}" for meeting ${meeting.id}`);
+    console.log(`✅ Bot status updated to "${dbStatus}" (webhook: "${webhookStatus}") for meeting ${meeting.id}`);
 
   } catch (error) {
     console.error('Error handling bot status change:', error);

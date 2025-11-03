@@ -15,24 +15,48 @@ const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook'
 
 // Get Google Calendar auth URL (for popup-based reconnection)
 router.get('/auth/google', async (req, res) => {
-  const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.GOOGLE_REDIRECT_URI
-  );
-  const scopes = [
-    'https://www.googleapis.com/auth/calendar',
-    'https://www.googleapis.com/auth/calendar.events',
-    'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/userinfo.profile'
-  ];
-  const url = oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    scope: scopes,
-    prompt: 'consent'
-  });
-  // Return URL instead of redirecting (for popup-based flow)
-  res.json({ url });
+  try {
+    console.log('📅 /auth/google endpoint called');
+    console.log('🔐 Environment check:');
+    console.log('  - GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID ? '✅ Set' : '❌ Missing');
+    console.log('  - GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET ? '✅ Set' : '❌ Missing');
+    console.log('  - GOOGLE_REDIRECT_URI:', process.env.GOOGLE_REDIRECT_URI || '❌ Missing');
+
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET || !process.env.GOOGLE_REDIRECT_URI) {
+      console.error('❌ Missing Google OAuth environment variables');
+      return res.status(500).json({
+        error: 'Google OAuth not configured',
+        details: 'Missing environment variables'
+      });
+    }
+
+    const oauth2Client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI
+    );
+    const scopes = [
+      'https://www.googleapis.com/auth/calendar',
+      'https://www.googleapis.com/auth/calendar.events',
+      'https://www.googleapis.com/auth/userinfo.email',
+      'https://www.googleapis.com/auth/userinfo.profile'
+    ];
+    const url = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      scope: scopes,
+      prompt: 'consent'
+    });
+
+    console.log('✅ OAuth URL generated successfully');
+    // Return URL instead of redirecting (for popup-based flow)
+    res.json({ url });
+  } catch (error) {
+    console.error('❌ Error generating OAuth URL:', error);
+    res.status(500).json({
+      error: 'Failed to generate OAuth URL',
+      details: error.message
+    });
+  }
 });
 
 // Handle Google Calendar OAuth callback
@@ -42,7 +66,13 @@ router.get('/auth/google', async (req, res) => {
 router.get('/auth/google/callback', async (req, res) => {
   const { code, error, state } = req.query;
 
+  console.log('📅 /auth/google/callback called');
+  console.log('  - code:', code ? '✅ Present' : '❌ Missing');
+  console.log('  - error:', error || 'None');
+  console.log('  - state:', state ? '✅ Present (popup mode)' : '❌ Missing (redirect mode)');
+
   if (error) {
+    console.error('❌ OAuth error from Google:', error);
     // If this is a popup-based reconnection, send error to parent window
     if (state) {
       return res.send(`
@@ -387,7 +417,7 @@ router.get('/auth/google/callback', async (req, res) => {
           is_active: true,
           is_primary: true,
           sync_enabled: true,
-          transcription_enabled: true
+          transcription_enabled: false  // Disabled by default - users can enable in settings
         });
 
       if (insertError) {
