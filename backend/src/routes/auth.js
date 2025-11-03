@@ -212,82 +212,25 @@ router.get('/google/callback', async (req, res) => {
       throw new Error('Database error while finding user');
     }
 
-    let user;
-    if (!existingUser) {
-      // Create new user
-      console.log('Creating new user with data:', {
-        id: userInfo.data.id,
-        email: userInfo.data.email,
-        name: userInfo.data.name,
-        provider: 'google',
-        providerid: userInfo.data.id
-      });
+    // Use UserService to get or create user with Supabase Auth UUID
+    const UserService = require('../services/userService');
 
-      const { data: newUser, error: createError } = await getSupabase()
-        .from('users')
-        .insert({
-          id: userInfo.data.id,
-          email: userInfo.data.email,
-          name: userInfo.data.name,
-          provider: 'google',
-          providerid: userInfo.data.id
-        })
-        .select()
-        .single();
-
-      if (createError) {
-        console.error('Error creating user:', createError);
-        throw new Error('Database error while creating user');
+    // Create a Supabase user object from Google OAuth info
+    const supabaseUser = {
+      id: userInfo.data.id,  // This will be replaced with Supabase Auth UUID if available
+      email: userInfo.data.email,
+      user_metadata: {
+        full_name: userInfo.data.name
       }
-      user = newUser;
-    } else {
-      // Update existing user's profile
-      const { data: updatedUser, error: updateError } = await getSupabase()
-        .from('users')
-        .update({
-          name: userInfo.data.name
-        })
-        .eq('email', userInfo.data.email)
-        .select()
-        .single();
+    };
 
-      if (updateError) {
-        console.error('Error updating user:', updateError);
-        throw new Error('Database error while updating user');
-      }
-      user = updatedUser;
-    }
-
-    // Ensure user has a tenant (create default if needed)
+    // Get or create user
+    const user = await UserService.getOrCreateUser(supabaseUser);
     let tenantId = user.tenant_id;
+
+    // Ensure user has a tenant (UserService should have created one, but double-check)
     if (!tenantId) {
-      console.log('⚠️  User has no tenant, creating default tenant...');
-      const { data: newTenant, error: tenantError } = await getSupabase()
-        .from('tenants')
-        .insert({
-          name: `${user.name || user.email}'s Business`,
-          owner_id: user.id,
-          timezone: 'UTC',
-          currency: 'USD'
-        })
-        .select()
-        .single();
-
-      if (tenantError) {
-        console.error('Error creating default tenant:', tenantError);
-        throw new Error('Failed to create default tenant');
-      }
-
-      tenantId = newTenant.id;
-
-      // Update user with tenant_id
-      const { error: updateError } = await getSupabase()
-        .from('users')
-        .update({ tenant_id: tenantId })
-        .eq('id', user.id);
-
-      if (updateError) {
-        console.warn('Warning: Could not update user tenant_id:', updateError);
+      tenantId = await UserService.ensureUserHasTenant(user);
       }
 
       console.log(`✅ Created default tenant ${tenantId} for user ${user.id}`);

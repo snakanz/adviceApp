@@ -317,60 +317,25 @@ router.get('/auth/google/callback', async (req, res) => {
       .eq('email', userInfo.email)
       .single();
 
-    let user;
-    if (!existingUser) {
-      // Create new user
-      const { data: newUser, error: createError } = await getSupabase()
-        .from('users')
-        .insert({
-          id: userInfo.id,  // Use Google's user ID as UUID
-          email: userInfo.email,
-          name: userInfo.name,
-          provider: 'google',
-          providerid: userInfo.id
-        })
-        .select()
-        .single();
+    // Use UserService to get or create user with Supabase Auth UUID
+    const UserService = require('../services/userService');
 
-      if (createError) {
-        console.error('❌ Error creating user:', createError);
-        throw new Error('Database error while creating user');
+    // Create a Supabase user object from Google OAuth info
+    const supabaseUser = {
+      id: userInfo.id,  // This will be replaced with Supabase Auth UUID if available
+      email: userInfo.email,
+      user_metadata: {
+        full_name: userInfo.name
       }
-      user = newUser;
-      console.log(`✅ Created new user: ${user.id}`);
-    } else {
-      user = existingUser;
-      console.log(`✅ Found existing user: ${user.id}`);
-    }
+    };
 
-    // Ensure user has a tenant
+    // Get or create user
+    const user = await UserService.getOrCreateUser(supabaseUser);
     let tenantId = user.tenant_id;
+
+    // Ensure user has a tenant (UserService should have created one, but double-check)
     if (!tenantId) {
-      const { data: newTenant, error: tenantError } = await getSupabase()
-        .from('tenants')
-        .insert({
-          name: `${user.name || user.email}'s Business`,
-          owner_id: user.id,
-          timezone: 'UTC',
-          currency: 'USD'
-        })
-        .select()
-        .single();
-
-      if (tenantError) {
-        console.error('❌ Error creating tenant:', tenantError);
-        throw new Error('Failed to create tenant');
-      }
-
-      tenantId = newTenant.id;
-
-      // Update user with tenant_id
-      await getSupabase()
-        .from('users')
-        .update({ tenant_id: tenantId })
-        .eq('id', user.id);
-
-      console.log(`✅ Created new tenant: ${tenantId}`);
+      tenantId = await UserService.ensureUserHasTenant(user);
     }
 
     // Create or update calendar connection
