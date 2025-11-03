@@ -231,10 +231,9 @@ router.get('/google/callback', async (req, res) => {
     // Ensure user has a tenant (UserService should have created one, but double-check)
     if (!tenantId) {
       tenantId = await UserService.ensureUserHasTenant(user);
-      }
-
-      console.log(`✅ Created default tenant ${tenantId} for user ${user.id}`);
     }
+
+    console.log(`✅ Created default tenant ${tenantId} for user ${user.id}`);
 
     // Store Google tokens in calendar_connections table
     console.log('💾 Storing Google Calendar tokens in calendar_connections...');
