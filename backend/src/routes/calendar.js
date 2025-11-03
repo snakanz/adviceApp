@@ -176,11 +176,29 @@ router.get('/auth/google/callback', async (req, res) => {
             refresh_token: tokens.refresh_token || null,
             token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
             is_active: true,
+            is_primary: true,
+            sync_enabled: true,
+            transcription_enabled: true,
             updated_at: new Date().toISOString()
           })
           .eq('id', existingConnection.id);
 
         console.log(`✅ Updated Google Calendar connection for user ${state}`);
+
+        // Trigger initial sync to fetch existing Google Calendar meetings (in background, non-blocking)
+        try {
+          console.log('🔄 Triggering initial Google Calendar sync in background...');
+          const calendarSyncService = require('../services/calendarSync');
+          // Don't await - let it run in background
+          calendarSyncService.syncGoogleCalendar(state).then(syncResult => {
+            console.log('✅ Initial Google Calendar sync completed:', syncResult);
+          }).catch(syncError => {
+            console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
+          });
+        } catch (syncError) {
+          console.warn('⚠️  Failed to start background sync:', syncError.message);
+          // Don't fail the connection if sync fails
+        }
       } else {
         // Create new connection
         const { error: insertError } = await getSupabase()
@@ -193,7 +211,10 @@ router.get('/auth/google/callback', async (req, res) => {
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token || null,
             token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
-            is_active: true
+            is_active: true,
+            is_primary: true,
+            sync_enabled: true,
+            transcription_enabled: true
           });
 
         if (insertError) {
@@ -217,6 +238,21 @@ router.get('/auth/google/callback', async (req, res) => {
         }
 
         console.log(`✅ Created new Google Calendar connection for user ${state}`);
+
+        // Trigger initial sync to fetch existing Google Calendar meetings (in background, non-blocking)
+        try {
+          console.log('🔄 Triggering initial Google Calendar sync in background...');
+          const calendarSyncService = require('../services/calendarSync');
+          // Don't await - let it run in background
+          calendarSyncService.syncGoogleCalendar(state).then(syncResult => {
+            console.log('✅ Initial Google Calendar sync completed:', syncResult);
+          }).catch(syncError => {
+            console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
+          });
+        } catch (syncError) {
+          console.warn('⚠️  Failed to start background sync:', syncError.message);
+          // Don't fail the connection if sync fails
+        }
       }
 
       // Close popup and notify parent window

@@ -377,7 +377,10 @@ router.get('/google/callback', async (req, res) => {
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token || null,
           token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
-          is_active: true
+          is_active: true,
+          is_primary: true,
+          sync_enabled: true,
+          transcription_enabled: true
         });
 
       if (createError) {

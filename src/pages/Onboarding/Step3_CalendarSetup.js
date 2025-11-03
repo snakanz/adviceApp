@@ -98,6 +98,8 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                 const oauthUrl = `${response.data.url}&state=${user.id}`;
 
                 // Open OAuth in popup window instead of full-page redirect
+                // IMPORTANT: Must open popup synchronously in response to user click
+                // to avoid browser popup blocker converting it to a new tab
                 const width = 600;
                 const height = 700;
                 const left = window.screen.width / 2 - width / 2;
@@ -106,12 +108,14 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                 const popup = window.open(
                     oauthUrl,
                     'Google Calendar OAuth',
-                    `width=${width},height=${height},left=${left},top=${top}`
+                    `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,location=no,status=no`
                 );
 
-                if (!popup) {
+                if (!popup || popup.closed) {
                     setError('Popup blocked. Please allow popups and try again.');
                     setIsConnecting(false);
+                } else {
+                    console.log('✅ Google OAuth popup opened successfully');
                 }
             }
         } catch (err) {
@@ -137,6 +141,8 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                 const oauthUrl = `${response.data.url}&state=${user.id}`;
 
                 // Open OAuth in popup window instead of full-page redirect
+                // IMPORTANT: Must open popup synchronously in response to user click
+                // to avoid browser popup blocker converting it to a new tab
                 const width = 600;
                 const height = 700;
                 const left = window.screen.width / 2 - width / 2;
@@ -145,12 +151,14 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                 const popup = window.open(
                     oauthUrl,
                     'Calendly OAuth',
-                    `width=${width},height=${height},left=${left},top=${top}`
+                    `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,location=no,status=no`
                 );
 
-                if (!popup) {
+                if (!popup || popup.closed) {
                     setError('Popup blocked. Please allow popups and try again.');
                     setIsConnecting(false);
+                } else {
+                    console.log('✅ Calendly OAuth popup opened successfully');
                 }
             }
         } catch (err) {
