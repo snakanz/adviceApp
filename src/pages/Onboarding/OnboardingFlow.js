@@ -8,6 +8,7 @@ import BusinessProfile from './Step2_BusinessProfile';
 // Calendar steps removed - calendar is auto-connected during Google OAuth login
 // import CalendarChoice from './Step3_CalendarChoice';
 // import CalendarConnect from './Step4_CalendarConnect';
+import SubscriptionPlan from './Step7_SubscriptionPlan';
 import InitialSync from './Step5_InitialSync';
 import Complete from './Step6_Complete';
 
@@ -165,7 +166,7 @@ const OnboardingFlow = () => {
                         </div>
                         <div className="flex items-center space-x-4">
                             <span className="text-sm text-muted-foreground">
-                                Step {currentStep - 1} of 3
+                                Step {currentStep - 1} of 6
                             </span>
                             <Button
                                 variant="ghost"
@@ -181,7 +182,7 @@ const OnboardingFlow = () => {
                     <div className="w-full bg-muted rounded-full h-2">
                         <div
                             className="bg-primary h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${((currentStep - 1) / 3) * 100}%` }}
+                            style={{ width: `${((currentStep - 1) / 6) * 100}%` }}
                         />
                     </div>
                 </div>
@@ -207,8 +208,17 @@ const OnboardingFlow = () => {
                     />
                 )}
 
-                {/* Step 4: Complete */}
+                {/* Step 4: Subscription Plan */}
                 {currentStep === 4 && (
+                    <SubscriptionPlan
+                        data={onboardingData}
+                        onNext={handleNext}
+                        onBack={handleBack}
+                    />
+                )}
+
+                {/* Step 5: Complete */}
+                {currentStep === 5 && (
                     <Complete
                         data={onboardingData}
                         onComplete={handleComplete}

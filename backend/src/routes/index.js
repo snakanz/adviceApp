@@ -21,4 +21,9 @@ console.log('✅ Ask Advicly routes mounted');
 router.use('/tenants', tenantRoutes);
 console.log('✅ Tenant routes mounted');
 
+// Mount billing routes
+const billingRoutes = require('./billing');
+router.use('/billing', billingRoutes);
+console.log('✅ Billing routes mounted');
+
 module.exports = router;

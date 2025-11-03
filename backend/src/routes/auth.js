@@ -641,7 +641,7 @@ router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) =
       .from('users')
       .update({
         onboarding_completed: true,
-        onboarding_step: 6, // Final step
+        onboarding_step: 7, // Final step (after subscription)
         updated_at: new Date().toISOString()
       })
       .eq('id', userId);
