@@ -18,16 +18,7 @@ export const getRecallBotStatus = (meeting, calendarConnection) => {
     };
   }
 
-  // Check 2: Is bot disabled for this specific meeting?
-  if (meeting?.skip_transcription_for_meeting) {
-    return {
-      willJoin: false,
-      reason: 'Bot disabled for this meeting',
-      status: 'warning'
-    };
-  }
-
-  // Check 3: Is there an active calendar connection?
+  // Check 2: Is there an active calendar connection?
   if (!calendarConnection?.is_active) {
     return {
       willJoin: false,
@@ -36,7 +27,7 @@ export const getRecallBotStatus = (meeting, calendarConnection) => {
     };
   }
 
-  // Check 4: Did the bot already join this meeting? (for past meetings)
+  // Check 3: Did the bot already join this meeting? (for past meetings)
   if (meeting?.recall_bot_id) {
     const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
     const isMeetingPast = endTime && endTime < new Date();
@@ -51,15 +42,38 @@ export const getRecallBotStatus = (meeting, calendarConnection) => {
         showToggleButton: false
       };
     } else {
-      // Future meeting - bot is scheduled to join
-      return {
-        willJoin: true,
-        reason: 'Bot scheduled to join this call',
-        status: 'success',
-        isMeetingPast: false,
-        showToggleButton: true
-      };
+      // Future meeting - bot is scheduled to join (or disabled)
+      if (meeting?.skip_transcription_for_meeting) {
+        // Bot was scheduled but is now disabled for this meeting
+        return {
+          willJoin: false,
+          reason: 'Bot disabled for this meeting',
+          status: 'warning',
+          isMeetingPast: false,
+          showToggleButton: true
+        };
+      } else {
+        // Bot is scheduled to join
+        return {
+          willJoin: true,
+          reason: 'Bot scheduled to join this call',
+          status: 'success',
+          isMeetingPast: false,
+          showToggleButton: true
+        };
+      }
     }
+  }
+
+  // Check 4: Is bot disabled for this specific meeting? (never scheduled)
+  if (meeting?.skip_transcription_for_meeting) {
+    return {
+      willJoin: false,
+      reason: 'Bot disabled for this meeting',
+      status: 'warning',
+      isMeetingPast: false,
+      showToggleButton: false
+    };
   }
 
   // Check 5: For future meetings without bot scheduled yet, check for valid URL
