@@ -205,7 +205,10 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                                     <div className="flex-shrink-0">
                                         <svg className="w-12 h-12" viewBox="0 0 48 48">
                                             <rect fill="#006B3F" width="48" height="48" rx="4"/>
-                                            <path fill="white" d="M12 14h24v20H12z" opacity="0.2"/>
+                                            <path fill="white" d="M14 12h20v24H14z"/>
+                                            <rect fill="#006B3F" x="16" y="14" width="3" height="20"/>
+                                            <rect fill="#006B3F" x="22" y="14" width="3" height="20"/>
+                                            <rect fill="#006B3F" x="28" y="14" width="3" height="20"/>
                                         </svg>
                                     </div>
                                     <div className="flex-1">
