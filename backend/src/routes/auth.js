@@ -820,7 +820,7 @@ router.post('/auto-connect-calendar', authenticateSupabaseUser, async (req, res)
         is_primary: true, // First calendar connection is primary
         is_active: true,
         sync_enabled: true,
-        transcription_enabled: true // Enable Recall.ai transcription by default for new users
+        transcription_enabled: false // Transcription disabled by default - user must opt-in
       })
       .select('id')
       .single();

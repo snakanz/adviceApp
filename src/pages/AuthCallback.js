@@ -46,10 +46,11 @@ const AuthCallback = () => {
         // Note: Supabase automatically manages token storage in localStorage
         // No need to manually store the JWT token
 
-        // Check if user profile exists and create if needed
+        // Check if user profile exists and get onboarding status
         setMessage('Loading your profile...');
         const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
+        let onboardingCompleted = false;
         try {
           const response = await fetch(`${apiBaseUrl}/api/users/profile`, {
             headers: {
@@ -58,7 +59,9 @@ const AuthCallback = () => {
           });
 
           if (response.ok) {
-            console.log('✅ Profile loaded successfully');
+            const profileData = await response.json();
+            onboardingCompleted = profileData.onboarding_completed || false;
+            console.log('✅ Profile loaded successfully. Onboarding completed:', onboardingCompleted);
           } else {
             console.warn('⚠️ Profile endpoint returned:', response.status);
           }
@@ -92,14 +95,19 @@ const AuthCallback = () => {
           // Don't fail the login if calendar connection fails
         }
 
-        // Success - redirect to meetings
+        // Success - redirect based on onboarding status
         setStatus('success');
         setMessage('Sign in successful! Redirecting...');
 
         // Redirect after a short delay
         setTimeout(() => {
-          console.log('🔄 Redirecting to /meetings...');
-          navigate('/meetings', { replace: true });
+          if (onboardingCompleted) {
+            console.log('🔄 Onboarding complete - Redirecting to /meetings...');
+            navigate('/meetings', { replace: true });
+          } else {
+            console.log('🔄 Onboarding incomplete - Redirecting to /onboarding...');
+            navigate('/onboarding', { replace: true });
+          }
         }, 1000);
 
       } catch (err) {

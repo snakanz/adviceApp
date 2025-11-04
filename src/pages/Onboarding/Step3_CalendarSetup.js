@@ -15,6 +15,7 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
     const [error, setError] = useState('');
     const [calendlyToken, setCalendlyToken] = useState('');
     const [showTokenInput, setShowTokenInput] = useState(false);
+    const [enableTranscription, setEnableTranscription] = useState(false);
 
     // Listen for OAuth messages from popup windows
     useEffect(() => {
@@ -86,10 +87,10 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         try {
             const token = await getAccessToken();
 
-            // Get OAuth URL from calendar endpoint (not auth endpoint)
+            // Get OAuth URL from auth endpoint
             // This endpoint returns a URL that can be used for popup-based OAuth
             const response = await axios.get(
-                `${API_BASE_URL}/api/calendar/auth/google`,
+                `${API_BASE_URL}/api/auth/google`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
@@ -194,10 +195,50 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         }
     };
 
-    const handleContinue = () => {
+    const handleContinue = async () => {
         if (selectedProvider && isConnected) {
-            onNext({ calendar_provider: selectedProvider });
+            // If transcription is enabled, update the calendar connection
+            if (enableTranscription) {
+                try {
+                    const token = await getAccessToken();
+
+                    // Get the active calendar connection ID
+                    const connectionsResponse = await axios.get(
+                        `${API_BASE_URL}/api/calendar-connections`,
+                        { headers: { Authorization: `Bearer ${token}` } }
+                    );
+
+                    const activeConnection = connectionsResponse.data.find(
+                        conn => conn.is_active && conn.provider === selectedProvider
+                    );
+
+                    if (activeConnection) {
+                        // Enable transcription for this connection
+                        await axios.patch(
+                            `${API_BASE_URL}/api/calendar-connections/${activeConnection.id}/toggle-transcription`,
+                            { transcription_enabled: true },
+                            { headers: { Authorization: `Bearer ${token}` } }
+                        );
+                        console.log('✅ Transcription enabled for calendar connection');
+                    }
+                } catch (err) {
+                    console.error('Error enabling transcription:', err);
+                    // Don't block the flow if transcription update fails
+                }
+            }
+
+            onNext({
+                calendar_provider: selectedProvider,
+                enable_transcription: enableTranscription
+            });
         }
+    };
+
+    const handleSkip = () => {
+        onNext({
+            calendar_provider: null,
+            enable_transcription: false
+        });
     };
 
     const handleSelectProvider = (provider) => {
@@ -222,8 +263,8 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                             {!selectedProvider ? 'Which calendar do you use?' : 'Connect your calendar'}
                         </h1>
                         <p className="text-lg text-muted-foreground">
-                            {!selectedProvider 
-                                ? 'Select your primary calendar provider'
+                            {!selectedProvider
+                                ? 'Select your primary calendar provider or skip to set up later'
                                 : selectedProvider === 'google'
                                 ? 'Authorize Advicly to access your Google Calendar'
                                 : 'Connect your Calendly account'
@@ -302,17 +343,41 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                         /* Connection UI */
                         <div className="space-y-6">
                             {isConnected ? (
-                                <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center space-y-4">
-                                    <div className="flex justify-center">
-                                        <CheckCircle2 className="w-12 h-12 text-green-600" />
+                                <>
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center space-y-4">
+                                        <div className="flex justify-center">
+                                            <CheckCircle2 className="w-12 h-12 text-green-600" />
+                                        </div>
+                                        <div>
+                                            <h3 className="font-semibold text-green-900">Connected!</h3>
+                                            <p className="text-sm text-green-700 mt-1">
+                                                Your {selectedProvider === 'google' ? 'Google Calendar' : 'Calendly'} is connected
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className="font-semibold text-green-900">Connected!</h3>
-                                        <p className="text-sm text-green-700 mt-1">
-                                            Your {selectedProvider === 'google' ? 'Google Calendar' : 'Calendly'} is connected
-                                        </p>
+
+                                    {/* Transcription Opt-in */}
+                                    <div className="border border-border rounded-lg p-4 space-y-3">
+                                        <div className="flex items-start space-x-3">
+                                            <input
+                                                type="checkbox"
+                                                id="enable-transcription"
+                                                checked={enableTranscription}
+                                                onChange={(e) => setEnableTranscription(e.target.checked)}
+                                                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                            />
+                                            <label htmlFor="enable-transcription" className="flex-1 cursor-pointer">
+                                                <div className="font-medium text-foreground">
+                                                    Enable AI Meeting Transcription
+                                                </div>
+                                                <p className="text-sm text-muted-foreground mt-1">
+                                                    Automatically record and transcribe your meetings with AI-powered bots.
+                                                    You can change this setting later for individual meetings.
+                                                </p>
+                                            </label>
+                                        </div>
                                     </div>
-                                </div>
+                                </>
                             ) : (
                                 <>
                                     {selectedProvider === 'google' && (
@@ -409,10 +474,20 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                         >
                             Back
                         </Button>
+                        {!selectedProvider && (
+                            <Button
+                                variant="ghost"
+                                onClick={handleSkip}
+                                disabled={isConnecting}
+                                className="ml-auto"
+                            >
+                                Skip for now
+                            </Button>
+                        )}
                         <Button
                             onClick={handleContinue}
                             disabled={!selectedProvider || !isConnected || isConnecting}
-                            className="ml-auto"
+                            className={!selectedProvider ? 'ml-auto' : ''}
                         >
                             Continue
                         </Button>

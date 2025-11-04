@@ -490,11 +490,36 @@ class CalendarSyncService {
 
       const response = await axios.post(`${baseUrl}/bot/`, {
         meeting_url: meetingUrl,
+        bot_name: 'Advicly Notetaker',
         recording_config: {
           transcript: {
             provider: {
               meeting_captions: {} // FREE transcription
             }
+          }
+        },
+        automatic_leave: {
+          // Detect other bots and leave after 10 minutes if found
+          bot_detection: {
+            using_participant_names: {
+              matches: ['bot', 'notetaker', 'recall', 'advicly', 'fireflies', 'otter', 'fathom', 'grain', 'sembly', 'airgram'],
+              timeout: 600, // Leave after 10 minutes if bot detected
+              activate_after: 1200 // Start checking after 20 minutes
+            }
+          },
+          // Leave 5 seconds after everyone else has left
+          everyone_left_timeout: {
+            timeout: 5,
+            activate_after: 60 // Start checking after 1 minute
+          },
+          // Leave after 20 minutes in waiting room (Google Meet max is 10 minutes)
+          waiting_room_timeout: 1200,
+          // Leave after 30 seconds if recording permission denied
+          recording_permission_denied_timeout: 30,
+          // Leave after 60 minutes of continuous silence
+          silence_detection: {
+            timeout: 3600,
+            activate_after: 1200 // Start checking after 20 minutes
           }
         },
         metadata: {
@@ -522,7 +547,22 @@ class CalendarSyncService {
       console.log(`✅ Recall bot scheduled for meeting ${meetingId}: ${response.data.id}`);
 
     } catch (error) {
-      console.error('Error scheduling Recall bot:', error.response?.data || error.message);
+      // Check for insufficient credits error (402)
+      if (error.response?.status === 402) {
+        console.error('❌ CRITICAL: Insufficient Recall.ai credits! Please top up your account.');
+        console.error('   Visit: https://recall.ai/dashboard to add credits');
+
+        // Update meeting with error status
+        await getSupabase()
+          .from('meetings')
+          .update({
+            recall_status: 'error',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', meetingId);
+      } else {
+        console.error('Error scheduling Recall bot:', error.response?.data || error.message);
+      }
       throw error;
     }
   }
