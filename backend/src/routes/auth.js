@@ -23,7 +23,9 @@ router.get('/google', (req, res) => {
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: scopes,
-    prompt: 'consent'
+    prompt: 'consent',
+    // Pass through state parameter for popup-based OAuth
+    state: req.query.state || ''
   });
 
     res.json({ url });
@@ -179,13 +181,59 @@ router.post('/verify-webhooks', authenticateSupabaseUser, async (req, res) => {
 // Handle Google OAuth callback
 router.get('/google/callback', async (req, res) => {
   try {
-    const { code } = req.query;
+    const { code, state } = req.query;
+
+    console.log('📅 /api/auth/google/callback called');
+    console.log('  - code:', code ? '✅ Present' : '❌ Missing');
+    console.log('  - state:', state ? `✅ Present (popup mode - user: ${state})` : '❌ Missing (redirect mode)');
 
     // Check if Supabase is available
     if (!isSupabaseAvailable()) {
+      if (state) {
+        // Popup mode - send error to parent window
+        return res.send(`
+          <html>
+            <body>
+              <script>
+                if (window.opener) {
+                  window.opener.postMessage({
+                    type: 'GOOGLE_OAUTH_ERROR',
+                    error: 'Database service unavailable'
+                  }, '*');
+                }
+                window.close();
+              </script>
+              <p>Error: Database service unavailable</p>
+            </body>
+          </html>
+        `);
+      }
       return res.status(503).json({
         error: 'Database service unavailable. Please contact support.'
       });
+    }
+
+    if (!code) {
+      if (state) {
+        // Popup mode - send error to parent window
+        return res.send(`
+          <html>
+            <body>
+              <script>
+                if (window.opener) {
+                  window.opener.postMessage({
+                    type: 'GOOGLE_OAUTH_ERROR',
+                    error: 'No authorization code received'
+                  }, '*');
+                }
+                window.close();
+              </script>
+              <p>Error: No authorization code received</p>
+            </body>
+          </html>
+        `);
+      }
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=NoCode`);
     }
 
     // Exchange code for tokens
@@ -198,6 +246,12 @@ router.get('/google/callback', async (req, res) => {
 
     console.log('📅 Google OAuth callback - User:', userInfo.data.email);
     console.log('📅 Google tokens received - Access token:', tokens.access_token ? 'yes' : 'no', 'Refresh token:', tokens.refresh_token ? 'yes' : 'no');
+
+    // Determine if this is popup mode (onboarding) or redirect mode (initial login)
+    const isPopupMode = !!state;
+    const userId = state || null; // state contains user ID in popup mode
+
+    console.log(`📍 Mode: ${isPopupMode ? 'POPUP (onboarding)' : 'REDIRECT (initial login)'}`);
 
     // Find or create user
     const { data: existingUser, error: findError } = await getSupabase()
@@ -267,26 +321,32 @@ router.get('/google/callback', async (req, res) => {
       } else {
         console.log('✅ Google Calendar connection updated successfully');
 
-        // Setup webhook for automatic sync
-        try {
-          console.log('📡 Setting up Google Calendar webhook for automatic sync...');
-          const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
-          const webhookService = new GoogleCalendarWebhookService();
-          await webhookService.setupCalendarWatch(user.id);
-          console.log('✅ Webhook setup completed - meetings will sync automatically');
-
-          // Trigger initial sync to fetch existing meetings
+        // Only setup webhook and sync if NOT in popup mode (onboarding)
+        if (!isPopupMode) {
+          console.log('📡 Setting up webhook and initial sync (not in onboarding)...');
+          // Setup webhook for automatic sync
           try {
-            console.log('🔄 Triggering initial sync to fetch existing meetings...');
-            await webhookService.syncCalendarEvents(user.id);
-            console.log('✅ Initial sync completed - existing meetings fetched');
-          } catch (syncError) {
-            console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
-            // Don't fail the connection if initial sync fails
+            console.log('📡 Setting up Google Calendar webhook for automatic sync...');
+            const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
+            const webhookService = new GoogleCalendarWebhookService();
+            await webhookService.setupCalendarWatch(user.id);
+            console.log('✅ Webhook setup completed - meetings will sync automatically');
+
+            // Trigger initial sync to fetch existing meetings
+            try {
+              console.log('🔄 Triggering initial sync to fetch existing meetings...');
+              await webhookService.syncCalendarEvents(user.id);
+              console.log('✅ Initial sync completed - existing meetings fetched');
+            } catch (syncError) {
+              console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
+              // Don't fail the connection if initial sync fails
+            }
+          } catch (webhookError) {
+            console.warn('⚠️  Webhook setup failed (non-fatal):', webhookError.message);
+            // Don't fail the connection if webhook setup fails
           }
-        } catch (webhookError) {
-          console.warn('⚠️  Webhook setup failed (non-fatal):', webhookError.message);
-          // Don't fail the connection if webhook setup fails
+        } else {
+          console.log('⏭️  Skipping webhook setup and sync during onboarding - will sync after subscription');
         }
       }
     } else {
@@ -316,13 +376,14 @@ router.get('/google/callback', async (req, res) => {
           user_id: user.id,
           tenant_id: tenantId,
           provider: 'google',
+          provider_account_email: userInfo.data.email,
           access_token: tokens.access_token,
           refresh_token: tokens.refresh_token || null,
           token_expires_at: tokens.expiry_date ? new Date(tokens.expiry_date).toISOString() : null,
           is_active: true,
           is_primary: true,
           sync_enabled: true,
-          transcription_enabled: true
+          transcription_enabled: false // Disabled by default - user must opt-in
         });
 
       if (createError) {
@@ -330,31 +391,62 @@ router.get('/google/callback', async (req, res) => {
       } else {
         console.log('✅ Google Calendar connection created successfully');
 
-        // Setup webhook for automatic sync
-        try {
-          console.log('📡 Setting up Google Calendar webhook for automatic sync...');
-          const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
-          const webhookService = new GoogleCalendarWebhookService();
-          await webhookService.setupCalendarWatch(user.id);
-          console.log('✅ Webhook setup completed - meetings will sync automatically');
-
-          // Trigger initial sync to fetch existing meetings
+        // Only setup webhook and sync if NOT in popup mode (onboarding)
+        if (!isPopupMode) {
+          console.log('📡 Setting up webhook and initial sync (not in onboarding)...');
+          // Setup webhook for automatic sync
           try {
-            console.log('🔄 Triggering initial sync to fetch existing meetings...');
-            await webhookService.syncCalendarEvents(user.id);
-            console.log('✅ Initial sync completed - existing meetings fetched');
-          } catch (syncError) {
-            console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
-            // Don't fail the connection if initial sync fails
+            console.log('📡 Setting up Google Calendar webhook for automatic sync...');
+            const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
+            const webhookService = new GoogleCalendarWebhookService();
+            await webhookService.setupCalendarWatch(user.id);
+            console.log('✅ Webhook setup completed - meetings will sync automatically');
+
+            // Trigger initial sync to fetch existing meetings
+            try {
+              console.log('🔄 Triggering initial sync to fetch existing meetings...');
+              await webhookService.syncCalendarEvents(user.id);
+              console.log('✅ Initial sync completed - existing meetings fetched');
+            } catch (syncError) {
+              console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
+              // Don't fail the connection if initial sync fails
+            }
+          } catch (webhookError) {
+            console.warn('⚠️  Webhook setup failed (non-fatal):', webhookError.message);
+            // Don't fail the connection if webhook setup fails
           }
-        } catch (webhookError) {
-          console.warn('⚠️  Webhook setup failed (non-fatal):', webhookError.message);
-          // Don't fail the connection if webhook setup fails
+        } else {
+          console.log('⏭️  Skipping webhook setup and sync during onboarding - will sync after subscription');
         }
       }
     }
 
-    // Generate JWT
+    // If popup mode (onboarding), send postMessage and close popup
+    if (isPopupMode) {
+      console.log('✅ Popup mode - Sending success message to parent window');
+      return res.send(`
+        <html>
+          <head>
+            <title>Google Calendar Connected</title>
+          </head>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'GOOGLE_OAUTH_SUCCESS',
+                  message: 'Google Calendar connected successfully'
+                }, '*');
+              }
+              window.close();
+            </script>
+            <p>Google Calendar connected successfully! This window will close automatically.</p>
+          </body>
+        </html>
+      `);
+    }
+
+    // Redirect mode (initial login) - generate JWT and redirect
+    console.log('✅ Redirect mode - Generating JWT and redirecting to /auth/callback');
     const jwtToken = jwt.sign(
       {
         id: user.id,
@@ -369,6 +461,27 @@ router.get('/google/callback', async (req, res) => {
     res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${jwtToken}`);
   } catch (error) {
     console.error('Google auth error:', error);
+
+    // If popup mode, send error to parent window
+    if (req.query.state) {
+      return res.send(`
+        <html>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'GOOGLE_OAUTH_ERROR',
+                  error: '${error.message || 'Authentication failed'}'
+                }, '*');
+              }
+              window.close();
+            </script>
+            <p>Error: ${error.message || 'Authentication failed'}</p>
+          </body>
+        </html>
+      `);
+    }
+
     res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
   }
 });

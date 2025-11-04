@@ -20,10 +20,16 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
     // Listen for OAuth messages from popup windows
     useEffect(() => {
         const handleOAuthMessage = (event) => {
-            // Verify origin for security
-            if (!event.origin.includes('localhost') && !event.origin.includes('advicly')) {
+            // Verify origin for security - accept from localhost, advicly domains, and render.com
+            const validOrigins = ['localhost', 'advicly', 'render.com', 'onrender.com'];
+            const isValidOrigin = validOrigins.some(origin => event.origin.includes(origin));
+
+            if (!isValidOrigin) {
+                console.warn('⚠️ Ignoring message from invalid origin:', event.origin);
                 return;
             }
+
+            console.log('📨 Received message from popup:', event.data);
 
             if (event.data.type === 'GOOGLE_OAUTH_SUCCESS') {
                 console.log('✅ Google Calendar OAuth successful');
@@ -87,16 +93,16 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         try {
             const token = await getAccessToken();
 
-            // Get OAuth URL from auth endpoint
+            // Get OAuth URL from auth endpoint with state parameter for popup mode
             // This endpoint returns a URL that can be used for popup-based OAuth
             const response = await axios.get(
-                `${API_BASE_URL}/api/auth/google`,
+                `${API_BASE_URL}/api/auth/google?state=${user.id}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
             if (response.data.url && user?.id) {
-                // Add state parameter with user ID for popup-based flow
-                const oauthUrl = `${response.data.url}&state=${user.id}`;
+                // OAuth URL already includes state parameter from backend
+                const oauthUrl = response.data.url;
 
                 // Open OAuth in popup window instead of full-page redirect
                 // IMPORTANT: Must open popup synchronously in response to user click
