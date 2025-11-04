@@ -28,6 +28,8 @@ import {
   NotificationsIcon
 } from './components/icons';
 import CalendarSyncButton from './components/CalendarSyncButton';
+import MeetingLimitIndicator from './components/MeetingLimitIndicator';
+import UpgradeModal from './components/UpgradeModal';
 
 const navItems = [
   { label: 'Meetings', icon: <CalendarIcon />, path: '/meetings' },
@@ -45,6 +47,7 @@ const analyticsNav = [
 export default function Layout() {
   const [open, setOpen] = useState(false);
   const [calendarConnection, setCalendarConnection] = useState(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const { logout, user } = useAuth();
 
   // Fetch active calendar connection for transcription status with real-time updates
@@ -240,6 +243,11 @@ export default function Layout() {
 
           {/* Sticky Footer with Quick Access and Logo */}
           <div className="border-t border-border/50">
+            {/* Meeting Limit Indicator */}
+            <div className="p-3">
+              <MeetingLimitIndicator onUpgradeClick={() => setShowUpgradeModal(true)} />
+            </div>
+
             {/* Calendar Integrations Quick Access */}
             <div className="p-3">
               <CalendarSyncButton />
@@ -360,6 +368,12 @@ export default function Layout() {
           </Card>
         </div>
       )}
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+      />
     </div>
   );
-} 
+}

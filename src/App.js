@@ -10,6 +10,7 @@ import Templates from './pages/Templates';
 import Settings from './pages/Settings';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import PricingPage from './pages/PricingPage';
 import AuthCallback from './pages/AuthCallback';
 import OnboardingFlow from './pages/Onboarding/OnboardingFlow';
 import AskAdvicly from './pages/AskAdvicly';
@@ -110,12 +111,33 @@ function PrivateRoute() {
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" />;
 }
 
+function RootRedirect() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return isAuthenticated ? <Navigate to="/meetings" /> : <Navigate to="/pricing" />;
+}
+
 function App() {
   return (
     <AuthProvider>
       <Router>
         <Routes>
+          {/* Root redirect */}
+          <Route path="/" element={<RootRedirect />} />
+
           {/* Public routes */}
+          <Route path="/pricing" element={<PricingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
@@ -126,8 +148,7 @@ function App() {
             <Route path="/onboarding" element={<OnboardingFlow />} />
 
             {/* Main app routes (inside Layout) */}
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Navigate to="/meetings" replace />} />
+            <Route element={<Layout />}>
               <Route path="meetings" element={<Meetings />} />
               <Route path="clients" element={<Clients />} />
               <Route path="pipeline" element={<Pipeline />} />
@@ -139,7 +160,7 @@ function App() {
           </Route>
 
           {/* Catch-all redirect */}
-          <Route path="*" element={<Navigate to="/meetings" />} />
+          <Route path="*" element={<Navigate to="/pricing" />} />
         </Routes>
       </Router>
     </AuthProvider>

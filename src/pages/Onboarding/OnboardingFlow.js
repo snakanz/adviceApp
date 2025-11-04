@@ -1,27 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/ui/button';
 import { LogOut } from 'lucide-react';
 import axios from 'axios';
 import BusinessProfile from './Step2_BusinessProfile';
 import CalendarSetup from './Step3_CalendarSetup';
+import SubscriptionPlan from './Step6_SubscriptionPlan';
 import Complete from './Step8_Complete';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
 const OnboardingFlow = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { user, getAccessToken, isAuthenticated, signOut } = useAuth();
     const [currentStep, setCurrentStep] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
+
+    // Get selected plan from URL or session storage
+    const urlPlan = searchParams.get('plan');
+    const sessionPlan = sessionStorage.getItem('selectedPlan');
+    const selectedPlan = urlPlan || sessionPlan || 'free';
+
     const [onboardingData, setOnboardingData] = useState({
         business_name: '',
         business_type: '',
         team_size: null,
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         calendar_provider: null,
-        tenant_id: null
+        tenant_id: null,
+        selected_plan: selectedPlan
     });
 
     // Load onboarding status on mount
@@ -37,6 +46,15 @@ const OnboardingFlow = () => {
 
     const loadOnboardingStatus = async () => {
         try {
+            // Check if returning from Stripe checkout
+            const stepParam = searchParams.get('step');
+            if (stepParam === 'complete') {
+                // User completed payment, go to final step
+                setCurrentStep(selectedPlan === 'free' ? 4 : 5);
+                setIsLoading(false);
+                return;
+            }
+
             const token = await getAccessToken();
             const response = await axios.get(`${API_BASE_URL}/api/auth/onboarding/status`, {
                 headers: { Authorization: `Bearer ${token}` }
@@ -162,7 +180,7 @@ const OnboardingFlow = () => {
                         </div>
                         <div className="flex items-center space-x-4">
                             <span className="text-sm text-muted-foreground">
-                                Step {currentStep - 1} of 3
+                                Step {currentStep - 1} of {selectedPlan === 'free' ? '3' : '4'}
                             </span>
                             <Button
                                 variant="ghost"
@@ -178,7 +196,9 @@ const OnboardingFlow = () => {
                     <div className="w-full bg-muted rounded-full h-2">
                         <div
                             className="bg-primary h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${((currentStep - 1) / 3) * 100}%` }}
+                            style={{
+                                width: `${((currentStep - 1) / (selectedPlan === 'free' ? 3 : 4)) * 100}%`
+                            }}
                         />
                     </div>
                 </div>
@@ -204,10 +224,20 @@ const OnboardingFlow = () => {
                     />
                 )}
 
-                {/* Step 4: Complete (with auto-sync) */}
-                {currentStep === 4 && (
+                {/* Step 4: Payment (only for paid plans) */}
+                {currentStep === 4 && selectedPlan !== 'free' && (
+                    <SubscriptionPlan
+                        data={onboardingData}
+                        onNext={handleNext}
+                        onBack={handleBack}
+                    />
+                )}
+
+                {/* Step 4/5: Complete (with auto-sync) */}
+                {((currentStep === 4 && selectedPlan === 'free') || (currentStep === 5 && selectedPlan !== 'free')) && (
                     <Complete
                         data={onboardingData}
+                        selectedPlan={selectedPlan}
                         onComplete={handleComplete}
                     />
                 )}

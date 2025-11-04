@@ -7,14 +7,14 @@ import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
-const Step8_Complete = ({ data, onComplete }) => {
+const Step8_Complete = ({ data, selectedPlan = 'free', onComplete }) => {
     const { getAccessToken } = useAuth();
     const [syncStatus, setSyncStatus] = useState('initializing'); // initializing, syncing, complete, error
     const [syncStats, setSyncStats] = useState({ meetingsCount: 0, clientsCount: 0 });
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        // Auto-trigger sync and create free subscription on mount
+        // Auto-trigger sync and create subscription on mount
         initializeUserAccount();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -23,15 +23,20 @@ const Step8_Complete = ({ data, onComplete }) => {
         try {
             const token = await getAccessToken();
 
-            // Step 1: Create free subscription (5 free meetings)
+            // Step 1: Create subscription (free or paid already handled by Stripe)
             setSyncStatus('initializing');
-            await axios.post(
-                `${API_BASE_URL}/api/billing/create-trial`,
-                {},
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
 
-            console.log('✅ Free subscription created (5 free meetings)');
+            // Only create free subscription if user selected free plan
+            if (selectedPlan === 'free') {
+                await axios.post(
+                    `${API_BASE_URL}/api/billing/create-trial`,
+                    {},
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+                console.log('✅ Free subscription created (5 free meetings)');
+            } else {
+                console.log('✅ Paid subscription already created via Stripe');
+            }
 
             // Step 2: Trigger calendar sync
             setSyncStatus('syncing');
@@ -143,11 +148,21 @@ const Step8_Complete = ({ data, onComplete }) => {
                     )}
 
                     {/* Free Meetings Banner */}
-                    {syncStatus === 'complete' && (
+                    {syncStatus === 'complete' && selectedPlan === 'free' && (
                         <div className="bg-primary/5 border border-primary/20 rounded-lg p-6 space-y-3">
                             <h4 className="font-semibold text-primary">🎁 5 Free AI-Transcribed Meetings</h4>
                             <p className="text-sm text-muted-foreground">
                                 Your first 5 meetings with AI transcription are free! After that, upgrade to £70/month for unlimited AI-transcribed meetings.
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Paid Plan Welcome */}
+                    {syncStatus === 'complete' && selectedPlan !== 'free' && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-6 space-y-3">
+                            <h4 className="font-semibold text-green-800">🎉 Welcome to Advicly Professional!</h4>
+                            <p className="text-sm text-green-700">
+                                You now have unlimited AI-transcribed meetings and access to all premium features.
                             </p>
                         </div>
                     )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -9,6 +9,8 @@ import GoogleIcon from '../components/GoogleIcon';
 
 const RegisterPage = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const selectedPlan = searchParams.get('plan') || 'free'; // Get plan from URL
     const { isAuthenticated, signUpWithEmail, signInWithOAuth } = useAuth();
     const [formData, setFormData] = useState({
         name: '',
@@ -19,11 +21,21 @@ const RegisterPage = () => {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
+    // Store selected plan in session storage on mount
+    useEffect(() => {
+        if (selectedPlan) {
+            sessionStorage.setItem('selectedPlan', selectedPlan);
+        }
+    }, [selectedPlan]);
+
     useEffect(() => {
         if (isAuthenticated) {
-            navigate('/onboarding');
+            // Get plan from session storage (in case of OAuth redirect)
+            const plan = sessionStorage.getItem('selectedPlan') || selectedPlan;
+            // Pass selected plan to onboarding
+            navigate(`/onboarding?plan=${plan}`);
         }
-    }, [isAuthenticated, navigate]);
+    }, [isAuthenticated, navigate, selectedPlan]);
 
     const handleChange = (e) => {
         setFormData({
