@@ -1,9 +1,62 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
-import { CheckCircle2, Calendar, Users, BarChart3, MessageSquare } from 'lucide-react';
+import { CheckCircle2, Calendar, Users, BarChart3, MessageSquare, Loader2 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import axios from 'axios';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
 const Step8_Complete = ({ data, onComplete }) => {
+    const { getAccessToken } = useAuth();
+    const [syncStatus, setSyncStatus] = useState('initializing'); // initializing, syncing, complete, error
+    const [syncStats, setSyncStats] = useState({ meetingsCount: 0, clientsCount: 0 });
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        // Auto-trigger sync and create free subscription on mount
+        initializeUserAccount();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const initializeUserAccount = async () => {
+        try {
+            const token = await getAccessToken();
+
+            // Step 1: Create free subscription (5 free meetings)
+            setSyncStatus('initializing');
+            await axios.post(
+                `${API_BASE_URL}/api/billing/create-trial`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            console.log('✅ Free subscription created (5 free meetings)');
+
+            // Step 2: Trigger calendar sync
+            setSyncStatus('syncing');
+            const syncResponse = await axios.post(
+                `${API_BASE_URL}/api/calendar/sync`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            console.log('✅ Calendar sync complete:', syncResponse.data);
+
+            // Update stats
+            const { added = 0, updated = 0 } = syncResponse.data;
+            setSyncStats({
+                meetingsCount: added + updated,
+                clientsCount: 0 // Will be updated when client extraction is implemented
+            });
+
+            setSyncStatus('complete');
+        } catch (err) {
+            console.error('Error initializing account:', err);
+            setError(err.response?.data?.error || 'Failed to initialize account');
+            setSyncStatus('error');
+        }
+    };
     const features = [
         {
             icon: <Calendar className="w-6 h-6 text-primary" />,
@@ -37,18 +90,74 @@ const Step8_Complete = ({ data, onComplete }) => {
                         </div>
                     </div>
                     <CardTitle className="text-3xl font-bold">
-                        You're all set!
+                        {syncStatus === 'complete' ? "You're all set!" : "Setting up your account..."}
                     </CardTitle>
                     <CardDescription className="text-base">
-                        Welcome to Advicly, {data.business_name}! 🎉
+                        {syncStatus === 'complete'
+                            ? `Welcome to Advicly, ${data.business_name}! 🎉`
+                            : syncStatus === 'syncing'
+                            ? 'Importing your calendar meetings...'
+                            : syncStatus === 'error'
+                            ? 'There was an issue setting up your account'
+                            : 'Creating your free account...'
+                        }
                     </CardDescription>
+
                 </CardHeader>
                 <CardContent className="space-y-8">
+                    {/* Sync Status */}
+                    {syncStatus !== 'complete' && (
+                        <div className="bg-primary/5 border border-primary/20 rounded-lg p-6 space-y-3">
+                            <div className="flex items-center justify-center space-x-3">
+                                {syncStatus === 'error' ? (
+                                    <>
+                                        <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                                            <span className="text-red-600 text-xl">⚠️</span>
+                                        </div>
+                                        <p className="text-sm text-red-600">{error}</p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Loader2 className="w-6 h-6 text-primary animate-spin" />
+                                        <p className="text-sm text-muted-foreground">
+                                            {syncStatus === 'initializing'
+                                                ? 'Creating your free account (5 free AI-transcribed meetings)...'
+                                                : 'Syncing your calendar meetings...'
+                                            }
+                                        </p>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Sync Results */}
+                    {syncStatus === 'complete' && syncStats.meetingsCount > 0 && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-6 space-y-3">
+                            <h4 className="font-semibold text-green-800">✅ Calendar Synced!</h4>
+                            <p className="text-sm text-green-700">
+                                Imported {syncStats.meetingsCount} meeting{syncStats.meetingsCount !== 1 ? 's' : ''}
+                                {syncStats.clientsCount > 0 && ` and ${syncStats.clientsCount} client${syncStats.clientsCount !== 1 ? 's' : ''}`}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Free Meetings Banner */}
+                    {syncStatus === 'complete' && (
+                        <div className="bg-primary/5 border border-primary/20 rounded-lg p-6 space-y-3">
+                            <h4 className="font-semibold text-primary">🎁 5 Free AI-Transcribed Meetings</h4>
+                            <p className="text-sm text-muted-foreground">
+                                Your first 5 meetings with AI transcription are free! After that, upgrade to £70/month for unlimited AI-transcribed meetings.
+                            </p>
+                        </div>
+                    )}
+
                     {/* Features Grid */}
-                    <div className="space-y-4">
-                        <h3 className="font-semibold text-sm uppercase text-muted-foreground text-center">
-                            What you can do now:
-                        </h3>
+                    {syncStatus === 'complete' && (
+                        <div className="space-y-4">
+                            <h3 className="font-semibold text-sm uppercase text-muted-foreground text-center">
+                                What you can do now:
+                            </h3>
                         <div className="grid gap-4">
                             {features.map((feature, index) => (
                                 <div
@@ -68,27 +177,31 @@ const Step8_Complete = ({ data, onComplete }) => {
                                     </div>
                                 </div>
                             ))}
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Quick Tips */}
-                    <div className="bg-primary/5 border border-primary/20 rounded-lg p-6 space-y-3">
-                        <h4 className="font-semibold text-primary">💡 Quick Tips</h4>
-                        <ul className="text-sm text-muted-foreground space-y-2">
-                            <li>• Upload meeting transcripts to get AI-powered summaries</li>
-                            <li>• Use the Pipeline page to track your business opportunities</li>
-                            <li>• Ask the AI assistant questions about your clients and meetings</li>
-                            <li>• Set up action items to never miss a follow-up</li>
-                        </ul>
-                    </div>
+                    {syncStatus === 'complete' && (
+                        <div className="bg-muted/50 border border-border rounded-lg p-6 space-y-3">
+                            <h4 className="font-semibold">💡 Quick Tips</h4>
+                            <ul className="text-sm text-muted-foreground space-y-2">
+                                <li>• Your calendar meetings are automatically synced</li>
+                                <li>• AI transcription will join your first 5 meetings for free</li>
+                                <li>• Use the Pipeline page to track your business opportunities</li>
+                                <li>• Ask the AI assistant questions about your clients and meetings</li>
+                            </ul>
+                        </div>
+                    )}
 
                     {/* CTA Button */}
                     <Button
                         onClick={onComplete}
                         size="lg"
                         className="w-full text-lg h-14"
+                        disabled={syncStatus !== 'complete'}
                     >
-                        Go to Dashboard
+                        {syncStatus === 'complete' ? 'Go to Dashboard' : 'Please wait...'}
                     </Button>
 
                     <p className="text-xs text-muted-foreground text-center">

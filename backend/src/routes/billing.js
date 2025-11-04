@@ -78,7 +78,7 @@ router.post('/checkout', authenticateSupabaseUser, async (req, res) => {
 
 /**
  * POST /api/billing/create-trial
- * Create a free trial subscription without payment
+ * Create a free trial subscription without payment (5 free meetings model)
  */
 router.post('/create-trial', authenticateSupabaseUser, async (req, res) => {
   try {
@@ -88,38 +88,107 @@ router.post('/create-trial', authenticateSupabaseUser, async (req, res) => {
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
-    // Create free trial subscription
-    const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + 7);
-
+    // Create free tier subscription (5 free meetings)
     const { data, error } = await getSupabase()
       .from('subscriptions')
       .insert({
         user_id: userId,
-        plan: 'pro',
-        status: 'trialing',
-        trial_ends_at: trialEndDate.toISOString(),
-        current_period_start: new Date().toISOString(),
-        current_period_end: trialEndDate.toISOString()
+        plan: 'free',
+        status: 'active',
+        free_meetings_limit: 5,
+        free_meetings_used: 0,
+        current_period_start: new Date().toISOString()
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Error creating trial subscription:', error);
-      return res.status(500).json({ error: 'Failed to create trial subscription' });
+      console.error('Error creating free subscription:', error);
+      return res.status(500).json({ error: 'Failed to create free subscription' });
     }
 
-    console.log(`✅ Free trial created for user ${userId}, expires: ${trialEndDate}`);
+    console.log(`✅ Free tier created for user ${userId} with 5 free meetings`);
 
     res.json({
       success: true,
-      message: 'Free trial created successfully',
+      message: 'Free tier created successfully (5 free meetings)',
       subscription: data
     });
   } catch (error) {
     console.error('Error in create-trial:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * GET /api/billing/meeting-stats
+ * Get meeting usage statistics for free tier users
+ */
+router.get('/meeting-stats', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    // Get subscription
+    const { data: subscription } = await getSupabase()
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    // Check if user has active paid subscription
+    const isPaid = subscription &&
+                   (subscription.status === 'active' || subscription.status === 'trialing') &&
+                   subscription.plan !== 'free';
+
+    if (isPaid) {
+      return res.json({
+        transcribed: 'unlimited',
+        remaining: 'unlimited',
+        hasAccess: true,
+        isPaid: true,
+        plan: subscription.plan,
+        status: subscription.status
+      });
+    }
+
+    // Count meetings with successful Recall bot transcription
+    const { count } = await getSupabase()
+      .from('meetings')
+      .select('id', { count: 'exact' })
+      .eq('user_id', userId)
+      .not('recall_bot_id', 'is', null)
+      .in('recall_status', ['completed', 'done']);
+
+    const transcribed = count || 0;
+    const freeLimit = subscription?.free_meetings_limit || 5;
+    const remaining = Math.max(0, freeLimit - transcribed);
+    const hasAccess = transcribed < freeLimit;
+
+    // Update free_meetings_used in subscription if it's out of sync
+    if (subscription && subscription.free_meetings_used !== transcribed) {
+      await getSupabase()
+        .from('subscriptions')
+        .update({ free_meetings_used: transcribed })
+        .eq('user_id', userId);
+    }
+
+    res.json({
+      transcribed,
+      remaining,
+      hasAccess,
+      isPaid: false,
+      freeLimit,
+      plan: subscription?.plan || 'free',
+      status: subscription?.status || 'active'
+    });
+
+  } catch (error) {
+    console.error('Error fetching meeting stats:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

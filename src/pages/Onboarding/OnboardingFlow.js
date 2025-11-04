@@ -6,8 +6,6 @@ import { LogOut } from 'lucide-react';
 import axios from 'axios';
 import BusinessProfile from './Step2_BusinessProfile';
 import CalendarSetup from './Step3_CalendarSetup';
-import SubscriptionPlan from './Step6_SubscriptionPlan';
-import InitialSync from './Step7_InitialSync';
 import Complete from './Step8_Complete';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
@@ -164,7 +162,7 @@ const OnboardingFlow = () => {
                         </div>
                         <div className="flex items-center space-x-4">
                             <span className="text-sm text-muted-foreground">
-                                Step {currentStep - 1} of 6
+                                Step {currentStep - 1} of 3
                             </span>
                             <Button
                                 variant="ghost"
@@ -180,7 +178,7 @@ const OnboardingFlow = () => {
                     <div className="w-full bg-muted rounded-full h-2">
                         <div
                             className="bg-primary h-2 rounded-full transition-all duration-300"
-                            style={{ width: `${((currentStep - 1) / 6) * 100}%` }}
+                            style={{ width: `${((currentStep - 1) / 3) * 100}%` }}
                         />
                     </div>
                 </div>
@@ -206,26 +204,8 @@ const OnboardingFlow = () => {
                     />
                 )}
 
-                {/* Step 4: Subscription Plan */}
+                {/* Step 4: Complete (with auto-sync) */}
                 {currentStep === 4 && (
-                    <SubscriptionPlan
-                        data={onboardingData}
-                        onNext={handleNext}
-                        onBack={handleBack}
-                    />
-                )}
-
-                {/* Step 5: Initial Sync */}
-                {currentStep === 5 && (
-                    <InitialSync
-                        data={onboardingData}
-                        onNext={handleNext}
-                        onBack={handleBack}
-                    />
-                )}
-
-                {/* Step 6: Complete */}
-                {currentStep === 6 && (
                     <Complete
                         data={onboardingData}
                         onComplete={handleComplete}

@@ -322,7 +322,7 @@ class CalendarSyncService {
           return; // Skip this meeting
         }
 
-        // Schedule Recall bot if transcription is enabled AND meeting is in the future
+        // Schedule Recall bot if transcription is enabled AND meeting is in the future AND user has access
         try {
           const connection = await getSupabase()
             .from('calendar_connections')
@@ -337,7 +337,30 @@ class CalendarSyncService {
             const meetingStart = new Date(calendarEvent.start.dateTime || calendarEvent.start.date);
 
             if (meetingStart > now) {
-              await this.scheduleRecallBotForMeeting(calendarEvent, newMeeting.id, userId);
+              // Check if user has transcription access (5 free meetings or paid subscription)
+              const hasAccess = await this.checkUserHasTranscriptionAccess(userId);
+
+              if (hasAccess) {
+                // Check if meeting is within 30 days (don't schedule bots too far in advance)
+                const daysUntilMeeting = (meetingStart - now) / (1000 * 60 * 60 * 24);
+
+                if (daysUntilMeeting <= 30) {
+                  await this.scheduleRecallBotForMeeting(calendarEvent, newMeeting.id, userId);
+                } else {
+                  console.log(`⏭️  Skipping Recall bot for meeting too far in future: ${calendarEvent.summary} (${Math.round(daysUntilMeeting)} days away)`);
+                }
+              } else {
+                console.log(`⏭️  User ${userId} has exceeded free meeting limit. Skipping bot for: ${calendarEvent.summary}`);
+
+                // Update meeting with upgrade_required status
+                await getSupabase()
+                  .from('meetings')
+                  .update({
+                    recall_status: 'upgrade_required',
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', newMeeting.id);
+              }
             } else {
               console.log(`⏭️  Skipping Recall bot for past meeting: ${calendarEvent.summary} (${meetingStart.toISOString()})`);
             }
@@ -424,6 +447,45 @@ class CalendarSyncService {
   }
 
   /**
+   * Check if user has access to transcription (5 free meetings or paid subscription)
+   */
+  async checkUserHasTranscriptionAccess(userId) {
+    try {
+      // Get subscription
+      const { data: subscription } = await getSupabase()
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      // Check if user has active paid subscription
+      const isPaid = subscription &&
+                     (subscription.status === 'active' || subscription.status === 'trialing') &&
+                     subscription.plan !== 'free';
+
+      if (isPaid) {
+        return true; // User has paid, unlimited access
+      }
+
+      // Count meetings with successful Recall bot transcription
+      const { count } = await getSupabase()
+        .from('meetings')
+        .select('id', { count: 'exact' })
+        .eq('user_id', userId)
+        .not('recall_bot_id', 'is', null)
+        .in('recall_status', ['completed', 'done']);
+
+      const meetingsTranscribed = count || 0;
+      const freeLimit = subscription?.free_meetings_limit || 5;
+
+      return meetingsTranscribed < freeLimit;
+    } catch (error) {
+      console.error('Error checking transcription access:', error);
+      return false; // Fail closed - don't schedule bot if we can't verify access
+    }
+  }
+
+  /**
    * Extract meeting data from Google Calendar event
    */
   extractMeetingData(userId, calendarEvent) {
@@ -499,12 +561,12 @@ class CalendarSyncService {
           }
         },
         automatic_leave: {
-          // Detect other bots and leave after 10 minutes if found
+          // OPTIMIZED: Detect other bots and leave after 5 minutes (was 10 minutes)
           bot_detection: {
             using_participant_names: {
               matches: ['bot', 'notetaker', 'recall', 'advicly', 'fireflies', 'otter', 'fathom', 'grain', 'sembly', 'airgram'],
-              timeout: 600, // Leave after 10 minutes if bot detected
-              activate_after: 1200 // Start checking after 20 minutes
+              timeout: 300, // Leave after 5 minutes if bot detected (was 600)
+              activate_after: 600 // Start checking after 10 minutes (was 1200)
             }
           },
           // Leave 5 seconds after everyone else has left
@@ -512,14 +574,16 @@ class CalendarSyncService {
             timeout: 5,
             activate_after: 60 // Start checking after 1 minute
           },
-          // Leave after 20 minutes in waiting room (Google Meet max is 10 minutes)
-          waiting_room_timeout: 1200,
+          // OPTIMIZED: Leave after 5 minutes in waiting room (was 20 minutes)
+          // Recall.ai charges for waiting room time, so minimize it
+          // 95% of bots that get admitted are let in within 9 minutes
+          waiting_room_timeout: 300, // 5 minutes (was 1200)
           // Leave after 30 seconds if recording permission denied
           recording_permission_denied_timeout: 30,
-          // Leave after 60 minutes of continuous silence
+          // OPTIMIZED: Leave after 30 minutes of continuous silence (was 60 minutes)
           silence_detection: {
-            timeout: 3600,
-            activate_after: 1200 // Start checking after 20 minutes
+            timeout: 1800, // 30 minutes (was 3600)
+            activate_after: 600 // Start checking after 10 minutes (was 1200)
           }
         },
         metadata: {
