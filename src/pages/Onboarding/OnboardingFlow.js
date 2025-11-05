@@ -228,6 +228,7 @@ const OnboardingFlow = () => {
                 {currentStep === 4 && selectedPlan !== 'free' && (
                     <SubscriptionPlan
                         data={onboardingData}
+                        selectedPlan={selectedPlan}
                         onNext={handleNext}
                         onBack={handleBack}
                     />

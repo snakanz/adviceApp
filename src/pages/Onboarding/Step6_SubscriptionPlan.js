@@ -9,10 +9,15 @@ import axios from 'axios';
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 const STRIPE_PUBLIC_KEY = process.env.REACT_APP_STRIPE_PUBLIC_KEY;
 
-const Step6_SubscriptionPlan = ({ data, onNext, onBack }) => {
+const Step6_SubscriptionPlan = ({ data, onNext, onBack, selectedPlan = 'paid' }) => {
     const { getAccessToken } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+
+    // Determine if this is annual or monthly plan
+    const isAnnual = selectedPlan === 'paid_annual';
+    const monthlyPrice = isAnnual ? '£56' : '£70';
+    const billingInfo = isAnnual ? 'Billed annually (£672/year)' : 'Billed monthly';
 
     const features = [
         'Unlimited meetings',
@@ -25,17 +30,28 @@ const Step6_SubscriptionPlan = ({ data, onNext, onBack }) => {
         'Email templates'
     ];
 
-    const handleStartTrial = async () => {
+    const handleStartPayment = async () => {
         setIsLoading(true);
         setError('');
 
         try {
             const token = await getAccessToken();
 
+            // Get the correct price ID based on selected plan
+            const priceId = isAnnual
+                ? process.env.REACT_APP_STRIPE_PRICE_ID_ANNUAL
+                : process.env.REACT_APP_STRIPE_PRICE_ID;
+
+            if (!priceId) {
+                setError('Payment system is not configured. Please contact support.');
+                setIsLoading(false);
+                return;
+            }
+
             // Create checkout session
             const response = await axios.post(
                 `${API_BASE_URL}/api/billing/checkout`,
-                { priceId: process.env.REACT_APP_STRIPE_PRICE_ID },
+                { priceId },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
@@ -45,28 +61,8 @@ const Step6_SubscriptionPlan = ({ data, onNext, onBack }) => {
                 await stripe.redirectToCheckout({ sessionId: response.data.sessionId });
             }
         } catch (err) {
-            console.error('Error starting trial:', err);
-            setError(err.response?.data?.error || 'Failed to start trial');
-            setIsLoading(false);
-        }
-    };
-
-    const handleSkip = async () => {
-        setIsLoading(true);
-        try {
-            const token = await getAccessToken();
-            
-            // Create free trial subscription without payment
-            await axios.post(
-                `${API_BASE_URL}/api/billing/create-trial`,
-                {},
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
-
-            onNext();
-        } catch (err) {
-            console.error('Error creating trial:', err);
-            setError(err.response?.data?.error || 'Failed to create trial');
+            console.error('Error starting payment:', err);
+            setError(err.response?.data?.error || 'Failed to start payment process');
             setIsLoading(false);
         }
     };
@@ -76,10 +72,10 @@ const Step6_SubscriptionPlan = ({ data, onNext, onBack }) => {
             <Card className="shadow-large border-border/50">
                 <CardHeader className="text-center space-y-2">
                     <CardTitle className="text-3xl font-bold">
-                        Choose Your Plan
+                        Complete Your Payment
                     </CardTitle>
                     <CardDescription className="text-base">
-                        Start your 7-day free trial. No credit card required.
+                        Unlock unlimited AI-transcribed meetings and premium features
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-8">
@@ -89,7 +85,7 @@ const Step6_SubscriptionPlan = ({ data, onNext, onBack }) => {
                             {/* Plan Name */}
                             <div className="flex items-center justify-between">
                                 <div>
-                                    <h3 className="text-2xl font-bold">Advicly Pro</h3>
+                                    <h3 className="text-2xl font-bold">Professional Plan</h3>
                                     <p className="text-sm text-muted-foreground mt-1">
                                         Everything you need to manage your advisory business
                                     </p>
@@ -102,11 +98,11 @@ const Step6_SubscriptionPlan = ({ data, onNext, onBack }) => {
                             {/* Price */}
                             <div className="space-y-1">
                                 <div className="flex items-baseline gap-2">
-                                    <span className="text-4xl font-bold">£70</span>
+                                    <span className="text-4xl font-bold">{monthlyPrice}</span>
                                     <span className="text-muted-foreground">/month</span>
                                 </div>
-                                <p className="text-sm text-green-600 font-medium">
-                                    ✓ 7-day free trial included
+                                <p className="text-sm text-muted-foreground">
+                                    {billingInfo}
                                 </p>
                             </div>
 
@@ -120,11 +116,11 @@ const Step6_SubscriptionPlan = ({ data, onNext, onBack }) => {
                                 ))}
                             </div>
 
-                            {/* Trial Info */}
+                            {/* Payment Info */}
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
                                 <p className="text-sm text-blue-900">
-                                    <strong>Free Trial:</strong> Get 7 days of full access to Advicly Pro. 
-                                    No credit card required. Cancel anytime.
+                                    <strong>Secure Payment:</strong> Your payment is processed securely by Stripe.
+                                    Cancel anytime, no questions asked.
                                 </p>
                             </div>
                         </div>
@@ -140,7 +136,7 @@ const Step6_SubscriptionPlan = ({ data, onNext, onBack }) => {
                     {/* Action Buttons */}
                     <div className="flex flex-col gap-3 pt-4 border-t">
                         <Button
-                            onClick={handleStartTrial}
+                            onClick={handleStartPayment}
                             disabled={isLoading}
                             size="lg"
                             className="w-full"
@@ -148,28 +144,28 @@ const Step6_SubscriptionPlan = ({ data, onNext, onBack }) => {
                             {isLoading ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Starting Trial...
+                                    Processing...
                                 </>
                             ) : (
-                                'Start 7-Day Free Trial'
+                                'Continue to Payment'
                             )}
                         </Button>
 
                         <Button
-                            onClick={handleSkip}
+                            onClick={onBack}
                             disabled={isLoading}
                             variant="outline"
                             size="lg"
                             className="w-full"
                         >
-                            Skip for Now
+                            Back
                         </Button>
                     </div>
 
                     {/* Footer Info */}
                     <div className="text-xs text-muted-foreground text-center space-y-1">
-                        <p>You can upgrade or cancel anytime from your account settings.</p>
-                        <p>By starting a trial, you agree to our Terms of Service and Privacy Policy.</p>
+                        <p>Secure payment powered by Stripe. Cancel anytime from your account settings.</p>
+                        <p>By continuing, you agree to our Terms of Service and Privacy Policy.</p>
                     </div>
                 </CardContent>
             </Card>

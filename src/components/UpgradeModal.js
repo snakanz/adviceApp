@@ -43,10 +43,19 @@ const UpgradeModal = ({ isOpen, onClose }) => {
         try {
             const token = await getAccessToken();
 
+            // Get the monthly price ID from environment
+            const priceId = process.env.REACT_APP_STRIPE_PRICE_ID;
+
+            if (!priceId) {
+                setError('Payment system is not configured. Please contact support.');
+                setIsLoading(false);
+                return;
+            }
+
             // Create checkout session
             const response = await axios.post(
                 `${API_BASE_URL}/api/billing/checkout`,
-                { priceId: process.env.REACT_APP_STRIPE_PRICE_ID },
+                { priceId },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
