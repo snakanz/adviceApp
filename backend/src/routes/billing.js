@@ -118,12 +118,8 @@ router.post('/checkout', authenticateSupabaseUser, async (req, res) => {
       success_url: `${process.env.FRONTEND_URL}/onboarding?step=complete&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONTEND_URL}/onboarding?step=subscription`,
       billing_address_collection: 'required',
-      payment_method_types: ['card'],
-      payment_method_options: {
-        card: {
-          three_d_secure: 'required'
-        }
-      }
+      payment_method_types: ['card']
+      // Note: 3D Secure is automatically handled by Stripe Checkout when required
     });
 
     console.log(`✅ Checkout session created successfully!`);
