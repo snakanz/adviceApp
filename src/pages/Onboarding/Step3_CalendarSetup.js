@@ -16,6 +16,7 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
     const [calendlyToken, setCalendlyToken] = useState('');
     const [showTokenInput, setShowTokenInput] = useState(false);
     const [enableTranscription, setEnableTranscription] = useState(false);
+    const [connectionTimeout, setConnectionTimeout] = useState(null);
 
     // Listen for OAuth messages from popup windows
     useEffect(() => {
@@ -33,30 +34,43 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
 
             if (event.data.type === 'GOOGLE_OAUTH_SUCCESS') {
                 console.log('✅ Google Calendar OAuth successful');
+                if (connectionTimeout) clearTimeout(connectionTimeout);
                 setIsConnected(true);
                 setIsConnecting(false);
                 setError('');
             } else if (event.data.type === 'GOOGLE_OAUTH_ERROR') {
                 console.error('❌ Google Calendar OAuth error:', event.data.error);
+                if (connectionTimeout) clearTimeout(connectionTimeout);
                 setError(event.data.error || 'Failed to connect to Google Calendar');
                 setIsConnecting(false);
             } else if (event.data.type === 'CALENDLY_OAUTH_SUCCESS') {
                 console.log('✅ Calendly OAuth successful');
+                if (connectionTimeout) clearTimeout(connectionTimeout);
                 setIsConnected(true);
                 setIsConnecting(false);
                 setError('');
             } else if (event.data.type === 'CALENDLY_OAUTH_ERROR') {
                 console.error('❌ Calendly OAuth error:', event.data.error);
+                if (connectionTimeout) clearTimeout(connectionTimeout);
                 setError(event.data.error || 'Failed to connect to Calendly');
                 setIsConnecting(false);
             }
         };
 
         window.addEventListener('message', handleOAuthMessage);
-        return () => window.removeEventListener('message', handleOAuthMessage);
+        return () => {
+            window.removeEventListener('message', handleOAuthMessage);
+            if (connectionTimeout) clearTimeout(connectionTimeout);
+        };
+    }, [connectionTimeout]);
+
+    // Check if already connected on mount (from auto-connect)
+    useEffect(() => {
+        checkForExistingConnection();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    // Check if already connected
+    // Check if already connected when provider is selected
     useEffect(() => {
         if (selectedProvider) {
             checkConnectionStatus();
@@ -64,10 +78,31 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedProvider]);
 
+    const checkForExistingConnection = async () => {
+        try {
+            const token = await getAccessToken();
+
+            // Check if Google Calendar is already connected (from auto-connect)
+            const googleResponse = await axios.get(
+                `${API_BASE_URL}/api/auth/google/status`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            if (googleResponse.data.connected) {
+                console.log('✅ Google Calendar already connected (auto-connect)');
+                setSelectedProvider('google');
+                setIsConnected(true);
+                // Don't auto-skip - let user see they're connected and choose to continue
+            }
+        } catch (err) {
+            console.error('Error checking for existing connection:', err);
+        }
+    };
+
     const checkConnectionStatus = async () => {
         try {
             const token = await getAccessToken();
-            
+
             if (selectedProvider === 'google') {
                 const response = await axios.get(
                     `${API_BASE_URL}/api/auth/google/status`,
@@ -123,6 +158,17 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                     setIsConnecting(false);
                 } else {
                     console.log('✅ Google OAuth popup opened successfully');
+
+                    // Set 30-second timeout for OAuth completion
+                    const timeout = setTimeout(() => {
+                        if (isConnecting) {
+                            console.warn('⚠️ OAuth connection timed out after 30 seconds');
+                            setError('Connection timed out. The backend may be starting up. Please try again in a moment.');
+                            setIsConnecting(false);
+                        }
+                    }, 30000);
+
+                    setConnectionTimeout(timeout);
                 }
             }
         } catch (err) {
@@ -166,6 +212,17 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                     setIsConnecting(false);
                 } else {
                     console.log('✅ Calendly OAuth popup opened successfully');
+
+                    // Set 30-second timeout for OAuth completion
+                    const timeout = setTimeout(() => {
+                        if (isConnecting) {
+                            console.warn('⚠️ OAuth connection timed out after 30 seconds');
+                            setError('Connection timed out. The backend may be starting up. Please try again in a moment.');
+                            setIsConnecting(false);
+                        }
+                    }, 30000);
+
+                    setConnectionTimeout(timeout);
                 }
             }
         } catch (err) {
@@ -260,10 +317,6 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
                 {/* LEFT COLUMN - Content */}
                 <div className="space-y-8">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">
-                        Question 3 of 4
-                    </p>
-
                     <div className="space-y-3">
                         <h1 className="text-4xl font-bold text-foreground">
                             {!selectedProvider ? 'Which calendar do you use?' : 'Connect your calendar'}

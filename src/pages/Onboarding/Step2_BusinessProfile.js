@@ -83,10 +83,6 @@ const Step2_BusinessProfile = ({ data, onNext, user }) => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
                 {/* LEFT COLUMN - Content */}
                 <div className="space-y-8">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground font-semibold">
-                        Question 1 of 4
-                    </p>
-
                     <div className="space-y-3">
                         <h1 className="text-4xl font-bold text-foreground">
                             Tell us about your business

@@ -19,11 +19,7 @@ const AuthCallback = () => {
       try {
         console.log('🔄 AuthCallback: Starting OAuth callback processing...');
         setStatus('processing');
-        setMessage('Verifying your credentials...');
-
-        // Supabase automatically processes the hash fragment from the URL
-        // We just need to wait for it to complete
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        setMessage('Setting up your account...');
 
         // Get the session directly from Supabase
         const { data: { session }, error } = await supabase.auth.getSession();
@@ -43,13 +39,9 @@ const AuthCallback = () => {
 
         console.log('✅ Session established:', session.user.email);
 
-        // Note: Supabase automatically manages token storage in localStorage
-        // No need to manually store the JWT token
-
-        // Check if user profile exists and get onboarding status
-        setMessage('Loading your profile...');
         const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
+        // Fetch profile to check onboarding status
         let onboardingCompleted = false;
         try {
           const response = await fetch(`${apiBaseUrl}/api/users/profile`, {
@@ -69,37 +61,32 @@ const AuthCallback = () => {
           console.warn('⚠️ Error fetching profile:', profileError);
         }
 
-        // Auto-connect Google Calendar if user signed in with Google
-        setMessage('Connecting your calendar...');
-        try {
-          const calendarResponse = await fetch(`${apiBaseUrl}/api/auth/auto-connect-calendar`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`,
-              'Content-Type': 'application/json'
+        // Auto-connect Google Calendar in background (don't wait for it)
+        // This runs asynchronously and won't block the redirect
+        fetch(`${apiBaseUrl}/api/auth/auto-connect-calendar`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          }
+        })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              console.log('✅ Google Calendar auto-connected:', data.message);
+            } else {
+              console.log('ℹ️ Calendar not connected:', data.message);
             }
+          })
+          .catch(error => {
+            console.warn('⚠️ Error auto-connecting calendar:', error);
           });
 
-          if (calendarResponse.ok) {
-            const calendarData = await calendarResponse.json();
-            if (calendarData.success) {
-              console.log('✅ Google Calendar auto-connected:', calendarData.message);
-            } else {
-              console.log('ℹ️ Calendar not connected:', calendarData.message);
-            }
-          } else {
-            console.warn('⚠️ Calendar auto-connect returned:', calendarResponse.status);
-          }
-        } catch (calendarError) {
-          console.warn('⚠️ Error auto-connecting calendar:', calendarError);
-          // Don't fail the login if calendar connection fails
-        }
-
-        // Success - redirect based on onboarding status
+        // Success - redirect immediately (don't wait for calendar)
         setStatus('success');
-        setMessage('Sign in successful! Redirecting...');
+        setMessage('Redirecting...');
 
-        // Redirect after a short delay
+        // Redirect immediately
         setTimeout(() => {
           if (onboardingCompleted) {
             console.log('🔄 Onboarding complete - Redirecting to /meetings...');
@@ -108,7 +95,7 @@ const AuthCallback = () => {
             console.log('🔄 Onboarding incomplete - Redirecting to /onboarding...');
             navigate('/onboarding', { replace: true });
           }
-        }, 1000);
+        }, 500);
 
       } catch (err) {
         console.error('❌ Auth callback error:', err);
@@ -144,7 +131,7 @@ const AuthCallback = () => {
           )}
 
           <h2 className="text-xl font-semibold text-foreground mb-2">
-            {status === 'processing' && 'Completing Sign In'}
+            {status === 'processing' && 'Setting Up Your Account'}
             {status === 'success' && 'Success!'}
             {status === 'error' && 'Authentication Error'}
           </h2>
