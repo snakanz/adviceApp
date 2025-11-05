@@ -48,11 +48,12 @@ const Step8_Complete = ({ data, selectedPlan = 'free', onComplete }) => {
 
             console.log('✅ Calendar sync complete:', syncResponse.data);
 
-            // Update stats
-            const { added = 0, updated = 0 } = syncResponse.data;
+            // Update stats from sync results
+            const results = syncResponse.data.results || syncResponse.data;
+            const { added = 0, updated = 0, restored = 0, clientsCreated = 0, clientsLinked = 0 } = results;
             setSyncStats({
-                meetingsCount: added + updated,
-                clientsCount: 0 // Will be updated when client extraction is implemented
+                meetingsCount: added + updated + restored,
+                clientsCount: clientsCreated
             });
 
             setSyncStatus('complete');
