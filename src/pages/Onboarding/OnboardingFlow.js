@@ -19,9 +19,18 @@ const OnboardingFlow = () => {
     const [isLoading, setIsLoading] = useState(true);
 
     // Get selected plan from URL or session storage
+    // Priority: URL param > session storage > default 'free'
     const urlPlan = searchParams.get('plan');
     const sessionPlan = sessionStorage.getItem('selectedPlan');
-    const selectedPlan = urlPlan || sessionPlan || 'free';
+    const [selectedPlan, setSelectedPlan] = useState(urlPlan || sessionPlan || 'free');
+
+    // Update session storage when plan changes
+    useEffect(() => {
+        if (urlPlan) {
+            sessionStorage.setItem('selectedPlan', urlPlan);
+            setSelectedPlan(urlPlan);
+        }
+    }, [urlPlan]);
 
     const [onboardingData, setOnboardingData] = useState({
         business_name: '',

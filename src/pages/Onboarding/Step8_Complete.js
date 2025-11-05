@@ -26,16 +26,39 @@ const Step8_Complete = ({ data, selectedPlan = 'free', onComplete }) => {
             // Step 1: Create subscription (free or paid already handled by Stripe)
             setSyncStatus('initializing');
 
-            // Only create free subscription if user selected free plan
-            if (selectedPlan === 'free') {
+            // Check if user already has a subscription (from Stripe webhook)
+            let hasSubscription = false;
+            try {
+                const subResponse = await axios.get(
+                    `${API_BASE_URL}/api/billing/subscription`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+
+                // Check if user has a paid subscription
+                const subscription = subResponse.data;
+                hasSubscription = subscription &&
+                                 subscription.plan !== 'free' &&
+                                 (subscription.status === 'active' || subscription.status === 'trialing');
+
+                if (hasSubscription) {
+                    console.log('✅ Paid subscription already exists:', subscription);
+                }
+            } catch (err) {
+                console.log('No existing subscription found, will create if needed');
+            }
+
+            // Only create free subscription if user selected free plan AND doesn't have a paid subscription
+            if (selectedPlan === 'free' && !hasSubscription) {
                 await axios.post(
                     `${API_BASE_URL}/api/billing/create-trial`,
                     {},
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
                 console.log('✅ Free subscription created (5 free meetings)');
+            } else if (hasSubscription) {
+                console.log('✅ Paid subscription already created via Stripe webhook');
             } else {
-                console.log('✅ Paid subscription already created via Stripe');
+                console.log('✅ Paid subscription will be created via Stripe webhook');
             }
 
             // Step 2: Trigger calendar sync

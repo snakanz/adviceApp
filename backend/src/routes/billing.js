@@ -115,7 +115,7 @@ router.post('/checkout', authenticateSupabaseUser, async (req, res) => {
       customer: stripeCustomerId,
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
-      success_url: `${process.env.FRONTEND_URL}/onboarding?step=complete&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${process.env.FRONTEND_URL}/onboarding?step=complete&plan=paid&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONTEND_URL}/onboarding?step=subscription`,
       billing_address_collection: 'required',
       payment_method_types: ['card']
@@ -315,6 +315,10 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
   try {
     switch (event.type) {
+      case 'checkout.session.completed':
+        await handleCheckoutCompleted(event.data.object);
+        break;
+
       case 'customer.subscription.created':
       case 'customer.subscription.updated':
         await handleSubscriptionChange(event.data.object);
@@ -339,6 +343,58 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
+
+/**
+ * Handle checkout session completed
+ * This is the first event after successful payment
+ */
+async function handleCheckoutCompleted(session) {
+  try {
+    console.log(`🎉 Checkout completed for session ${session.id}`);
+
+    const { customer, subscription: subscriptionId } = session;
+
+    if (!subscriptionId) {
+      console.warn('No subscription ID in checkout session');
+      return;
+    }
+
+    // Get user from Stripe customer
+    const { data: stripeCustomer } = await getSupabase()
+      .from('stripe_customers')
+      .select('user_id')
+      .eq('stripe_customer_id', customer)
+      .single();
+
+    if (!stripeCustomer) {
+      console.warn(`No user found for Stripe customer ${customer}`);
+      return;
+    }
+
+    // Fetch the full subscription details from Stripe
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+    const plan = subscription.items.data[0].price.lookup_key || 'pro';
+
+    // Create subscription in database
+    await getSupabase()
+      .from('subscriptions')
+      .upsert({
+        user_id: stripeCustomer.user_id,
+        stripe_subscription_id: subscriptionId,
+        plan,
+        status: subscription.status,
+        trial_ends_at: subscription.trial_end ? new Date(subscription.trial_end * 1000).toISOString() : null,
+        current_period_start: new Date(subscription.current_period_start * 1000),
+        current_period_end: new Date(subscription.current_period_end * 1000),
+        updated_at: new Date()
+      });
+
+    console.log(`✅ Subscription ${subscriptionId} created for user ${stripeCustomer.user_id} - plan: ${plan}, status: ${subscription.status}`);
+  } catch (error) {
+    console.error('Error handling checkout completion:', error);
+  }
+}
 
 /**
  * Handle subscription changes

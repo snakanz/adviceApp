@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
 import { Card, CardContent } from './ui/card';
-import { Zap, ArrowUpCircle } from 'lucide-react';
+import { Zap, ArrowUpCircle, Crown, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
@@ -39,9 +39,40 @@ const MeetingLimitIndicator = ({ onUpgradeClick }) => {
         return null;
     }
 
-    // Don't show for paid users
+    // Show professional plan indicator for paid users
     if (stats.plan !== 'free') {
-        return null;
+        return (
+            <Card className="border-primary/30 bg-gradient-to-br from-primary/10 to-primary/5 backdrop-blur-sm">
+                <CardContent className="p-4 space-y-2">
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <Crown className="w-4 h-4 text-primary" />
+                            <span className="text-sm font-semibold text-foreground">
+                                Professional Plan
+                            </span>
+                        </div>
+                        <CheckCircle className="w-4 h-4 text-green-500" />
+                    </div>
+
+                    {/* Status */}
+                    <div className="flex items-center gap-2">
+                        <div className="flex-1">
+                            <p className="text-xs text-muted-foreground">
+                                Unlimited AI-transcribed meetings
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Active Badge */}
+                    <div className="pt-1">
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                            Active
+                        </span>
+                    </div>
+                </CardContent>
+            </Card>
+        );
     }
 
     // Map backend property names to frontend variable names
