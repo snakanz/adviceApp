@@ -1,6 +1,33 @@
 const express = require('express');
 const router = express.Router();
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+
+// Enhanced Stripe initialization with error logging
+let stripe;
+try {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  console.log('=== STRIPE INITIALIZATION ===');
+  console.log('STRIPE_SECRET_KEY exists:', !!secretKey);
+  console.log('STRIPE_SECRET_KEY prefix:', secretKey ? secretKey.substring(0, 7) : 'MISSING');
+  console.log('STRIPE_SECRET_KEY length:', secretKey ? secretKey.length : 0);
+
+  if (!secretKey) {
+    console.error('ERROR: STRIPE_SECRET_KEY is not set in environment variables!');
+    throw new Error('STRIPE_SECRET_KEY is not configured');
+  }
+
+  if (!secretKey.startsWith('sk_test_') && !secretKey.startsWith('sk_live_')) {
+    console.error('ERROR: STRIPE_SECRET_KEY has invalid format!');
+    throw new Error('STRIPE_SECRET_KEY has invalid format');
+  }
+
+  stripe = require('stripe')(secretKey);
+  console.log('Stripe initialized successfully');
+} catch (error) {
+  console.error('FATAL: Failed to initialize Stripe:', error.message);
+  console.error('Stack:', error.stack);
+  // Don't throw here - let the routes handle it
+}
+
 const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 
@@ -9,18 +36,39 @@ const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
  * Create a Stripe checkout session for subscription
  */
 router.post('/checkout', authenticateSupabaseUser, async (req, res) => {
+  console.log('=== CHECKOUT REQUEST RECEIVED ===');
+  console.log('Timestamp:', new Date().toISOString());
+  console.log('User ID:', req.user?.id);
+  console.log('User Email:', req.user?.email);
+  console.log('Request body:', req.body);
+
   try {
+    // Check if Stripe is initialized
+    if (!stripe) {
+      console.error('ERROR: Stripe is not initialized!');
+      return res.status(500).json({
+        error: 'Payment system is not configured. Stripe initialization failed.',
+        details: 'STRIPE_SECRET_KEY may be missing or invalid'
+      });
+    }
+
     const { priceId } = req.body;
     const userId = req.user.id;
     const userEmail = req.user.email;
 
+    console.log('Extracted data:', { priceId, userId, userEmail });
+
     if (!priceId) {
+      console.error('ERROR: Missing priceId in request');
       return res.status(400).json({ error: 'Price ID is required' });
     }
 
     if (!isSupabaseAvailable()) {
+      console.error('ERROR: Supabase is not available');
       return res.status(503).json({ error: 'Database service unavailable' });
     }
+
+    console.log('Checking for existing Stripe customer...');
 
     // Get or create Stripe customer
     let stripeCustomerId;
@@ -31,8 +79,10 @@ router.post('/checkout', authenticateSupabaseUser, async (req, res) => {
       .single();
 
     if (existingCustomer) {
+      console.log('Found existing Stripe customer:', existingCustomer.stripe_customer_id);
       stripeCustomerId = existingCustomer.stripe_customer_id;
     } else {
+      console.log('Creating new Stripe customer...');
       // Create new Stripe customer
       const customer = await stripe.customers.create({
         email: userEmail,
@@ -40,6 +90,7 @@ router.post('/checkout', authenticateSupabaseUser, async (req, res) => {
       });
 
       stripeCustomerId = customer.id;
+      console.log('Created Stripe customer:', stripeCustomerId);
 
       // Save to database
       await getSupabase()
@@ -49,9 +100,17 @@ router.post('/checkout', authenticateSupabaseUser, async (req, res) => {
           stripe_customer_id: stripeCustomerId,
           email: userEmail
         });
+      console.log('Saved customer to database');
     }
 
     // Create checkout session
+    console.log('Creating checkout session with:', {
+      customer: stripeCustomerId,
+      priceId,
+      mode: 'subscription',
+      frontendUrl: process.env.FRONTEND_URL
+    });
+
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
       line_items: [{ price: priceId, quantity: 1 }],
@@ -67,12 +126,27 @@ router.post('/checkout', authenticateSupabaseUser, async (req, res) => {
       }
     });
 
-    console.log(`✅ Checkout session created for user ${userId}: ${session.id}`);
+    console.log(`✅ Checkout session created successfully!`);
+    console.log('Session ID:', session.id);
+    console.log('Session URL:', session.url);
 
     res.json({ sessionId: session.id });
   } catch (error) {
-    console.error('Checkout error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('=== CHECKOUT ERROR ===');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error type:', error.type);
+    console.error('Error code:', error.code);
+    console.error('Full error:', error);
+    console.error('Stack trace:', error.stack);
+
+    // Send detailed error response
+    res.status(500).json({
+      error: error.message,
+      type: error.type,
+      code: error.code,
+      details: 'Check server logs for more information'
+    });
   }
 });
 

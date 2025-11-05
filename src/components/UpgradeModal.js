@@ -45,12 +45,35 @@ const UpgradeModal = ({ isOpen, onClose }) => {
 
             // Get the monthly price ID from environment
             const priceId = process.env.REACT_APP_STRIPE_PRICE_ID;
+            const publicKey = process.env.REACT_APP_STRIPE_PUBLIC_KEY;
+
+            // Enhanced error logging
+            console.log('=== UPGRADE MODAL DEBUG ===');
+            console.log('Environment variables check:');
+            console.log('- REACT_APP_STRIPE_PRICE_ID:', priceId ? `${priceId.substring(0, 15)}...` : 'MISSING');
+            console.log('- REACT_APP_STRIPE_PUBLIC_KEY:', publicKey ? `${publicKey.substring(0, 15)}...` : 'MISSING');
+            console.log('- API_BASE_URL:', API_BASE_URL);
+            console.log('- STRIPE_PUBLIC_KEY constant:', STRIPE_PUBLIC_KEY ? `${STRIPE_PUBLIC_KEY.substring(0, 15)}...` : 'MISSING');
 
             if (!priceId) {
-                setError('Payment system is not configured. Please contact support.');
+                const errorMsg = 'Payment system is not configured. Missing REACT_APP_STRIPE_PRICE_ID environment variable.';
+                console.error('ERROR:', errorMsg);
+                console.log('Available env vars:', Object.keys(process.env).filter(k => k.startsWith('REACT_APP_')));
+                setError(errorMsg);
                 setIsLoading(false);
                 return;
             }
+
+            if (!STRIPE_PUBLIC_KEY) {
+                const errorMsg = 'Payment system is not configured. Missing Stripe public key.';
+                console.error('ERROR:', errorMsg);
+                setError(errorMsg);
+                setIsLoading(false);
+                return;
+            }
+
+            console.log('Creating checkout session...');
+            console.log('Request payload:', { priceId });
 
             // Create checkout session
             const response = await axios.post(
@@ -59,14 +82,27 @@ const UpgradeModal = ({ isOpen, onClose }) => {
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
+            console.log('Checkout session created:', response.data.sessionId ? 'SUCCESS' : 'FAILED');
+
             // Redirect to Stripe Checkout
             if (response.data.sessionId) {
+                console.log('Redirecting to Stripe Checkout...');
                 const stripe = window.Stripe(STRIPE_PUBLIC_KEY);
                 await stripe.redirectToCheckout({ sessionId: response.data.sessionId });
+            } else {
+                throw new Error('No session ID returned from server');
             }
         } catch (err) {
-            console.error('Error upgrading:', err);
-            setError(err.response?.data?.error || 'Failed to start upgrade process');
+            console.error('=== UPGRADE ERROR ===');
+            console.error('Error type:', err.name);
+            console.error('Error message:', err.message);
+            console.error('Full error:', err);
+            if (err.response) {
+                console.error('Response status:', err.response.status);
+                console.error('Response data:', err.response.data);
+                console.error('Response headers:', err.response.headers);
+            }
+            setError(err.response?.data?.error || err.message || 'Failed to start upgrade process');
             setIsLoading(false);
         }
     };
