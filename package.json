@@ -37,13 +37,15 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "node verify-env.js && react-scripts build",
+    "build:skip-verify": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "dev": "react-scripts start",
     "backend": "cd backend && npm run dev",
     "setup": "chmod +x setup-local-dev.sh && ./setup-local-dev.sh",
-    "smoke": "node scripts/smoke.js"
+    "smoke": "node scripts/smoke.js",
+    "verify-env": "node verify-env.js"
   },
   "eslintConfig": {
     "extends": [
