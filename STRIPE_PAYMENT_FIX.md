@@ -82,6 +82,29 @@ const session = await stripe.checkout.sessions.create({
 
 ---
 
+### **Issue #3: Missing Stripe.js Library**
+
+**Problem:**
+- Frontend code calls `window.Stripe()` but Stripe.js library not loaded
+- Error: `window.Stripe is not a function`
+- Payment redirect fails even after checkout session is created
+
+**Root Cause:**
+- Stripe.js library was never added to the HTML file
+- The `window.Stripe` object is only available when the Stripe.js script is loaded
+- React app needs the script tag in `public/index.html`
+
+**Fix Applied:**
+- Added Stripe.js v3 script to `public/index.html`:
+  ```html
+  <!-- Stripe.js - Required for payment processing -->
+  <script src="https://js.stripe.com/v3/"></script>
+  ```
+
+**Commit:** `52f96e9` - "Add Stripe.js library to enable payment processing"
+
+---
+
 ## 📋 Deployment Status
 
 ### **Frontend (Cloudflare Pages)**
@@ -221,9 +244,10 @@ Once deployments complete, test the following:
 
 1. **wrangler.toml** - Added Stripe environment variables
 2. **backend/src/routes/billing.js** - Removed unsupported payment_method_options parameter
+3. **public/index.html** - Added Stripe.js library script
 
 ---
 
-**Last Updated:** 2025-11-05 22:58 UTC  
-**Status:** ✅ Both fixes deployed, waiting for build completion
+**Last Updated:** 2025-11-05 23:05 UTC
+**Status:** ✅ All 3 fixes deployed, Cloudflare Pages building final version
 
