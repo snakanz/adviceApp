@@ -84,13 +84,14 @@ const UpgradeModal = ({ isOpen, onClose }) => {
 
             console.log('Checkout session created:', response.data.sessionId ? 'SUCCESS' : 'FAILED');
 
-            // Redirect to Stripe Checkout
-            if (response.data.sessionId) {
+            // Redirect to Stripe Checkout using direct URL (avoids ad blocker issues)
+            if (response.data.url) {
                 console.log('Redirecting to Stripe Checkout...');
-                const stripe = window.Stripe(STRIPE_PUBLIC_KEY);
-                await stripe.redirectToCheckout({ sessionId: response.data.sessionId });
+                console.log('Checkout URL:', response.data.url);
+                // Use direct redirect instead of stripe.redirectToCheckout() to avoid ad blocker issues
+                window.location.href = response.data.url;
             } else {
-                throw new Error('No session ID returned from server');
+                throw new Error('No checkout URL returned from server');
             }
         } catch (err) {
             console.error('=== UPGRADE ERROR ===');

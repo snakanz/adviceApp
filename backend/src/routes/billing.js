@@ -126,7 +126,11 @@ router.post('/checkout', authenticateSupabaseUser, async (req, res) => {
     console.log('Session ID:', session.id);
     console.log('Session URL:', session.url);
 
-    res.json({ sessionId: session.id });
+    // Return both sessionId and url for direct redirect (avoids ad blocker issues)
+    res.json({
+      sessionId: session.id,
+      url: session.url
+    });
   } catch (error) {
     console.error('=== CHECKOUT ERROR ===');
     console.error('Error name:', error.name);
