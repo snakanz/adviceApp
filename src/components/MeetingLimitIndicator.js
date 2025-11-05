@@ -44,7 +44,8 @@ const MeetingLimitIndicator = ({ onUpgradeClick }) => {
         return null;
     }
 
-    const { meetingsUsed, meetingsLimit } = stats;
+    // Map backend property names to frontend variable names
+    const { transcribed: meetingsUsed, freeLimit: meetingsLimit } = stats;
     const remaining = Math.max(0, meetingsLimit - meetingsUsed);
     const percentage = (meetingsUsed / meetingsLimit) * 100;
     const isNearLimit = remaining <= 1;

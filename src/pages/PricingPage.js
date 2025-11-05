@@ -143,21 +143,11 @@ const PricingPage = () => {
                             {/* CTA Button */}
                             <Button
                                 onClick={() => handleSelectPlan('free')}
-                                variant="outline"
                                 size="lg"
-                                className="w-full text-base h-12"
+                                className="w-full text-base h-12 bg-primary hover:bg-primary/90"
                             >
-                                Select Plan
+                                Try for free
                             </Button>
-
-                            <div className="text-center">
-                                <button
-                                    onClick={() => handleSelectPlan('free')}
-                                    className="text-sm text-primary hover:underline"
-                                >
-                                    Try for free
-                                </button>
-                            </div>
                         </CardContent>
                     </Card>
 
@@ -214,12 +204,9 @@ const PricingPage = () => {
                             </Button>
 
                             <div className="text-center">
-                                <button
-                                    onClick={() => handleSelectPlan(billingCycle === 'monthly' ? 'paid' : 'paid_annual')}
-                                    className="text-sm text-primary hover:underline"
-                                >
-                                    Try for free
-                                </button>
+                                <p className="text-sm text-muted-foreground">
+                                    Cancel anytime
+                                </p>
                             </div>
 
                             {/* Credits Info */}

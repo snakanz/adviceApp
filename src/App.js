@@ -23,6 +23,7 @@ function PrivateRoute() {
   const { isAuthenticated, isLoading, getAccessToken } = useAuth();
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
   const navigate = useNavigate();
 
   // Safety timeout: If still loading after 10 seconds, stop loading
@@ -44,26 +45,48 @@ function PrivateRoute() {
     if (isAuthenticated && !hasCheckedOnboarding) {
       setHasCheckedOnboarding(true);
 
-      console.log('✅ User authenticated, checking onboarding status...');
+      console.log('✅ User authenticated, checking onboarding and subscription status...');
 
       // Initialize notification service
       notificationService.initialize();
 
-      // Check onboarding status
-      const checkOnboarding = async () => {
+      // Check onboarding and subscription status
+      const checkOnboardingAndSubscription = async () => {
         try {
           const token = await getAccessToken();
           console.log('🔑 Got access token:', token ? 'Present' : 'Missing');
 
-          const response = await axios.get(`${API_BASE_URL}/api/auth/onboarding/status`, {
+          // Check onboarding status
+          const onboardingResponse = await axios.get(`${API_BASE_URL}/api/auth/onboarding/status`, {
             headers: { Authorization: `Bearer ${token}` }
           });
 
-          console.log('📋 Onboarding status response:', response.data);
+          console.log('📋 Onboarding status response:', onboardingResponse.data);
+
+          // Check subscription status
+          try {
+            const subscriptionResponse = await axios.get(`${API_BASE_URL}/api/billing/subscription`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            console.log('💳 Subscription status:', subscriptionResponse.data);
+            setSubscriptionStatus(subscriptionResponse.data);
+
+            // Check if subscription is valid
+            const validStatuses = ['active', 'trialing'];
+            if (subscriptionResponse.data && !validStatuses.includes(subscriptionResponse.data.status)) {
+              console.warn('⚠️ Invalid subscription status:', subscriptionResponse.data.status);
+              // Don't redirect here - let the backend middleware handle it
+              // This is just for better UX and logging
+            }
+          } catch (subError) {
+            console.warn('⚠️ Could not fetch subscription status:', subError.message);
+            // Don't fail the whole check if subscription fetch fails
+          }
+
           setCheckingOnboarding(false);
 
           // Redirect to onboarding if not completed
-          if (!response.data.onboarding_completed) {
+          if (!onboardingResponse.data.onboarding_completed) {
             console.log('🔄 Redirecting to onboarding...');
             navigate('/onboarding');
           } else {
@@ -78,16 +101,23 @@ function PrivateRoute() {
             console.error('❌ 401 Unauthorized - token may be invalid');
           }
 
+          // If we get a 403 with subscription error, redirect to pricing
+          if (error.response?.status === 403 && error.response?.data?.error?.includes('subscription')) {
+            console.log('🔄 Redirecting to pricing due to subscription issue...');
+            navigate('/pricing');
+          }
+
           setCheckingOnboarding(false);
         }
       };
 
-      checkOnboarding();
+      checkOnboardingAndSubscription();
     } else if (!isAuthenticated) {
       // Reset check flag when user logs out
       console.log('👋 User not authenticated, resetting onboarding check');
       setHasCheckedOnboarding(false);
       setCheckingOnboarding(true);
+      setSubscriptionStatus(null);
     } else if (!isLoading && isAuthenticated && hasCheckedOnboarding) {
       // User is authenticated and we've already checked - stop loading
       console.log('✅ Already checked onboarding, stopping loading state');
