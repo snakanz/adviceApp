@@ -23,7 +23,6 @@ function PrivateRoute() {
   const { isAuthenticated, isLoading, getAccessToken } = useAuth();
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false);
-  const [subscriptionStatus, setSubscriptionStatus] = useState(null);
   const navigate = useNavigate();
 
   // Safety timeout: If still loading after 10 seconds, stop loading
@@ -69,7 +68,6 @@ function PrivateRoute() {
               headers: { Authorization: `Bearer ${token}` }
             });
             console.log('💳 Subscription status:', subscriptionResponse.data);
-            setSubscriptionStatus(subscriptionResponse.data);
 
             // Check if subscription is valid
             const validStatuses = ['active', 'trialing'];
@@ -117,7 +115,6 @@ function PrivateRoute() {
       console.log('👋 User not authenticated, resetting onboarding check');
       setHasCheckedOnboarding(false);
       setCheckingOnboarding(true);
-      setSubscriptionStatus(null);
     } else if (!isLoading && isAuthenticated && hasCheckedOnboarding) {
       // User is authenticated and we've already checked - stop loading
       console.log('✅ Already checked onboarding, stopping loading state');
