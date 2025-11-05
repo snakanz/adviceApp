@@ -50,7 +50,7 @@ const Step8_Complete = ({ data, selectedPlan = 'free', onComplete }) => {
 
             // Update stats from sync results
             const results = syncResponse.data.results || syncResponse.data;
-            const { added = 0, updated = 0, restored = 0, clientsCreated = 0, clientsLinked = 0 } = results;
+            const { added = 0, updated = 0, restored = 0, clientsCreated = 0 } = results;
             setSyncStats({
                 meetingsCount: added + updated + restored,
                 clientsCount: clientsCreated
