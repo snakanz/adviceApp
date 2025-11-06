@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useSearchParams } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import { Button } from './components/ui/button';
 import { Avatar, AvatarFallback } from './components/ui/avatar';
@@ -30,6 +30,7 @@ import {
 import CalendarSyncButton from './components/CalendarSyncButton';
 import MeetingLimitIndicator from './components/MeetingLimitIndicator';
 import UpgradeModal from './components/UpgradeModal';
+import { CheckCircle2 } from 'lucide-react';
 
 const navItems = [
   { label: 'Meetings', icon: <CalendarIcon />, path: '/meetings' },
@@ -48,7 +49,28 @@ export default function Layout() {
   const [open, setOpen] = useState(false);
   const [calendarConnection, setCalendarConnection] = useState(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeSuccessMessage, setUpgradeSuccessMessage] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
   const { logout, user } = useAuth();
+
+  // Detect successful upgrade from Stripe checkout
+  useEffect(() => {
+    const upgraded = searchParams.get('upgraded');
+    if (upgraded === 'true') {
+      console.log('🎉 User successfully upgraded to Professional!');
+      setUpgradeSuccessMessage('🎉 Welcome to Professional! You now have unlimited AI-transcribed meetings.');
+
+      // Auto-hide success message after 5 seconds
+      setTimeout(() => {
+        setUpgradeSuccessMessage('');
+      }, 5000);
+
+      // Clean up URL (remove ?upgraded=true parameter)
+      searchParams.delete('upgraded');
+      searchParams.delete('session_id');
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // Fetch active calendar connection for transcription status with real-time updates
   useEffect(() => {
@@ -374,6 +396,16 @@ export default function Layout() {
         isOpen={showUpgradeModal}
         onClose={() => setShowUpgradeModal(false)}
       />
+
+      {/* Upgrade Success Toast */}
+      {upgradeSuccessMessage && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top-2">
+          <div className="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 max-w-md">
+            <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+            <span className="font-medium">{upgradeSuccessMessage}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -52,11 +52,11 @@ router.post('/checkout', authenticateSupabaseUser, async (req, res) => {
       });
     }
 
-    const { priceId } = req.body;
+    const { priceId, successUrl } = req.body;
     const userId = req.user.id;
     const userEmail = req.user.email;
 
-    console.log('Extracted data:', { priceId, userId, userEmail });
+    console.log('Extracted data:', { priceId, successUrl, userId, userEmail });
 
     if (!priceId) {
       console.error('ERROR: Missing priceId in request');
@@ -104,19 +104,32 @@ router.post('/checkout', authenticateSupabaseUser, async (req, res) => {
     }
 
     // Create checkout session
+    // Determine success URL based on context:
+    // - If successUrl provided (e.g., '/meetings'), user is upgrading from dashboard
+    // - Otherwise, user is in onboarding flow
+    const finalSuccessUrl = successUrl
+      ? `${process.env.FRONTEND_URL}${successUrl}?upgraded=true&session_id={CHECKOUT_SESSION_ID}`
+      : `${process.env.FRONTEND_URL}/onboarding?step=complete&plan=paid&session_id={CHECKOUT_SESSION_ID}`;
+
+    const finalCancelUrl = successUrl
+      ? `${process.env.FRONTEND_URL}${successUrl}` // Return to dashboard if upgrading
+      : `${process.env.FRONTEND_URL}/onboarding?step=subscription`; // Return to onboarding if new user
+
     console.log('Creating checkout session with:', {
       customer: stripeCustomerId,
       priceId,
       mode: 'subscription',
-      frontendUrl: process.env.FRONTEND_URL
+      frontendUrl: process.env.FRONTEND_URL,
+      successUrl: finalSuccessUrl,
+      cancelUrl: finalCancelUrl
     });
 
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
       line_items: [{ price: priceId, quantity: 1 }],
       mode: 'subscription',
-      success_url: `${process.env.FRONTEND_URL}/onboarding?step=complete&plan=paid&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.FRONTEND_URL}/onboarding?step=subscription`,
+      success_url: finalSuccessUrl,
+      cancel_url: finalCancelUrl,
       billing_address_collection: 'required',
       payment_method_types: ['card']
       // Note: 3D Secure is automatically handled by Stripe Checkout when required

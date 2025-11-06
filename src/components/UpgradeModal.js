@@ -73,12 +73,15 @@ const UpgradeModal = ({ isOpen, onClose }) => {
             }
 
             console.log('Creating checkout session...');
-            console.log('Request payload:', { priceId });
+            console.log('Request payload:', { priceId, successUrl: '/meetings' });
 
-            // Create checkout session
+            // Create checkout session with custom success URL for dashboard upgrades
             const response = await axios.post(
                 `${API_BASE_URL}/api/billing/checkout`,
-                { priceId },
+                {
+                    priceId,
+                    successUrl: '/meetings' // Redirect to dashboard after upgrade (not onboarding)
+                },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
