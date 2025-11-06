@@ -486,6 +486,366 @@ router.get('/google/callback', async (req, res) => {
   }
 });
 
+// ============================================================================
+// MICROSOFT CALENDAR OAUTH
+// ============================================================================
+
+// Get Microsoft OAuth URL
+router.get('/microsoft', (req, res) => {
+  try {
+    const MicrosoftCalendarService = require('../services/microsoftCalendar');
+    const microsoftService = new MicrosoftCalendarService();
+
+    if (!microsoftService.isConfigured()) {
+      return res.status(400).json({
+        error: 'Microsoft OAuth not configured',
+        message: 'Please set MICROSOFT_CLIENT_ID and MICROSOFT_CLIENT_SECRET environment variables'
+      });
+    }
+
+    // Pass through state parameter for popup-based OAuth
+    const state = req.query.state || '';
+    const url = microsoftService.getAuthorizationUrl(state);
+
+    res.json({ url });
+  } catch (error) {
+    console.error('Error generating Microsoft auth URL:', error);
+    res.status(500).json({ error: 'Failed to generate authorization URL' });
+  }
+});
+
+// Check Microsoft Calendar connection status
+router.get('/microsoft/status', authenticateSupabaseUser, async (req, res) => {
+  try {
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable'
+      });
+    }
+
+    const userId = req.user.id;
+
+    // Check if user has Microsoft Calendar connection
+    const { data: calendarConnection, error } = await req.supabase
+      .from('calendar_connections')
+      .select('access_token, refresh_token, token_expires_at, provider, is_active')
+      .eq('user_id', userId)
+      .eq('provider', 'microsoft')
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error checking Microsoft Calendar status:', error);
+      return res.status(500).json({
+        connected: false,
+        error: 'Failed to check status'
+      });
+    }
+
+    if (!calendarConnection) {
+      return res.json({
+        connected: false,
+        message: 'Microsoft Calendar not connected'
+      });
+    }
+
+    // Check if token is expired
+    let isExpired = false;
+    if (calendarConnection.token_expires_at) {
+      const expiresAt = new Date(calendarConnection.token_expires_at);
+      const now = new Date();
+      isExpired = expiresAt <= now;
+    }
+
+    return res.json({
+      connected: calendarConnection.is_active && !isExpired,
+      user: req.user.email,
+      expiresAt: calendarConnection.token_expires_at,
+      expired: isExpired,
+      message: isExpired ? 'Microsoft Calendar token expired' : 'Microsoft Calendar connected'
+    });
+
+  } catch (error) {
+    console.error('Error in /auth/microsoft/status:', error);
+    return res.status(500).json({
+      connected: false,
+      error: 'Failed to check Microsoft Calendar status'
+    });
+  }
+});
+
+// Handle Microsoft OAuth callback
+router.get('/microsoft/callback', async (req, res) => {
+  try {
+    const { code, state } = req.query;
+
+    console.log('📅 /api/auth/microsoft/callback called');
+    console.log('  - code:', code ? '✅ Present' : '❌ Missing');
+    console.log('  - state:', state ? `✅ Present (popup mode - user: ${state})` : '❌ Missing (redirect mode)');
+
+    // Check if Supabase is available
+    if (!isSupabaseAvailable()) {
+      if (state) {
+        return res.send(`
+          <html>
+            <body>
+              <script>
+                if (window.opener) {
+                  window.opener.postMessage({
+                    type: 'MICROSOFT_OAUTH_ERROR',
+                    error: 'Database service unavailable'
+                  }, '*');
+                }
+                window.close();
+              </script>
+              <p>Error: Database service unavailable</p>
+            </body>
+          </html>
+        `);
+      }
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    if (!code) {
+      if (state) {
+        return res.send(`
+          <html>
+            <body>
+              <script>
+                if (window.opener) {
+                  window.opener.postMessage({
+                    type: 'MICROSOFT_OAUTH_ERROR',
+                    error: 'No authorization code received'
+                  }, '*');
+                }
+                window.close();
+              </script>
+              <p>Error: No authorization code received</p>
+            </body>
+          </html>
+        `);
+      }
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=NoCode`);
+    }
+
+    // Exchange code for tokens
+    const MicrosoftCalendarService = require('../services/microsoftCalendar');
+    const microsoftService = new MicrosoftCalendarService();
+
+    const tokenResponse = await microsoftService.exchangeCodeForToken(code);
+    const accessToken = tokenResponse.accessToken;
+    const refreshToken = tokenResponse.refreshToken;
+    const expiresOn = tokenResponse.expiresOn;
+
+    // Get user info from Microsoft
+    const userInfo = await microsoftService.getUserInfo(accessToken);
+
+    console.log('📅 Microsoft OAuth callback - User:', userInfo.mail || userInfo.userPrincipalName);
+    console.log('📅 Microsoft tokens received - Access token:', accessToken ? 'yes' : 'no', 'Refresh token:', refreshToken ? 'yes' : 'no');
+
+    // Determine if this is popup mode (onboarding) or redirect mode (initial login)
+    const isPopupMode = !!state;
+    const userId = state || null;
+
+    console.log(`📍 Mode: ${isPopupMode ? 'POPUP (onboarding)' : 'REDIRECT (initial login)'}`);
+
+    // Find or create user
+    const userEmail = userInfo.mail || userInfo.userPrincipalName;
+    const { data: existingUser, error: findError } = await getSupabase()
+      .from('users')
+      .select('*')
+      .eq('email', userEmail)
+      .single();
+
+    if (findError && findError.code !== 'PGRST116') {
+      console.error('Error finding user:', findError);
+      throw new Error('Database error while finding user');
+    }
+
+    // Use UserService to get or create user
+    const UserService = require('../services/userService');
+
+    const supabaseUser = {
+      id: userInfo.id,
+      email: userEmail,
+      user_metadata: {
+        full_name: userInfo.displayName
+      }
+    };
+
+    const user = await UserService.getOrCreateUser(supabaseUser);
+    let tenantId = user.tenant_id;
+
+    if (!tenantId) {
+      tenantId = await UserService.ensureUserHasTenant(user);
+    }
+
+    console.log(`✅ User ${user.id} has tenant ${tenantId}`);
+
+    // Store Microsoft tokens in calendar_connections table
+    console.log('💾 Storing Microsoft Calendar tokens in calendar_connections...');
+
+    const { data: existingConnection } = await getSupabase()
+      .from('calendar_connections')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('provider', 'microsoft')
+      .eq('provider_account_email', userEmail)
+      .single();
+
+    if (existingConnection) {
+      console.log('✅ Updating existing Microsoft Calendar connection...');
+
+      const { error: updateError } = await getSupabase()
+        .from('calendar_connections')
+        .update({
+          access_token: accessToken,
+          refresh_token: refreshToken || null,
+          token_expires_at: expiresOn ? new Date(expiresOn).toISOString() : null,
+          is_active: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingConnection.id);
+
+      if (updateError) {
+        console.error('Error updating calendar connection:', updateError);
+      } else {
+        console.log('✅ Microsoft Calendar connection updated successfully');
+
+        // Setup webhook and sync if NOT in popup mode
+        if (!isPopupMode) {
+          try {
+            console.log('📡 Setting up Microsoft Calendar webhook...');
+            await microsoftService.setupCalendarWatch(user.id);
+            console.log('✅ Webhook setup completed');
+
+            console.log('🔄 Triggering initial sync...');
+            await microsoftService.syncCalendarEvents(user.id);
+            console.log('✅ Initial sync completed');
+          } catch (webhookError) {
+            console.warn('⚠️  Webhook/sync setup failed (non-fatal):', webhookError.message);
+          }
+        } else {
+          console.log('⏭️  Skipping webhook setup during onboarding');
+        }
+      }
+    } else {
+      console.log('✅ Creating new Microsoft Calendar connection...');
+
+      // Deactivate other connections
+      await getSupabase()
+        .from('calendar_connections')
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id)
+        .eq('is_active', true);
+
+      const { error: createError } = await getSupabase()
+        .from('calendar_connections')
+        .insert({
+          user_id: user.id,
+          tenant_id: tenantId,
+          provider: 'microsoft',
+          provider_account_email: userEmail,
+          access_token: accessToken,
+          refresh_token: refreshToken || null,
+          token_expires_at: expiresOn ? new Date(expiresOn).toISOString() : null,
+          is_active: true,
+          is_primary: true,
+          sync_enabled: true,
+          transcription_enabled: false
+        });
+
+      if (createError) {
+        console.error('Error creating calendar connection:', createError);
+      } else {
+        console.log('✅ Microsoft Calendar connection created successfully');
+
+        // Setup webhook and sync if NOT in popup mode
+        if (!isPopupMode) {
+          try {
+            console.log('📡 Setting up Microsoft Calendar webhook...');
+            await microsoftService.setupCalendarWatch(user.id);
+            console.log('✅ Webhook setup completed');
+
+            console.log('🔄 Triggering initial sync...');
+            await microsoftService.syncCalendarEvents(user.id);
+            console.log('✅ Initial sync completed');
+          } catch (webhookError) {
+            console.warn('⚠️  Webhook/sync setup failed (non-fatal):', webhookError.message);
+          }
+        } else {
+          console.log('⏭️  Skipping webhook setup during onboarding');
+        }
+      }
+    }
+
+    // If popup mode, send postMessage and close
+    if (isPopupMode) {
+      console.log('✅ Popup mode - Sending success message');
+      return res.send(`
+        <html>
+          <head>
+            <title>Microsoft Calendar Connected</title>
+          </head>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'MICROSOFT_OAUTH_SUCCESS',
+                  message: 'Microsoft Calendar connected successfully'
+                }, '*');
+              }
+              window.close();
+            </script>
+            <p>Microsoft Calendar connected successfully! This window will close automatically.</p>
+          </body>
+        </html>
+      `);
+    }
+
+    // Redirect mode - generate JWT and redirect
+    console.log('✅ Redirect mode - Generating JWT');
+    const jwtToken = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+        name: user.name
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${jwtToken}`);
+  } catch (error) {
+    console.error('Microsoft auth error:', error);
+
+    if (req.query.state) {
+      return res.send(`
+        <html>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'MICROSOFT_OAUTH_ERROR',
+                  error: '${error.message || 'Authentication failed'}'
+                }, '*');
+              }
+              window.close();
+            </script>
+            <p>Error: ${error.message || 'Authentication failed'}</p>
+          </body>
+        </html>
+      `);
+    }
+
+    res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
+  }
+});
+
 // Verify token and return user info
 router.get('/verify', authenticateSupabaseUser, async (req, res) => {
     try {

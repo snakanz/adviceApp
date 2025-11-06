@@ -1921,6 +1921,146 @@ router.get('/webhook/test', (req, res) => {
   });
 });
 
+// =====================================================
+// MICROSOFT CALENDAR WEBHOOK ENDPOINTS
+// =====================================================
+
+const MicrosoftCalendarService = require('../services/microsoftCalendar');
+
+/**
+ * Setup Microsoft Calendar webhook for a user
+ * This registers a subscription with Microsoft Graph API
+ */
+router.post('/microsoft/webhook/setup', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const microsoftService = new MicrosoftCalendarService();
+
+    const subscription = await microsoftService.setupCalendarWatch(userId);
+
+    res.json({
+      success: true,
+      message: 'Microsoft Calendar webhook set up successfully',
+      subscription: {
+        id: subscription.id,
+        expirationDateTime: subscription.expirationDateTime
+      }
+    });
+  } catch (error) {
+    console.error('Error setting up Microsoft Calendar webhook:', error);
+    res.status(500).json({
+      error: 'Failed to set up Microsoft Calendar webhook',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Stop Microsoft Calendar webhook for a user
+ */
+router.post('/microsoft/webhook/stop', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const microsoftService = new MicrosoftCalendarService();
+
+    await microsoftService.stopCalendarWatch(userId);
+
+    res.json({
+      success: true,
+      message: 'Microsoft Calendar webhook stopped successfully'
+    });
+  } catch (error) {
+    console.error('Error stopping Microsoft Calendar webhook:', error);
+    res.status(500).json({
+      error: 'Failed to stop Microsoft Calendar webhook',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * Receive Microsoft Calendar webhook notifications
+ * This endpoint is called by Microsoft Graph when calendar events change
+ */
+router.post('/microsoft/webhook', express.json(), async (req, res) => {
+  try {
+    console.log('📥 Received Microsoft Calendar webhook notification');
+
+    // Microsoft sends validation token on subscription creation
+    const validationToken = req.query.validationToken;
+    if (validationToken) {
+      console.log('✅ Responding to Microsoft webhook validation');
+      return res.status(200).send(validationToken);
+    }
+
+    // Process webhook notification
+    const notifications = req.body.value;
+    if (!notifications || notifications.length === 0) {
+      console.warn('⚠️  No notifications in webhook payload');
+      return res.status(200).json({ success: true });
+    }
+
+    console.log(`📬 Processing ${notifications.length} Microsoft Calendar notification(s)`);
+
+    // Process each notification
+    for (const notification of notifications) {
+      try {
+        const { subscriptionId, clientState, resource } = notification;
+
+        // Verify client state matches what we stored
+        const { data: connection } = await getSupabase()
+          .from('calendar_connections')
+          .select('user_id, microsoft_client_state')
+          .eq('microsoft_subscription_id', subscriptionId)
+          .single();
+
+        if (!connection) {
+          console.warn('⚠️  Unknown subscription ID:', subscriptionId);
+          continue;
+        }
+
+        if (connection.microsoft_client_state !== clientState) {
+          console.warn('⚠️  Client state mismatch - possible security issue');
+          continue;
+        }
+
+        // Trigger calendar sync for this user
+        const microsoftService = new MicrosoftCalendarService();
+        await microsoftService.syncCalendarEvents(connection.user_id);
+
+        console.log(`✅ Synced Microsoft Calendar for user ${connection.user_id}`);
+      } catch (notificationError) {
+        console.error('❌ Error processing notification:', notificationError);
+      }
+    }
+
+    // Microsoft expects a 202 response
+    res.status(202).json({ success: true });
+
+  } catch (error) {
+    console.error('❌ Error processing Microsoft Calendar webhook:', error);
+    // Still return 202 to Microsoft to avoid retries
+    res.status(202).json({ success: false, error: error.message });
+  }
+});
+
+/**
+ * Test endpoint for Microsoft Calendar webhook
+ */
+router.get('/microsoft/webhook/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Microsoft Calendar webhook endpoint is accessible',
+    url: `${req.protocol}://${req.get('host')}/api/calendar/microsoft/webhook`,
+    instructions: [
+      '1. Authenticate with Microsoft Calendar',
+      '2. Call POST /api/calendar/microsoft/webhook/setup to register webhook',
+      '3. Microsoft will send notifications to this endpoint when calendar changes',
+      '4. Webhook will automatically sync changed events to database'
+    ]
+  });
+});
+
 // ============================================
 // CALENDLY OAUTH ENDPOINTS
 // ============================================

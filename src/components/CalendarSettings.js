@@ -52,6 +52,12 @@ export default function CalendarSettings() {
         setTimeout(() => loadConnections(), 500);
       } else if (event.data.type === 'GOOGLE_OAUTH_ERROR') {
         setError(`Google Calendar connection failed: ${event.data.error}`);
+      } else if (event.data.type === 'MICROSOFT_OAUTH_SUCCESS') {
+        setSuccess('Microsoft Calendar connected successfully!');
+        // Reload connections to show updated status
+        setTimeout(() => loadConnections(), 500);
+      } else if (event.data.type === 'MICROSOFT_OAUTH_ERROR') {
+        setError(`Microsoft Calendar connection failed: ${event.data.error}`);
       }
     };
 
@@ -338,7 +344,51 @@ export default function CalendarSettings() {
     }
   };
 
+  const handleConnectMicrosoft = async () => {
+    try {
+      setError('');
+      const token = await getAccessToken();
 
+      const response = await axios.get(`${API_BASE_URL}/api/auth/microsoft`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (response.data.url) {
+        // Get current user ID from token to pass in state parameter
+        const userIdFromToken = await getUserIdFromToken();
+        const urlWithState = `${response.data.url}&state=${userIdFromToken}`;
+
+        // Open OAuth in popup window
+        const width = 500;
+        const height = 600;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+
+        const popup = window.open(
+          urlWithState,
+          'MicrosoftOAuth',
+          `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+        );
+
+        if (!popup) {
+          setError('Popup blocked. Please allow popups for this site and try again.');
+          return;
+        }
+
+        // Poll for popup closure and reload connections
+        const checkPopup = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(checkPopup);
+            // Reload connections to show updated status
+            setTimeout(() => loadConnections(), 500);
+          }
+        }, 500);
+      }
+    } catch (err) {
+      console.error('Error connecting Microsoft Calendar:', err);
+      setError('Failed to connect Microsoft Calendar');
+    }
+  };
 
   const getProviderIcon = (provider) => {
     switch (provider) {
@@ -347,6 +397,7 @@ export default function CalendarSettings() {
       case 'calendly':
         return '📅';
       case 'outlook':
+      case 'microsoft':
         return '📧';
       default:
         return '📆';
@@ -360,7 +411,8 @@ export default function CalendarSettings() {
       case 'calendly':
         return 'Calendly';
       case 'outlook':
-        return 'Outlook Calendar';
+      case 'microsoft':
+        return 'Microsoft Calendar';
       default:
         return provider;
     }
@@ -612,6 +664,41 @@ export default function CalendarSettings() {
                   <div className="text-4xl">📅</div>
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground mb-1">Calendly</h4>
+                    <p className="text-sm text-green-600">
+                      ✓ Connected
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Microsoft Calendar */}
+          {!connections.some(c => c.provider === 'microsoft' || c.provider === 'outlook') ? (
+            <Card
+              className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer"
+              onClick={handleConnectMicrosoft}
+            >
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="text-4xl">📧</div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-foreground mb-1">Microsoft Calendar</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Connect to sync meetings
+                    </p>
+                  </div>
+                  <Plus className="w-5 h-5 text-primary" />
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-border/50 bg-muted/20">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-4">
+                  <div className="text-4xl">📧</div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-foreground mb-1">Microsoft Calendar</h4>
                     <p className="text-sm text-green-600">
                       ✓ Connected
                     </p>
