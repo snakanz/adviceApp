@@ -61,23 +61,53 @@ const Step8_Complete = ({ data, selectedPlan = 'free', onComplete }) => {
                 console.log('✅ Paid subscription will be created via Stripe webhook');
             }
 
-            // Step 2: Trigger calendar sync
-            setSyncStatus('syncing');
-            const syncResponse = await axios.post(
-                `${API_BASE_URL}/api/calendar/sync`,
-                {},
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            // Step 2: Check if user has a calendar connection before syncing
+            let hasCalendarConnection = false;
+            try {
+                const connectionsResponse = await axios.get(
+                    `${API_BASE_URL}/api/calendar-connections`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
 
-            console.log('✅ Calendar sync complete:', syncResponse.data);
+                const connections = connectionsResponse.data;
+                hasCalendarConnection = connections && connections.length > 0 &&
+                                       connections.some(conn => conn.status === 'active');
 
-            // Update stats from sync results
-            const results = syncResponse.data.results || syncResponse.data;
-            const { added = 0, updated = 0, restored = 0, clientsCreated = 0 } = results;
-            setSyncStats({
-                meetingsCount: added + updated + restored,
-                clientsCount: clientsCreated
-            });
+                if (hasCalendarConnection) {
+                    console.log('✅ Calendar connection found, will sync');
+                } else {
+                    console.log('ℹ️  No calendar connection found, skipping sync');
+                }
+            } catch (err) {
+                console.log('ℹ️  Could not check calendar connections, skipping sync');
+            }
+
+            // Step 3: Trigger calendar sync only if user has a calendar connection
+            if (hasCalendarConnection) {
+                setSyncStatus('syncing');
+                try {
+                    const syncResponse = await axios.post(
+                        `${API_BASE_URL}/api/calendar/sync`,
+                        {},
+                        { headers: { Authorization: `Bearer ${token}` } }
+                    );
+
+                    console.log('✅ Calendar sync complete:', syncResponse.data);
+
+                    // Update stats from sync results
+                    const results = syncResponse.data.results || syncResponse.data;
+                    const { added = 0, updated = 0, restored = 0, clientsCreated = 0 } = results;
+                    setSyncStats({
+                        meetingsCount: added + updated + restored,
+                        clientsCount: clientsCreated
+                    });
+                } catch (syncErr) {
+                    console.error('⚠️  Calendar sync failed, but continuing:', syncErr);
+                    // Don't block onboarding if sync fails - user can sync later
+                }
+            } else {
+                console.log('✅ Skipping calendar sync - no calendar connected');
+            }
 
             setSyncStatus('complete');
         } catch (err) {
@@ -225,10 +255,21 @@ const Step8_Complete = ({ data, selectedPlan = 'free', onComplete }) => {
                         <div className="bg-muted/50 border border-border rounded-lg p-6 space-y-3">
                             <h4 className="font-semibold">💡 Quick Tips</h4>
                             <ul className="text-sm text-muted-foreground space-y-2">
-                                <li>• Your calendar meetings are automatically synced</li>
-                                <li>• AI transcription will join your first 5 meetings for free</li>
-                                <li>• Use the Pipeline page to track your business opportunities</li>
-                                <li>• Ask the AI assistant questions about your clients and meetings</li>
+                                {syncStats.meetingsCount > 0 ? (
+                                    <>
+                                        <li>• Your calendar meetings are automatically synced</li>
+                                        <li>• AI transcription will join your first 5 meetings for free</li>
+                                        <li>• Use the Pipeline page to track your business opportunities</li>
+                                        <li>• Ask the AI assistant questions about your clients and meetings</li>
+                                    </>
+                                ) : (
+                                    <>
+                                        <li>• Connect your calendar anytime from Settings to sync meetings</li>
+                                        <li>• AI transcription will join your first 5 meetings for free</li>
+                                        <li>• Use the Pipeline page to track your business opportunities</li>
+                                        <li>• Manually add clients and meetings to get started</li>
+                                    </>
+                                )}
                             </ul>
                         </div>
                     )}
