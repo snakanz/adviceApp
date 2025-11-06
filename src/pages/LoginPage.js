@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import GoogleIcon from '../components/GoogleIcon';
+import OutlookIcon from '../components/OutlookIcon';
 
 const LoginPage = () => {
     const navigate = useNavigate();
@@ -78,6 +79,24 @@ const LoginPage = () => {
         }
     };
 
+    const handleMicrosoftLogin = async () => {
+        try {
+            setError('');
+            const result = await signInWithOAuth('azure', {
+                redirectTo: `${window.location.origin}/auth/callback`
+            });
+
+            if (!result.success) {
+                console.error('Microsoft login error:', result.error);
+                setError(`Microsoft login error: ${result.error}`);
+            }
+            // Supabase will redirect to Microsoft OAuth automatically
+        } catch (error) {
+            console.error('Microsoft login error:', error);
+            setError(`Microsoft login error: ${error.message}`);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-background flex items-center justify-center p-6">
             <div className="w-full max-w-md">
@@ -94,20 +113,31 @@ const LoginPage = () => {
                             Welcome to Advicly
                         </CardTitle>
                         <CardDescription className="text-base text-muted-foreground max-w-sm mx-auto">
-                            Your AI-powered dashboard for managing meetings, clients, and insights. 
-                            Sign in with your Google account to get started.
+                            Your AI-powered dashboard for managing meetings, clients, and insights.
+                            Sign in with your account to get started.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        {/* Google Sign In Button */}
-                        <Button
-                            onClick={handleGoogleLogin}
-                            className="w-full h-12 text-base font-medium bg-white hover:bg-gray-50 text-gray-900 border border-border shadow-soft hover:shadow-medium transition-all duration-150"
-                            disabled={isLoading}
-                        >
-                            <GoogleIcon size={20} className="mr-3" />
-                            Sign in with Google
-                        </Button>
+                        {/* OAuth Sign In Buttons */}
+                        <div className="space-y-3">
+                            <Button
+                                onClick={handleGoogleLogin}
+                                className="w-full h-12 text-base font-medium bg-white hover:bg-gray-50 text-gray-900 border border-border shadow-soft hover:shadow-medium transition-all duration-150"
+                                disabled={isLoading}
+                            >
+                                <GoogleIcon size={20} className="mr-3" />
+                                Sign in with Google
+                            </Button>
+
+                            <Button
+                                onClick={handleMicrosoftLogin}
+                                className="w-full h-12 text-base font-medium bg-white hover:bg-gray-50 text-gray-900 border border-border shadow-soft hover:shadow-medium transition-all duration-150"
+                                disabled={isLoading}
+                            >
+                                <OutlookIcon size={20} className="mr-3" />
+                                Sign in with Microsoft
+                            </Button>
+                        </div>
 
                         <div className="relative">
                             <div className="absolute inset-0 flex items-center">

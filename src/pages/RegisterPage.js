@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import GoogleIcon from '../components/GoogleIcon';
+import OutlookIcon from '../components/OutlookIcon';
 
 const RegisterPage = () => {
     const navigate = useNavigate();
@@ -125,6 +126,24 @@ const RegisterPage = () => {
         }
     };
 
+    const handleMicrosoftRegister = async () => {
+        try {
+            setError('');
+            const result = await signInWithOAuth('azure', {
+                redirectTo: `${window.location.origin}/auth/callback`
+            });
+
+            if (!result.success) {
+                console.error('Microsoft registration error:', result.error);
+                setError(`Microsoft registration error: ${result.error}`);
+            }
+            // Supabase will redirect to Microsoft OAuth automatically
+        } catch (error) {
+            console.error('Microsoft registration error:', error);
+            setError(`Microsoft registration error: ${error.message}`);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-background flex items-center justify-center p-6">
             <div className="w-full max-w-md">
@@ -145,15 +164,26 @@ const RegisterPage = () => {
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        {/* Google Sign Up Button */}
-                        <Button
-                            onClick={handleGoogleRegister}
-                            className="w-full h-12 text-base font-medium bg-white hover:bg-gray-50 text-gray-900 border border-border shadow-soft hover:shadow-medium transition-all duration-150"
-                            disabled={isLoading}
-                        >
-                            <GoogleIcon size={20} className="mr-3" />
-                            Sign up with Google
-                        </Button>
+                        {/* OAuth Sign Up Buttons */}
+                        <div className="space-y-3">
+                            <Button
+                                onClick={handleGoogleRegister}
+                                className="w-full h-12 text-base font-medium bg-white hover:bg-gray-50 text-gray-900 border border-border shadow-soft hover:shadow-medium transition-all duration-150"
+                                disabled={isLoading}
+                            >
+                                <GoogleIcon size={20} className="mr-3" />
+                                Sign up with Google
+                            </Button>
+
+                            <Button
+                                onClick={handleMicrosoftRegister}
+                                className="w-full h-12 text-base font-medium bg-white hover:bg-gray-50 text-gray-900 border border-border shadow-soft hover:shadow-medium transition-all duration-150"
+                                disabled={isLoading}
+                            >
+                                <OutlookIcon size={20} className="mr-3" />
+                                Sign up with Microsoft
+                            </Button>
+                        </div>
 
                         <div className="relative">
                             <div className="absolute inset-0 flex items-center">
