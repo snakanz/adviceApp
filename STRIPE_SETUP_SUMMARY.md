@@ -263,7 +263,7 @@ Before you can test payments:
 
 ---
 
-**Last Updated:** 2025-11-05 22:35 UTC  
-**Latest Commit:** 8fdfdbf  
-**Deployment Status:** In Progress
+**Last Updated:** 2025-11-05 22:45 UTC
+**Latest Commit:** 0430fd7 - **FIXED: Added Stripe variables to wrangler.toml**
+**Deployment Status:** ✅ Building with Stripe variables!
 

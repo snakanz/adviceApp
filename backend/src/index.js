@@ -86,6 +86,17 @@ try {
   console.warn('Failed to mount Recall V2 webhook routes:', error.message);
 }
 
+// Mount Stripe webhook route BEFORE express.json() middleware
+// Stripe webhooks need raw body for signature verification
+try {
+  console.log('Mounting Stripe webhook route (BEFORE JSON middleware)...');
+  const stripeWebhookRouter = require('./routes/stripe-webhook');
+  app.use('/api/billing/webhook', stripeWebhookRouter);
+  console.log('✅ Stripe webhook route mounted successfully');
+} catch (error) {
+  console.warn('Failed to mount Stripe webhook route:', error.message);
+}
+
 app.use(express.json());
 console.log('✅ CORS and middleware configured');
 
@@ -996,6 +1007,10 @@ console.log('✅ Calendar-settings routes mounted');
 console.log('🔄 Mounting billing routes...');
 app.use('/api/billing', require('./routes/billing'));
 console.log('✅ Billing routes mounted');
+
+console.log('🔄 Mounting admin routes...');
+app.use('/api/admin', require('./routes/admin'));
+console.log('✅ Admin routes mounted');
 
 console.log('✅ All API routes mounted');
 
