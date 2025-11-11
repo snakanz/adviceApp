@@ -72,15 +72,8 @@ export default function CalendarSettings() {
       setTimeout(() => loadConnections(), 500);
     }
 
-    // Refresh webhook status every 30 seconds to ensure webhooks stay engaged
-    const webhookRefreshInterval = setInterval(() => {
-      console.log('🔄 Refreshing webhook status...');
-      loadConnections();
-    }, 30000); // 30 seconds
-
     return () => {
       window.removeEventListener('message', handleOAuthMessage);
-      clearInterval(webhookRefreshInterval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

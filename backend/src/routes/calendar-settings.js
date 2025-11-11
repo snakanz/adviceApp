@@ -651,31 +651,46 @@ router.get('/:id/webhook-status', authenticateSupabaseUser, async (req, res) => 
     // Check Calendly webhook status
     if (connection.provider === 'calendly' && connection.is_active) {
       try {
-        // Check if webhook subscription exists in database
-        const { data: webhookSub, error: webhookError } = await req.supabase
-          .from('calendly_webhook_subscriptions')
-          .select('*')
-          .eq('is_active', true)
-          .single();
+        // Check if webhook subscription exists for this user's organization
+        // The connection has calendly_organization_uri which links to the webhook subscription
+        const organizationUri = connection.calendly_organization_uri;
 
-        const hasWebhook = !webhookError && webhookSub;
-
-        webhookStatus.webhook_active = hasWebhook;
-        webhookStatus.has_webhook = hasWebhook;
-        webhookStatus.sync_method = hasWebhook ? 'webhook' : 'polling';
-
-        if (hasWebhook) {
-          webhookStatus.webhook_url = webhookSub.webhook_url;
-          webhookStatus.webhook_events = webhookSub.events;
-          webhookStatus.message = 'Real-time sync enabled via webhooks';
+        if (!organizationUri) {
+          console.warn(`⚠️ No organization URI found for connection ${connectionId}`);
+          webhookStatus.webhook_active = false;
+          webhookStatus.has_webhook = false;
+          webhookStatus.sync_method = 'polling';
+          webhookStatus.message = 'Manual sync required (No organization URI)';
         } else {
-          webhookStatus.message = 'Manual sync required (Free Calendly plan)';
-        }
+          // Check if webhook subscription exists for this organization
+          const { data: webhookSub, error: webhookError } = await req.supabase
+            .from('calendly_webhook_subscriptions')
+            .select('*')
+            .eq('organization_uri', organizationUri)
+            .eq('is_active', true)
+            .maybeSingle(); // Use maybeSingle() instead of single() to avoid error if not found
 
-        console.log(`📊 Calendly webhook status for user ${userId}:`, {
-          has_webhook: hasWebhook,
-          sync_method: webhookStatus.sync_method
-        });
+          const hasWebhook = !webhookError && webhookSub;
+
+          webhookStatus.webhook_active = hasWebhook;
+          webhookStatus.has_webhook = hasWebhook;
+          webhookStatus.sync_method = hasWebhook ? 'webhook' : 'polling';
+
+          if (hasWebhook) {
+            webhookStatus.webhook_url = webhookSub.webhook_url;
+            webhookStatus.webhook_events = webhookSub.events;
+            webhookStatus.message = 'Real-time sync enabled via webhooks';
+            webhookStatus.webhook_created_at = webhookSub.created_at;
+          } else {
+            webhookStatus.message = 'Manual sync required (Free Calendly plan)';
+          }
+
+          console.log(`📊 Calendly webhook status for user ${userId}:`, {
+            organization_uri: organizationUri,
+            has_webhook: hasWebhook,
+            sync_method: webhookStatus.sync_method
+          });
+        }
       } catch (err) {
         console.warn('Error checking Calendly webhook status:', err.message);
         // Fallback: no webhook
