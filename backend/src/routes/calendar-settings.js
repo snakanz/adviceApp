@@ -726,5 +726,103 @@ router.get('/:id/webhook-status', authenticateSupabaseUser, async (req, res) => 
   }
 });
 
+/**
+ * POST /api/calendar-connections/cleanup-calendly
+ * ADMIN ENDPOINT: Clean up all Calendly data for the authenticated user
+ * This removes all Calendly connections, meetings, and webhook subscriptions
+ */
+router.post('/cleanup-calendly', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable'
+      });
+    }
+
+    console.log(`🧹 Starting Calendly cleanup for user ${userId}...`);
+
+    const results = {
+      meetings_deleted: 0,
+      webhooks_deleted: 0,
+      connections_deleted: 0
+    };
+
+    // 1. Delete Calendly meetings
+    console.log('1️⃣ Deleting Calendly meetings...');
+    const { data: deletedMeetings, error: meetingsError } = await req.supabase
+      .from('meetings')
+      .delete()
+      .eq('meeting_source', 'calendly')
+      .eq('user_id', userId)
+      .select();
+
+    if (meetingsError) {
+      console.error('❌ Error deleting meetings:', meetingsError);
+    } else {
+      results.meetings_deleted = deletedMeetings?.length || 0;
+      console.log(`✅ Deleted ${results.meetings_deleted} Calendly meetings`);
+    }
+
+    // 2. Get organization URIs for this user's Calendly connections
+    const { data: connections } = await req.supabase
+      .from('calendar_connections')
+      .select('calendly_organization_uri')
+      .eq('provider', 'calendly')
+      .eq('user_id', userId);
+
+    const orgUris = connections?.map(c => c.calendly_organization_uri).filter(Boolean) || [];
+
+    // 3. Delete webhook subscriptions for these organizations
+    if (orgUris.length > 0) {
+      console.log('2️⃣ Deleting webhook subscriptions...');
+      const { data: deletedWebhooks, error: webhooksError } = await req.supabase
+        .from('calendly_webhook_subscriptions')
+        .delete()
+        .in('organization_uri', orgUris)
+        .select();
+
+      if (webhooksError) {
+        console.error('❌ Error deleting webhooks:', webhooksError);
+      } else {
+        results.webhooks_deleted = deletedWebhooks?.length || 0;
+        console.log(`✅ Deleted ${results.webhooks_deleted} webhook subscriptions`);
+      }
+    }
+
+    // 4. Delete calendar connections
+    console.log('3️⃣ Deleting calendar connections...');
+    const { data: deletedConnections, error: connectionsError } = await req.supabase
+      .from('calendar_connections')
+      .delete()
+      .eq('provider', 'calendly')
+      .eq('user_id', userId)
+      .select();
+
+    if (connectionsError) {
+      console.error('❌ Error deleting connections:', connectionsError);
+    } else {
+      results.connections_deleted = deletedConnections?.length || 0;
+      console.log(`✅ Deleted ${results.connections_deleted} calendar connections`);
+    }
+
+    console.log(`✅ Calendly cleanup complete for user ${userId}`);
+
+    res.json({
+      success: true,
+      message: 'Calendly data cleaned up successfully',
+      results
+    });
+
+  } catch (error) {
+    console.error('Error in POST /calendar-connections/cleanup-calendly:', error);
+    res.status(500).json({
+      error: 'Failed to cleanup Calendly data',
+      details: error.message
+    });
+  }
+});
+
 module.exports = router;
 
