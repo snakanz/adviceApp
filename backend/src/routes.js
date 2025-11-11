@@ -24,90 +24,16 @@ router.get('/calendly/status', async (req, res) => {
           connected: false
         });
       } catch (e) {
-        // Token invalid, fall through to global check
+        // Token invalid, no connection found
       }
     }
 
-    // Fallback: Check global backend token (for backward compatibility only)
-    const token = process.env.CALENDLY_PERSONAL_ACCESS_TOKEN;
-    if (!token || token === 'YOUR_TOKEN_HERE') {
-      return res.json({
-        connected: false,
-        configured: false,
-        message: 'Calendly personal access token not configured'
-      });
-    }
-
-    // Test connection to Calendly API using fetch (Node 18+)
-    try {
-      const response = await fetch('https://api.calendly.com/users/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const userData = await response.json();
-        res.json({
-          connected: true,
-          configured: true,
-          user: userData.resource.name,
-          message: 'Calendly integration working!'
-        });
-      } else {
-        res.json({
-          connected: false,
-          configured: true,
-          message: 'Invalid Calendly token or API error'
-        });
-      }
-    } catch (fetchError) {
-      // Fallback to https module if fetch is not available
-      const https = require('https');
-
-      const options = {
-        hostname: 'api.calendly.com',
-        path: '/users/me',
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      };
-
-      const response = await new Promise((resolve, reject) => {
-        const req = https.request(options, (res) => {
-          let data = '';
-          res.on('data', (chunk) => data += chunk);
-          res.on('end', () => {
-            resolve({
-              ok: res.statusCode >= 200 && res.statusCode < 300,
-              status: res.statusCode,
-              json: () => Promise.resolve(JSON.parse(data))
-            });
-          });
-        });
-        req.on('error', reject);
-        req.end();
-      });
-
-      if (response.ok) {
-        const userData = await response.json();
-        res.json({
-          connected: true,
-          configured: true,
-          user: userData.resource.name,
-          message: 'Calendly integration working!'
-        });
-      } else {
-        res.json({
-          connected: false,
-          configured: true,
-          message: 'Invalid Calendly token or API error'
-        });
-      }
-    }
+    // No user-specific connection found
+    return res.json({
+      connected: false,
+      configured: false,
+      message: 'No Calendly connection found. Please connect your Calendly account in Settings.'
+    });
   } catch (error) {
     console.error('Calendly status error:', error);
     res.status(500).json({
@@ -119,122 +45,19 @@ router.get('/calendly/status', async (req, res) => {
   }
 });
 
-// Calendly sync meetings endpoint
+// Calendly sync meetings endpoint - DEPRECATED
+// This endpoint is deprecated. Use /api/calendly/sync instead which uses user-specific OAuth tokens
 router.post('/calendly/sync', async (req, res) => {
   try {
-    const token = process.env.CALENDLY_PERSONAL_ACCESS_TOKEN;
-    if (!token || token === 'YOUR_TOKEN_HERE') {
-      return res.status(400).json({
-        success: false,
-        message: 'Calendly personal access token not configured'
-      });
-    }
-
-    // Get user info first
-    const userResponse = await fetch('https://api.calendly.com/users/me', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!userResponse.ok) {
-      return res.status(400).json({
-        success: false,
-        message: 'Failed to connect to Calendly API'
-      });
-    }
-
-    const userData = await userResponse.json();
-    const userUri = userData.resource.uri;
-
-    // Get scheduled events (meetings)
-    const eventsResponse = await fetch(`https://api.calendly.com/scheduled_events?user=${userUri}&count=100`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!eventsResponse.ok) {
-      return res.status(400).json({
-        success: false,
-        message: 'Failed to fetch Calendly events'
-      });
-    }
-
-    const eventsData = await eventsResponse.json();
-    const events = eventsData.collection || [];
-
-    let syncedCount = 0;
-    let skippedCount = 0;
-
-    for (const event of events) {
-      try {
-        // Check if event already exists
-        const existingEvent = await supabase
-          .from('meetings')
-          .select('id')
-          .eq('calendly_event_uuid', event.uuid)
-          .single();
-
-        if (existingEvent.data) {
-          skippedCount++;
-          continue;
-        }
-
-        // Extract client email from invitees
-        let clientEmail = null;
-        if (event.event_memberships && event.event_memberships.length > 0) {
-          // Get invitee details
-          for (const membership of event.event_memberships) {
-            if (membership.user_email && membership.user_email !== userData.resource.email) {
-              clientEmail = membership.user_email;
-              break;
-            }
-          }
-        }
-
-        // Insert meeting into database
-        const meetingData = {
-          title: event.name || 'Calendly Meeting',
-          starttime: event.start_time,
-          endtime: event.end_time,
-          calendly_event_uri: event.uri,
-          calendly_event_uuid: event.uuid,
-          client_email: clientEmail,
-          source: 'calendly',
-          userid: 1 // Default user ID - you may want to make this dynamic
-        };
-
-        const { error } = await supabase
-          .from('meetings')
-          .insert([meetingData]);
-
-        if (error) {
-          console.error('Error inserting Calendly meeting:', error);
-        } else {
-          syncedCount++;
-        }
-
-      } catch (eventError) {
-        console.error('Error processing Calendly event:', eventError);
-      }
-    }
-
-    res.json({
-      success: true,
-      message: `Calendly sync completed: ${syncedCount} meetings synced, ${skippedCount} skipped`,
-      synced: syncedCount,
-      skipped: skippedCount,
-      total: events.length
-    });
-
+    return res.status(410).json({
+      success: false,
+      message: 'This endpoint is deprecated. Please use /api/calendly/sync instead.',
+      error: 'ENDPOINT_DEPRECATED'
   } catch (error) {
     console.error('Calendly sync error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error syncing Calendly meetings',
+      message: 'This endpoint is deprecated',
       error: error.message
     });
   }

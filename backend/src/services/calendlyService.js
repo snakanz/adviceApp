@@ -4,33 +4,39 @@ const clientExtractionService = require('./clientExtraction');
 /**
  * Calendly API Service
  * Handles fetching meetings from Calendly API and syncing with database
+ *
+ * IMPORTANT: This service uses USER-SPECIFIC OAuth tokens, not a global token.
+ * Each user's Calendly data is fetched using their own access token from the database.
  */
 class CalendlyService {
-  constructor() {
+  /**
+   * @param {string} accessToken - User-specific Calendly OAuth access token
+   */
+  constructor(accessToken = null) {
     this.baseURL = 'https://api.calendly.com';
-    this.personalAccessToken = process.env.CALENDLY_PERSONAL_ACCESS_TOKEN;
+    this.accessToken = accessToken; // User-specific OAuth token
   }
 
   /**
-   * Check if Calendly is configured
+   * Check if Calendly is configured with a valid access token
    */
   isConfigured() {
-    return !!this.personalAccessToken;
+    return !!this.accessToken;
   }
 
   /**
-   * Make authenticated request to Calendly API
+   * Make authenticated request to Calendly API using user's access token
    */
   async makeRequest(endpoint, options = {}) {
-    if (!this.personalAccessToken) {
-      throw new Error('Calendly personal access token not configured');
+    if (!this.accessToken) {
+      throw new Error('Calendly access token not provided. Please connect your Calendly account.');
     }
 
     const url = `${this.baseURL}${endpoint}`;
     const response = await fetch(url, {
       ...options,
       headers: {
-        'Authorization': `Bearer ${this.personalAccessToken}`,
+        'Authorization': `Bearer ${this.accessToken}`,
         'Content-Type': 'application/json',
         ...options.headers
       }
@@ -268,8 +274,8 @@ class CalendlyService {
       console.log(`🔄 Starting Calendly sync for user ${userId}...`);
 
       if (!this.isConfigured()) {
-        console.log('⚠️  Calendly not configured, skipping sync');
-        return { synced: 0, errors: 0, message: 'Calendly not configured' };
+        console.log('⚠️  No Calendly access token provided, skipping sync');
+        return { synced: 0, errors: 0, message: 'No Calendly access token provided' };
       }
 
       // Check if transcription is enabled for Calendly connection
@@ -569,7 +575,7 @@ class CalendlyService {
   async testConnection() {
     try {
       if (!this.isConfigured()) {
-        return { connected: false, error: 'Personal access token not configured' };
+        return { connected: false, error: 'Access token not provided' };
       }
 
       const user = await this.getCurrentUser();
@@ -583,6 +589,78 @@ class CalendlyService {
       };
     } catch (error) {
       return { connected: false, error: error.message };
+    }
+  }
+
+  /**
+   * Fetch user's Calendly access token from database
+   * Automatically refreshes the token if it's expired (when token_expires_at is available)
+   * @param {string} userId - User ID
+   * @returns {Promise<string|null>} Access token or null if not found
+   */
+  static async getUserAccessToken(userId) {
+    try {
+      const { data: connection, error } = await getSupabase()
+        .from('calendar_connections')
+        .select('access_token, refresh_token, token_expires_at')
+        .eq('user_id', userId)
+        .eq('provider', 'calendly')
+        .eq('is_active', true)
+        .single();
+
+      if (error || !connection) {
+        console.log(`⚠️  No active Calendly connection found for user ${userId}`);
+        return null;
+      }
+
+      // Check if token is expired (if expiry date is available)
+      if (connection.token_expires_at && connection.refresh_token) {
+        const expiresAt = new Date(connection.token_expires_at);
+        const now = new Date();
+
+        // Refresh if token expires within the next 5 minutes
+        if (expiresAt <= new Date(now.getTime() + 5 * 60 * 1000)) {
+          console.log(`🔄 Calendly token expired or expiring soon for user ${userId}, refreshing...`);
+
+          try {
+            const CalendlyOAuthService = require('./calendlyOAuth');
+            const oauthService = new CalendlyOAuthService();
+            const refreshedTokens = await oauthService.refreshAccessToken(connection.refresh_token);
+
+            // Update tokens in database
+            const { error: updateError } = await getSupabase()
+              .from('calendar_connections')
+              .update({
+                access_token: refreshedTokens.access_token,
+                refresh_token: refreshedTokens.refresh_token || connection.refresh_token,
+                token_expires_at: refreshedTokens.expires_in
+                  ? new Date(Date.now() + refreshedTokens.expires_in * 1000).toISOString()
+                  : null,
+                updated_at: new Date().toISOString()
+              })
+              .eq('user_id', userId)
+              .eq('provider', 'calendly');
+
+            if (updateError) {
+              console.error('Error updating refreshed Calendly token:', updateError);
+              // Continue with old token
+              return connection.access_token;
+            }
+
+            console.log(`✅ Calendly token refreshed successfully for user ${userId}`);
+            return refreshedTokens.access_token;
+          } catch (refreshError) {
+            console.error('Error refreshing Calendly token:', refreshError);
+            // Fall back to existing token
+            return connection.access_token;
+          }
+        }
+      }
+
+      return connection.access_token;
+    } catch (error) {
+      console.error('Error fetching Calendly access token:', error);
+      return null;
     }
   }
 }

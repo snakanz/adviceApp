@@ -2215,7 +2215,10 @@ router.get('/calendly/oauth/callback', async (req, res) => {
     try {
       console.log('🔄 Triggering initial Calendly sync in background...');
       const CalendlyService = require('../services/calendlyService');
-      const calendlyService = new CalendlyService();
+
+      // Use the access token we just stored in the database
+      const calendlyService = new CalendlyService(accessToken);
+
       // Don't await - let it run in background
       calendlyService.syncMeetingsToDatabase(userId).then(syncResult => {
         console.log('✅ Initial Calendly sync completed:', syncResult);

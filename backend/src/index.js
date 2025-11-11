@@ -645,16 +645,19 @@ app.post('/api/dev/sync-calendly', async (req, res) => {
 
     // Sync Calendly meetings
     console.log('🔄 Starting manual Calendly sync...');
-    const calendlyService = new CalendlyService();
 
-    if (!calendlyService.isConfigured()) {
-      console.log('⚠️ Calendly not configured');
+    // Fetch user's Calendly access token
+    const accessToken = await CalendlyService.getUserAccessToken(userId);
+
+    if (!accessToken) {
+      console.log('⚠️ No Calendly connection found for user');
       return res.status(400).json({
-        error: 'Calendly not configured',
-        message: 'CALENDLY_PERSONAL_ACCESS_TOKEN environment variable is required'
+        error: 'Calendly not connected',
+        message: 'Please connect your Calendly account in Settings first'
       });
     }
 
+    const calendlyService = new CalendlyService(accessToken);
     console.log('✅ Calendly configured, syncing...');
     const result = await calendlyService.syncMeetingsToDatabase(userId);
     console.log('✅ Manual Calendly sync completed');

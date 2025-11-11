@@ -11,15 +11,27 @@ console.log('🔄 Calendly routes loaded successfully');
 // Test Calendly connection
 router.get('/test-connection', authenticateSupabaseUser, async (req, res) => {
   try {
-    const calendlyService = new CalendlyService();
+    const userId = req.user.id;
+
+    // Fetch user's Calendly access token
+    const accessToken = await CalendlyService.getUserAccessToken(userId);
+
+    if (!accessToken) {
+      return res.json({
+        connected: false,
+        error: 'No Calendly connection found. Please connect your Calendly account first.'
+      });
+    }
+
+    const calendlyService = new CalendlyService(accessToken);
     const result = await calendlyService.testConnection();
     res.json(result);
   } catch (error) {
     console.error('Error testing Calendly connection:', error);
-    res.status(500).json({ 
-      connected: false, 
+    res.status(500).json({
+      connected: false,
       error: 'Failed to test connection',
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -104,10 +116,22 @@ router.post('/sync', authenticateSupabaseUser, async (req, res) => {
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
-    const calendlyService = new CalendlyService();
     const userId = req.user.id;
 
     console.log(`🔄 Starting enhanced Calendly sync for user ${userId}`);
+
+    // Fetch user's Calendly access token
+    const accessToken = await CalendlyService.getUserAccessToken(userId);
+
+    if (!accessToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'No Calendly connection found',
+        message: 'Please connect your Calendly account first in Settings.'
+      });
+    }
+
+    const calendlyService = new CalendlyService(accessToken);
 
     // Get sync status before sync
     const { data: beforeStatus } = await req.supabase
@@ -145,8 +169,8 @@ router.post('/sync', authenticateSupabaseUser, async (req, res) => {
       error: 'Failed to sync Calendly meetings',
       details: error.message,
       troubleshooting: {
-        check_token: 'Verify CALENDLY_PERSONAL_ACCESS_TOKEN is set correctly',
-        check_permissions: 'Ensure token has read access to scheduled events',
+        check_connection: 'Verify your Calendly account is connected in Settings',
+        check_permissions: 'Ensure your Calendly OAuth token has read access to scheduled events',
         check_network: 'Verify network connectivity to Calendly API'
       }
     });
