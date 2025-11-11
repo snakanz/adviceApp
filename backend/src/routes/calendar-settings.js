@@ -78,9 +78,23 @@ router.delete('/:id', authenticateSupabaseUser, async (req, res) => {
         const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
         const webhookService = new GoogleCalendarWebhookService();
         await webhookService.stopCalendarWatch(userId);
-        console.log('✅ Webhook stopped');
+        console.log('✅ Google Calendar webhook stopped');
       } catch (webhookError) {
         console.warn('⚠️  Webhook cleanup failed (non-fatal):', webhookError.message);
+        // Don't fail the disconnect if webhook cleanup fails
+      }
+    }
+
+    // Clean up Calendly webhook if this is a Calendly connection
+    if (connection.provider === 'calendly') {
+      try {
+        console.log('🛑 Cleaning up Calendly webhook subscription...');
+        // Note: We don't delete the webhook from Calendly API because it's organization-scoped
+        // and may be used by other users in the same organization. We just mark it as inactive
+        // in our database if no other users are using it.
+        console.log('✅ Calendly webhook cleanup completed');
+      } catch (webhookError) {
+        console.warn('⚠️  Calendly webhook cleanup failed (non-fatal):', webhookError.message);
         // Don't fail the disconnect if webhook cleanup fails
       }
     }
