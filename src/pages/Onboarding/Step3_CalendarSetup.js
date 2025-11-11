@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import axios from 'axios';
+import CalendlyPlanInfo from '../../components/CalendlyPlanInfo';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
@@ -459,6 +460,9 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
 
                                     {selectedProvider === 'calendly' && (
                                         <>
+                                            {/* Calendly Plan Information */}
+                                            <CalendlyPlanInfo variant="onboarding" />
+
                                             <Button
                                                 onClick={handleCalendlyOAuthConnect}
                                                 disabled={isConnecting}

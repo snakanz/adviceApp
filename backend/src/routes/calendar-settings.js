@@ -651,25 +651,38 @@ router.get('/:id/webhook-status', authenticateSupabaseUser, async (req, res) => 
     // Check Calendly webhook status
     if (connection.provider === 'calendly' && connection.is_active) {
       try {
-        const CalendlyWebhookManager = require('../services/calendlyWebhookManager');
-        const webhookManager = new CalendlyWebhookManager();
+        // Check if webhook subscription exists in database
+        const { data: webhookSub, error: webhookError } = await req.supabase
+          .from('calendly_webhook_subscriptions')
+          .select('*')
+          .eq('is_active', true)
+          .single();
 
-        // Get detailed webhook status
-        const calendlyWebhookStatus = await webhookManager.getWebhookStatus(userId);
-        webhookStatus.webhook_active = calendlyWebhookStatus.webhook_active;
-        webhookStatus.sync_method = calendlyWebhookStatus.sync_method;
-        webhookStatus.message = calendlyWebhookStatus.message;
+        const hasWebhook = !webhookError && webhookSub;
+
+        webhookStatus.webhook_active = hasWebhook;
+        webhookStatus.has_webhook = hasWebhook;
+        webhookStatus.sync_method = hasWebhook ? 'webhook' : 'polling';
+
+        if (hasWebhook) {
+          webhookStatus.webhook_url = webhookSub.webhook_url;
+          webhookStatus.webhook_events = webhookSub.events;
+          webhookStatus.message = 'Real-time sync enabled via webhooks';
+        } else {
+          webhookStatus.message = 'Manual sync required (Free Calendly plan)';
+        }
 
         console.log(`📊 Calendly webhook status for user ${userId}:`, {
-          webhook_active: webhookStatus.webhook_active,
+          has_webhook: hasWebhook,
           sync_method: webhookStatus.sync_method
         });
       } catch (err) {
         console.warn('Error checking Calendly webhook status:', err.message);
-        // Fallback: check if signing key is configured
-        const hasCalendlyWebhookKey = !!process.env.CALENDLY_WEBHOOK_SIGNING_KEY;
-        webhookStatus.webhook_active = hasCalendlyWebhookKey;
-        webhookStatus.sync_method = hasCalendlyWebhookKey ? 'webhook' : 'polling';
+        // Fallback: no webhook
+        webhookStatus.webhook_active = false;
+        webhookStatus.has_webhook = false;
+        webhookStatus.sync_method = 'polling';
+        webhookStatus.message = 'Manual sync required';
       }
     }
 

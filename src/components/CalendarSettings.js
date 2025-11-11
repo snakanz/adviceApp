@@ -15,6 +15,8 @@ import {
   Zap,
   Clock
 } from 'lucide-react';
+import CalendlySyncButton from './CalendlySyncButton';
+import CalendlyPlanInfo from './CalendlyPlanInfo';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
@@ -550,6 +552,26 @@ export default function CalendarSettings() {
                             <span>🎙️ Auto-record with Recall.ai</span>
                           </label>
                         </div>
+
+                        {/* Calendly Plan Info & Sync Button */}
+                        {connection.is_active && connection.provider === 'calendly' && (
+                          <div className="mt-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+                            <CalendlyPlanInfo
+                              variant="compact"
+                              hasWebhook={webhookStatus[connection.id]?.has_webhook || false}
+                            />
+
+                            {!webhookStatus[connection.id]?.has_webhook && (
+                              <CalendlySyncButton
+                                connectionId={connection.id}
+                                onSyncComplete={() => loadConnections()}
+                                variant="outline"
+                                size="sm"
+                                showEstimate={true}
+                              />
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -719,6 +741,9 @@ export default function CalendarSettings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Plan Information */}
+              <CalendlyPlanInfo variant="settings" hasWebhook={false} showSyncButton={true} />
+
               {/* Authentication Method Selection */}
               <div className="space-y-3">
                 <Label>Connection Method</Label>
