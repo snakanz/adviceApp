@@ -2127,7 +2127,38 @@ router.get('/calendly/oauth/callback', async (req, res) => {
     const userResponse = await oauthService.getCurrentUser(accessToken);
     const calendlyUser = userResponse.resource;
 
+    // ✅ DIAGNOSTIC: Log full user response for diagnostics
+    console.log('📋 Full Calendly User Response:', JSON.stringify(userResponse, null, 2));
     console.log(`✅ Calendly OAuth successful for Calendly account: ${calendlyUser.email}`);
+
+    // ✅ DIAGNOSTIC: Fetch and log organization details to check plan
+    try {
+      const orgResponse = await fetch(calendlyUser.current_organization, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (orgResponse.ok) {
+        const orgData = await orgResponse.json();
+        console.log('🏢 Calendly Organization Details:', JSON.stringify(orgData, null, 2));
+
+        const plan = orgData.resource?.plan?.toLowerCase();
+        if (plan) {
+          console.log(`📊 Organization Plan: ${plan.toUpperCase()}`);
+          if (plan === 'free' || plan === 'basic') {
+            console.warn('⚠️  WARNING: Organization is on FREE/BASIC plan - webhooks may not be available');
+          } else {
+            console.log('✅ Organization is on PAID plan - webhooks should be available');
+          }
+        }
+      } else {
+        console.warn('⚠️  Could not fetch organization details:', orgResponse.status);
+      }
+    } catch (orgError) {
+      console.warn('⚠️  Error fetching organization:', orgError.message);
+    }
 
     // ✅ CRITICAL FIX: Get authenticated user from state parameter (passed from frontend)
     // The state parameter contains the authenticated user's ID

@@ -37,6 +37,23 @@ class CalendlyWebhookService {
 
     if (!response.ok) {
       const errorText = await response.text();
+
+      // ✅ DIAGNOSTIC: Enhanced error logging with full response
+      console.error('❌ Calendly API Error Details:');
+      console.error('   Status:', response.status);
+      console.error('   Status Text:', response.statusText);
+      console.error('   Endpoint:', endpoint);
+      console.error('   Method:', options.method || 'GET');
+      console.error('   Response Body:', errorText);
+
+      // ✅ DIAGNOSTIC: Try to parse error as JSON for more details
+      try {
+        const errorJson = JSON.parse(errorText);
+        console.error('   Parsed Error:', JSON.stringify(errorJson, null, 2));
+      } catch (e) {
+        // Not JSON, already logged as text
+      }
+
       throw new Error(`Calendly API error (${response.status}): ${errorText}`);
     }
 
@@ -61,6 +78,34 @@ class CalendlyWebhookService {
         throw new Error('Calendly webhook service not configured (missing access token or signing key)');
       }
 
+      // ✅ DIAGNOSTIC: Fetch organization details to check plan before creating webhook
+      console.log('🔍 Checking organization plan before creating webhook...');
+      try {
+        const orgEndpoint = organizationUri.replace('https://api.calendly.com', '');
+        const orgResponse = await this.makeRequest(orgEndpoint);
+        console.log('🏢 Organization Details:', JSON.stringify(orgResponse, null, 2));
+
+        const plan = orgResponse.resource?.plan?.toLowerCase();
+        if (plan) {
+          console.log(`📊 Organization Plan: ${plan.toUpperCase()}`);
+
+          // ✅ DIAGNOSTIC: Warn if plan might not support webhooks
+          if (plan === 'free' || plan === 'basic') {
+            console.warn('⚠️  WARNING: Organization appears to be on FREE/BASIC plan');
+            console.warn('⚠️  Webhooks typically require PAID plan (Standard/Professional/Teams/Enterprise)');
+            console.warn('⚠️  Webhook creation may fail with 400 error');
+            console.warn('⚠️  Reference: https://zeeg.me/en/blog/post/calendly-api');
+          } else {
+            console.log('✅ Organization on paid plan - webhook creation should succeed');
+          }
+        } else {
+          console.warn('⚠️  Could not determine organization plan from response');
+        }
+      } catch (orgError) {
+        console.warn('⚠️  Could not fetch organization details:', orgError.message);
+        console.warn('⚠️  Proceeding with webhook creation anyway...');
+      }
+
       const requestBody = {
         url: this.webhookUrl,
         events: ['invitee.created', 'invitee.canceled'],
@@ -78,7 +123,7 @@ class CalendlyWebhookService {
         requestBody.signing_key = this.signingKey;
       }
 
-      console.log('📤 Request body:', JSON.stringify(requestBody, null, 2));
+      console.log('📤 Webhook Request Body:', JSON.stringify(requestBody, null, 2));
 
       const response = await this.makeRequest('/webhook_subscriptions', {
         method: 'POST',
@@ -86,10 +131,14 @@ class CalendlyWebhookService {
       });
 
       console.log('✅ Webhook subscription created successfully:', response.resource?.uri);
+      // ✅ DIAGNOSTIC: Log full webhook response
+      console.log('📋 Full Webhook Response:', JSON.stringify(response, null, 2));
 
       return response.resource;
     } catch (error) {
       console.error('❌ Error creating webhook subscription:', error.message);
+      // ✅ DIAGNOSTIC: Log full error stack for debugging
+      console.error('❌ Full Error Stack:', error.stack);
       throw error;
     }
   }
