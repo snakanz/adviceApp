@@ -1,4 +1,4 @@
-const { getSupabase, isSupabaseAvailable } = require('../config/supabase');
+const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 
 /**
  * Service for managing Calendly webhook subscriptions

@@ -160,6 +160,22 @@ export default function CalendarSettings() {
         headers: { Authorization: `Bearer ${token}` }
       });
 
+      // ✅ If disconnecting Calendly, log out of Calendly to allow fresh re-login
+      if (provider.toLowerCase() === 'calendly') {
+        console.log('🔓 Logging out of Calendly to allow fresh re-login...');
+        // Open Calendly logout in a hidden iframe to clear session
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = 'https://calendly.com/logout';
+        document.body.appendChild(iframe);
+
+        // Remove iframe after 2 seconds
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+          console.log('✅ Calendly session cleared');
+        }, 2000);
+      }
+
       setSuccess(`${provider} calendar disconnected successfully`);
       loadConnections();
     } catch (err) {

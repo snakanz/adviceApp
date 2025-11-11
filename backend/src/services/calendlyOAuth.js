@@ -33,7 +33,7 @@ class CalendlyOAuthService {
       response_type: 'code',
       state: state || 'state',
       scope: 'default', // Calendly uses 'default' scope for all permissions
-      prompt: 'consent' // ✅ FIX: Force Calendly to show auth screen every time (prevents auto-reauth)
+      prompt: 'login' // ✅ FIX: Force Calendly to show login screen every time (stronger than 'consent')
     });
 
     return `${this.baseURL}/oauth/authorize?${params.toString()}`;
