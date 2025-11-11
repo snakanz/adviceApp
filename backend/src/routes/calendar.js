@@ -2183,6 +2183,8 @@ router.get('/calendly/oauth/callback', async (req, res) => {
           access_token: accessToken,
           refresh_token: refreshToken,
           provider_account_email: calendlyUser.email,
+          calendly_user_uri: calendlyUser.uri, // ✅ Store Calendly user URI for webhook matching
+          calendly_organization_uri: calendlyUser.current_organization, // ✅ Store org URI
           is_active: true,
           updated_at: new Date().toISOString()
         })
@@ -2200,6 +2202,8 @@ router.get('/calendly/oauth/callback', async (req, res) => {
           access_token: accessToken,
           refresh_token: refreshToken,
           provider_account_email: calendlyUser.email,
+          calendly_user_uri: calendlyUser.uri, // ✅ Store Calendly user URI for webhook matching
+          calendly_organization_uri: calendlyUser.current_organization, // ✅ Store org URI
           is_active: true
         });
 

@@ -448,7 +448,6 @@ router.get('/webhook/test', (req, res) => {
 async function handleInviteeCreated(payload) {
   try {
     console.log('✅ New meeting scheduled via webhook:', payload.event);
-    const calendlyService = new CalendlyService();
     const eventUri = payload.event;
     const eventUuid = eventUri.split('/').pop();
     const supabase = getSupabase();
@@ -465,24 +464,42 @@ async function handleInviteeCreated(payload) {
       return;
     }
 
-    const eventData = await calendlyService.makeRequest(`/scheduled_events/${eventUuid}`);
-    const event = eventData.resource;
+    // ✅ FIX: Match webhook to user by Calendly user URI from webhook payload
+    // The webhook payload contains 'created_by' which is the Calendly user URI
+    const calendlyUserUri = payload.created_by;
 
-    // Get the user ID from the Calendly connection
-    // For now, we'll need to determine this from the webhook context
-    // In a multi-user system, this would be mapped from Calendly account
-    // For single-user, we can query the active Calendly connection
-    const { data: connection } = await supabase
+    if (!calendlyUserUri) {
+      console.error('❌ No created_by (Calendly user URI) in webhook payload');
+      return;
+    }
+
+    console.log(`🔍 Looking for user with Calendly URI: ${calendlyUserUri}`);
+
+    // ✅ FIX: Query for the specific user's connection using calendly_user_uri
+    const { data: connection, error: connectionError } = await supabase
       .from('calendar_connections')
-      .select('user_id')
+      .select('user_id, access_token')
       .eq('provider', 'calendly')
+      .eq('calendly_user_uri', calendlyUserUri)
       .eq('is_active', true)
       .single();
 
-    if (!connection) {
-      console.error('❌ No active Calendly connection found for webhook');
+    if (connectionError || !connection) {
+      console.error('❌ No matching Calendly connection found for webhook:', {
+        calendlyUserUri,
+        error: connectionError
+      });
       return;
     }
+
+    console.log(`✅ Found matching user: ${connection.user_id}`);
+
+    // ✅ FIX: Create CalendlyService with user's specific OAuth token
+    const calendlyService = new CalendlyService(connection.access_token);
+
+    // Fetch event details using user's token
+    const eventData = await calendlyService.makeRequest(`/scheduled_events/${eventUuid}`);
+    const event = eventData.resource;
 
     const userId = connection.user_id;
     const meetingData = await calendlyService.transformEventToMeeting(event, userId);
@@ -588,7 +605,6 @@ async function handleInviteeCanceled(payload) {
 async function handleInviteeUpdated(payload) {
   try {
     console.log('🔄 Meeting updated via webhook:', payload.event);
-    const calendlyService = new CalendlyService();
     const eventUri = payload.event;
     const eventUuid = eventUri.split('/').pop();
     const supabase = getSupabase();
@@ -606,7 +622,39 @@ async function handleInviteeUpdated(payload) {
       return;
     }
 
-    // Fetch the updated event details from Calendly
+    // ✅ FIX: Match webhook to user by Calendly user URI from webhook payload
+    const calendlyUserUri = payload.created_by;
+
+    if (!calendlyUserUri) {
+      console.error('❌ No created_by (Calendly user URI) in webhook payload');
+      return;
+    }
+
+    console.log(`🔍 Looking for user with Calendly URI: ${calendlyUserUri}`);
+
+    // ✅ FIX: Query for the specific user's connection using calendly_user_uri
+    const { data: connection, error: connectionError } = await supabase
+      .from('calendar_connections')
+      .select('user_id, access_token')
+      .eq('provider', 'calendly')
+      .eq('calendly_user_uri', calendlyUserUri)
+      .eq('is_active', true)
+      .single();
+
+    if (connectionError || !connection) {
+      console.error('❌ No matching Calendly connection found for webhook:', {
+        calendlyUserUri,
+        error: connectionError
+      });
+      return;
+    }
+
+    console.log(`✅ Found matching user: ${connection.user_id}`);
+
+    // ✅ FIX: Create CalendlyService with user's specific OAuth token
+    const calendlyService = new CalendlyService(connection.access_token);
+
+    // Fetch the updated event details from Calendly using user's token
     const eventData = await calendlyService.makeRequest(`/scheduled_events/${eventUuid}`);
     const event = eventData.resource;
 

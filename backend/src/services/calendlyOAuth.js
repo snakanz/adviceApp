@@ -32,7 +32,8 @@ class CalendlyOAuthService {
       redirect_uri: this.redirectUri,
       response_type: 'code',
       state: state || 'state',
-      scope: 'default' // Calendly uses 'default' scope for all permissions
+      scope: 'default', // Calendly uses 'default' scope for all permissions
+      prompt: 'consent' // ✅ FIX: Force Calendly to show auth screen every time (prevents auto-reauth)
     });
 
     return `${this.baseURL}/oauth/authorize?${params.toString()}`;
