@@ -66,5 +66,107 @@ router.post('/update-subscription', async (req, res) => {
   }
 });
 
+/**
+ * POST /api/admin/cleanup-calendly-all-users
+ * ADMIN ENDPOINT: Clean up all Calendly data for ALL users
+ * This removes all Calendly connections, meetings, and webhook subscriptions
+ *
+ * SECURITY: This is a destructive operation - should be properly secured in production
+ */
+router.post('/cleanup-calendly-all-users', async (req, res) => {
+  try {
+    // Simple security check - in production, use proper authentication
+    const adminKey = req.headers['x-admin-key'];
+    if (adminKey !== process.env.ADMIN_API_KEY) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    console.log('🧹 Starting Calendly cleanup for ALL users...');
+
+    const results = {
+      meetings_deleted: 0,
+      webhook_events_deleted: 0,
+      webhook_subscriptions_deleted: 0,
+      connections_deleted: 0
+    };
+
+    const supabase = getSupabase();
+
+    // Step 1: Delete all Calendly meetings
+    console.log('1️⃣ Deleting all Calendly meetings...');
+    const { data: deletedMeetings, error: meetingsError } = await supabase
+      .from('meetings')
+      .delete()
+      .eq('meeting_source', 'calendly')
+      .select();
+
+    if (meetingsError) {
+      console.error('❌ Error deleting meetings:', meetingsError);
+    } else {
+      results.meetings_deleted = deletedMeetings?.length || 0;
+      console.log(`✅ Deleted ${results.meetings_deleted} Calendly meetings`);
+    }
+
+    // Step 2: Delete all webhook events
+    console.log('2️⃣ Deleting all webhook events...');
+    const { data: deletedEvents, error: eventsError } = await supabase
+      .from('calendly_webhook_events')
+      .delete()
+      .select();
+
+    if (eventsError) {
+      console.error('❌ Error deleting webhook events:', eventsError);
+    } else {
+      results.webhook_events_deleted = deletedEvents?.length || 0;
+      console.log(`✅ Deleted ${results.webhook_events_deleted} webhook events`);
+    }
+
+    // Step 3: Delete all webhook subscriptions
+    console.log('3️⃣ Deleting all webhook subscriptions...');
+    const { data: deletedSubscriptions, error: subscriptionsError } = await supabase
+      .from('calendly_webhook_subscriptions')
+      .delete()
+      .select();
+
+    if (subscriptionsError) {
+      console.error('❌ Error deleting webhook subscriptions:', subscriptionsError);
+    } else {
+      results.webhook_subscriptions_deleted = deletedSubscriptions?.length || 0;
+      console.log(`✅ Deleted ${results.webhook_subscriptions_deleted} webhook subscriptions`);
+    }
+
+    // Step 4: Delete all Calendly calendar connections
+    console.log('4️⃣ Deleting all Calendly calendar connections...');
+    const { data: deletedConnections, error: connectionsError } = await supabase
+      .from('calendar_connections')
+      .delete()
+      .eq('provider', 'calendly')
+      .select();
+
+    if (connectionsError) {
+      console.error('❌ Error deleting connections:', connectionsError);
+    } else {
+      results.connections_deleted = deletedConnections?.length || 0;
+      console.log(`✅ Deleted ${results.connections_deleted} calendar connections`);
+    }
+
+    console.log('✅ Calendly cleanup complete for ALL users');
+
+    res.json({
+      success: true,
+      message: 'Calendly data cleaned up successfully for all users',
+      results
+    });
+
+  } catch (error) {
+    console.error('❌ Error in cleanup-calendly-all-users:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
 
