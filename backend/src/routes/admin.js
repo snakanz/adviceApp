@@ -222,7 +222,7 @@ router.post('/wipe-all-data', async (req, res) => {
       const { data: deletedMeetings, error: meetingsError } = await supabase
         .from('meetings')
         .delete()
-        .neq('id', 'null')
+        .gt('id', 0)
         .select();
 
       if (meetingsError) throw meetingsError;
@@ -239,7 +239,7 @@ router.post('/wipe-all-data', async (req, res) => {
       const { data: deletedActionItems, error: actionItemsError } = await supabase
         .from('action_items')
         .delete()
-        .neq('id', 'null')
+        .gt('id', 0)
         .select();
 
       if (actionItemsError) throw actionItemsError;
@@ -256,7 +256,7 @@ router.post('/wipe-all-data', async (req, res) => {
       const { data: deletedClients, error: clientsError } = await supabase
         .from('clients')
         .delete()
-        .neq('id', 'null')
+        .not('id', 'is', null)
         .select();
 
       if (clientsError) throw clientsError;
@@ -273,7 +273,7 @@ router.post('/wipe-all-data', async (req, res) => {
       const { data: deletedConnections, error: connectionsError } = await supabase
         .from('calendar_connections')
         .delete()
-        .neq('id', 'null')
+        .not('id', 'is', null)
         .select();
 
       if (connectionsError) throw connectionsError;
@@ -290,7 +290,7 @@ router.post('/wipe-all-data', async (req, res) => {
       const { data: deletedSubscriptions, error: subscriptionsError } = await supabase
         .from('calendly_webhook_subscriptions')
         .delete()
-        .neq('id', 'null')
+        .not('id', 'is', null)
         .select();
 
       if (subscriptionsError) throw subscriptionsError;
@@ -307,7 +307,7 @@ router.post('/wipe-all-data', async (req, res) => {
       const { data: deletedEvents, error: eventsError } = await supabase
         .from('calendly_webhook_events')
         .delete()
-        .neq('id', 'null')
+        .not('id', 'is', null)
         .select();
 
       if (eventsError) throw eventsError;
@@ -324,7 +324,7 @@ router.post('/wipe-all-data', async (req, res) => {
       const { data: deletedSubs, error: subsError } = await supabase
         .from('subscriptions')
         .delete()
-        .neq('id', 'null')
+        .not('id', 'is', null)
         .select();
 
       if (subsError) throw subsError;
@@ -341,7 +341,7 @@ router.post('/wipe-all-data', async (req, res) => {
       const { data: deletedTenants, error: tenantsError } = await supabase
         .from('tenants')
         .delete()
-        .neq('id', 'null')
+        .not('id', 'is', null)
         .select();
 
       if (tenantsError) throw tenantsError;
@@ -358,7 +358,7 @@ router.post('/wipe-all-data', async (req, res) => {
       const { data: deletedUsers, error: usersError } = await supabase
         .from('users')
         .delete()
-        .neq('id', 'null')
+        .not('id', 'is', null)
         .select();
 
       if (usersError) throw usersError;
