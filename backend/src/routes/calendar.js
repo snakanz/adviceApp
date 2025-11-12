@@ -2254,25 +2254,36 @@ router.get('/calendly/oauth/callback', async (req, res) => {
       const webhookService = new CalendlyWebhookService(accessToken);
 
       if (webhookService.isConfigured()) {
-        // Don't await - let it run in background
-        webhookService.ensureWebhookSubscription(
+        // ✅ AWAIT webhook creation to ensure webhook ID is stored before redirecting
+        const webhookResult = await webhookService.ensureWebhookSubscription(
           calendlyUser.current_organization,
           calendlyUser.uri
-        ).then(webhookResult => {
-          if (webhookResult.created) {
-            console.log('✅ Calendly webhook subscription created:', webhookResult.webhook_uri);
-          } else {
-            console.log('✅ Calendly webhook subscription already exists');
-          }
-        }).catch(webhookError => {
-          console.warn('⚠️  Webhook setup failed (non-fatal):', webhookError.message);
-        });
+        );
+
+        if (webhookResult.created) {
+          console.log('✅ Calendly webhook subscription created:', webhookResult.webhook_uri);
+        } else {
+          console.log('✅ Calendly webhook subscription already exists:', webhookResult.webhook_uri);
+        }
+
+        // ✅ Store webhook ID in calendar_connections table
+        const { error: webhookUpdateError } = await getSupabase()
+          .from('calendar_connections')
+          .update({ calendly_webhook_id: webhookResult.webhook_uri })
+          .eq('user_id', userId)
+          .eq('provider', 'calendly');
+
+        if (webhookUpdateError) {
+          console.error('❌ Error storing webhook ID in calendar_connections:', webhookUpdateError);
+        } else {
+          console.log('✅ Webhook ID stored in calendar_connections:', webhookResult.webhook_uri);
+        }
       } else {
         console.warn('⚠️  Calendly webhook service not configured (missing signing key)');
       }
     } catch (webhookError) {
       console.warn('⚠️  Failed to setup webhook:', webhookError.message);
-      // Don't fail the connection if webhook setup fails
+      // Don't fail the connection if webhook setup fails - user can still use polling
     }
 
     // Trigger initial sync to fetch existing Calendly meetings (in background, non-blocking)
