@@ -1,8 +1,14 @@
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 
 /**
- * Service for managing Calendly webhook subscriptions
+ * Service for managing Calendly webhook subscriptions (API v2)
  * Handles programmatic creation and management of organization-scoped webhooks
+ *
+ * v2 Changes:
+ * - Uses URI-based resource references
+ * - signing_key is provided in webhook creation response
+ * - Better error handling with structured responses
+ * - Keyset-based pagination for listing webhooks
  */
 class CalendlyWebhookService {
   constructor(accessToken) {
@@ -159,8 +165,8 @@ class CalendlyWebhookService {
         requestBody.user = userUri;
       }
 
-      // ✅ FIX: DO NOT send signing_key when creating webhook
-      // Calendly will generate and return a signing_key in the response
+      // ✅ v2 API: DO NOT send signing_key when creating webhook
+      // Calendly v2 will generate and return a signing_key in the response
       // We'll store that returned key for webhook verification
 
       console.log('📤 Webhook Request Body:', JSON.stringify(requestBody, null, 2));
@@ -174,7 +180,8 @@ class CalendlyWebhookService {
       // ✅ DIAGNOSTIC: Log full webhook response
       console.log('📋 Full Webhook Response:', JSON.stringify(response, null, 2));
 
-      // ✅ FIX: Extract and return the signing_key from Calendly's response
+      // ✅ v2 API: Extract signing_key from Calendly's response
+      // In v2, signing_key is ALWAYS returned in the webhook creation response
       const webhookResource = response.resource;
 
       // Log all fields in the webhook resource for debugging
@@ -184,9 +191,10 @@ class CalendlyWebhookService {
       }
 
       if (webhookResource?.signing_key) {
-        console.log('🔑 Webhook signing key received from Calendly:', webhookResource.signing_key.substring(0, 20) + '...');
+        console.log('🔑 Webhook signing key received from Calendly (v2):', webhookResource.signing_key.substring(0, 20) + '...');
       } else {
-        console.warn('⚠️  WARNING: No signing_key in webhook response from Calendly');
+        console.warn('⚠️  WARNING: No signing_key in webhook response from Calendly v2');
+        console.warn('⚠️  This should not happen with v2 API - check Calendly API response');
         console.warn('⚠️  Available fields:', webhookResource ? Object.keys(webhookResource) : 'null');
       }
 
@@ -200,19 +208,48 @@ class CalendlyWebhookService {
   }
 
   /**
-   * List all webhook subscriptions for an organization
+   * List all webhook subscriptions for an organization (v2 with keyset pagination)
    * @param {string} organizationUri - The Calendly organization URI
    * @returns {Promise<Array>} List of webhook subscriptions
    */
   async listWebhookSubscriptions(organizationUri, scope = 'organization') {
     try {
-      const params = new URLSearchParams({
-        organization: organizationUri,
-        scope: scope
-      });
+      let allWebhooks = [];
+      let cursor = null;
+      let pageCount = 0;
 
-      const response = await this.makeRequest(`/webhook_subscriptions?${params}`);
-      return response.collection || [];
+      do {
+        const params = new URLSearchParams({
+          organization: organizationUri,
+          scope: scope,
+          page_size: '100' // v2 uses page_size
+        });
+
+        // Add pagination token if we have one
+        if (cursor) {
+          params.append('pagination_token', cursor);
+        }
+
+        const response = await this.makeRequest(`/webhook_subscriptions?${params}`);
+        const webhooks = response.collection || [];
+        allWebhooks = allWebhooks.concat(webhooks);
+        pageCount++;
+
+        console.log(`📊 Webhook page ${pageCount}: Found ${webhooks.length} webhooks (Total: ${allWebhooks.length})`);
+
+        // v2 uses pagination_token instead of next_page
+        const pagination = response.pagination || {};
+        cursor = pagination.next_page_token || null;
+
+        // Safety check
+        if (pageCount > 50) {
+          console.warn('⚠️  Reached maximum page limit (50), stopping pagination');
+          break;
+        }
+      } while (cursor);
+
+      console.log(`✅ Listed ${allWebhooks.length} webhook subscriptions across ${pageCount} pages`);
+      return allWebhooks;
     } catch (error) {
       console.error('❌ Error listing webhook subscriptions:', error.message);
       throw error;

@@ -2,11 +2,17 @@ const { getSupabase } = require('../lib/supabase');
 const clientExtractionService = require('./clientExtraction');
 
 /**
- * Calendly API Service
- * Handles fetching meetings from Calendly API and syncing with database
+ * Calendly API v2 Service
+ * Handles fetching meetings from Calendly API v2 and syncing with database
  *
  * IMPORTANT: This service uses USER-SPECIFIC OAuth tokens, not a global token.
  * Each user's Calendly data is fetched using their own access token from the database.
+ *
+ * API v2 Changes:
+ * - Uses URI-based resource references (e.g., https://api.calendly.com/users/AAAA)
+ * - Keyset-based pagination (cursor-based) instead of offset
+ * - Deterministic responses based on request, not requester
+ * - Better error handling with structured error responses
  */
 class CalendlyService {
   /**
@@ -117,21 +123,22 @@ class CalendlyService {
   }
 
   /**
-   * Fetch events by status with pagination
+   * Fetch events by status with keyset-based pagination (v2)
+   * v2 uses cursor-based pagination instead of offset
    */
   async fetchEventsByStatus(userUri, timeMin, timeMax, status) {
     let allEvents = [];
-    let nextPageUrl = null;
     let pageCount = 0;
+    let cursor = null; // v2 uses cursor for pagination
 
-    // Build initial request URL
+    // Build initial request URL with v2 parameters
     const params = new URLSearchParams({
       user: userUri,
       min_start_time: timeMin.toISOString(),
       max_start_time: timeMax.toISOString(),
       status: status,
       sort: 'start_time:asc',
-      count: '100' // Maximum allowed by Calendly API
+      page_size: '100' // v2 uses page_size instead of count
     });
 
     let requestUrl = `/scheduled_events?${params}`;
@@ -139,8 +146,12 @@ class CalendlyService {
     do {
       console.log(`📄 Fetching ${status} events page ${pageCount + 1}...`);
 
-      // Use the full next page URL if available, otherwise use the initial URL
-      const urlToFetch = nextPageUrl ? nextPageUrl.replace(this.baseURL, '') : requestUrl;
+      // Add cursor to URL if we have one (for pagination)
+      let urlToFetch = requestUrl;
+      if (cursor) {
+        urlToFetch += `&pagination_token=${encodeURIComponent(cursor)}`;
+      }
+
       const data = await this.makeRequest(urlToFetch);
 
       const events = data.collection || [];
@@ -149,15 +160,14 @@ class CalendlyService {
 
       console.log(`📊 Page ${pageCount}: Found ${events.length} ${status} events (Total: ${allEvents.length})`);
 
-      // Check for pagination - use the full next_page URL
+      // v2 uses pagination_token instead of next_page
       const pagination = data.pagination || {};
+      cursor = pagination.next_page_token || null;
 
       // If we got fewer than 100 events, we're at the end
       if (events.length < 100) {
         console.log(`📄 Received fewer than 100 ${status} events, reached end of results`);
-        nextPageUrl = null;
-      } else {
-        nextPageUrl = pagination.next_page || null;
+        cursor = null;
       }
 
       // Safety check to prevent infinite loops
@@ -166,7 +176,7 @@ class CalendlyService {
         break;
       }
 
-    } while (nextPageUrl);
+    } while (cursor);
 
     console.log(`✅ Fetched ${allEvents.length} ${status} events across ${pageCount} pages`);
     return allEvents;
