@@ -30,10 +30,10 @@ class CalendlyWebhookManager {
         return false;
       }
 
-      // Get user's Calendly connection
+      // Get user's Calendly connection with organization URI
       const { data: connection, error } = await getSupabase()
         .from('calendar_connections')
-        .select('access_token, provider, is_active')
+        .select('access_token, provider, is_active, calendly_organization_uri')
         .eq('user_id', userId)
         .eq('provider', 'calendly')
         .eq('is_active', true)
@@ -44,9 +44,14 @@ class CalendlyWebhookManager {
         return false;
       }
 
-      // Check if webhook subscription exists
-      const webhookExists = await this.checkWebhookSubscription(connection.access_token);
-      
+      if (!connection.calendly_organization_uri) {
+        console.warn(`⚠️ No organization URI for user ${userId}`);
+        return false;
+      }
+
+      // Check if webhook subscription exists (pass organization URI)
+      const webhookExists = await this.checkWebhookSubscription(connection.access_token, connection.calendly_organization_uri);
+
       if (webhookExists) {
         console.log(`✅ Calendly webhook verified for user ${userId}`);
         return true;
@@ -62,10 +67,19 @@ class CalendlyWebhookManager {
 
   /**
    * Check if webhook subscription exists in Calendly
+   * Note: This requires the organization URI to be specified
    */
-  async checkWebhookSubscription(accessToken) {
+  async checkWebhookSubscription(accessToken, organizationUri) {
     try {
-      const response = await axios.get(`${this.calendlyApiUrl}/webhook_subscriptions`, {
+      if (!organizationUri) {
+        console.warn('⚠️ Cannot check webhook subscription without organization URI');
+        return false;
+      }
+
+      // Calendly requires organization parameter to list webhooks
+      const url = `${this.calendlyApiUrl}/webhook_subscriptions?organization=${encodeURIComponent(organizationUri)}&scope=organization`;
+
+      const response = await axios.get(url, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
@@ -73,9 +87,9 @@ class CalendlyWebhookManager {
       });
 
       const subscriptions = response.data.collection || [];
-      
+
       // Look for our webhook URL in the subscriptions
-      const ourWebhook = subscriptions.find(sub => 
+      const ourWebhook = subscriptions.find(sub =>
         sub.callback_url === this.webhookUrl
       );
 
