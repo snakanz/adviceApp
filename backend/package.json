@@ -5,7 +5,12 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:calendly": "jest tests/calendly-v2.test.js",
+    "test:webhook": "jest tests/calendly-webhook-v2.test.js",
+    "test:e2e": "jest tests/calendly-e2e-v2.test.js"
   },
   "keywords": [],
   "author": "",
@@ -33,6 +38,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "jest": "^29.7.0",
     "nodemon": "^3.0.1"
   }
 }
