@@ -2262,14 +2262,14 @@ router.get('/calendly/oauth/callback', async (req, res) => {
       .neq('provider', 'calendly');
 
     // Create or update Calendly connection for the authenticated user
-    const { data: existingConnection } = await getSupabase()
+    const { data: existingCalendlyConnection } = await getSupabase()
       .from('calendar_connections')
       .select('id')
       .eq('user_id', userId)
       .eq('provider', 'calendly')
       .single();
 
-    if (existingConnection) {
+    if (existingCalendlyConnection) {
       // Update existing connection (reconnection scenario)
       await getSupabase()
         .from('calendar_connections')
@@ -2282,7 +2282,7 @@ router.get('/calendly/oauth/callback', async (req, res) => {
           is_active: true,
           updated_at: new Date().toISOString()
         })
-        .eq('id', existingConnection.id);
+        .eq('id', existingCalendlyConnection.id);
 
       console.log(`✅ Updated Calendly connection for user ${userId} (reconnection)`);
     } else {
