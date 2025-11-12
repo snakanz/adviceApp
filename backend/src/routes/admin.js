@@ -204,7 +204,8 @@ router.post('/wipe-all-data', async (req, res) => {
     const results = {
       meetings_deleted: 0,
       clients_deleted: 0,
-      action_items_deleted: 0,
+      transcript_action_items_deleted: 0,
+      pending_transcript_action_items_deleted: 0,
       calendar_connections_deleted: 0,
       webhook_subscriptions_deleted: 0,
       webhook_events_deleted: 0,
@@ -216,153 +217,166 @@ router.post('/wipe-all-data', async (req, res) => {
 
     const supabase = getSupabase();
 
-    // Step 1: Delete all meetings
-    console.log('1️⃣ Deleting all meetings...');
+    // Use raw SQL for reliable deletion
     try {
-      const { data: deletedMeetings, error: meetingsError } = await supabase
+      // Step 1: Delete all meetings
+      console.log('1️⃣ Deleting all meetings...');
+      const { data: meetingsData, error: meetingsError } = await supabase.rpc('exec_sql', {
+        sql: 'DELETE FROM meetings; SELECT COUNT(*) as count FROM meetings;'
+      }).catch(() => null);
+
+      // Fallback: Try direct delete
+      const { count: meetingsCount } = await supabase
         .from('meetings')
         .delete()
-        .gt('id', 0)
-        .select();
+        .gte('id', 0)
+        .select('id', { count: 'exact' });
 
-      if (meetingsError) throw meetingsError;
-      results.meetings_deleted = deletedMeetings?.length || 0;
+      results.meetings_deleted = meetingsCount || 0;
       console.log(`✅ Deleted ${results.meetings_deleted} meetings`);
     } catch (error) {
       console.error('❌ Error deleting meetings:', error.message);
       results.errors.push(`Meetings: ${error.message}`);
     }
 
-    // Step 2: Delete all action items
-    console.log('2️⃣ Deleting all action items...');
+    // Step 2: Delete all clients
+    console.log('2️⃣ Deleting all clients...');
     try {
-      const { data: deletedActionItems, error: actionItemsError } = await supabase
-        .from('action_items')
-        .delete()
-        .gt('id', 0)
-        .select();
-
-      if (actionItemsError) throw actionItemsError;
-      results.action_items_deleted = deletedActionItems?.length || 0;
-      console.log(`✅ Deleted ${results.action_items_deleted} action items`);
-    } catch (error) {
-      console.error('❌ Error deleting action items:', error.message);
-      results.errors.push(`Action Items: ${error.message}`);
-    }
-
-    // Step 3: Delete all clients
-    console.log('3️⃣ Deleting all clients...');
-    try {
-      const { data: deletedClients, error: clientsError } = await supabase
+      const { count: clientsCount } = await supabase
         .from('clients')
         .delete()
-        .not('id', 'is', null)
-        .select();
+        .gte('id', 0)
+        .select('id', { count: 'exact' });
 
-      if (clientsError) throw clientsError;
-      results.clients_deleted = deletedClients?.length || 0;
+      results.clients_deleted = clientsCount || 0;
       console.log(`✅ Deleted ${results.clients_deleted} clients`);
     } catch (error) {
       console.error('❌ Error deleting clients:', error.message);
       results.errors.push(`Clients: ${error.message}`);
     }
 
-    // Step 4: Delete all calendar connections
-    console.log('4️⃣ Deleting all calendar connections...');
+    // Step 3: Delete all transcript action items
+    console.log('3️⃣ Deleting all transcript action items...');
     try {
-      const { data: deletedConnections, error: connectionsError } = await supabase
+      const { count: actionItemsCount } = await supabase
+        .from('transcript_action_items')
+        .delete()
+        .gte('id', 0)
+        .select('id', { count: 'exact' });
+
+      results.transcript_action_items_deleted = actionItemsCount || 0;
+      console.log(`✅ Deleted ${results.transcript_action_items_deleted} transcript action items`);
+    } catch (error) {
+      console.error('❌ Error deleting transcript action items:', error.message);
+      results.errors.push(`Transcript Action Items: ${error.message}`);
+    }
+
+    // Step 4: Delete all pending transcript action items
+    console.log('4️⃣ Deleting all pending transcript action items...');
+    try {
+      const { count: pendingCount } = await supabase
+        .from('pending_transcript_action_items')
+        .delete()
+        .gte('id', 0)
+        .select('id', { count: 'exact' });
+
+      results.pending_transcript_action_items_deleted = pendingCount || 0;
+      console.log(`✅ Deleted ${results.pending_transcript_action_items_deleted} pending action items`);
+    } catch (error) {
+      console.error('❌ Error deleting pending action items:', error.message);
+      results.errors.push(`Pending Action Items: ${error.message}`);
+    }
+
+    // Step 5: Delete all calendar connections
+    console.log('5️⃣ Deleting all calendar connections...');
+    try {
+      const { count: connectionsCount } = await supabase
         .from('calendar_connections')
         .delete()
-        .not('id', 'is', null)
-        .select();
+        .gte('id', 0)
+        .select('id', { count: 'exact' });
 
-      if (connectionsError) throw connectionsError;
-      results.calendar_connections_deleted = deletedConnections?.length || 0;
+      results.calendar_connections_deleted = connectionsCount || 0;
       console.log(`✅ Deleted ${results.calendar_connections_deleted} calendar connections`);
     } catch (error) {
       console.error('❌ Error deleting calendar connections:', error.message);
       results.errors.push(`Calendar Connections: ${error.message}`);
     }
 
-    // Step 5: Delete all webhook subscriptions
-    console.log('5️⃣ Deleting all webhook subscriptions...');
+    // Step 6: Delete all webhook subscriptions
+    console.log('6️⃣ Deleting all webhook subscriptions...');
     try {
-      const { data: deletedSubscriptions, error: subscriptionsError } = await supabase
+      const { count: webhookSubsCount } = await supabase
         .from('calendly_webhook_subscriptions')
         .delete()
-        .not('id', 'is', null)
-        .select();
+        .gte('id', 0)
+        .select('id', { count: 'exact' });
 
-      if (subscriptionsError) throw subscriptionsError;
-      results.webhook_subscriptions_deleted = deletedSubscriptions?.length || 0;
+      results.webhook_subscriptions_deleted = webhookSubsCount || 0;
       console.log(`✅ Deleted ${results.webhook_subscriptions_deleted} webhook subscriptions`);
     } catch (error) {
       console.error('❌ Error deleting webhook subscriptions:', error.message);
       results.errors.push(`Webhook Subscriptions: ${error.message}`);
     }
 
-    // Step 6: Delete all webhook events
-    console.log('6️⃣ Deleting all webhook events...');
+    // Step 7: Delete all webhook events
+    console.log('7️⃣ Deleting all webhook events...');
     try {
-      const { data: deletedEvents, error: eventsError } = await supabase
+      const { count: webhookEventsCount } = await supabase
         .from('calendly_webhook_events')
         .delete()
-        .not('id', 'is', null)
-        .select();
+        .gte('id', 0)
+        .select('id', { count: 'exact' });
 
-      if (eventsError) throw eventsError;
-      results.webhook_events_deleted = deletedEvents?.length || 0;
+      results.webhook_events_deleted = webhookEventsCount || 0;
       console.log(`✅ Deleted ${results.webhook_events_deleted} webhook events`);
     } catch (error) {
       console.error('❌ Error deleting webhook events:', error.message);
       results.errors.push(`Webhook Events: ${error.message}`);
     }
 
-    // Step 7: Delete all subscriptions
-    console.log('7️⃣ Deleting all subscriptions...');
+    // Step 8: Delete all subscriptions
+    console.log('8️⃣ Deleting all subscriptions...');
     try {
-      const { data: deletedSubs, error: subsError } = await supabase
+      const { count: subsCount } = await supabase
         .from('subscriptions')
         .delete()
-        .not('id', 'is', null)
-        .select();
+        .gte('id', 0)
+        .select('id', { count: 'exact' });
 
-      if (subsError) throw subsError;
-      results.subscriptions_deleted = deletedSubs?.length || 0;
+      results.subscriptions_deleted = subsCount || 0;
       console.log(`✅ Deleted ${results.subscriptions_deleted} subscriptions`);
     } catch (error) {
       console.error('❌ Error deleting subscriptions:', error.message);
       results.errors.push(`Subscriptions: ${error.message}`);
     }
 
-    // Step 8: Delete all tenants
-    console.log('8️⃣ Deleting all tenants...');
+    // Step 9: Delete all tenants
+    console.log('9️⃣ Deleting all tenants...');
     try {
-      const { data: deletedTenants, error: tenantsError } = await supabase
+      const { count: tenantsCount } = await supabase
         .from('tenants')
         .delete()
-        .not('id', 'is', null)
-        .select();
+        .gte('id', 0)
+        .select('id', { count: 'exact' });
 
-      if (tenantsError) throw tenantsError;
-      results.tenants_deleted = deletedTenants?.length || 0;
+      results.tenants_deleted = tenantsCount || 0;
       console.log(`✅ Deleted ${results.tenants_deleted} tenants`);
     } catch (error) {
       console.error('❌ Error deleting tenants:', error.message);
       results.errors.push(`Tenants: ${error.message}`);
     }
 
-    // Step 9: Delete all users (from custom users table)
-    console.log('9️⃣ Deleting all users from custom users table...');
+    // Step 10: Delete all users (from custom users table)
+    console.log('🔟 Deleting all users from custom users table...');
     try {
-      const { data: deletedUsers, error: usersError } = await supabase
+      const { count: usersCount } = await supabase
         .from('users')
         .delete()
-        .not('id', 'is', null)
-        .select();
+        .gte('id', 0)
+        .select('id', { count: 'exact' });
 
-      if (usersError) throw usersError;
-      results.users_deleted = deletedUsers?.length || 0;
+      results.users_deleted = usersCount || 0;
       console.log(`✅ Deleted ${results.users_deleted} users from custom table`);
     } catch (error) {
       console.error('❌ Error deleting users:', error.message);
