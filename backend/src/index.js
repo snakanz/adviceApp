@@ -97,6 +97,17 @@ try {
   console.warn('Failed to mount Stripe webhook route:', error.message);
 }
 
+// ✅ FIX #2: Mount Calendly webhook route BEFORE express.json() middleware
+// Calendly webhooks need raw body for HMAC signature verification
+try {
+  console.log('Mounting Calendly webhook route (BEFORE JSON middleware)...');
+  const calendlyWebhookRouter = require('./routes/calendly-webhook');
+  app.use('/api/calendly/webhook', calendlyWebhookRouter);
+  console.log('✅ Calendly webhook route mounted successfully');
+} catch (error) {
+  console.warn('Failed to mount Calendly webhook route:', error.message);
+}
+
 app.use(express.json());
 console.log('✅ CORS and middleware configured');
 
