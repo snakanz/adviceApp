@@ -290,13 +290,15 @@ class CalendlyService {
       const transcriptionEnabled = connection?.transcription_enabled === true;
 
       // Check if initial sync has been completed
+      // Note: calendly_initial_sync_complete column may not exist yet, so we use last_calendly_sync as fallback
       const { data: userData } = await getSupabase()
         .from('users')
-        .select('calendly_initial_sync_complete, last_calendly_sync')
+        .select('last_calendly_sync')
         .eq('id', userId)
         .single();
 
-      const needsInitialSync = !userData?.calendly_initial_sync_complete || options.forceFullSync;
+      // If no last_calendly_sync, this is the first sync (initial sync needed)
+      const needsInitialSync = !userData?.last_calendly_sync || options.forceFullSync;
 
       if (needsInitialSync) {
         console.log('🎯 Initial sync needed - will fetch 2 years of historical data');
@@ -463,11 +465,8 @@ class CalendlyService {
         last_calendly_sync: new Date().toISOString()
       };
 
-      // Mark initial sync as complete if this was an initial sync
-      if (needsInitialSync && !userData?.calendly_initial_sync_complete) {
-        updateData.calendly_initial_sync_complete = true;
-        console.log('✅ Initial sync complete - future syncs will be incremental');
-      }
+      // Note: calendly_initial_sync_complete column may not exist yet
+      // We track initial sync completion via last_calendly_sync timestamp instead
 
       await getSupabase()
         .from('users')
