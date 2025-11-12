@@ -545,7 +545,7 @@ async function processWebhookEvent(event, payload) {
     console.error(`❌ Error processing webhook event ${event}:`, error);
     throw error; // Re-throw for logging in caller
   }
-});
+}
 
 /**
  * Test endpoint for webhook setup
