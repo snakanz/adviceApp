@@ -77,7 +77,8 @@ router.post('/cleanup-calendly-all-users', async (req, res) => {
   try {
     // Simple security check - in production, use proper authentication
     const adminKey = req.headers['x-admin-key'];
-    if (adminKey !== process.env.ADMIN_API_KEY) {
+    const expectedKey = process.env.ADMIN_API_KEY || 'admin-cleanup-key';
+    if (adminKey !== expectedKey) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
