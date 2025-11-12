@@ -85,6 +85,12 @@ class CalendlyWebhookService {
       throw new Error(`Calendly API error (${response.status}): ${errorText}`);
     }
 
+    // Handle 204 No Content (DELETE requests return empty response)
+    if (response.status === 204) {
+      console.log(`✅ [${requestId}] Calendly API Response: 204 No Content (DELETE successful)`);
+      return null;
+    }
+
     const responseData = await response.json();
     console.log(`✅ [${requestId}] Calendly API Response:`, {
       status: response.status,

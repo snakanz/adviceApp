@@ -47,6 +47,11 @@ class CalendlyService {
       throw new Error(`Calendly API error: ${response.status} - ${errorText}`);
     }
 
+    // Handle 204 No Content (DELETE requests return empty response)
+    if (response.status === 204) {
+      return null;
+    }
+
     return response.json();
   }
 
