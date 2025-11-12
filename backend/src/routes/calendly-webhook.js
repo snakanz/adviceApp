@@ -20,29 +20,35 @@ function verifyCalendlySignature(rawBody, signatureHeader, signingKey) {
   }
 
   try {
-    // Parse signature header: "t=TIMESTAMP,s=sha256=HEX_SIGNATURE"
+    // ✅ FIX: Parse signature header - Calendly uses "t=TIMESTAMP,v1=HEX_SIGNATURE"
+    // NOT "t=TIMESTAMP,s=sha256=HEX_SIGNATURE" as previously assumed
     const parts = signatureHeader.split(',');
     const tPart = parts.find(p => p.startsWith('t='));
-    const sPart = parts.find(p => p.startsWith('s='));
+    const v1Part = parts.find(p => p.startsWith('v1='));
 
-    if (!tPart || !sPart) {
+    if (!tPart || !v1Part) {
       console.error('❌ Invalid signature header format:', signatureHeader);
+      console.error('   Expected format: t=TIMESTAMP,v1=HEX_SIGNATURE');
+      console.error('   Received:', signatureHeader);
       return false;
     }
 
     const timestamp = tPart.split('=')[1];
-    const sigValue = sPart.split('=')[1];
-    
-    // Remove 'sha256=' prefix if present
-    const sigHex = sigValue.replace(/^sha256=/, '');
+    const sigHex = v1Part.split('=')[1];
+
+    console.log(`🔐 Signature verification:`);
+    console.log(`   Timestamp: ${timestamp}`);
+    console.log(`   Signature (first 20 chars): ${sigHex.substring(0, 20)}...`);
 
     // ✅ FIX: Compute HMAC over raw body bytes (not parsed JSON)
     // Calendly computes: HMAC-SHA256(signing_key, timestamp + "." + raw_body)
     const signedContent = timestamp + '.' + rawBody.toString('utf8');
-    
+
     const hmac = crypto.createHmac('sha256', signingKey);
     hmac.update(signedContent);
     const computed = hmac.digest('hex');
+
+    console.log(`   Computed (first 20 chars): ${computed.substring(0, 20)}...`);
 
     // ✅ FIX: Use constant-time comparison with proper buffer lengths
     const computedBuffer = Buffer.from(computed, 'hex');
@@ -58,7 +64,9 @@ function verifyCalendlySignature(rawBody, signatureHeader, signingKey) {
 
     const isValid = crypto.timingSafeEqual(computedBuffer, signatureBuffer);
 
-    if (!isValid) {
+    if (isValid) {
+      console.log('✅ SIGNATURE VALID');
+    } else {
       console.error('❌ Invalid webhook signature');
       console.error('   Expected:', computed);
       console.error('   Received:', sigHex);
