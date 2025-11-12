@@ -93,15 +93,15 @@ router.delete('/:id', authenticateSupabaseUser, async (req, res) => {
         // Get full connection details for webhook deletion
         const { data: fullConnection, error: fullConnError } = await req.supabase
           .from('calendar_connections')
-          .select('access_token, calendly_user_uri, organization_uri, calendly_webhook_id')
+          .select('access_token, calendly_user_uri, calendly_organization_uri, calendly_webhook_id')
           .eq('id', connectionId)
           .eq('user_id', userId)
           .single();
 
-        if (!fullConnError && fullConnection?.access_token && fullConnection?.organization_uri) {
+        if (!fullConnError && fullConnection?.access_token && fullConnection?.calendly_organization_uri) {
           const CalendlyService = require('../services/calendlyService');
           const calendlyService = new CalendlyService(fullConnection.access_token);
-          const organizationUri = fullConnection.organization_uri;
+          const organizationUri = fullConnection.calendly_organization_uri;
 
           // List all webhook subscriptions for this organization
           console.log(`📋 Listing webhooks for organization: ${organizationUri}`);
