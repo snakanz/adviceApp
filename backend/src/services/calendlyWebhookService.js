@@ -311,29 +311,30 @@ class CalendlyWebhookService {
         // ✅ FIX: Handle 409 Conflict - webhook already exists in Calendly
         if (createError.message.includes('409') && createError.message.includes('Already Exists')) {
           console.warn('⚠️  Webhook already exists in Calendly (409 Conflict)');
-          console.log('🔍 Fetching existing webhook from Calendly...');
+          console.log('🔍 Attempting to delete and recreate webhook...');
 
-          // Fetch all webhooks for this organization and find the one with our URL
-          const existingWebhooks = await this.listWebhookSubscriptions(organizationUri, 'organization');
-          const ourWebhook = existingWebhooks.find(wh => wh.callback_url === this.webhookUrl);
+          try {
+            // Fetch all webhooks for this organization and find the one with our URL
+            const existingWebhooks = await this.listWebhookSubscriptions(organizationUri, 'organization');
+            const ourWebhook = existingWebhooks.find(wh => wh.callback_url === this.webhookUrl);
 
-          if (ourWebhook) {
-            console.log('✅ Found existing webhook in Calendly:', ourWebhook.uri);
-            console.warn('⚠️  WARNING: Webhook exists in Calendly but signing key is not available via API');
-            console.warn('⚠️  The signing key is only provided during webhook creation');
-            console.warn('⚠️  Using environment variable CALENDLY_WEBHOOK_SIGNING_KEY for verification');
+            if (ourWebhook) {
+              console.log(`🗑️  Deleting conflicting webhook: ${ourWebhook.uri}`);
+              await this.deleteWebhookSubscription(ourWebhook.uri);
+              console.log('✅ Deleted conflicting webhook');
 
-            webhook = {
-              uri: ourWebhook.uri,
-              signing_key: this.signingKey,  // Use environment variable signing key
-              callback_url: ourWebhook.callback_url,
-              events: ourWebhook.events,
-              state: ourWebhook.state
-            };
-          } else {
-            console.error('❌ Could not find webhook with URL:', this.webhookUrl);
-            console.error('❌ Existing webhooks:', existingWebhooks.map(w => w.callback_url));
-            throw new Error('Webhook exists but could not be found in organization webhooks list');
+              // Now try to create again
+              console.log('🆕 Retrying webhook creation...');
+              webhook = await this.createWebhookSubscription(organizationUri, userUri, 'organization');
+              console.log('✅ Webhook created successfully after deletion');
+            } else {
+              console.error('❌ Could not find webhook with URL:', this.webhookUrl);
+              console.error('❌ Existing webhooks:', existingWebhooks.map(w => w.callback_url));
+              throw new Error('Webhook exists but could not be found in organization webhooks list');
+            }
+          } catch (conflictError) {
+            console.error('❌ Failed to resolve 409 Conflict:', conflictError.message);
+            throw conflictError;
           }
         } else {
           // Re-throw if it's a different error
