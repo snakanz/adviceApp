@@ -2311,24 +2311,27 @@ router.get('/calendly/oauth/callback', async (req, res) => {
       console.log(`✅ Created new Calendly connection for user ${userId} in tenant ${user.tenant_id}`);
     }
 
-    // ✅ Create webhook subscription for this organization (runs for BOTH new connections AND reconnections)
-    // This ensures webhooks are set up even when a user disconnects and reconnects
+    // ✅ Create USER-SCOPED webhook subscription (one per user, not per organization)
+    // This ensures each user gets their own webhook with their own signing key
+    // Supports 100s of users with their own private Calendly accounts
     try {
-      console.log('📡 Setting up Calendly webhook subscription...');
+      console.log('📡 Setting up user-scoped Calendly webhook subscription...');
       const CalendlyWebhookService = require('../services/calendlyWebhookService');
       const webhookService = new CalendlyWebhookService(accessToken);
 
       if (webhookService.isConfigured()) {
         // ✅ AWAIT webhook creation to ensure webhook ID is stored before redirecting
+        // ✅ Pass userId for user-scoped webhook creation
         const webhookResult = await webhookService.ensureWebhookSubscription(
           calendlyUser.current_organization,
-          calendlyUser.uri
+          calendlyUser.uri,
+          userId  // ✅ USER-SCOPED: Pass user ID for per-user webhook
         );
 
         if (webhookResult.created) {
-          console.log('✅ Calendly webhook subscription created:', webhookResult.webhook_uri);
+          console.log('✅ User-scoped Calendly webhook subscription created:', webhookResult.webhook_uri);
         } else {
-          console.log('✅ Calendly webhook subscription already exists:', webhookResult.webhook_uri);
+          console.log('✅ User-scoped Calendly webhook subscription already exists:', webhookResult.webhook_uri);
         }
 
         // ✅ Store webhook ID AND signing key in calendar_connections table
@@ -2336,7 +2339,7 @@ router.get('/calendly/oauth/callback', async (req, res) => {
           .from('calendar_connections')
           .update({
             calendly_webhook_id: webhookResult.webhook_uri,
-            calendly_webhook_signing_key: webhookResult.webhook_signing_key  // ✅ Store Calendly's signing key
+            calendly_webhook_signing_key: webhookResult.webhook_signing_key  // ✅ Store signing key
           })
           .eq('user_id', userId)
           .eq('provider', 'calendly');

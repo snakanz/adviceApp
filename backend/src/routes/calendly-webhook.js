@@ -113,12 +113,13 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
     // ✅ FIX #3: Verify signature using raw body
     const signatureHeader = req.headers['calendly-webhook-signature'];
 
-    // ✅ FIX: Get the webhook signing key from the database (not environment variable)
-    // Each webhook subscription has its own signing key returned by Calendly
-    // We need to try all active webhooks to find the right one
+    // ✅ USER-SCOPED: Get the webhook signing key from the database
+    // Each USER has their own webhook subscription with their own signing key
+    // We need to find the correct user's webhook by trying all active user-scoped webhooks
 
     let isValid = false;
     let verificationError = null;
+    let webhookUserId = null;  // ✅ Track which user this webhook belongs to
 
     if (!isSupabaseAvailable()) {
       console.warn('⚠️  Database unavailable - cannot verify webhook signature');
@@ -127,17 +128,18 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
       try {
         const supabase = getSupabase();
 
-        // Get all active Calendly webhooks
+        // ✅ USER-SCOPED: Get all active USER-SCOPED webhooks (not organization-scoped)
         const { data: webhooks, error: webhookError } = await supabase
           .from('calendly_webhook_subscriptions')
-          .select('webhook_signing_key')
-          .eq('is_active', true);
+          .select('webhook_signing_key, user_id, user_uri')
+          .eq('is_active', true)
+          .eq('scope', 'user');  // ✅ Only user-scoped webhooks
 
         if (webhookError) {
           console.error('❌ Error fetching webhook signing keys:', webhookError);
           verificationError = webhookError;
         } else if (!webhooks || webhooks.length === 0) {
-          console.warn('⚠️  No active webhooks found in database');
+          console.warn('⚠️  No active user-scoped webhooks found in database');
           verificationError = 'No active webhooks';
         } else {
           // Check if ANY webhook has a signing key
@@ -149,18 +151,19 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
             console.warn('⚠️  Reconnect Calendly to ensure signing keys are properly stored');
             verificationError = 'No signing keys available';
           } else {
-            // Try to verify with each webhook's signing key
+            // ✅ USER-SCOPED: Try to verify with each user's webhook signing key
             for (const webhook of webhooksWithKeys) {
               const result = verifyCalendlySignature(rawBody, signatureHeader, webhook.webhook_signing_key);
               if (result) {
                 isValid = true;
-                console.log('✅ Signature verified successfully with webhook key!');
+                webhookUserId = webhook.user_id;  // ✅ Track which user this webhook belongs to
+                console.log(`✅ Signature verified successfully for user: ${webhookUserId}`);
                 break;
               }
             }
 
             if (!isValid) {
-              console.error('❌ Webhook signature verification failed with all keys');
+              console.error('❌ Webhook signature verification failed with all user keys');
               verificationError = 'Signature mismatch';
             }
           }
@@ -217,8 +220,9 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
       return;
     }
 
-    // Process webhook event asynchronously (don't await - fire and forget)
-    processWebhookEvent(event, payload).catch(error => {
+    // ✅ USER-SCOPED: Process webhook event asynchronously with user context
+    // Pass webhookUserId so event handler knows which user this webhook belongs to
+    processWebhookEvent(event, payload, webhookUserId).catch(error => {
       console.error('❌ Error in async webhook processing:', error);
       console.error('   Stack:', error.stack);
       // Error already logged, webhook already acknowledged with 200
@@ -238,10 +242,13 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
 /**
  * ✅ FIX #4: Async webhook processor (runs after 200 response sent)
  * This function processes the webhook event without blocking the HTTP response
+ *
+ * ✅ USER-SCOPED: Now receives webhookUserId to route event to correct user
  */
-async function processWebhookEvent(event, payload) {
+async function processWebhookEvent(event, payload, webhookUserId) {
   try {
     console.log(`\n🔄 Processing webhook event: ${event}`);
+    console.log(`   For user: ${webhookUserId}`);
 
     // Import handler functions from main calendly.js
     // We'll call them dynamically to avoid circular dependencies
@@ -253,7 +260,8 @@ async function processWebhookEvent(event, payload) {
 
     const handler = handlers[event];
     if (handler) {
-      await handler(payload);
+      // ✅ USER-SCOPED: Pass webhookUserId to handler
+      await handler(payload, webhookUserId);
     } else {
       console.log(`⚠️  Unhandled webhook event: ${event}`);
     }
@@ -272,8 +280,11 @@ async function processWebhookEvent(event, payload) {
 /**
  * ✅ FIX #6: Handle invitee.created with idempotency
  * Stores event ID BEFORE processing to prevent duplicate processing on retries
+ *
+ * ✅ USER-SCOPED: Now receives webhookUserId directly from webhook verification
+ * No need to look up user by Calendly URI - we already know which user this webhook belongs to
  */
-async function handleInviteeCreated(payload) {
+async function handleInviteeCreated(payload, webhookUserId) {
   const supabase = getSupabase();
   let eventUuid = null;
 
@@ -285,7 +296,7 @@ async function handleInviteeCreated(payload) {
     }
 
     console.log('✅ New meeting scheduled via webhook:', payload.event);
-    
+
     const eventUri = payload.event;
     eventUuid = eventUri.split('/').pop();
 
@@ -328,21 +339,21 @@ async function handleInviteeCreated(payload) {
       // Continue processing anyway
     }
 
-    // ✅ FIX #5: Validate required fields
-    const calendlyUserUri = payload.created_by;
-    if (!calendlyUserUri) {
-      console.error('❌ No created_by (Calendly user URI) in webhook payload');
+    // ✅ USER-SCOPED: We already know which user this webhook belongs to
+    // No need to look up by Calendly URI - webhookUserId was verified during signature verification
+    if (!webhookUserId) {
+      console.error('❌ No webhookUserId provided - cannot route event to user');
       return;
     }
 
-    console.log(`🔍 Looking for user with Calendly URI: ${calendlyUserUri}`);
+    console.log(`✅ Webhook belongs to user: ${webhookUserId}`);
 
-    // Query for the specific user's connection using calendly_user_uri
+    // ✅ USER-SCOPED: Get user's Calendly connection directly
     const { data: connection, error: connectionError } = await supabase
       .from('calendar_connections')
       .select('user_id, access_token')
+      .eq('user_id', webhookUserId)
       .eq('provider', 'calendly')
-      .eq('calendly_user_uri', calendlyUserUri)
       .eq('is_active', true)
       .maybeSingle();
 
@@ -352,13 +363,11 @@ async function handleInviteeCreated(payload) {
     }
 
     if (!connection) {
-      console.error('❌ No matching Calendly connection found for webhook:', {
-        calendlyUserUri
-      });
+      console.error('❌ No active Calendly connection found for user:', webhookUserId);
       return;
     }
 
-    console.log(`✅ Found matching user: ${connection.user_id}`);
+    console.log(`✅ Found Calendly connection for user: ${webhookUserId}`);
 
     // Create CalendlyService with user's specific OAuth token
     const calendlyService = new CalendlyService(connection.access_token);
@@ -423,8 +432,9 @@ async function handleInviteeCreated(payload) {
 
 /**
  * ✅ FIX #6: Handle invitee.canceled with idempotency
+ * ✅ USER-SCOPED: Now receives webhookUserId directly
  */
-async function handleInviteeCanceled(payload) {
+async function handleInviteeCanceled(payload, webhookUserId) {
   const supabase = getSupabase();
   let eventUuid = null;
 
@@ -476,10 +486,11 @@ async function handleInviteeCanceled(payload) {
       console.error('❌ Error storing webhook event:', insertEventError);
     }
 
-    // Get user ID from the meeting
+    // ✅ USER-SCOPED: Use webhookUserId to find the meeting
     const { data: meeting } = await supabase
       .from('meetings')
       .select('user_id')
+      .eq('user_id', webhookUserId)
       .eq('external_id', calendlyEventId)
       .maybeSingle();
 
@@ -516,8 +527,9 @@ async function handleInviteeCanceled(payload) {
 
 /**
  * ✅ FIX #6: Handle invitee.updated with idempotency
+ * ✅ USER-SCOPED: Now receives webhookUserId directly
  */
-async function handleInviteeUpdated(payload) {
+async function handleInviteeUpdated(payload, webhookUserId) {
   const supabase = getSupabase();
   let eventUuid = null;
 
@@ -567,6 +579,9 @@ async function handleInviteeUpdated(payload) {
       }
       console.error('❌ Error storing webhook event:', insertEventError);
     }
+
+    // ✅ USER-SCOPED: Use webhookUserId to find the meeting
+    console.log(`✅ Processing update for user: ${webhookUserId}`);
 
     // ✅ FIX #5: Validate required fields
     const calendlyUserUri = payload.created_by;

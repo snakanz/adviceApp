@@ -273,14 +273,19 @@ class CalendlyWebhookService {
   }
 
   /**
-   * Ensure webhook subscription exists for an organization
-   * Creates one if it doesn't exist, returns existing one if it does
-   * ✅ PHASE 2: Cleans up old webhooks on reconnect to prevent accumulation
+   * Ensure webhook subscription exists for a USER (user-scoped)
+   * Creates one if it doesn't exist, or returns existing one
+   *
+   * ✅ USER-SCOPED: Each user gets their own webhook with their own signing key
+   * ✅ MULTI-TENANT: Supports 100s of users with their own private Calendly accounts
+   * ✅ CLEANUP: Deletes old webhooks when user reconnects
+   *
    * @param {string} organizationUri - The Calendly organization URI
    * @param {string} userUri - The Calendly user URI
+   * @param {string} userId - The Advicly user ID (UUID)
    * @returns {Promise<Object>} The webhook subscription
    */
-  async ensureWebhookSubscription(organizationUri, userUri) {
+  async ensureWebhookSubscription(organizationUri, userUri, userId) {
     try {
       if (!isSupabaseAvailable()) {
         throw new Error('Database not available');
@@ -288,18 +293,23 @@ class CalendlyWebhookService {
 
       const supabase = getSupabase();
 
-      // Check if we already have a webhook subscription for this organization in our database
+      console.log(`\n🔍 Ensuring user-scoped webhook for user: ${userId}`);
+      console.log(`   User URI: ${userUri}`);
+
+      // Step 1: Check if webhook already exists in database for this user
+      console.log('🔍 Checking for existing webhook subscription for this user...');
       const { data: existingWebhook } = await supabase
         .from('calendly_webhook_subscriptions')
         .select('*')
-        .eq('organization_uri', organizationUri)
-        .single();
+        .eq('user_id', userId)
+        .eq('scope', 'user')
+        .eq('is_active', true)
+        .maybeSingle();
 
       if (existingWebhook) {
-        console.log('✅ Webhook subscription already exists in database for organization:', organizationUri);
+        console.log('✅ Found existing user-scoped webhook:', existingWebhook.webhook_subscription_uri);
 
-        // ✅ PHASE 2: On reconnect, verify webhook still exists in Calendly
-        // If it doesn't, we'll create a new one
+        // Verify webhook still exists in Calendly
         try {
           const webhookUuid = existingWebhook.webhook_subscription_uri.split('/').pop();
           await this.makeRequest(`/webhook_subscriptions/${webhookUuid}`);
@@ -317,11 +327,10 @@ class CalendlyWebhookService {
         }
       }
 
-      // ✅ PHASE 2: Clean up old webhooks before creating new one
-      // This prevents webhook accumulation when user reconnects
-      console.log('🧹 Cleaning up old webhooks for organization...');
+      // Step 2: Clean up old webhooks for this user before creating new one
+      console.log('🧹 Cleaning up old webhooks for this user...');
       try {
-        const existingWebhooks = await this.listWebhookSubscriptions(organizationUri, 'organization');
+        const existingWebhooks = await this.listWebhookSubscriptions(userUri, 'user');
         const ourWebhooks = existingWebhooks.filter(wh => wh.callback_url === this.webhookUrl);
 
         for (const oldWebhook of ourWebhooks) {
@@ -331,15 +340,15 @@ class CalendlyWebhookService {
             console.log(`✅ Deleted old webhook: ${oldWebhook.uri}`);
           } catch (deleteError) {
             console.warn(`⚠️  Failed to delete old webhook ${oldWebhook.uri}:`, deleteError.message);
-            // Continue with other webhooks
           }
         }
 
-        // Also clean up database records for this organization
+        // Also clean up database records for this user
         const { error: dbDeleteError } = await supabase
           .from('calendly_webhook_subscriptions')
           .delete()
-          .eq('organization_uri', organizationUri);
+          .eq('user_id', userId)
+          .eq('scope', 'user');
 
         if (dbDeleteError) {
           console.warn('⚠️  Error cleaning up old webhook records in database:', dbDeleteError);
@@ -348,24 +357,22 @@ class CalendlyWebhookService {
         }
       } catch (cleanupError) {
         console.warn('⚠️  Error during webhook cleanup:', cleanupError.message);
-        // Continue with new webhook creation
       }
 
-      // Create new webhook subscription
-      console.log('🆕 Creating new webhook subscription...');
+      // Step 3: Create new USER-SCOPED webhook subscription
+      console.log('🆕 Creating new user-scoped webhook subscription...');
       let webhook;
 
       try {
-        webhook = await this.createWebhookSubscription(organizationUri, userUri, 'organization');
+        webhook = await this.createWebhookSubscription(organizationUri, userUri, 'user');
       } catch (createError) {
-        // ✅ FIX: Handle 409 Conflict - webhook already exists in Calendly
+        // Handle 409 Conflict - webhook already exists in Calendly
         if (createError.message.includes('409') && createError.message.includes('Already Exists')) {
           console.warn('⚠️  Webhook already exists in Calendly (409 Conflict)');
           console.log('🔍 Attempting to delete and recreate webhook...');
 
           try {
-            // Fetch all webhooks for this organization and find the one with our URL
-            const existingWebhooks = await this.listWebhookSubscriptions(organizationUri, 'organization');
+            const existingWebhooks = await this.listWebhookSubscriptions(userUri, 'user');
             const ourWebhook = existingWebhooks.find(wh => wh.callback_url === this.webhookUrl);
 
             if (ourWebhook) {
@@ -373,27 +380,22 @@ class CalendlyWebhookService {
               await this.deleteWebhookSubscription(ourWebhook.uri);
               console.log('✅ Deleted conflicting webhook');
 
-              // Now try to create again
               console.log('🆕 Retrying webhook creation...');
-              webhook = await this.createWebhookSubscription(organizationUri, userUri, 'organization');
+              webhook = await this.createWebhookSubscription(organizationUri, userUri, 'user');
               console.log('✅ Webhook created successfully after deletion');
             } else {
-              console.error('❌ Could not find webhook with URL:', this.webhookUrl);
-              console.error('❌ Existing webhooks:', existingWebhooks.map(w => w.callback_url));
-              throw new Error('Webhook exists but could not be found in organization webhooks list');
+              throw new Error('Webhook exists but could not be found in user webhooks list');
             }
           } catch (conflictError) {
             console.error('❌ Failed to resolve 409 Conflict:', conflictError.message);
             throw conflictError;
           }
         } else {
-          // Re-throw if it's a different error
           throw createError;
         }
       }
 
-      // ✅ FIX: Store webhook subscription WITH the signing key returned by Calendly
-      // If signing_key is missing, try to fetch it from the webhook details
+      // Step 4: Store webhook subscription with signing key
       let signingKey = webhook.signing_key;
 
       if (!signingKey && webhook.uri) {
@@ -405,29 +407,29 @@ class CalendlyWebhookService {
 
           if (signingKey) {
             console.log('✅ Retrieved signing key from webhook details');
-          } else {
-            console.warn('⚠️  Still no signing key in webhook details');
           }
         } catch (detailsError) {
           console.error('❌ Error fetching webhook details:', detailsError.message);
         }
       }
 
+      // Step 5: Store in database with user_id for per-user lookup
       const { error: insertError } = await supabase
         .from('calendly_webhook_subscriptions')
         .insert({
+          user_id: userId,  // ✅ USER-SCOPED: Link to specific user
           organization_uri: organizationUri,
+          user_uri: userUri,  // ✅ Store user URI for webhook routing
           webhook_subscription_uri: webhook.uri,
           webhook_url: this.webhookUrl,
-          webhook_signing_key: signingKey,  // ✅ Store Calendly's signing key (or null if not available)
-          scope: 'organization',
+          webhook_signing_key: signingKey,
+          scope: 'user',  // ✅ Mark as user-scoped
           events: ['invitee.created', 'invitee.canceled'],
           is_active: true
         });
 
       if (insertError) {
         console.error('❌ Error storing webhook subscription in database:', insertError);
-        // Don't try to delete if this is an existing webhook
         if (!webhook.existing) {
           try {
             await this.deleteWebhookSubscription(webhook.uri);
@@ -438,14 +440,15 @@ class CalendlyWebhookService {
         throw insertError;
       }
 
-      console.log('✅ Webhook subscription stored in database');
+      console.log('✅ User-scoped webhook subscription stored in database');
       console.log('🔑 Webhook signing key stored for verification');
+      console.log(`\n✅ User-scoped webhook setup complete for user: ${userId}\n`);
 
       return {
         webhook_uri: webhook.uri,
-        webhook_signing_key: webhook.signing_key,  // ✅ Return signing key
-        created: false,  // Mark as not newly created (either existing or recovered)
-        existing: true
+        webhook_signing_key: signingKey,
+        created: true,
+        existing: false
       };
     } catch (error) {
       console.error('❌ Error ensuring webhook subscription:', error.message);

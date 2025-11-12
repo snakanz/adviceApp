@@ -193,7 +193,8 @@ router.get('/webhook/list', authenticateSupabaseUser, async (req, res) => {
 
 /**
  * ✅ PHASE 3: Disconnect Calendly integration
- * Removes webhooks from Calendly and clears database records
+ * Removes user-scoped webhooks from Calendly and clears database records
+ * ✅ USER-SCOPED: Deletes only this user's webhook, not organization-level webhooks
  */
 router.post('/disconnect', authenticateSupabaseUser, async (req, res) => {
   try {
@@ -205,7 +206,7 @@ router.post('/disconnect', authenticateSupabaseUser, async (req, res) => {
     // Get user's Calendly connection
     const { data: connection, error: connectionError } = await supabase
       .from('calendar_connections')
-      .select('access_token, calendly_organization_uri')
+      .select('access_token, calendly_organization_uri, calendly_user_uri')
       .eq('user_id', userId)
       .eq('provider', 'calendly')
       .eq('is_active', true)
@@ -228,23 +229,24 @@ router.post('/disconnect', authenticateSupabaseUser, async (req, res) => {
 
     let webhooksDeleted = 0;
 
-    // Delete webhooks from Calendly
+    // ✅ USER-SCOPED: Delete user's webhook from Calendly
     try {
       const CalendlyWebhookService = require('../services/calendlyWebhookService');
       const webhookService = new CalendlyWebhookService(connection.access_token);
 
-      const organizationUri = connection.calendly_organization_uri;
-      console.log(`📋 Listing webhooks for organization: ${organizationUri}`);
+      // ✅ USER-SCOPED: List user-scoped webhooks (not organization-scoped)
+      const userUri = connection.calendly_user_uri;
+      console.log(`📋 Listing user-scoped webhooks for user: ${userUri}`);
 
-      const existingWebhooks = await webhookService.listWebhookSubscriptions(organizationUri, 'organization');
+      const existingWebhooks = await webhookService.listWebhookSubscriptions(userUri, 'user');
       const appUrl = process.env.BACKEND_URL || 'https://adviceapp-9rgw.onrender.com';
       const ourWebhooks = existingWebhooks.filter(wh => wh.callback_url && wh.callback_url.includes(appUrl));
 
-      console.log(`🎯 Found ${ourWebhooks.length} webhook(s) for our app`);
+      console.log(`🎯 Found ${ourWebhooks.length} user-scoped webhook(s) for our app`);
 
       for (const webhook of ourWebhooks) {
         try {
-          console.log(`🗑️  Deleting webhook: ${webhook.callback_url}`);
+          console.log(`🗑️  Deleting user-scoped webhook: ${webhook.callback_url}`);
           await webhookService.deleteWebhookSubscription(webhook.uri);
           webhooksDeleted++;
           console.log(`✅ Deleted webhook: ${webhook.uri}`);
@@ -260,16 +262,17 @@ router.post('/disconnect', authenticateSupabaseUser, async (req, res) => {
 
     // Clean up database records
     try {
-      // Delete webhook subscriptions
+      // ✅ USER-SCOPED: Delete only this user's webhook subscriptions
       const { error: webhookDbError } = await supabase
         .from('calendly_webhook_subscriptions')
         .delete()
-        .eq('organization_uri', connection.calendly_organization_uri);
+        .eq('user_id', userId)
+        .eq('scope', 'user');
 
       if (webhookDbError) {
         console.warn('⚠️  Error deleting webhook subscriptions from database:', webhookDbError);
       } else {
-        console.log('✅ Deleted webhook subscriptions from database');
+        console.log('✅ Deleted user-scoped webhook subscriptions from database');
       }
 
       // Mark calendar connection as inactive
@@ -295,7 +298,7 @@ router.post('/disconnect', authenticateSupabaseUser, async (req, res) => {
       }
 
       console.log(`✅ Calendly disconnected for user ${userId}`);
-      console.log(`   Webhooks deleted: ${webhooksDeleted}`);
+      console.log(`   User-scoped webhooks deleted: ${webhooksDeleted}`);
 
       res.json({
         success: true,
