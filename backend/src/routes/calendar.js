@@ -2266,10 +2266,13 @@ router.get('/calendly/oauth/callback', async (req, res) => {
           console.log('✅ Calendly webhook subscription already exists:', webhookResult.webhook_uri);
         }
 
-        // ✅ Store webhook ID in calendar_connections table
+        // ✅ Store webhook ID AND signing key in calendar_connections table
         const { error: webhookUpdateError } = await getSupabase()
           .from('calendar_connections')
-          .update({ calendly_webhook_id: webhookResult.webhook_uri })
+          .update({
+            calendly_webhook_id: webhookResult.webhook_uri,
+            calendly_webhook_signing_key: webhookResult.webhook_signing_key  // ✅ Store Calendly's signing key
+          })
           .eq('user_id', userId)
           .eq('provider', 'calendly');
 
@@ -2277,6 +2280,7 @@ router.get('/calendly/oauth/callback', async (req, res) => {
           console.error('❌ Error storing webhook ID in calendar_connections:', webhookUpdateError);
         } else {
           console.log('✅ Webhook ID stored in calendar_connections:', webhookResult.webhook_uri);
+          console.log('🔑 Webhook signing key stored for verification');
         }
       } else {
         console.warn('⚠️  Calendly webhook service not configured (missing signing key)');

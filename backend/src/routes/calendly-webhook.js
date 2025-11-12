@@ -102,21 +102,61 @@ router.post('/', express.raw({ type: 'application/json' }), async (req, res) => 
 
     // ✅ FIX #3: Verify signature using raw body
     const signatureHeader = req.headers['calendly-webhook-signature'];
-    const webhookSigningKey = process.env.CALENDLY_WEBHOOK_SIGNING_KEY;
 
-    if (!webhookSigningKey) {
-      console.warn('⚠️  CALENDLY_WEBHOOK_SIGNING_KEY not configured - skipping signature verification');
-      console.warn('⚠️  This is INSECURE and should only be used in development!');
+    // ✅ FIX: Get the webhook signing key from the database (not environment variable)
+    // Each webhook subscription has its own signing key returned by Calendly
+    // We need to try all active webhooks to find the right one
+
+    let isValid = false;
+    let verificationError = null;
+
+    if (!isSupabaseAvailable()) {
+      console.warn('⚠️  Database unavailable - cannot verify webhook signature');
+      // Continue anyway - webhook will be processed but unverified
     } else {
-      const isValid = verifyCalendlySignature(rawBody, signatureHeader, webhookSigningKey);
-      
-      if (!isValid) {
-        console.error('❌ Webhook signature verification failed');
-        // ✅ FIX #5: Return 401 but don't crash
-        return res.status(401).json({ error: 'Invalid signature' });
+      try {
+        const supabase = getSupabase();
+
+        // Get all active Calendly webhooks
+        const { data: webhooks, error: webhookError } = await supabase
+          .from('calendly_webhook_subscriptions')
+          .select('webhook_signing_key')
+          .eq('is_active', true);
+
+        if (webhookError) {
+          console.error('❌ Error fetching webhook signing keys:', webhookError);
+          verificationError = webhookError;
+        } else if (!webhooks || webhooks.length === 0) {
+          console.warn('⚠️  No active webhooks found in database');
+          verificationError = 'No active webhooks';
+        } else {
+          // Try to verify with each webhook's signing key
+          for (const webhook of webhooks) {
+            if (webhook.webhook_signing_key) {
+              const result = verifyCalendlySignature(rawBody, signatureHeader, webhook.webhook_signing_key);
+              if (result) {
+                isValid = true;
+                console.log('✅ Signature verified successfully with webhook key!');
+                break;
+              }
+            }
+          }
+
+          if (!isValid) {
+            console.error('❌ Webhook signature verification failed with all keys');
+            verificationError = 'Signature mismatch';
+          }
+        }
+      } catch (error) {
+        console.error('❌ Error during signature verification:', error);
+        verificationError = error.message;
       }
-      
-      console.log('✅ Signature verified successfully!');
+    }
+
+    if (verificationError && !isValid) {
+      console.error('❌ Webhook signature verification failed:', verificationError);
+      // ✅ FIX #5: Return 401 but don't crash
+      return res.status(401).json({ error: 'Invalid signature' });
     }
 
     // ✅ FIX #4: Return 200 IMMEDIATELY (before processing)

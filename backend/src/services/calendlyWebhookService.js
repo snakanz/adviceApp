@@ -118,10 +118,9 @@ class CalendlyWebhookService {
         requestBody.user = userUri;
       }
 
-      // Add signing key if available
-      if (this.signingKey) {
-        requestBody.signing_key = this.signingKey;
-      }
+      // ✅ FIX: DO NOT send signing_key when creating webhook
+      // Calendly will generate and return a signing_key in the response
+      // We'll store that returned key for webhook verification
 
       console.log('📤 Webhook Request Body:', JSON.stringify(requestBody, null, 2));
 
@@ -134,7 +133,15 @@ class CalendlyWebhookService {
       // ✅ DIAGNOSTIC: Log full webhook response
       console.log('📋 Full Webhook Response:', JSON.stringify(response, null, 2));
 
-      return response.resource;
+      // ✅ FIX: Extract and return the signing_key from Calendly's response
+      const webhookResource = response.resource;
+      if (webhookResource?.signing_key) {
+        console.log('🔑 Webhook signing key received from Calendly:', webhookResource.signing_key.substring(0, 20) + '...');
+      } else {
+        console.warn('⚠️  WARNING: No signing_key in webhook response from Calendly');
+      }
+
+      return webhookResource;
     } catch (error) {
       console.error('❌ Error creating webhook subscription:', error.message);
       // ✅ DIAGNOSTIC: Log full error stack for debugging
@@ -215,13 +222,14 @@ class CalendlyWebhookService {
       console.log('🆕 No webhook found for organization, creating new one...');
       const webhook = await this.createWebhookSubscription(organizationUri, userUri, 'organization');
 
-      // Store webhook subscription in database
+      // ✅ FIX: Store webhook subscription WITH the signing key returned by Calendly
       const { error: insertError } = await supabase
         .from('calendly_webhook_subscriptions')
         .insert({
           organization_uri: organizationUri,
           webhook_subscription_uri: webhook.uri,
           webhook_url: this.webhookUrl,
+          webhook_signing_key: webhook.signing_key,  // ✅ Store Calendly's signing key
           scope: 'organization',
           events: ['invitee.created', 'invitee.canceled'],
           is_active: true
@@ -239,9 +247,11 @@ class CalendlyWebhookService {
       }
 
       console.log('✅ Webhook subscription created and stored in database');
+      console.log('🔑 Webhook signing key stored for verification');
 
       return {
         webhook_uri: webhook.uri,
+        webhook_signing_key: webhook.signing_key,  // ✅ Return signing key
         created: true,
         existing: false
       };
