@@ -89,10 +89,72 @@ router.delete('/:id', authenticateSupabaseUser, async (req, res) => {
     if (connection.provider === 'calendly') {
       try {
         console.log('🛑 Cleaning up Calendly webhook subscription...');
-        // Note: We don't delete the webhook from Calendly API because it's organization-scoped
-        // and may be used by other users in the same organization. We just mark it as inactive
-        // in our database if no other users are using it.
-        console.log('✅ Calendly webhook cleanup completed');
+
+        // Get full connection details for webhook deletion
+        const { data: fullConnection, error: fullConnError } = await req.supabase
+          .from('calendar_connections')
+          .select('access_token, calendly_user_uri, organization_uri, calendly_webhook_id')
+          .eq('id', connectionId)
+          .eq('user_id', userId)
+          .single();
+
+        if (!fullConnError && fullConnection?.access_token && fullConnection?.organization_uri) {
+          const CalendlyService = require('../services/calendlyService');
+          const calendlyService = new CalendlyService(fullConnection.access_token);
+          const organizationUri = fullConnection.organization_uri;
+
+          // List all webhook subscriptions for this organization
+          console.log(`📋 Listing webhooks for organization: ${organizationUri}`);
+
+          const webhooksResponse = await calendlyService.makeRequest(
+            `/webhook_subscriptions?organization=${encodeURIComponent(organizationUri)}&scope=organization`
+          );
+
+          const webhooks = webhooksResponse.collection || [];
+          console.log(`📊 Found ${webhooks.length} webhook(s)`);
+
+          // Find webhooks pointing to our app
+          const appUrl = process.env.BACKEND_URL || 'https://adviceapp-9rgw.onrender.com';
+          const ourWebhooks = webhooks.filter(wh =>
+            wh.callback_url && wh.callback_url.includes(appUrl)
+          );
+
+          console.log(`🎯 Found ${ourWebhooks.length} webhook(s) for our app`);
+
+          // Delete each webhook
+          for (const webhook of ourWebhooks) {
+            try {
+              const webhookUri = webhook.uri;
+              const webhookUuid = webhookUri.split('/').pop();
+
+              console.log(`🗑️  Deleting webhook: ${webhook.callback_url}`);
+
+              await calendlyService.makeRequest(
+                `/webhook_subscriptions/${webhookUuid}`,
+                { method: 'DELETE' }
+              );
+
+              console.log(`✅ Deleted webhook: ${webhookUuid}`);
+            } catch (deleteError) {
+              console.error(`❌ Error deleting webhook ${webhook.uri}:`, deleteError.message);
+              // Continue with other webhooks
+            }
+          }
+
+          // Clean up database records
+          const { error: dbDeleteError } = await req.supabase
+            .from('calendly_webhook_subscriptions')
+            .delete()
+            .eq('organization_uri', organizationUri);
+
+          if (dbDeleteError) {
+            console.error('⚠️  Error cleaning up database:', dbDeleteError);
+          }
+
+          console.log('✅ Calendly webhook cleanup completed');
+        } else {
+          console.warn('⚠️  Cannot delete webhook - missing connection details');
+        }
       } catch (webhookError) {
         console.warn('⚠️  Calendly webhook cleanup failed (non-fatal):', webhookError.message);
         // Don't fail the disconnect if webhook cleanup fails
