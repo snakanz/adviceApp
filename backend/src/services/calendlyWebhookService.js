@@ -21,6 +21,7 @@ class CalendlyWebhookService {
 
   /**
    * Make authenticated request to Calendly API
+   * ✅ PHASE 4: Enhanced error logging with full API response details
    */
   async makeRequest(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
@@ -30,6 +31,13 @@ class CalendlyWebhookService {
       ...options.headers
     };
 
+    const requestId = Math.random().toString(36).substring(7);
+    console.log(`📤 [${requestId}] Calendly API Request:`, {
+      method: options.method || 'GET',
+      endpoint,
+      url
+    });
+
     const response = await fetch(url, {
       ...options,
       headers
@@ -38,26 +46,53 @@ class CalendlyWebhookService {
     if (!response.ok) {
       const errorText = await response.text();
 
-      // ✅ DIAGNOSTIC: Enhanced error logging with full response
-      console.error('❌ Calendly API Error Details:');
+      // ✅ PHASE 4: Enhanced error logging with full response details
+      console.error(`\n❌ [${requestId}] Calendly API Error Details:`);
       console.error('   Status:', response.status);
       console.error('   Status Text:', response.statusText);
       console.error('   Endpoint:', endpoint);
       console.error('   Method:', options.method || 'GET');
-      console.error('   Response Body:', errorText);
+      console.error('   URL:', url);
+      console.error('   Response Headers:', {
+        'content-type': response.headers.get('content-type'),
+        'x-request-id': response.headers.get('x-request-id'),
+        'x-ratelimit-remaining': response.headers.get('x-ratelimit-remaining')
+      });
+      console.error('   Response Body (raw):', errorText);
 
-      // ✅ DIAGNOSTIC: Try to parse error as JSON for more details
+      // ✅ PHASE 4: Try to parse error as JSON for structured logging
       try {
         const errorJson = JSON.parse(errorText);
-        console.error('   Parsed Error:', JSON.stringify(errorJson, null, 2));
+        console.error('   Response Body (parsed):', JSON.stringify(errorJson, null, 2));
+
+        // Log specific error fields if available
+        if (errorJson.error) {
+          console.error('   Error Code:', errorJson.error);
+        }
+        if (errorJson.message) {
+          console.error('   Error Message:', errorJson.message);
+        }
+        if (errorJson.details) {
+          console.error('   Error Details:', JSON.stringify(errorJson.details, null, 2));
+        }
       } catch (e) {
         // Not JSON, already logged as text
+        console.error('   (Response body is not JSON)');
       }
+
+      console.error(`\n`);
 
       throw new Error(`Calendly API error (${response.status}): ${errorText}`);
     }
 
-    return response.json();
+    const responseData = await response.json();
+    console.log(`✅ [${requestId}] Calendly API Response:`, {
+      status: response.status,
+      hasResource: !!responseData.resource,
+      hasCollection: !!responseData.collection
+    });
+
+    return responseData;
   }
 
   /**
@@ -190,6 +225,7 @@ class CalendlyWebhookService {
   /**
    * Ensure webhook subscription exists for an organization
    * Creates one if it doesn't exist, returns existing one if it does
+   * ✅ PHASE 2: Cleans up old webhooks on reconnect to prevent accumulation
    * @param {string} organizationUri - The Calendly organization URI
    * @param {string} userUri - The Calendly user URI
    * @returns {Promise<Object>} The webhook subscription
@@ -211,16 +247,62 @@ class CalendlyWebhookService {
 
       if (existingWebhook) {
         console.log('✅ Webhook subscription already exists in database for organization:', organizationUri);
-        return {
-          webhook_uri: existingWebhook.webhook_subscription_uri,
-          webhook_signing_key: existingWebhook.webhook_signing_key,
-          created: false,
-          existing: true
-        };
+
+        // ✅ PHASE 2: On reconnect, verify webhook still exists in Calendly
+        // If it doesn't, we'll create a new one
+        try {
+          const webhookUuid = existingWebhook.webhook_subscription_uri.split('/').pop();
+          await this.makeRequest(`/webhook_subscriptions/${webhookUuid}`);
+          console.log('✅ Existing webhook verified in Calendly');
+
+          return {
+            webhook_uri: existingWebhook.webhook_subscription_uri,
+            webhook_signing_key: existingWebhook.webhook_signing_key,
+            created: false,
+            existing: true
+          };
+        } catch (verifyError) {
+          console.warn('⚠️  Existing webhook not found in Calendly, will create new one');
+          // Continue to create new webhook
+        }
+      }
+
+      // ✅ PHASE 2: Clean up old webhooks before creating new one
+      // This prevents webhook accumulation when user reconnects
+      console.log('🧹 Cleaning up old webhooks for organization...');
+      try {
+        const existingWebhooks = await this.listWebhookSubscriptions(organizationUri, 'organization');
+        const ourWebhooks = existingWebhooks.filter(wh => wh.callback_url === this.webhookUrl);
+
+        for (const oldWebhook of ourWebhooks) {
+          try {
+            console.log(`🗑️  Deleting old webhook: ${oldWebhook.uri}`);
+            await this.deleteWebhookSubscription(oldWebhook.uri);
+            console.log(`✅ Deleted old webhook: ${oldWebhook.uri}`);
+          } catch (deleteError) {
+            console.warn(`⚠️  Failed to delete old webhook ${oldWebhook.uri}:`, deleteError.message);
+            // Continue with other webhooks
+          }
+        }
+
+        // Also clean up database records for this organization
+        const { error: dbDeleteError } = await supabase
+          .from('calendly_webhook_subscriptions')
+          .delete()
+          .eq('organization_uri', organizationUri);
+
+        if (dbDeleteError) {
+          console.warn('⚠️  Error cleaning up old webhook records in database:', dbDeleteError);
+        } else {
+          console.log('✅ Cleaned up old webhook records in database');
+        }
+      } catch (cleanupError) {
+        console.warn('⚠️  Error during webhook cleanup:', cleanupError.message);
+        // Continue with new webhook creation
       }
 
       // Create new webhook subscription
-      console.log('🆕 No webhook found in database for organization, creating new one...');
+      console.log('🆕 Creating new webhook subscription...');
       let webhook;
 
       try {

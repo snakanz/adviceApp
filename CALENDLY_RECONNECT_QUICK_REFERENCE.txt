@@ -1,0 +1,164 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                  CALENDLY OAUTH + WEBHOOK RECONNECT                        ║
+║                    QUICK REFERENCE GUIDE                                   ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+📊 CURRENT STATUS: 85% COMPLETE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ IMPLEMENTED (6/6 Core Steps)
+  1. Check existing DB record
+  2. Token refresh service (not called in OAuth yet)
+  3. Retrieve Calendly user info
+  4. Check existing webhooks
+  5. Create webhook if needed
+  6. Update database with webhook ID + signing key
+
+⚠️  GAPS (4 Improvements Needed)
+  1. Token refresh during OAuth reconnect (5 min)
+  2. Webhook cleanup on reconnect (10 min)
+  3. Disconnect endpoint (10 min)
+  4. Enhanced error logging (5 min)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📚 DOCUMENTATION FILES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+START HERE:
+  → CALENDLY_RECONNECT_SUMMARY.md (5 min overview)
+  → CALENDLY_OAUTH_WEBHOOK_RECONNECT_ANALYSIS.md (current status)
+
+FOR IMPLEMENTATION:
+  → CALENDLY_RECONNECT_IMPLEMENTATION_GUIDE.md (code examples)
+  → CALENDLY_IDEMPOTENT_FLOW_DIAGRAM.md (visual flow)
+
+FOR REFERENCE:
+  → CALENDLY_TECHNICAL_REFERENCE.md (API details)
+  → CALENDLY_CURRENT_VS_IMPROVED.md (comparison)
+
+INDEX:
+  → CALENDLY_DOCUMENTATION_INDEX.md (all documents)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔑 KEY FILES IN CODEBASE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OAuth Callback:
+  backend/src/routes/calendar.js (lines 2132-2393)
+
+Webhook Management:
+  backend/src/services/calendlyWebhookService.js
+
+OAuth Service:
+  backend/src/services/calendlyOAuth.js
+
+Webhook Verification:
+  backend/src/routes/calendly-webhook.js
+
+Database Schema:
+  backend/migrations/027_add_calendly_webhook_signing_key.sql
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 IMPLEMENTATION ROADMAP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Phase 1: Token Refresh (5 min)
+  File: backend/src/routes/calendar.js (lines 2154-2157)
+  What: Try refresh before full OAuth
+  Why: Reduces unnecessary re-authorizations
+
+Phase 2: Webhook Cleanup (10 min)
+  File: backend/src/services/calendlyWebhookService.js (lines 197-301)
+  What: Delete old webhooks before creating new ones
+  Why: Prevents webhook accumulation
+
+Phase 3: Disconnect Endpoint (10 min)
+  File: backend/src/routes/calendly.js (new endpoint)
+  What: DELETE webhook from Calendly + clear DB
+  Why: Prevents orphaned webhooks
+
+Phase 4: Error Logging (5 min)
+  File: backend/src/services/calendlyWebhookService.js (lines 25-61)
+  What: Log full Calendly API responses
+  Why: Better debugging visibility
+
+TOTAL TIME: ~30 minutes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🧪 TESTING CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Test 1: First-Time Connection
+  [ ] Connect Calendly (first time)
+  [ ] Verify webhook created in Calendly dashboard
+  [ ] Create meeting in Calendly
+  [ ] Verify meeting appears in Advicly (3-7 sec)
+
+Test 2: Reconnection (Same Account)
+  [ ] Reconnect Calendly (same account)
+  [ ] Verify only ONE webhook exists (old deleted)
+  [ ] Create meeting in Calendly
+  [ ] Verify meeting appears in Advicly
+
+Test 3: Reconnection (Different Account)
+  [ ] Connect Account A
+  [ ] Reconnect with Account B
+  [ ] Verify Account A webhook deleted
+  [ ] Verify only Account B meetings sync
+
+Test 4: Disconnect
+  [ ] Disconnect Calendly
+  [ ] Verify webhook deleted from Calendly dashboard
+  [ ] Verify tokens cleared from database
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 KEY CONCEPTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Idempotent:
+  Safe to run multiple times without side effects
+
+Multi-Tenant:
+  One app, many users, each with unique tokens
+
+Webhook Signing Key:
+  Unique per webhook subscription (not global)
+
+409 Conflict:
+  Webhook already exists, reuse it
+
+Token Refresh:
+  Extend token lifetime without re-authorization
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 METRICS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+                          Current    Improved
+OAuth redirects           1 (always) 0-1 (if refresh fails)
+Webhooks per org          1-N        1 (always)
+Cleanup on disconnect     ❌ No      ✅ Yes
+Token refresh support     ✅ Service ✅ Called in OAuth
+Error logging             ⚠️ Partial ✅ Comprehensive
+Idempotent               ⚠️ Partial ✅ Full
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 NEXT STEPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Read CALENDLY_RECONNECT_SUMMARY.md (5 min)
+2. Read CALENDLY_RECONNECT_IMPLEMENTATION_GUIDE.md (15 min)
+3. Implement 4 improvements (30 min)
+4. Run testing strategy (30 min)
+5. Deploy to production
+
+TOTAL TIME: ~1.5 hours
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

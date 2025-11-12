@@ -191,6 +191,137 @@ router.get('/webhook/list', authenticateSupabaseUser, async (req, res) => {
 // CONNECTION ENDPOINTS
 // =====================================================
 
+/**
+ * ✅ PHASE 3: Disconnect Calendly integration
+ * Removes webhooks from Calendly and clears database records
+ */
+router.post('/disconnect', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const supabase = getSupabase();
+
+    console.log(`\n🔌 Disconnecting Calendly for user: ${userId}`);
+
+    // Get user's Calendly connection
+    const { data: connection, error: connectionError } = await supabase
+      .from('calendar_connections')
+      .select('access_token, calendly_organization_uri')
+      .eq('user_id', userId)
+      .eq('provider', 'calendly')
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (connectionError) {
+      console.error('❌ Error fetching connection:', connectionError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch Calendly connection'
+      });
+    }
+
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        error: 'No active Calendly connection found'
+      });
+    }
+
+    let webhooksDeleted = 0;
+
+    // Delete webhooks from Calendly
+    try {
+      const CalendlyWebhookService = require('../services/calendlyWebhookService');
+      const webhookService = new CalendlyWebhookService(connection.access_token);
+
+      const organizationUri = connection.calendly_organization_uri;
+      console.log(`📋 Listing webhooks for organization: ${organizationUri}`);
+
+      const existingWebhooks = await webhookService.listWebhookSubscriptions(organizationUri, 'organization');
+      const appUrl = process.env.BACKEND_URL || 'https://adviceapp-9rgw.onrender.com';
+      const ourWebhooks = existingWebhooks.filter(wh => wh.callback_url && wh.callback_url.includes(appUrl));
+
+      console.log(`🎯 Found ${ourWebhooks.length} webhook(s) for our app`);
+
+      for (const webhook of ourWebhooks) {
+        try {
+          console.log(`🗑️  Deleting webhook: ${webhook.callback_url}`);
+          await webhookService.deleteWebhookSubscription(webhook.uri);
+          webhooksDeleted++;
+          console.log(`✅ Deleted webhook: ${webhook.uri}`);
+        } catch (deleteError) {
+          console.error(`❌ Error deleting webhook ${webhook.uri}:`, deleteError.message);
+          // Continue with other webhooks
+        }
+      }
+    } catch (webhookError) {
+      console.warn('⚠️  Error deleting webhooks from Calendly:', webhookError.message);
+      // Continue with database cleanup
+    }
+
+    // Clean up database records
+    try {
+      // Delete webhook subscriptions
+      const { error: webhookDbError } = await supabase
+        .from('calendly_webhook_subscriptions')
+        .delete()
+        .eq('organization_uri', connection.calendly_organization_uri);
+
+      if (webhookDbError) {
+        console.warn('⚠️  Error deleting webhook subscriptions from database:', webhookDbError);
+      } else {
+        console.log('✅ Deleted webhook subscriptions from database');
+      }
+
+      // Mark calendar connection as inactive
+      const { error: connectionUpdateError } = await supabase
+        .from('calendar_connections')
+        .update({
+          is_active: false,
+          access_token: null,
+          refresh_token: null,
+          calendly_webhook_id: null,
+          calendly_webhook_signing_key: null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .eq('provider', 'calendly');
+
+      if (connectionUpdateError) {
+        console.error('❌ Error updating calendar connection:', connectionUpdateError);
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to disconnect Calendly'
+        });
+      }
+
+      console.log(`✅ Calendly disconnected for user ${userId}`);
+      console.log(`   Webhooks deleted: ${webhooksDeleted}`);
+
+      res.json({
+        success: true,
+        message: 'Calendly integration disconnected successfully',
+        webhooks_deleted: webhooksDeleted
+      });
+
+    } catch (dbError) {
+      console.error('❌ Error during database cleanup:', dbError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to complete disconnection',
+        details: dbError.message
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Error disconnecting Calendly:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to disconnect Calendly',
+      details: error.message
+    });
+  }
+});
+
 // Test Calendly connection
 router.get('/test-connection', authenticateSupabaseUser, async (req, res) => {
   try {
