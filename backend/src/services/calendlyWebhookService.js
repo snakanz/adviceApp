@@ -202,7 +202,7 @@ class CalendlyWebhookService {
 
       const supabase = getSupabase();
 
-      // Check if we already have a webhook subscription for this organization
+      // Check if we already have a webhook subscription for this organization in our database
       const { data: existingWebhook } = await supabase
         .from('calendly_webhook_subscriptions')
         .select('*')
@@ -210,17 +210,54 @@ class CalendlyWebhookService {
         .single();
 
       if (existingWebhook) {
-        console.log('✅ Webhook subscription already exists for organization:', organizationUri);
+        console.log('✅ Webhook subscription already exists in database for organization:', organizationUri);
         return {
           webhook_uri: existingWebhook.webhook_subscription_uri,
+          webhook_signing_key: existingWebhook.webhook_signing_key,
           created: false,
           existing: true
         };
       }
 
       // Create new webhook subscription
-      console.log('🆕 No webhook found for organization, creating new one...');
-      const webhook = await this.createWebhookSubscription(organizationUri, userUri, 'organization');
+      console.log('🆕 No webhook found in database for organization, creating new one...');
+      let webhook;
+
+      try {
+        webhook = await this.createWebhookSubscription(organizationUri, userUri, 'organization');
+      } catch (createError) {
+        // ✅ FIX: Handle 409 Conflict - webhook already exists in Calendly
+        if (createError.message.includes('409') && createError.message.includes('Already Exists')) {
+          console.warn('⚠️  Webhook already exists in Calendly (409 Conflict)');
+          console.log('🔍 Fetching existing webhook from Calendly...');
+
+          // Fetch all webhooks for this organization and find the one with our URL
+          const existingWebhooks = await this.listWebhookSubscriptions(organizationUri, 'organization');
+          const ourWebhook = existingWebhooks.find(wh => wh.callback_url === this.webhookUrl);
+
+          if (ourWebhook) {
+            console.log('✅ Found existing webhook in Calendly:', ourWebhook.uri);
+            console.warn('⚠️  WARNING: Webhook exists in Calendly but signing key is not available via API');
+            console.warn('⚠️  The signing key is only provided during webhook creation');
+            console.warn('⚠️  Using environment variable CALENDLY_WEBHOOK_SIGNING_KEY for verification');
+
+            webhook = {
+              uri: ourWebhook.uri,
+              signing_key: this.signingKey,  // Use environment variable signing key
+              callback_url: ourWebhook.callback_url,
+              events: ourWebhook.events,
+              state: ourWebhook.state
+            };
+          } else {
+            console.error('❌ Could not find webhook with URL:', this.webhookUrl);
+            console.error('❌ Existing webhooks:', existingWebhooks.map(w => w.callback_url));
+            throw new Error('Webhook exists but could not be found in organization webhooks list');
+          }
+        } else {
+          // Re-throw if it's a different error
+          throw createError;
+        }
+      }
 
       // ✅ FIX: Store webhook subscription WITH the signing key returned by Calendly
       const { error: insertError } = await supabase
@@ -237,23 +274,25 @@ class CalendlyWebhookService {
 
       if (insertError) {
         console.error('❌ Error storing webhook subscription in database:', insertError);
-        // Try to delete the webhook we just created
-        try {
-          await this.deleteWebhookSubscription(webhook.uri);
-        } catch (deleteError) {
-          console.error('❌ Failed to cleanup webhook after database error:', deleteError);
+        // Don't try to delete if this is an existing webhook
+        if (!webhook.existing) {
+          try {
+            await this.deleteWebhookSubscription(webhook.uri);
+          } catch (deleteError) {
+            console.error('❌ Failed to cleanup webhook after database error:', deleteError);
+          }
         }
         throw insertError;
       }
 
-      console.log('✅ Webhook subscription created and stored in database');
+      console.log('✅ Webhook subscription stored in database');
       console.log('🔑 Webhook signing key stored for verification');
 
       return {
         webhook_uri: webhook.uri,
         webhook_signing_key: webhook.signing_key,  // ✅ Return signing key
-        created: true,
-        existing: false
+        created: false,  // Mark as not newly created (either existing or recovered)
+        existing: true
       };
     } catch (error) {
       console.error('❌ Error ensuring webhook subscription:', error.message);
