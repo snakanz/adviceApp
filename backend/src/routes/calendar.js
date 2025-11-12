@@ -2151,40 +2151,16 @@ router.get('/calendly/oauth/callback', async (req, res) => {
       return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=OAuthNotConfigured`);
     }
 
-    // ✅ PHASE 1: Try token refresh first (for reconnection scenarios)
-    // This reduces unnecessary OAuth redirects when user reconnects
+    // Initialize token variables (will be populated below)
     let accessToken, refreshToken;
     let isTokenRefresh = false;
 
-    // Check if user already has a Calendly connection with a refresh token
-    const { data: existingConnection } = await getSupabase()
-      .from('calendar_connections')
-      .select('refresh_token')
-      .eq('user_id', userId)
-      .eq('provider', 'calendly')
-      .maybeSingle();
-
-    if (existingConnection?.refresh_token) {
-      try {
-        console.log('🔄 Attempting token refresh for existing Calendly connection...');
-        const refreshedTokenData = await oauthService.refreshAccessToken(existingConnection.refresh_token);
-        accessToken = refreshedTokenData.access_token;
-        refreshToken = refreshedTokenData.refresh_token || existingConnection.refresh_token;
-        isTokenRefresh = true;
-        console.log('✅ Token refresh successful - using refreshed tokens');
-      } catch (refreshError) {
-        console.warn('⚠️  Token refresh failed, falling back to full OAuth:', refreshError.message);
-        // Fall through to full OAuth exchange
-      }
-    }
-
-    // If token refresh failed or no existing connection, do full OAuth exchange
-    if (!isTokenRefresh) {
-      console.log('🔐 Performing full OAuth token exchange...');
-      const tokenData = await oauthService.exchangeCodeForToken(code);
-      accessToken = tokenData.access_token;
-      refreshToken = tokenData.refresh_token;
-    }
+    // First, do the OAuth token exchange to get initial tokens
+    // (Token refresh will be attempted later after we know the userId)
+    console.log('🔐 Performing OAuth token exchange...');
+    const tokenData = await oauthService.exchangeCodeForToken(code);
+    accessToken = tokenData.access_token;
+    refreshToken = tokenData.refresh_token;
 
     // Get user info from Calendly (for logging/verification only)
     const userResponse = await oauthService.getCurrentUser(accessToken);
@@ -2234,6 +2210,32 @@ router.get('/calendly/oauth/callback', async (req, res) => {
     }
 
     console.log(`✅ Linking Calendly account to authenticated user: ${userId}`);
+
+    // ✅ PHASE 1: Try token refresh first (for reconnection scenarios)
+    // This reduces unnecessary OAuth redirects when user reconnects
+    // Check if user already has a Calendly connection with a refresh token
+    const { data: existingConnection } = await getSupabase()
+      .from('calendar_connections')
+      .select('refresh_token')
+      .eq('user_id', userId)
+      .eq('provider', 'calendly')
+      .maybeSingle();
+
+    if (existingConnection?.refresh_token) {
+      try {
+        console.log('🔄 Attempting token refresh for existing Calendly connection...');
+        const refreshedTokenData = await oauthService.refreshAccessToken(existingConnection.refresh_token);
+        accessToken = refreshedTokenData.access_token;
+        refreshToken = refreshedTokenData.refresh_token || existingConnection.refresh_token;
+        isTokenRefresh = true;
+        console.log('✅ Token refresh successful - using refreshed tokens');
+      } catch (refreshError) {
+        console.warn('⚠️  Token refresh failed, keeping OAuth tokens:', refreshError.message);
+        // Keep the OAuth tokens we already obtained
+      }
+    }
+    // Note: We already have accessToken and refreshToken from the OAuth exchange above
+    // If token refresh succeeded, we've updated them; otherwise we use the OAuth tokens
 
     // Verify user exists in database and get their tenant_id
     const { data: user, error: userError } = await getSupabase()
