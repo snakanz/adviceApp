@@ -8,6 +8,189 @@ const router = express.Router();
 
 console.log('🔄 Calendly routes loaded successfully');
 
+// =====================================================
+// WEBHOOK MANAGEMENT ENDPOINTS
+// =====================================================
+
+/**
+ * Delete webhook subscription from Calendly
+ * This removes the webhook from Calendly's system (not just our database)
+ */
+router.delete('/webhook/subscription', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const supabase = getSupabase();
+
+    console.log(`\n🗑️  Deleting Calendly webhook for user: ${userId}`);
+
+    // Get user's Calendly connection
+    const { data: connection, error: connectionError } = await supabase
+      .from('calendar_connections')
+      .select('access_token, calendly_user_uri, organization_uri')
+      .eq('user_id', userId)
+      .eq('provider', 'calendly')
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (connectionError) {
+      console.error('❌ Error fetching connection:', connectionError);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch Calendly connection'
+      });
+    }
+
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        error: 'No active Calendly connection found'
+      });
+    }
+
+    const calendlyService = new CalendlyService(connection.access_token);
+    const organizationUri = connection.organization_uri;
+
+    // List all webhook subscriptions for this organization
+    console.log(`📋 Listing webhooks for organization: ${organizationUri}`);
+
+    const webhooksResponse = await calendlyService.makeRequest(
+      `/webhook_subscriptions?organization=${encodeURIComponent(organizationUri)}&scope=organization`
+    );
+
+    const webhooks = webhooksResponse.collection || [];
+    console.log(`📊 Found ${webhooks.length} webhook(s)`);
+
+    // Find webhooks pointing to our app
+    const appUrl = process.env.BACKEND_URL || 'https://adviceapp-9rgw.onrender.com';
+    const ourWebhooks = webhooks.filter(wh =>
+      wh.callback_url && wh.callback_url.includes(appUrl)
+    );
+
+    console.log(`🎯 Found ${ourWebhooks.length} webhook(s) for our app`);
+
+    if (ourWebhooks.length === 0) {
+      return res.json({
+        success: true,
+        message: 'No webhooks found to delete',
+        webhooks_deleted: 0
+      });
+    }
+
+    // Delete each webhook
+    const deletedWebhooks = [];
+    for (const webhook of ourWebhooks) {
+      try {
+        const webhookUri = webhook.uri;
+        const webhookUuid = webhookUri.split('/').pop();
+
+        console.log(`🗑️  Deleting webhook: ${webhook.callback_url}`);
+
+        await calendlyService.makeRequest(
+          `/webhook_subscriptions/${webhookUuid}`,
+          { method: 'DELETE' }
+        );
+
+        deletedWebhooks.push({
+          uri: webhookUri,
+          callback_url: webhook.callback_url
+        });
+
+        console.log(`✅ Deleted webhook: ${webhookUuid}`);
+      } catch (deleteError) {
+        console.error(`❌ Error deleting webhook ${webhook.uri}:`, deleteError);
+        // Continue with other webhooks
+      }
+    }
+
+    // Clean up database records
+    const { error: dbDeleteError } = await supabase
+      .from('calendly_webhook_subscriptions')
+      .delete()
+      .eq('organization_uri', organizationUri);
+
+    if (dbDeleteError) {
+      console.error('⚠️  Error cleaning up database:', dbDeleteError);
+    }
+
+    console.log(`✅ Webhook deletion complete: ${deletedWebhooks.length} deleted\n`);
+
+    res.json({
+      success: true,
+      message: `Successfully deleted ${deletedWebhooks.length} webhook(s)`,
+      webhooks_deleted: deletedWebhooks.length,
+      deleted_webhooks: deletedWebhooks
+    });
+
+  } catch (error) {
+    console.error('❌ Error deleting webhook:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete webhook',
+      details: error.message
+    });
+  }
+});
+
+/**
+ * List all webhook subscriptions for the user's organization
+ */
+router.get('/webhook/list', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const supabase = getSupabase();
+
+    // Get user's Calendly connection
+    const { data: connection } = await supabase
+      .from('calendar_connections')
+      .select('access_token, organization_uri')
+      .eq('user_id', userId)
+      .eq('provider', 'calendly')
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (!connection) {
+      return res.status(404).json({
+        success: false,
+        error: 'No active Calendly connection found'
+      });
+    }
+
+    const calendlyService = new CalendlyService(connection.access_token);
+    const organizationUri = connection.organization_uri;
+
+    // List all webhook subscriptions
+    const webhooksResponse = await calendlyService.makeRequest(
+      `/webhook_subscriptions?organization=${encodeURIComponent(organizationUri)}&scope=organization`
+    );
+
+    const webhooks = webhooksResponse.collection || [];
+
+    res.json({
+      success: true,
+      count: webhooks.length,
+      webhooks: webhooks.map(wh => ({
+        uri: wh.uri,
+        callback_url: wh.callback_url,
+        state: wh.state,
+        events: wh.events,
+        created_at: wh.created_at
+      }))
+    });
+
+  } catch (error) {
+    console.error('❌ Error listing webhooks:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to list webhooks',
+      details: error.message
+    });
+  }
+});
+
+// =====================================================
+// CONNECTION ENDPOINTS
+// =====================================================
+
 // Test Calendly connection
 router.get('/test-connection', authenticateSupabaseUser, async (req, res) => {
   try {
