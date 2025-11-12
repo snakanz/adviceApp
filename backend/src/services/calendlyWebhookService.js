@@ -153,11 +153,19 @@ class CalendlyWebhookService {
         console.warn('⚠️  Proceeding with webhook creation anyway...');
       }
 
+      const crypto = require('crypto');
+
+      // ✅ v2 API FIX: Generate our own signing_key
+      // Calendly v2 does NOT return signing_key in response, so we generate it
+      // and send it when creating the webhook
+      const signingKey = crypto.randomBytes(32).toString('hex');
+
       const requestBody = {
         url: this.webhookUrl,
         events: ['invitee.created', 'invitee.canceled'],
         organization: organizationUri,
-        scope: scope
+        scope: scope,
+        signing_key: signingKey  // ✅ Send our generated key to Calendly
       };
 
       // Add user URI for user-scoped webhooks
@@ -165,11 +173,8 @@ class CalendlyWebhookService {
         requestBody.user = userUri;
       }
 
-      // ✅ v2 API: DO NOT send signing_key when creating webhook
-      // Calendly v2 will generate and return a signing_key in the response
-      // We'll store that returned key for webhook verification
-
       console.log('📤 Webhook Request Body:', JSON.stringify(requestBody, null, 2));
+      console.log('🔑 Generated signing key:', signingKey.substring(0, 20) + '...');
 
       const response = await this.makeRequest('/webhook_subscriptions', {
         method: 'POST',
@@ -180,22 +185,16 @@ class CalendlyWebhookService {
       // ✅ DIAGNOSTIC: Log full webhook response
       console.log('📋 Full Webhook Response:', JSON.stringify(response, null, 2));
 
-      // ✅ v2 API: Extract signing_key from Calendly's response
-      // In v2, signing_key is ALWAYS returned in the webhook creation response
       const webhookResource = response.resource;
 
-      // Log all fields in the webhook resource for debugging
-      if (webhookResource) {
-        console.log('📋 Webhook Resource Fields:', Object.keys(webhookResource));
-        console.log('📋 Webhook Resource:', JSON.stringify(webhookResource, null, 2));
-      }
-
+      // ✅ v2 API FIX: Calendly echoes back the signing_key we sent
+      // If it's not in the response, use our generated key
       if (webhookResource?.signing_key) {
-        console.log('🔑 Webhook signing key received from Calendly (v2):', webhookResource.signing_key.substring(0, 20) + '...');
+        console.log('🔑 Webhook signing key confirmed by Calendly:', webhookResource.signing_key.substring(0, 20) + '...');
       } else {
-        console.warn('⚠️  WARNING: No signing_key in webhook response from Calendly v2');
-        console.warn('⚠️  This should not happen with v2 API - check Calendly API response');
-        console.warn('⚠️  Available fields:', webhookResource ? Object.keys(webhookResource) : 'null');
+        // Calendly didn't echo it back, so use our generated key
+        webhookResource.signing_key = signingKey;
+        console.log('🔑 Using generated signing key (Calendly did not echo back):', signingKey.substring(0, 20) + '...');
       }
 
       return webhookResource;
