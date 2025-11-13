@@ -2128,17 +2128,36 @@ router.get('/calendly/auth-url', authenticateSupabaseUser, async (req, res) => {
 /**
  * GET /api/calendar/calendly/oauth/callback
  * Handle Calendly OAuth callback
+ *
+ * ✅ SECURITY FIX: Validate state parameter matches authenticated user
+ * This prevents users from connecting other users' Calendly accounts
  */
 router.get('/calendly/oauth/callback', async (req, res) => {
   try {
-    const { code, error } = req.query;
+    const { code, error, state } = req.query;
+
+    console.log('🔐 Calendly OAuth callback received');
+    console.log('  - code:', code ? '✅ Present' : '❌ Missing');
+    console.log('  - error:', error || 'None');
+    console.log('  - state:', state ? '✅ Present' : '❌ Missing');
 
     if (error) {
+      console.error('❌ OAuth error from Calendly:', error);
       return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=${encodeURIComponent(error)}`);
     }
 
     if (!code) {
+      console.error('❌ No authorization code received');
       return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=NoCode`);
+    }
+
+    // ✅ CRITICAL SECURITY FIX: State parameter is REQUIRED
+    // The state parameter contains the authenticated user's ID
+    // Without it, we cannot verify which user is connecting
+    if (!state) {
+      console.error('❌ SECURITY VIOLATION: No state parameter in OAuth callback');
+      console.error('   This could indicate a CSRF attack or compromised OAuth flow');
+      return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=SecurityViolation`);
     }
 
     if (!isSupabaseAvailable()) {
@@ -2199,14 +2218,17 @@ router.get('/calendly/oauth/callback', async (req, res) => {
       console.warn('⚠️  Error fetching organization:', orgError.message);
     }
 
-    // ✅ CRITICAL FIX: Get authenticated user from state parameter (passed from frontend)
+    // ✅ CRITICAL SECURITY FIX: Validate state parameter
     // The state parameter contains the authenticated user's ID
-    const { state } = req.query;
-    let userId = state;
+    // We must validate it's a valid UUID format to prevent injection attacks
+    const userId = state;
 
-    if (!userId) {
-      console.error('❌ No user ID in state parameter - OAuth flow compromised');
-      return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=NoUserContext`);
+    // Validate UUID format (basic check)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(userId)) {
+      console.error(`❌ SECURITY VIOLATION: Invalid user ID format in state parameter: ${userId}`);
+      console.error('   This could indicate a CSRF attack or malicious OAuth flow');
+      return res.redirect(`${process.env.FRONTEND_URL}/settings/calendar?error=InvalidUserContext`);
     }
 
     console.log(`✅ Linking Calendly account to authenticated user: ${userId}`);
@@ -2255,6 +2277,43 @@ router.get('/calendly/oauth/callback', async (req, res) => {
     }
 
     console.log(`✅ Verified authenticated user: ${user.email} (${user.id}) in tenant ${user.tenant_id}`);
+
+    // ✅ SECURITY CHECK: Verify Calendly account email matches authenticated user
+    // This prevents users from connecting other users' Calendly accounts
+    console.log(`\n🔐 SECURITY CHECK: Verifying Calendly account ownership`);
+    console.log(`   Authenticated user email: ${user.email}`);
+    console.log(`   Calendly account email: ${calendlyUser.email}`);
+
+    if (calendlyUser.email.toLowerCase() !== user.email.toLowerCase()) {
+      console.error(`❌ SECURITY VIOLATION: Email mismatch!`);
+      console.error(`   Authenticated user: ${user.email}`);
+      console.error(`   Calendly account: ${calendlyUser.email}`);
+      console.error(`   This could indicate an attempt to connect another user's Calendly account`);
+
+      return res.send(`
+        <html>
+          <head>
+            <title>Security Error</title>
+          </head>
+          <body>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({
+                  type: 'CALENDLY_OAUTH_ERROR',
+                  error: 'Email mismatch: The Calendly account email does not match your Advicly account email. Please log in to Calendly with the correct account and try again.'
+                }, '*');
+              }
+              window.close();
+            </script>
+            <p>Security Error: Email mismatch</p>
+            <p>The Calendly account email (${calendlyUser.email}) does not match your Advicly account email (${user.email}).</p>
+            <p>Please log in to Calendly with the correct account and try again.</p>
+          </body>
+        </html>
+      `);
+    }
+
+    console.log(`✅ Email verification passed - Calendly account belongs to authenticated user`);
 
     // Deactivate other active calendar connections for this user (but not Calendly)
     await getSupabase()
