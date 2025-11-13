@@ -179,18 +179,40 @@ export default function CalendarSettings() {
 
       // ✅ If disconnecting Calendly, log out of Calendly to allow fresh re-login
       if (provider.toLowerCase() === 'calendly') {
-        console.log('🔓 Logging out of Calendly to allow fresh re-login...');
-        // Open Calendly logout in a hidden iframe to clear session
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = 'https://calendly.com/logout';
-        document.body.appendChild(iframe);
+        console.log('🔓 Disconnecting Calendly - clearing session for fresh re-login...');
 
-        // Remove iframe after 2 seconds
-        setTimeout(() => {
-          document.body.removeChild(iframe);
-          console.log('✅ Calendly session cleared');
-        }, 2000);
+        // Step 1: Clear Calendly session via logout endpoint
+        try {
+          const logoutIframe = document.createElement('iframe');
+          logoutIframe.style.display = 'none';
+          logoutIframe.src = 'https://calendly.com/logout';
+          document.body.appendChild(logoutIframe);
+
+          // Remove iframe after 2 seconds
+          setTimeout(() => {
+            if (document.body.contains(logoutIframe)) {
+              document.body.removeChild(logoutIframe);
+            }
+            console.log('✅ Calendly session cleared');
+          }, 2000);
+        } catch (logoutErr) {
+          console.warn('⚠️  Could not clear Calendly session via iframe:', logoutErr);
+        }
+
+        // Step 2: Clear any cached OAuth popups by opening and closing a fresh one
+        // This ensures the next OAuth flow starts completely fresh
+        console.log('🔄 Clearing cached OAuth popup...');
+        const clearPopup = window.open('about:blank', 'CalendlyOAuth_clear', 'width=1,height=1');
+        if (clearPopup) {
+          setTimeout(() => {
+            try {
+              clearPopup.close();
+              console.log('✅ Cached OAuth popup cleared');
+            } catch (e) {
+              console.warn('⚠️  Could not close popup:', e);
+            }
+          }, 100);
+        }
       }
 
       setSuccess(`${provider} calendar disconnected successfully`);
@@ -241,6 +263,10 @@ export default function CalendarSettings() {
         const userIdFromToken = await getUserIdFromToken();
         const urlWithState = `${response.data.url}&state=${userIdFromToken}`;
 
+        // ✅ FIX: Use unique popup name with timestamp to force fresh window
+        // This prevents browser from reusing old popup with cached Calendly session
+        const popupName = `CalendlyOAuth_${Date.now()}`;
+
         // ✅ FIX: Open OAuth in popup window instead of full page redirect
         // This keeps the main window intact and returns focus after auth
         const width = 500;
@@ -248,9 +274,10 @@ export default function CalendarSettings() {
         const left = window.screenX + (window.outerWidth - width) / 2;
         const top = window.screenY + (window.outerHeight - height) / 2;
 
+        console.log(`🔓 Opening fresh Calendly OAuth popup: ${popupName}`);
         const popup = window.open(
           urlWithState,
-          'CalendlyOAuth',
+          popupName,
           `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
         );
 
@@ -265,6 +292,7 @@ export default function CalendarSettings() {
           if (popup.closed) {
             clearInterval(checkPopup);
             setIsConnecting(false);
+            console.log('✅ Calendly OAuth popup closed');
             // Reload connections to show updated status
             setTimeout(() => loadConnections(), 500);
           }

@@ -207,11 +207,12 @@ class CalendlyWebhookService {
   }
 
   /**
-   * List all webhook subscriptions for an organization (v2 with keyset pagination)
-   * @param {string} organizationUri - The Calendly organization URI
+   * List all webhook subscriptions for an organization or user (v2 with keyset pagination)
+   * @param {string} resourceUri - The Calendly organization URI or user URI
+   * @param {string} scope - 'organization' or 'user'
    * @returns {Promise<Array>} List of webhook subscriptions
    */
-  async listWebhookSubscriptions(organizationUri, scope = 'organization') {
+  async listWebhookSubscriptions(resourceUri, scope = 'organization') {
     try {
       let allWebhooks = [];
       let cursor = null;
@@ -219,10 +220,18 @@ class CalendlyWebhookService {
 
       do {
         const params = new URLSearchParams({
-          organization: organizationUri,
           scope: scope,
           page_size: '100' // v2 uses page_size
         });
+
+        // ✅ FIX: Use correct parameter based on scope
+        // For organization-scoped webhooks, use 'organization' parameter
+        // For user-scoped webhooks, use 'user' parameter
+        if (scope === 'user') {
+          params.append('user', resourceUri);
+        } else {
+          params.append('organization', resourceUri);
+        }
 
         // Add pagination token if we have one
         if (cursor) {
