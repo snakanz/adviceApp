@@ -39,26 +39,43 @@ export default function CalendarSettings() {
 
     // ✅ FIX: Listen for postMessage from OAuth popup windows
     const handleOAuthMessage = (event) => {
-      // Only accept messages from same origin for security
-      if (event.origin !== window.location.origin) return;
+      // Accept messages from backend (Render) and frontend (Cloudflare Pages)
+      // The popup is hosted on the backend, so we need to accept its origin
+      const validOrigins = [
+        window.location.origin, // Frontend origin
+        'https://adviceapp-9rgw.onrender.com', // Render backend
+        'http://localhost:3001', // Local development
+      ];
+
+      const isValidOrigin = validOrigins.some(origin => event.origin === origin || event.origin.includes(origin));
+      if (!isValidOrigin) {
+        console.warn('⚠️ Ignoring postMessage from untrusted origin:', event.origin);
+        return;
+      }
 
       if (event.data.type === 'CALENDLY_OAUTH_SUCCESS') {
+        console.log('✅ Received CALENDLY_OAUTH_SUCCESS from popup');
         setSuccess('Calendly connected successfully!');
         // Reload connections to show updated status
         setTimeout(() => loadConnections(), 500);
       } else if (event.data.type === 'CALENDLY_OAUTH_ERROR') {
+        console.error('❌ Received CALENDLY_OAUTH_ERROR from popup:', event.data.error);
         setError(`Calendly connection failed: ${event.data.error}`);
       } else if (event.data.type === 'GOOGLE_OAUTH_SUCCESS') {
+        console.log('✅ Received GOOGLE_OAUTH_SUCCESS from popup');
         setSuccess('Google Calendar connected successfully!');
         // Reload connections to show updated status
         setTimeout(() => loadConnections(), 500);
       } else if (event.data.type === 'GOOGLE_OAUTH_ERROR') {
+        console.error('❌ Received GOOGLE_OAUTH_ERROR from popup:', event.data.error);
         setError(`Google Calendar connection failed: ${event.data.error}`);
       } else if (event.data.type === 'MICROSOFT_OAUTH_SUCCESS') {
+        console.log('✅ Received MICROSOFT_OAUTH_SUCCESS from popup');
         setSuccess('Microsoft Calendar connected successfully!');
         // Reload connections to show updated status
         setTimeout(() => loadConnections(), 500);
       } else if (event.data.type === 'MICROSOFT_OAUTH_ERROR') {
+        console.error('❌ Received MICROSOFT_OAUTH_ERROR from popup:', event.data.error);
         setError(`Microsoft Calendar connection failed: ${event.data.error}`);
       }
     };
