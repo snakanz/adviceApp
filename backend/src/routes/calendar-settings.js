@@ -2,10 +2,12 @@ const express = require('express');
 const router = express.Router();
 const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
+const WebhookHealthService = require('../services/webhookHealthService');
 
 /**
  * GET /api/calendar-connections
  * List all calendar connections for the authenticated user
+ * ✅ ENHANCED: Checks webhook health for Calendly connections
  */
 router.get('/', authenticateSupabaseUser, async (req, res) => {
   try {
@@ -31,6 +33,19 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
       });
     }
 
+    // ✅ NEW: Check webhook health for active Calendly connections
+    // This ensures webhooks stay active even if user logs out and comes back weeks later
+    if (connections && connections.length > 0) {
+      const calendlyConnection = connections.find(c => c.provider === 'calendly' && c.is_active);
+      if (calendlyConnection) {
+        console.log(`🔍 Checking webhook health for user ${userId}...`);
+        // Run health check in background (don't block response)
+        WebhookHealthService.checkAndRepairWebhook(userId).catch(error => {
+          console.error('⚠️  Webhook health check failed:', error.message);
+        });
+      }
+    }
+
     res.json({
       success: true,
       connections: connections || []
@@ -39,6 +54,35 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
   } catch (error) {
     console.error('Error in GET /calendar-connections:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/calendar-connections/webhook/health-check
+ * Check and repair webhook health for Calendly connections
+ * ✅ NEW: Ensures webhooks stay active permanently
+ */
+router.post('/webhook/health-check', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    console.log(`🔍 Webhook health check requested for user ${userId}`);
+
+    const result = await WebhookHealthService.checkAndRepairWebhook(userId);
+
+    res.json({
+      success: result.status !== 'error',
+      status: result.status,
+      message: result.message
+    });
+
+  } catch (error) {
+    console.error('Error in webhook health check:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Webhook health check failed',
+      details: error.message
+    });
   }
 });
 

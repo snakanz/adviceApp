@@ -1,0 +1,152 @@
+/**
+ * Webhook Health Check Service
+ * Monitors and auto-recreates Calendly webhooks to ensure they stay active
+ * Prevents webhooks from expiring or being deleted without user knowledge
+ */
+
+const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
+const CalendlyService = require('./calendlyService');
+const CalendlyWebhookService = require('./calendlyWebhookService');
+
+class WebhookHealthService {
+  /**
+   * Check if a user's Calendly webhook is still active
+   * If missing, automatically recreate it
+   * @param {string} userId - User ID
+   * @returns {Promise<Object>} Health status
+   */
+  static async checkAndRepairWebhook(userId) {
+    try {
+      if (!isSupabaseAvailable()) {
+        console.warn('⚠️  Database not available for webhook health check');
+        return { status: 'error', message: 'Database unavailable' };
+      }
+
+      const supabase = getSupabase();
+
+      // Get user's Calendly connection
+      const { data: connection, error: connError } = await supabase
+        .from('calendar_connections')
+        .select('id, access_token, refresh_token, calendly_user_uri, calendly_organization_uri, webhook_status, webhook_last_verified_at')
+        .eq('user_id', userId)
+        .eq('provider', 'calendly')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (connError || !connection) {
+        return { status: 'not_connected', message: 'No active Calendly connection' };
+      }
+
+      console.log(`\n🔍 Checking webhook health for user ${userId}...`);
+
+      // Check if webhook was verified recently (within last 24 hours)
+      const lastVerified = connection.webhook_last_verified_at ? new Date(connection.webhook_last_verified_at) : null;
+      const now = new Date();
+      const hoursSinceVerification = lastVerified ? (now - lastVerified) / (1000 * 60 * 60) : 999;
+
+      if (hoursSinceVerification < 24 && connection.webhook_status === 'active') {
+        console.log(`✅ Webhook verified recently (${Math.round(hoursSinceVerification)} hours ago)`);
+        return { status: 'active', message: 'Webhook is healthy' };
+      }
+
+      // Verify webhook exists in Calendly
+      console.log('🔐 Verifying webhook exists in Calendly...');
+      const calendlyService = new CalendlyService(connection.access_token);
+
+      try {
+        const webhooks = await calendlyService.makeRequest(
+          `/webhook_subscriptions?organization=${encodeURIComponent(connection.calendly_organization_uri)}&scope=user`
+        );
+
+        const appUrl = process.env.BACKEND_URL || 'https://adviceapp-9rgw.onrender.com';
+        const ourWebhook = (webhooks.collection || []).find(wh =>
+          wh.callback_url && wh.callback_url.includes(appUrl)
+        );
+
+        if (ourWebhook) {
+          console.log('✅ Webhook found in Calendly');
+
+          // Update verification status
+          await supabase
+            .from('calendar_connections')
+            .update({
+              webhook_status: 'active',
+              webhook_last_verified_at: now.toISOString(),
+              webhook_verification_attempts: 0,
+              webhook_last_error: null
+            })
+            .eq('id', connection.id);
+
+          return { status: 'active', message: 'Webhook verified and active' };
+        }
+
+        console.warn('⚠️  Webhook not found in Calendly - will recreate');
+        return await this.recreateWebhook(userId, connection);
+
+      } catch (verifyError) {
+        console.error('❌ Error verifying webhook:', verifyError.message);
+        return await this.recreateWebhook(userId, connection);
+      }
+
+    } catch (error) {
+      console.error('❌ Error in webhook health check:', error);
+      return { status: 'error', message: error.message };
+    }
+  }
+
+  /**
+   * Recreate a user's webhook subscription
+   * @param {string} userId - User ID
+   * @param {Object} connection - Calendar connection object
+   * @returns {Promise<Object>} Recreation status
+   */
+  static async recreateWebhook(userId, connection) {
+    try {
+      console.log(`🔧 Attempting to recreate webhook for user ${userId}...`);
+
+      const supabase = getSupabase();
+      const webhookService = new CalendlyWebhookService(connection.access_token);
+
+      // Recreate webhook
+      const webhook = await webhookService.ensureWebhookSubscription(
+        connection.calendly_organization_uri,
+        connection.calendly_user_uri,
+        userId
+      );
+
+      console.log('✅ Webhook recreated successfully');
+
+      // Update connection status
+      await supabase
+        .from('calendar_connections')
+        .update({
+          webhook_status: 'active',
+          webhook_last_verified_at: new Date().toISOString(),
+          webhook_verification_attempts: 0,
+          webhook_last_error: null
+        })
+        .eq('id', connection.id);
+
+      return { status: 'recreated', message: 'Webhook recreated successfully' };
+
+    } catch (error) {
+      console.error('❌ Error recreating webhook:', error.message);
+
+      // Update error status
+      const supabase = getSupabase();
+      await supabase
+        .from('calendar_connections')
+        .update({
+          webhook_status: 'error',
+          webhook_last_error: error.message,
+          webhook_verification_attempts: (connection.webhook_verification_attempts || 0) + 1
+        })
+        .eq('id', connection.id);
+
+      return { status: 'error', message: `Failed to recreate webhook: ${error.message}` };
+    }
+  }
+}
+
+module.exports = WebhookHealthService;
+
