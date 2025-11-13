@@ -33,7 +33,10 @@ class CalendlyOAuthService {
       response_type: 'code',
       state: state || 'state',
       scope: 'default', // Calendly uses 'default' scope for all permissions
-      prompt: 'login' // ✅ FIX: Force Calendly to show login screen every time (stronger than 'consent')
+      prompt: 'login', // ✅ FIX: Force Calendly to show login screen every time (stronger than 'consent')
+      // ✅ FIX: Add cache-busting parameter to force fresh OAuth flow
+      // This prevents browser/Calendly from caching the OAuth session
+      nonce: Date.now().toString() // Unique nonce for each OAuth request
     });
 
     return `${this.baseURL}/oauth/authorize?${params.toString()}`;

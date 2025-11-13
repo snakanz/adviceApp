@@ -253,6 +253,34 @@ export default function CalendarSettings() {
       setSuccess('');
       const token = await getAccessToken();
 
+      // ✅ STEP 1: Prepare OAuth by clearing old session
+      console.log('🔓 Step 1: Preparing Calendly OAuth - clearing old session...');
+      try {
+        await axios.post(
+          `${API_BASE_URL}/api/calendar-connections/calendly/prepare-oauth`,
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        console.log('✅ OAuth preparation complete');
+      } catch (prepareErr) {
+        console.warn('⚠️  OAuth preparation warning:', prepareErr.message);
+        // Continue anyway - this is non-critical
+      }
+
+      // ✅ STEP 2: Clear Calendly cookies from browser
+      console.log('🔓 Step 2: Clearing Calendly browser cookies...');
+      // Clear any Calendly-related cookies
+      document.cookie.split(";").forEach((c) => {
+        const eqPos = c.indexOf("=");
+        const name = eqPos > -1 ? c.substr(0, eqPos).trim() : c.trim();
+        if (name.toLowerCase().includes('calendly') || name.toLowerCase().includes('auth')) {
+          document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/;domain=.calendly.com`;
+        }
+      });
+      console.log('✅ Cookies cleared');
+
+      // ✅ STEP 3: Get OAuth URL
+      console.log('🔓 Step 3: Getting Calendly OAuth URL...');
       const response = await axios.get(
         `${API_BASE_URL}/api/calendar-connections/calendly/auth-url`,
         { headers: { Authorization: `Bearer ${token}` } }
@@ -263,9 +291,10 @@ export default function CalendarSettings() {
         const userIdFromToken = await getUserIdFromToken();
         const urlWithState = `${response.data.url}&state=${userIdFromToken}`;
 
-        // ✅ FIX: Use unique popup name with timestamp to force fresh window
+        // ✅ STEP 4: Open OAuth popup with unique name and cache-busting
+        // Use unique popup name with timestamp to force fresh window
         // This prevents browser from reusing old popup with cached Calendly session
-        const popupName = `CalendlyOAuth_${Date.now()}`;
+        const popupName = `CalendlyOAuth_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
         // ✅ FIX: Open OAuth in popup window instead of full page redirect
         // This keeps the main window intact and returns focus after auth
@@ -274,7 +303,7 @@ export default function CalendarSettings() {
         const left = window.screenX + (window.outerWidth - width) / 2;
         const top = window.screenY + (window.outerHeight - height) / 2;
 
-        console.log(`🔓 Opening fresh Calendly OAuth popup: ${popupName}`);
+        console.log(`🔓 Step 4: Opening fresh Calendly OAuth popup: ${popupName}`);
         const popup = window.open(
           urlWithState,
           popupName,

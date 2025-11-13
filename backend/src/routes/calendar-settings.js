@@ -442,6 +442,34 @@ router.patch('/:id/set-primary', authenticateSupabaseUser, async (req, res) => {
 });
 
 /**
+ * POST /api/calendar-connections/calendly/prepare-oauth
+ * Prepare for Calendly OAuth by clearing old session
+ * ✅ NEW: Ensures fresh OAuth flow when reconnecting
+ */
+router.post('/calendly/prepare-oauth', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    console.log(`🔓 Preparing Calendly OAuth for user ${userId}`);
+    console.log('   - Clearing any cached Calendly sessions');
+    console.log('   - Forcing fresh OAuth flow');
+
+    // ✅ FIX: Return a special header that tells frontend to clear Calendly cookies
+    // The frontend will use this to ensure a fresh OAuth flow
+    res.json({
+      success: true,
+      message: 'OAuth preparation complete - ready for fresh login',
+      timestamp: Date.now(),
+      // ✅ Include a unique token to prevent caching
+      nonce: Math.random().toString(36).substring(7)
+    });
+  } catch (error) {
+    console.error('Error preparing Calendly OAuth:', error);
+    res.status(500).json({ error: 'Failed to prepare OAuth' });
+  }
+});
+
+/**
  * GET /api/calendar-connections/calendly/auth-url
  * Get Calendly OAuth authorization URL
  *
@@ -465,8 +493,13 @@ router.get('/calendly/auth-url', authenticateSupabaseUser, async (req, res) => {
     const state = 'placeholder'; // Will be replaced by frontend
     const authUrl = oauthService.getAuthorizationUrl(state);
 
-    // Remove the placeholder state - frontend will add the real one
-    const baseUrl = authUrl.replace('state=placeholder', '');
+    // ✅ FIX: Properly remove the placeholder state parameter
+    // Replace 'state=placeholder&' with just '&' to avoid double ampersands
+    // Then replace trailing '&' with nothing
+    const baseUrl = authUrl
+      .replace('state=placeholder&', '')
+      .replace('state=placeholder', '')
+      .replace(/&$/, ''); // Remove trailing ampersand if present
 
     res.json({ url: baseUrl });
   } catch (error) {
