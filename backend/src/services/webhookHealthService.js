@@ -54,8 +54,10 @@ class WebhookHealthService {
       const calendlyService = new CalendlyService(connection.access_token);
 
       try {
+        // ✅ FIX: Pass BOTH organization AND user parameters
+        // Calendly API v2 requires both parameters regardless of scope
         const webhooks = await calendlyService.makeRequest(
-          `/webhook_subscriptions?organization=${encodeURIComponent(connection.calendly_organization_uri)}&scope=user`
+          `/webhook_subscriptions?organization=${encodeURIComponent(connection.calendly_organization_uri)}&user=${encodeURIComponent(connection.calendly_user_uri)}&scope=user`
         );
 
         const appUrl = process.env.BACKEND_URL || 'https://adviceapp-9rgw.onrender.com';
