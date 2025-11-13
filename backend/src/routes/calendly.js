@@ -236,9 +236,11 @@ router.post('/disconnect', authenticateSupabaseUser, async (req, res) => {
 
       // ✅ USER-SCOPED: List user-scoped webhooks (not organization-scoped)
       const userUri = connection.calendly_user_uri;
+      const organizationUri = connection.calendly_organization_uri;
       console.log(`📋 Listing user-scoped webhooks for user: ${userUri}`);
 
-      const existingWebhooks = await webhookService.listWebhookSubscriptions(userUri, 'user');
+      // ✅ V2 API FIX: Pass both organization and user URIs
+      const existingWebhooks = await webhookService.listWebhookSubscriptions(organizationUri, userUri, 'user');
       const appUrl = process.env.BACKEND_URL || 'https://adviceapp-9rgw.onrender.com';
       const ourWebhooks = existingWebhooks.filter(wh => wh.callback_url && wh.callback_url.includes(appUrl));
 

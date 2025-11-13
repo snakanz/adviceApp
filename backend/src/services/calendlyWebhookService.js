@@ -208,11 +208,13 @@ class CalendlyWebhookService {
 
   /**
    * List all webhook subscriptions for an organization or user (v2 with keyset pagination)
-   * @param {string} resourceUri - The Calendly organization URI or user URI
+   * ✅ V2 API FIX: Calendly API v2 requires BOTH organization AND user parameters regardless of scope
+   * @param {string} organizationUri - The Calendly organization URI
+   * @param {string} userUri - The Calendly user URI (required for user-scoped webhooks)
    * @param {string} scope - 'organization' or 'user'
    * @returns {Promise<Array>} List of webhook subscriptions
    */
-  async listWebhookSubscriptions(resourceUri, scope = 'organization') {
+  async listWebhookSubscriptions(organizationUri, userUri, scope = 'organization') {
     try {
       let allWebhooks = [];
       let cursor = null;
@@ -221,16 +223,14 @@ class CalendlyWebhookService {
       do {
         const params = new URLSearchParams({
           scope: scope,
-          page_size: '100' // v2 uses page_size
+          page_size: '100', // v2 uses page_size
+          organization: organizationUri  // ✅ ALWAYS include organization
         });
 
-        // ✅ FIX: Use correct parameter based on scope
-        // For organization-scoped webhooks, use 'organization' parameter
-        // For user-scoped webhooks, use 'user' parameter
-        if (scope === 'user') {
-          params.append('user', resourceUri);
-        } else {
-          params.append('organization', resourceUri);
+        // ✅ V2 API FIX: Always include user parameter when available
+        // Calendly API v2 requires BOTH parameters regardless of scope
+        if (userUri) {
+          params.append('user', userUri);
         }
 
         // Add pagination token if we have one
@@ -339,7 +339,8 @@ class CalendlyWebhookService {
       // Step 2: Clean up old webhooks for this user before creating new one
       console.log('🧹 Cleaning up old webhooks for this user...');
       try {
-        const existingWebhooks = await this.listWebhookSubscriptions(userUri, 'user');
+        // ✅ V2 API FIX: Pass both organization and user URIs
+        const existingWebhooks = await this.listWebhookSubscriptions(organizationUri, userUri, 'user');
         const ourWebhooks = existingWebhooks.filter(wh => wh.callback_url === this.webhookUrl);
 
         for (const oldWebhook of ourWebhooks) {
@@ -381,7 +382,8 @@ class CalendlyWebhookService {
           console.log('🔍 Attempting to delete and recreate webhook...');
 
           try {
-            const existingWebhooks = await this.listWebhookSubscriptions(userUri, 'user');
+            // ✅ V2 API FIX: Pass both organization and user URIs
+            const existingWebhooks = await this.listWebhookSubscriptions(organizationUri, userUri, 'user');
             const ourWebhook = existingWebhooks.find(wh => wh.callback_url === this.webhookUrl);
 
             if (ourWebhook) {
