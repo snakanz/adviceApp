@@ -1126,11 +1126,10 @@ router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) =
     // Trigger calendar sync now that onboarding is complete
     try {
       console.log('🔄 Triggering calendar sync after onboarding completion...');
-      const CalendarSyncService = require('../services/calendarSync');
-      const syncService = new CalendarSyncService();
+      const calendarSyncService = require('../services/calendarSync');
 
       // Don't await - let it run in background
-      syncService.syncUserCalendar(userId, {
+      calendarSyncService.syncUserCalendar(userId, {
         timeRange: 'extended',
         includeDeleted: true
       }).then(syncResult => {
