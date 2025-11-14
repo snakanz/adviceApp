@@ -71,7 +71,7 @@ const Step8_Complete = ({ data, selectedPlan = 'free', onComplete }) => {
 
                 const connections = connectionsResponse.data;
                 hasCalendarConnection = connections && connections.length > 0 &&
-                                       connections.some(conn => conn.status === 'active');
+                                       connections.some(conn => conn.is_active === true);
 
                 if (hasCalendarConnection) {
                     console.log('✅ Calendar connection found, will sync');
