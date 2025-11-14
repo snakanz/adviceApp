@@ -27,7 +27,7 @@ class WebhookHealthService {
       // Get user's Calendly connection
       const { data: connection, error: connError } = await supabase
         .from('calendar_connections')
-        .select('id, access_token, refresh_token, calendly_user_uri, calendly_organization_uri, webhook_status, webhook_last_verified_at')
+        .select('id, access_token, refresh_token, token_expires_at, calendly_user_uri, calendly_organization_uri, webhook_status, webhook_last_verified_at')
         .eq('user_id', userId)
         .eq('provider', 'calendly')
         .eq('is_active', true)
@@ -49,9 +49,16 @@ class WebhookHealthService {
         return { status: 'active', message: 'Webhook is healthy' };
       }
 
-      // Verify webhook exists in Calendly
+      // ✅ FIX: Get fresh access token (auto-refreshes if expired)
       console.log('🔐 Verifying webhook exists in Calendly...');
-      const calendlyService = new CalendlyService(connection.access_token);
+      const accessToken = await CalendlyService.getUserAccessToken(userId);
+
+      if (!accessToken) {
+        console.error('❌ Could not obtain valid Calendly access token');
+        return { status: 'error', message: 'Could not obtain valid access token' };
+      }
+
+      const calendlyService = new CalendlyService(accessToken);
 
       try {
         // ✅ FIX: Pass BOTH organization AND user parameters
@@ -107,7 +114,15 @@ class WebhookHealthService {
       console.log(`🔧 Attempting to recreate webhook for user ${userId}...`);
 
       const supabase = getSupabase();
-      const webhookService = new CalendlyWebhookService(connection.access_token);
+
+      // ✅ FIX: Get fresh access token (auto-refreshes if expired)
+      const accessToken = await CalendlyService.getUserAccessToken(userId);
+
+      if (!accessToken) {
+        throw new Error('Could not obtain valid Calendly access token for webhook recreation');
+      }
+
+      const webhookService = new CalendlyWebhookService(accessToken);
 
       // Recreate webhook
       const webhook = await webhookService.ensureWebhookSubscription(
