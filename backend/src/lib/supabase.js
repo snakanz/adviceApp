@@ -110,7 +110,16 @@ const verifySupabaseToken = async (token) => {
     // 1. Supabase JWT: has 'sub' field (user UUID)
     // 2. Custom JWT: has 'id' field (user UUID)
     const userId = decoded.sub || decoded.id;
-    const userEmail = decoded.email;
+
+    // Support multiple email sources:
+    // 1. Standard email claim
+    // 2. Microsoft userPrincipalName (in user_metadata)
+    // 3. Microsoft preferred_username (in user_metadata)
+    // 4. Email from user_metadata
+    const userEmail = decoded.email
+      || decoded.user_metadata?.email
+      || decoded.user_metadata?.userPrincipalName
+      || decoded.user_metadata?.preferred_username;
 
     if (!userId) {
       console.log('❌ No user ID found in token (missing both sub and id fields)');
@@ -119,8 +128,15 @@ const verifySupabaseToken = async (token) => {
 
     if (!userEmail) {
       console.log('❌ No email in token');
+      console.log('Token decoded fields:', {
+        email: decoded.email,
+        user_metadata: decoded.user_metadata,
+        identities: decoded.identities
+      });
       return { user: null, error: new Error('No email in token') };
     }
+
+    console.log('✅ Email extracted from:', decoded.email ? 'email' : 'user_metadata');
 
     // Create a user object that matches Supabase's user structure
     const user = {
