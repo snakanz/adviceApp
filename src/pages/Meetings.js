@@ -3000,15 +3000,15 @@ export default function Meetings() {
 
                           {/* Template Selection - only show when email summary exists */}
                           {(generatingSummary || selectedMeeting?.email_summary_draft) && templates.length > 0 && (
-                            <div className="space-y-2.5 p-4 bg-muted/30 rounded-lg border border-border/50">
-                              <div className="flex items-center justify-between mb-1">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                                  <span className="text-xs font-medium text-muted-foreground">Email Template</span>
+                            <div className="space-y-2 p-3 bg-muted/20 rounded-lg border border-border/40">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1.5">
+                                  <Mail className="w-3 h-3 text-blue-600" />
+                                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Template</span>
                                 </div>
                                 {generatingSummary && (
-                                  <div className="flex items-center gap-1.5 text-xs text-blue-600">
-                                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-600 border-t-transparent"></div>
+                                  <div className="flex items-center gap-1.5 text-[10px] text-blue-600">
+                                    <div className="animate-spin rounded-full h-2.5 w-2.5 border-2 border-blue-600 border-t-transparent"></div>
                                     <span>Generating...</span>
                                   </div>
                                 )}
@@ -3018,14 +3018,11 @@ export default function Meetings() {
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    className="w-full h-9 text-sm justify-between hover:bg-background hover:border-blue-400 transition-all shadow-sm"
+                                    className="w-full h-8 text-xs justify-between hover:bg-background hover:border-blue-400 transition-all"
                                     disabled={generatingSummary}
                                   >
-                                    <div className="flex items-center gap-2">
-                                      <Mail className="w-3.5 h-3.5 text-blue-600" />
-                                      <span className="font-medium">{currentSummaryTemplate?.title || selectedTemplate?.title || 'Advicly Summary'}</span>
-                                    </div>
-                                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                                    <span className="font-medium truncate">{currentSummaryTemplate?.title || selectedTemplate?.title || 'Advicly Summary'}</span>
+                                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 ml-2" />
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent className="w-64" align="start">
@@ -3069,11 +3066,6 @@ export default function Meetings() {
                                   ))}
                                 </DropdownMenuContent>
                               </DropdownMenu>
-                              <div className="pt-1 border-t border-border/30">
-                                <p className="text-[11px] leading-relaxed text-muted-foreground/80">
-                                  Click dropdown to change template • Auto-saves when generated
-                                </p>
-                              </div>
                             </div>
                           )}
 
