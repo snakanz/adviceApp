@@ -313,6 +313,9 @@ export default function Meetings() {
   const [emailSummary, setEmailSummary] = useState('');
   const [autoGenerating, setAutoGenerating] = useState(false);
 
+  // Template selection modal state
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+
   // Add import dialog state
   const [showImportDialog, setShowImportDialog] = useState(false);
 
@@ -2507,6 +2510,62 @@ export default function Meetings() {
                 </div>
               )}
 
+              {/* Prominent Action Buttons - Always Visible */}
+              {selectedMeeting?.transcript && (
+                <div className="grid grid-cols-2 gap-3 mb-6">
+                  {/* Generate Email Button */}
+                  <Button
+                    onClick={() => setShowTemplateModal(true)}
+                    disabled={generatingSummary}
+                    size="lg"
+                    className="h-12 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all"
+                  >
+                    <Mail className="w-5 h-5 mr-2" />
+                    {generatingSummary ? 'Generating...' : 'Generate Email'}
+                  </Button>
+
+                  {/* Ask About This Meeting Button */}
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => {
+                      // Extract comprehensive meeting context
+                      let clientInfo = null;
+                      if (selectedMeeting.attendees) {
+                        try {
+                          const attendees = typeof selectedMeeting.attendees === 'string'
+                            ? JSON.parse(selectedMeeting.attendees)
+                            : selectedMeeting.attendees;
+                          const clientAttendee = attendees.find(a => !a.organizer && !a.self);
+                          if (clientAttendee) {
+                            clientInfo = {
+                              name: clientAttendee.displayName || clientAttendee.email?.split('@')[0] || 'Client',
+                              email: clientAttendee.email
+                            };
+                          }
+                        } catch (e) {
+                          console.error('Error parsing attendees:', e);
+                        }
+                      }
+
+                      const meetingContext = {
+                        title: selectedMeeting.title,
+                        date: selectedMeeting.starttime,
+                        transcript: selectedMeeting.transcript,
+                        summary: selectedMeeting.quick_summary || selectedMeeting.detailed_summary,
+                        client: clientInfo
+                      };
+                      setAdviclyContext(meetingContext);
+                      setShowAdvicly(true);
+                    }}
+                    className="h-12 text-base font-semibold border-2 shadow-md hover:shadow-lg transition-all"
+                  >
+                    <MessageSquare className="w-5 h-5 mr-2" />
+                    Ask About This Meeting
+                  </Button>
+                </div>
+              )}
+
               {/* Tabs */}
               <div className="flex border-b border-border/50 mb-4">
                 <button
@@ -3275,6 +3334,87 @@ Example:
         onAdjust={handleAIAdjustment}
         currentSummary={summaryContent}
       />
+
+      {/* Template Selection Modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-background rounded-xl shadow-2xl max-w-2xl w-full border border-border/50">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-border/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-foreground">Select Email Template</h2>
+                  <p className="text-sm text-muted-foreground mt-1">Choose a template to generate your email summary</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowTemplateModal(false)}
+                  className="h-8 w-8 p-0"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Template List */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              <div className="space-y-3">
+                {templates.map((template) => (
+                  <button
+                    key={template.id}
+                    onClick={() => {
+                      setSelectedTemplate(template);
+                      setShowTemplateModal(false);
+                      handleGenerateAISummary();
+                    }}
+                    className={cn(
+                      "w-full text-left p-4 rounded-lg border-2 transition-all hover:shadow-md",
+                      selectedTemplate?.id === template.id
+                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20"
+                        : "border-border/50 hover:border-blue-300 bg-card"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Mail className="w-4 h-4 text-blue-600" />
+                          <h3 className="font-semibold text-foreground">{template.title}</h3>
+                          {selectedTemplate?.id === template.id && (
+                            <div className="ml-auto">
+                              <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
+                                <Check className="w-3 h-3 text-white" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {template.description || 'Professional email template for meeting summaries'}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-6 border-t border-border/50 bg-muted/30">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {templates.length} template{templates.length !== 1 ? 's' : ''} available
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowTemplateModal(false)}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Import Dialog */}
       {showImportDialog && (

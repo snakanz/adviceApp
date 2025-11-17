@@ -369,7 +369,7 @@ router.get('/action-items/by-client', authenticateSupabaseUser, async (req, res)
     let query = req.supabase
       .from('transcript_action_items')
       .select('*')
-      .eq('user_id', userId);
+      .eq('advisor_id', userId);
 
     // Apply priority filter if specified
     if (priorityFilter && priorityFilter !== 'all') {
@@ -428,7 +428,7 @@ router.get('/action-items/by-client', authenticateSupabaseUser, async (req, res)
     actionItems.forEach(item => {
       const clientId = item.client_id || 'no-client';
       const client = clientsMap[clientId];
-      const clientName = client?.name || 'Unknown Client';
+      const clientName = client?.name || 'No Client Linked';
       const clientEmail = client?.email || '';
 
       if (!groupedByClient[clientId]) {
@@ -758,7 +758,7 @@ router.get('/pending/all', authenticateSupabaseUser, async (req, res) => {
     pendingItems.forEach(item => {
       const clientId = item.client_id || 'no-client';
       const client = clientsMap[clientId];
-      const clientName = client?.name || 'Unknown Client';
+      const clientName = client?.name || 'No Client Linked';
       const clientEmail = client?.email || '';
 
       if (!groupedByClient[clientId]) {
