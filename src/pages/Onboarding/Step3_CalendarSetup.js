@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/ui/button';
-import { Input } from '../../components/ui/input';
+// TEMPORARILY DISABLED: Calendly integration hidden from UI
+// import { Input } from '../../components/ui/input';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import axios from 'axios';
 // TEMPORARILY DISABLED: Calendly integration hidden from UI
@@ -15,8 +16,9 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
     const [isConnecting, setIsConnecting] = useState(false);
     const [isConnected, setIsConnected] = useState(false);
     const [error, setError] = useState('');
-    const [calendlyToken, setCalendlyToken] = useState('');
-    const [showTokenInput, setShowTokenInput] = useState(false);
+    // TEMPORARILY DISABLED: Calendly state
+    // const [calendlyToken, setCalendlyToken] = useState('');
+    // const [showTokenInput, setShowTokenInput] = useState(false);
     const [enableTranscription, setEnableTranscription] = useState(false);
     const [connectionTimeout, setConnectionTimeout] = useState(null);
 
@@ -301,6 +303,8 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         }
     };
 
+    // TEMPORARILY DISABLED: Calendly OAuth handler
+    // eslint-disable-next-line no-unused-vars
     const handleCalendlyOAuthConnect = async () => {
         setIsConnecting(true);
         setError('');
@@ -355,10 +359,13 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         }
     };
 
+    // TEMPORARILY DISABLED: Calendly token handler
+    // eslint-disable-next-line no-unused-vars
     const handleCalendlyTokenConnect = async () => {
-        if (!calendlyToken.trim()) {
-            setError('Please enter your Calendly API token');
-            return;
+        // if (!calendlyToken.trim()) {
+        //     setError('Please enter your Calendly API token');
+        //     return;
+        // }
         }
 
         setIsConnecting(true);

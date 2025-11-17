@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
+import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Label } from './ui/label';
+// TEMPORARILY DISABLED: Calendly integration hidden from UI
+// import { Input } from './ui/input';
+// import { Label } from './ui/label';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import {
@@ -27,12 +28,12 @@ export default function CalendarSettings() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  
-  // Calendly connection state
-  const [showCalendlyForm, setShowCalendlyForm] = useState(false);
+
+  // TEMPORARILY DISABLED: Calendly connection state
+  // const [showCalendlyForm, setShowCalendlyForm] = useState(false);
   const [calendlyToken, setCalendlyToken] = useState('');
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [calendlyAuthMethod, setCalendlyAuthMethod] = useState('oauth'); // 'oauth' or 'token'
+  // const [isConnecting, setIsConnecting] = useState(false);
+  // const [calendlyAuthMethod, setCalendlyAuthMethod] = useState('oauth'); // 'oauth' or 'token'
   const [webhookStatus, setWebhookStatus] = useState({});
 
   useEffect(() => {
@@ -247,9 +248,11 @@ export default function CalendarSettings() {
     }
   };
 
+  // TEMPORARILY DISABLED: Calendly OAuth handler
+  // eslint-disable-next-line no-unused-vars
   const handleConnectCalendlyOAuth = async () => {
     try {
-      setIsConnecting(true);
+      // setIsConnecting(true);
       setError('');
       setSuccess('');
       const token = await getAccessToken();
@@ -313,7 +316,7 @@ export default function CalendarSettings() {
 
         if (!popup) {
           setError('Popup blocked. Please allow popups for this site and try again.');
-          setIsConnecting(false);
+          // setIsConnecting(false);
           return;
         }
 
@@ -321,7 +324,7 @@ export default function CalendarSettings() {
         const checkPopup = setInterval(() => {
           if (popup.closed) {
             clearInterval(checkPopup);
-            setIsConnecting(false);
+            // setIsConnecting(false);
             console.log('✅ Calendly OAuth popup closed');
             // Reload connections to show updated status
             setTimeout(() => loadConnections(), 500);
@@ -331,7 +334,7 @@ export default function CalendarSettings() {
     } catch (err) {
       console.error('Error connecting Calendly via OAuth:', err);
       setError(err.response?.data?.error || 'Failed to connect Calendly');
-      setIsConnecting(false);
+      // setIsConnecting(false);
     }
   };
 
@@ -352,6 +355,8 @@ export default function CalendarSettings() {
     }
   };
 
+  // TEMPORARILY DISABLED: Calendly token handler
+  // eslint-disable-next-line no-unused-vars
   const handleConnectCalendlyToken = async () => {
     if (!calendlyToken.trim()) {
       setError('Please enter your Calendly API token');
@@ -359,7 +364,7 @@ export default function CalendarSettings() {
     }
 
     try {
-      setIsConnecting(true);
+      // setIsConnecting(true);
       setError('');
       setSuccess('');
       const token = await getAccessToken();
@@ -372,14 +377,14 @@ export default function CalendarSettings() {
 
       setSuccess('Calendly connected successfully!');
       setCalendlyToken('');
-      setShowCalendlyForm(false);
-      setCalendlyAuthMethod('oauth');
+      // setShowCalendlyForm(false);
+      // setCalendlyAuthMethod('oauth');
       loadConnections();
     } catch (err) {
       console.error('Error connecting Calendly:', err);
       setError(err.response?.data?.error || 'Failed to connect Calendly');
     } finally {
-      setIsConnecting(false);
+      // setIsConnecting(false);
     }
   };
 
