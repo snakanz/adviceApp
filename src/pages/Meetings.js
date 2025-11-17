@@ -15,7 +15,6 @@ import {
   Clock,
   FileText,
   MessageSquare,
-  Sparkles,
   ChevronDown,
   Upload,
   Check,
