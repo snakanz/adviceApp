@@ -1127,10 +1127,15 @@ export default function Meetings() {
 
       } catch (saveError) {
         console.error('Error saving template summary:', saveError);
+        // Still show success for generation, but note save issue
+        setShowSnackbar(true);
+        setSnackbarMessage(`Email generated but failed to auto-save. Please try again.`);
+        setSnackbarSeverity('warning');
+        return;
       }
 
       setShowSnackbar(true);
-      setSnackbarMessage(`AI summary generated using ${selectedTemplate?.title || 'Advicly Summary'}`);
+      setSnackbarMessage(`✓ Email generated and auto-saved using ${selectedTemplate?.title || 'Advicly Summary'}`);
       setSnackbarSeverity('success');
     } catch (error) {
       console.error('Error generating AI summary:', error);
@@ -2037,15 +2042,6 @@ export default function Meetings() {
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-foreground">Meetings</h1>
             <div className="flex items-center gap-2">
-              <Button
-                onClick={() => setShowImportDialog(true)}
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-2"
-              >
-                <Upload className="w-4 h-4" />
-                Import Meetings
-              </Button>
               <CreateMeetingDialog
                 onMeetingCreated={(meeting) => {
                   // Refresh meetings after creation
@@ -2660,20 +2656,6 @@ export default function Meetings() {
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <h3 className="text-sm font-semibold text-foreground">Quick Summary</h3>
-                            <div className="flex items-center gap-2">
-                              {(quickSummary || emailSummary) && (
-                                <Button
-                                  onClick={() => autoGenerateSummaries(selectedMeeting.googleeventid || selectedMeeting.id, true)}
-                                  disabled={autoGenerating}
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-6 px-2 text-xs"
-                                >
-                                  <Sparkles className="w-3 h-3 mr-1" />
-                                  {autoGenerating ? 'Regenerating...' : 'Regenerate'}
-                                </Button>
-                              )}
-                            </div>
                           </div>
                           {(quickSummary || selectedMeeting?.quick_summary) ? (
                             <Card className="border-border/50">
@@ -3019,21 +3001,38 @@ export default function Meetings() {
 
                           {/* Template Selection - only show when email summary exists */}
                           {(generatingSummary || selectedMeeting?.email_summary_draft) && templates.length > 0 && (
-                            <div className="space-y-2">
-                              <h4 className="text-xs font-medium text-muted-foreground">Template</h4>
+                            <div className="space-y-3 p-3 bg-muted/30 rounded-lg border border-border/50">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                                  <span className="text-xs font-medium text-muted-foreground">Email Template</span>
+                                </div>
+                                {generatingSummary && (
+                                  <div className="flex items-center gap-1.5 text-xs text-blue-600">
+                                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-blue-600 border-t-transparent"></div>
+                                    <span>Generating...</span>
+                                  </div>
+                                )}
+                              </div>
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    className="w-full h-8 text-xs justify-between hover:bg-accent transition-all"
+                                    className="w-full h-9 text-sm justify-between hover:bg-background hover:border-blue-400 transition-all shadow-sm"
                                     disabled={generatingSummary}
                                   >
-                                    <span>{currentSummaryTemplate?.title || selectedTemplate?.title || 'Advicly Summary'}</span>
-                                    <ChevronDown className="w-3 h-3 ml-2" />
+                                    <div className="flex items-center gap-2">
+                                      <Mail className="w-3.5 h-3.5 text-blue-600" />
+                                      <span className="font-medium">{currentSummaryTemplate?.title || selectedTemplate?.title || 'Advicly Summary'}</span>
+                                    </div>
+                                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent className="w-56">
+                                <DropdownMenuContent className="w-64" align="start">
+                                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-b border-border/50">
+                                    Select Template
+                                  </div>
                                   {templates.map((template) => (
                                     <DropdownMenuItem
                                       key={template.id}
@@ -3045,18 +3044,35 @@ export default function Meetings() {
                                           setTimeout(() => handleGenerateAISummary(), 100);
                                         }
                                       }}
-                                      className={currentSummaryTemplate?.id === template.id ? 'bg-accent' : ''}
+                                      className={`cursor-pointer py-2.5 ${
+                                        currentSummaryTemplate?.id === template.id
+                                          ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300'
+                                          : 'hover:bg-accent'
+                                      }`}
                                     >
                                       <div className="flex items-center justify-between w-full">
-                                        <span>{template.title}</span>
+                                        <div className="flex items-center gap-2">
+                                          <Mail className={`w-3.5 h-3.5 ${
+                                            currentSummaryTemplate?.id === template.id
+                                              ? 'text-blue-600'
+                                              : 'text-muted-foreground'
+                                          }`} />
+                                          <span className="font-medium">{template.title}</span>
+                                        </div>
                                         {currentSummaryTemplate?.id === template.id && (
-                                          <span className="text-xs text-muted-foreground">✓</span>
+                                          <div className="flex items-center gap-1 text-blue-600">
+                                            <span className="text-xs font-semibold">Active</span>
+                                            <span className="text-sm">✓</span>
+                                          </div>
                                         )}
                                       </div>
                                     </DropdownMenuItem>
                                   ))}
                                 </DropdownMenuContent>
                               </DropdownMenu>
+                              <p className="text-xs text-muted-foreground italic">
+                                Click to change template • Auto-saves when generated
+                              </p>
                             </div>
                           )}
 
