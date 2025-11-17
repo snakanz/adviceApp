@@ -366,7 +366,6 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         //     setError('Please enter your Calendly API token');
         //     return;
         // }
-        }
 
         setIsConnecting(true);
         setError('');
