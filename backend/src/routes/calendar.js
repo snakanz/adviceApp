@@ -2026,10 +2026,9 @@ router.post('/microsoft/webhook', express.json(), async (req, res) => {
 
         // Trigger calendar sync for this user using CalendarSyncService
         console.log(`🔄 Triggering Microsoft Calendar sync for user ${connection.user_id}...`);
-        const CalendarSyncService = require('../services/calendarSync');
-        const syncService = new CalendarSyncService();
+        const calendarSyncService = require('../services/calendarSync');
 
-        await syncService.syncUserCalendar(connection.user_id, {
+        await calendarSyncService.syncUserCalendar(connection.user_id, {
           timeRange: 'extended',
           includeDeleted: true
         });

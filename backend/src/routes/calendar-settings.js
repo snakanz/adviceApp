@@ -310,11 +310,10 @@ router.patch('/:id/toggle-sync', authenticateSupabaseUser, async (req, res) => {
           });
 
           console.log('🔄 Triggering Google Calendar sync in background...');
-          const CalendarSyncService = require('../services/calendarSync');
-          const syncService = new CalendarSyncService();
+          const calendarSyncService = require('../services/calendarSync');
 
           // Don't await - let it run in background
-          syncService.syncUserCalendar(userId, {
+          calendarSyncService.syncUserCalendar(userId, {
             timeRange: 'extended',
             includeDeleted: true
           }).then(syncResult => {
@@ -340,11 +339,10 @@ router.patch('/:id/toggle-sync', authenticateSupabaseUser, async (req, res) => {
           });
 
           console.log('🔄 Triggering Microsoft Calendar sync in background...');
-          const CalendarSyncService = require('../services/calendarSync');
-          const syncService = new CalendarSyncService();
+          const calendarSyncService = require('../services/calendarSync');
 
           // Don't await - let it run in background
-          syncService.syncUserCalendar(userId, {
+          calendarSyncService.syncUserCalendar(userId, {
             timeRange: 'extended',
             includeDeleted: true
           }).then(syncResult => {
