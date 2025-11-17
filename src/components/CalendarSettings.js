@@ -15,8 +15,9 @@ import {
   Zap,
   Clock
 } from 'lucide-react';
-import CalendlySyncButton from './CalendlySyncButton';
-import CalendlyPlanInfo from './CalendlyPlanInfo';
+// TEMPORARILY DISABLED: Calendly integration hidden from UI
+// import CalendlySyncButton from './CalendlySyncButton';
+// import CalendlyPlanInfo from './CalendlyPlanInfo';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
@@ -636,8 +637,8 @@ export default function CalendarSettings() {
                           </label>
                         </div>
 
-                        {/* Calendly Plan Info & Sync Button */}
-                        {connection.is_active && connection.provider === 'calendly' && (
+                        {/* TEMPORARILY DISABLED: Calendly Plan Info & Sync Button */}
+                        {/* {connection.is_active && connection.provider === 'calendly' && (
                           <div className="mt-4 space-y-3" onClick={(e) => e.stopPropagation()}>
                             <CalendlyPlanInfo
                               variant="compact"
@@ -654,7 +655,7 @@ export default function CalendarSettings() {
                               />
                             )}
                           </div>
-                        )}
+                        )} */}
                       </div>
                     </div>
 
@@ -743,8 +744,8 @@ export default function CalendarSettings() {
             </Card>
           )}
 
-          {/* Calendly */}
-          {!connections.some(c => c.provider === 'calendly') ? (
+          {/* TEMPORARILY DISABLED: Calendly */}
+          {/* {!connections.some(c => c.provider === 'calendly') ? (
             <Card
               className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer"
               onClick={() => setShowCalendlyForm(!showCalendlyForm)}
@@ -776,7 +777,7 @@ export default function CalendarSettings() {
                 </div>
               </CardContent>
             </Card>
-          )}
+          )} */}
 
           {/* Microsoft Calendar */}
           {!connections.some(c => c.provider === 'microsoft' || c.provider === 'outlook') ? (
@@ -814,8 +815,8 @@ export default function CalendarSettings() {
           )}
         </div>
 
-        {/* Calendly Connection Form */}
-        {showCalendlyForm && (
+        {/* TEMPORARILY DISABLED: Calendly Connection Form */}
+        {/* {showCalendlyForm && (
           <Card className="border-primary/50">
             <CardHeader>
               <CardTitle>Connect Calendly</CardTitle>
@@ -824,10 +825,8 @@ export default function CalendarSettings() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Plan Information */}
               <CalendlyPlanInfo variant="settings" hasWebhook={false} showSyncButton={true} />
 
-              {/* Authentication Method Selection */}
               <div className="space-y-3">
                 <Label>Connection Method</Label>
                 <div className="grid grid-cols-2 gap-3">
@@ -856,7 +855,6 @@ export default function CalendarSettings() {
                 </div>
               </div>
 
-              {/* OAuth Method */}
               {calendlyAuthMethod === 'oauth' && (
                 <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
                   <p className="text-sm text-muted-foreground">
@@ -882,7 +880,6 @@ export default function CalendarSettings() {
                 </div>
               )}
 
-              {/* Token Method */}
               {calendlyAuthMethod === 'token' && (
                 <div className="space-y-4">
                   <div className="space-y-2">
@@ -929,7 +926,6 @@ export default function CalendarSettings() {
                 </div>
               )}
 
-              {/* Cancel Button */}
               <Button
                 variant="outline"
                 className="w-full"
@@ -943,7 +939,7 @@ export default function CalendarSettings() {
               </Button>
             </CardContent>
           </Card>
-        )}
+        )} */}
       </div>
     </div>
   );

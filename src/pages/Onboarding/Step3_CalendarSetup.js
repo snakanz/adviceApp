@@ -4,7 +4,8 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import axios from 'axios';
-import CalendlyPlanInfo from '../../components/CalendlyPlanInfo';
+// TEMPORARILY DISABLED: Calendly integration hidden from UI
+// import CalendlyPlanInfo from '../../components/CalendlyPlanInfo';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
@@ -497,8 +498,8 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                                 </div>
                             </button>
 
-                            {/* Calendly */}
-                            <button
+                            {/* TEMPORARILY DISABLED: Calendly */}
+                            {/* <button
                                 onClick={() => handleSelectProvider('calendly')}
                                 className="w-full p-4 border-2 border-border rounded-lg text-left hover:border-primary/50 hover:bg-muted/50 transition-all"
                             >
@@ -517,7 +518,7 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                                         <p className="text-sm text-muted-foreground">Connect your Calendly account</p>
                                     </div>
                                 </div>
-                            </button>
+                            </button> */}
                         </div>
                     ) : (
                         /* Connection UI */
@@ -596,9 +597,9 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                                         </Button>
                                     )}
 
-                                    {selectedProvider === 'calendly' && (
+                                    {/* TEMPORARILY DISABLED: Calendly connection UI */}
+                                    {/* {selectedProvider === 'calendly' && (
                                         <>
-                                            {/* Calendly Plan Information */}
                                             <CalendlyPlanInfo variant="onboarding" />
 
                                             <Button
@@ -645,7 +646,7 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                                                 </div>
                                             )}
                                         </>
-                                    )}
+                                    )} */}
                                 </>
                             )}
 

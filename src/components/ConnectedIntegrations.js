@@ -235,7 +235,8 @@ const ConnectedIntegrations = () => {
           </div>
 
           <div className="space-y-3">
-            {Object.entries(integrations).map(([key, integration]) => (
+            {/* TEMPORARILY DISABLED: Filter out Calendly from integrations display */}
+            {Object.entries(integrations).filter(([key]) => key !== 'calendly').map(([key, integration]) => (
               <div
                 key={key}
                 className={`flex items-center justify-between p-2 rounded-lg transition-colors ${
