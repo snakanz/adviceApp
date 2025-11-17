@@ -501,7 +501,33 @@ router.get('/microsoft/callback/test', (req, res) => {
   });
 });
 
-router.get('/microsoft', (req, res) => {
+// Test endpoint to verify Microsoft OAuth configuration
+router.get('/microsoft/test-config', (req, res) => {
+  try {
+    const MicrosoftCalendarService = require('../services/microsoftCalendar');
+    const microsoftService = new MicrosoftCalendarService();
+
+    const isConfigured = microsoftService.isConfigured();
+
+    res.json({
+      success: true,
+      configured: isConfigured,
+      clientId: microsoftService.clientId ? '✅ Set' : '❌ Missing',
+      clientSecret: microsoftService.clientSecret ? '✅ Set' : '❌ Missing',
+      tenantId: microsoftService.tenantId || 'common',
+      redirectUri: microsoftService.redirectUri,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+router.get('/microsoft', async (req, res) => {
   try {
     const MicrosoftCalendarService = require('../services/microsoftCalendar');
     const microsoftService = new MicrosoftCalendarService();
@@ -515,16 +541,24 @@ router.get('/microsoft', (req, res) => {
 
     // Pass through state parameter for popup-based OAuth
     const state = req.query.state || '';
-    const url = microsoftService.getAuthorizationUrl(state);
 
-    console.log('🔗 Generated Microsoft OAuth URL');
+    console.log('🔗 Generating Microsoft OAuth URL...');
     console.log('  - State parameter:', state || '(none)');
     console.log('  - Redirect URI:', microsoftService.redirectUri);
 
+    // IMPORTANT: getAuthCodeUrl() returns a Promise, so we need to await it
+    const url = await microsoftService.getAuthorizationUrl(state);
+
+    console.log('✅ Microsoft OAuth URL generated successfully');
+    console.log('  - URL length:', url.length);
+    console.log('  - URL starts with:', url.substring(0, 50) + '...');
+
     res.json({ url });
   } catch (error) {
-    console.error('Error generating Microsoft auth URL:', error);
-    res.status(500).json({ error: 'Failed to generate authorization URL' });
+    console.error('❌ Error generating Microsoft auth URL:', error);
+    console.error('  - Error message:', error.message);
+    console.error('  - Error stack:', error.stack);
+    res.status(500).json({ error: 'Failed to generate authorization URL', details: error.message });
   }
 });
 

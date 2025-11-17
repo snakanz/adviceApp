@@ -201,51 +201,101 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         setError('');
 
         try {
+            console.log('🔵 Starting Microsoft OAuth flow...');
             const token = await getAccessToken();
+            console.log('✅ Access token obtained');
 
             // Get OAuth URL from auth endpoint with state parameter for popup mode
+            console.log('📡 Requesting OAuth URL from backend...');
             const response = await axios.get(
                 `${API_BASE_URL}/api/auth/microsoft?state=${user.id}`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            if (response.data.url && user?.id) {
-                // OAuth URL already includes state parameter from backend
-                const oauthUrl = response.data.url;
+            console.log('📥 Backend response:', response.data);
 
-                // Open OAuth in popup window instead of full-page redirect
-                const width = 600;
-                const height = 700;
-                const left = window.screen.width / 2 - width / 2;
-                const top = window.screen.height / 2 - height / 2;
+            if (!response.data.url) {
+                console.error('❌ No OAuth URL in response:', response.data);
+                setError('Failed to get Microsoft OAuth URL. Please try again.');
+                setIsConnecting(false);
+                return;
+            }
 
-                const popup = window.open(
-                    oauthUrl,
-                    'Microsoft Calendar OAuth',
-                    `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,location=no,status=no`
-                );
+            if (!user?.id) {
+                console.error('❌ No user ID available');
+                setError('User session error. Please refresh and try again.');
+                setIsConnecting(false);
+                return;
+            }
 
-                if (!popup || popup.closed) {
-                    setError('Popup blocked. Please allow popups and try again.');
-                    setIsConnecting(false);
-                } else {
-                    console.log('✅ Microsoft OAuth popup opened successfully');
+            // OAuth URL already includes state parameter from backend
+            const oauthUrl = response.data.url;
+            console.log('🔗 OAuth URL received (length:', oauthUrl.length, ')');
+            console.log('🔗 OAuth URL preview:', oauthUrl.substring(0, 100) + '...');
 
-                    // Set 30-second timeout for OAuth completion
-                    const timeout = setTimeout(() => {
+            // Open OAuth in popup window instead of full-page redirect
+            const width = 600;
+            const height = 700;
+            const left = window.screen.width / 2 - width / 2;
+            const top = window.screen.height / 2 - height / 2;
+
+            console.log('🪟 Opening popup window...');
+            const popup = window.open(
+                oauthUrl,
+                'Microsoft Calendar OAuth',
+                `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,location=no,status=no`
+            );
+
+            if (!popup || popup.closed) {
+                console.error('❌ Popup was blocked or failed to open');
+                setError('Popup blocked. Please allow popups and try again.');
+                setIsConnecting(false);
+            } else {
+                console.log('✅ Microsoft OAuth popup opened successfully');
+                console.log('🪟 Popup object:', popup);
+
+                // Monitor popup to see if it closes unexpectedly
+                const popupMonitor = setInterval(() => {
+                    if (popup.closed) {
+                        console.log('🪟 Popup was closed');
+                        clearInterval(popupMonitor);
                         if (isConnecting) {
-                            console.warn('⚠️ OAuth connection timed out after 30 seconds');
-                            setError('Connection timed out. The backend may be starting up. Please try again in a moment.');
+                            console.warn('⚠️ Popup closed without completing OAuth');
+                            setError('OAuth window was closed. Please try again.');
                             setIsConnecting(false);
                         }
-                    }, 30000);
+                    }
+                }, 500);
 
-                    setConnectionTimeout(timeout);
-                }
+                // Set 30-second timeout for OAuth completion
+                const timeout = setTimeout(() => {
+                    clearInterval(popupMonitor);
+                    if (isConnecting) {
+                        console.warn('⚠️ OAuth connection timed out after 30 seconds');
+                        setError('Connection timed out. Please try again.');
+                        setIsConnecting(false);
+                        if (popup && !popup.closed) {
+                            popup.close();
+                        }
+                    }
+                }, 30000);
+
+                setConnectionTimeout(timeout);
             }
         } catch (err) {
-            console.error('Error connecting to Microsoft:', err);
-            setError('Failed to connect to Microsoft Calendar');
+            console.error('❌ Error connecting to Microsoft:', err);
+            console.error('  - Error message:', err.message);
+            console.error('  - Error response:', err.response?.data);
+            console.error('  - Error status:', err.response?.status);
+
+            let errorMessage = 'Failed to connect to Microsoft Calendar';
+            if (err.response?.data?.error) {
+                errorMessage = err.response.data.error;
+            } else if (err.message) {
+                errorMessage = err.message;
+            }
+
+            setError(errorMessage);
             setIsConnecting(false);
         }
     };
