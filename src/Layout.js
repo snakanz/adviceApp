@@ -27,7 +27,7 @@ import {
   AutoAwesomeIcon,
   NotificationsIcon
 } from './components/icons';
-import CalendarSyncButton from './components/CalendarSyncButton';
+import SidebarCalendarStatus from './components/SidebarCalendarStatus';
 import MeetingLimitIndicator from './components/MeetingLimitIndicator';
 import UpgradeModal from './components/UpgradeModal';
 import { CheckCircle2 } from 'lucide-react';
@@ -270,9 +270,9 @@ export default function Layout() {
               <MeetingLimitIndicator onUpgradeClick={() => setShowUpgradeModal(true)} />
             </div>
 
-            {/* Calendar Integrations Quick Access */}
+            {/* Calendar Integrations Status */}
             <div className="p-3">
-              <CalendarSyncButton />
+              <SidebarCalendarStatus />
             </div>
 
             {/* Advicly Logo */}
@@ -339,9 +339,9 @@ export default function Layout() {
               ))}
             </nav>
 
-            {/* Calendar Integrations Quick Access - Mobile */}
+            {/* Calendar Integrations Status - Mobile */}
             <div className="px-4 py-3 border-t border-border/50 mt-4" onClick={() => setOpen(false)}>
-              <CalendarSyncButton />
+              <SidebarCalendarStatus />
             </div>
           </div>
         </div>
