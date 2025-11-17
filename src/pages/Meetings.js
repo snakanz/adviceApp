@@ -2661,58 +2661,6 @@ export default function Meetings() {
                           <div className="flex items-center justify-between">
                             <h3 className="text-sm font-semibold text-foreground">Quick Summary</h3>
                             <div className="flex items-center gap-2">
-                              {/* Enhanced Ask Advicly button */}
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                  // Extract comprehensive meeting context
-                                  let clientInfo = null;
-                                  if (selectedMeeting.attendees) {
-                                    try {
-                                      const attendees = typeof selectedMeeting.attendees === 'string'
-                                        ? JSON.parse(selectedMeeting.attendees)
-                                        : selectedMeeting.attendees;
-
-                                      // Find first attendee that's not the current user
-                                      const currentUserEmail = user?.email || '';
-                                      const clientAttendee = attendees.find(a => a.email !== currentUserEmail);
-                                      if (clientAttendee) {
-                                        clientInfo = {
-                                          name: clientAttendee.name || clientAttendee.email,
-                                          email: clientAttendee.email
-                                        };
-                                      }
-                                    } catch (e) {
-                                      console.log('Could not parse attendees');
-                                    }
-                                  }
-
-                                  const meetingTitle = selectedMeeting.summary || selectedMeeting.title || 'Meeting';
-                                  const meetingDate = selectedMeeting.startTime || selectedMeeting.start || selectedMeeting.date;
-
-                                  // Build enhanced URL parameters for meeting context
-                                  const params = new URLSearchParams({
-                                    contextType: 'meeting',
-                                    meetingId: selectedMeeting.id,
-                                    meetingTitle: meetingTitle,
-                                    meetingDate: meetingDate,
-                                    hasTranscript: (!!selectedMeeting.transcript).toString(),
-                                    hasSummary: (!!selectedMeeting.quick_summary).toString()
-                                  });
-
-                                  if (clientInfo) {
-                                    params.set('clientName', clientInfo.name);
-                                    params.set('clientEmail', clientInfo.email);
-                                  }
-
-                                  navigate(`/ask-advicly?${params.toString()}`);
-                                }}
-                                className="h-8 px-3 text-xs"
-                              >
-                                <MessageSquare className="w-3 h-3 mr-1" />
-                                Ask About This Meeting
-                              </Button>
                               {(quickSummary || emailSummary) && (
                                 <Button
                                   onClick={() => autoGenerateSummaries(selectedMeeting.googleeventid || selectedMeeting.id, true)}
@@ -3069,43 +3017,46 @@ export default function Meetings() {
                             </h3>
                           </div>
 
-                          {/* Template Selection - only show when generating or regenerating */}
+                          {/* Template Selection - only show when email summary exists */}
                           {(generatingSummary || selectedMeeting?.email_summary_draft) && templates.length > 0 && (
                             <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <h4 className="text-xs font-medium text-muted-foreground">Template</h4>
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <Button variant="outline" size="sm" className="h-6 text-xs">
-                                      {selectedTemplate ? selectedTemplate.title : 'Advicly Summary'}
-                                      <ChevronDown className="w-3 h-3 ml-1" />
-                                    </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent>
-                                    {templates.map((template) => (
-                                      <DropdownMenuItem
-                                        key={template.id}
-                                        onClick={() => setSelectedTemplate(template)}
-                                      >
-                                        {template.title}
-                                      </DropdownMenuItem>
-                                    ))}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              </div>
-
-                              {/* Apply Template Button - only show when template changed and email exists */}
-                              {selectedTemplate && currentSummaryTemplate && selectedTemplate.id !== currentSummaryTemplate.id && selectedMeeting?.email_summary_draft && (
-                                <Button
-                                  onClick={handleGenerateAISummary}
-                                  disabled={generatingSummary}
-                                  size="sm"
-                                  variant="default"
-                                  className="h-6 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                                >
-                                  {generatingSummary ? 'Applying...' : 'Apply Template'}
-                                </Button>
-                              )}
+                              <h4 className="text-xs font-medium text-muted-foreground">Template</h4>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full h-8 text-xs justify-between hover:bg-accent transition-all"
+                                    disabled={generatingSummary}
+                                  >
+                                    <span>{currentSummaryTemplate?.title || selectedTemplate?.title || 'Advicly Summary'}</span>
+                                    <ChevronDown className="w-3 h-3 ml-2" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent className="w-56">
+                                  {templates.map((template) => (
+                                    <DropdownMenuItem
+                                      key={template.id}
+                                      onClick={() => {
+                                        // Auto-apply template immediately when selected
+                                        if (template.id !== currentSummaryTemplate?.id && selectedMeeting?.transcript) {
+                                          setSelectedTemplate(template);
+                                          // Trigger regeneration with new template
+                                          setTimeout(() => handleGenerateAISummary(), 100);
+                                        }
+                                      }}
+                                      className={currentSummaryTemplate?.id === template.id ? 'bg-accent' : ''}
+                                    >
+                                      <div className="flex items-center justify-between w-full">
+                                        <span>{template.title}</span>
+                                        {currentSummaryTemplate?.id === template.id && (
+                                          <span className="text-xs text-muted-foreground">✓</span>
+                                        )}
+                                      </div>
+                                    </DropdownMenuItem>
+                                  ))}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </div>
                           )}
 

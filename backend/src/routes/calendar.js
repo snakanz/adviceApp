@@ -1244,11 +1244,13 @@ router.post('/meetings/:id/update-summary', authenticateSupabaseUser, async (req
       return res.status(404).json({ error: 'Meeting not found' });
     }
 
-    // Update the meeting with new summary
+    // Update the meeting with new summary and template ID
     const { error: updateError } = await req.supabase
       .from('meetings')
       .update({
-        detailed_summary: emailSummary,
+        email_summary_draft: emailSummary,
+        email_template_id: templateId,
+        last_summarized_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
       .eq('id', meetingId)
