@@ -3000,8 +3000,8 @@ export default function Meetings() {
 
                           {/* Template Selection - only show when email summary exists */}
                           {(generatingSummary || selectedMeeting?.email_summary_draft) && templates.length > 0 && (
-                            <div className="space-y-3 p-3 bg-muted/30 rounded-lg border border-border/50">
-                              <div className="flex items-center justify-between">
+                            <div className="space-y-2.5 p-4 bg-muted/30 rounded-lg border border-border/50">
+                              <div className="flex items-center justify-between mb-1">
                                 <div className="flex items-center gap-2">
                                   <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
                                   <span className="text-xs font-medium text-muted-foreground">Email Template</span>
@@ -3069,9 +3069,11 @@ export default function Meetings() {
                                   ))}
                                 </DropdownMenuContent>
                               </DropdownMenu>
-                              <p className="text-xs text-muted-foreground italic">
-                                Click to change template • Auto-saves when generated
-                              </p>
+                              <div className="pt-1 border-t border-border/30">
+                                <p className="text-[11px] leading-relaxed text-muted-foreground/80">
+                                  Click dropdown to change template • Auto-saves when generated
+                                </p>
+                              </div>
                             </div>
                           )}
 
