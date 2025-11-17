@@ -2536,27 +2536,40 @@ export default function Meetings() {
                           const attendees = typeof selectedMeeting.attendees === 'string'
                             ? JSON.parse(selectedMeeting.attendees)
                             : selectedMeeting.attendees;
-                          const clientAttendee = attendees.find(a => !a.organizer && !a.self);
+
+                          // Find first attendee that's not the current user
+                          const currentUserEmail = user?.email || '';
+                          const clientAttendee = attendees.find(a => a.email !== currentUserEmail);
                           if (clientAttendee) {
                             clientInfo = {
-                              name: clientAttendee.displayName || clientAttendee.email?.split('@')[0] || 'Client',
+                              name: clientAttendee.name || clientAttendee.email,
                               email: clientAttendee.email
                             };
                           }
                         } catch (e) {
-                          console.error('Error parsing attendees:', e);
+                          console.log('Could not parse attendees');
                         }
                       }
 
-                      const meetingContext = {
-                        title: selectedMeeting.title,
-                        date: selectedMeeting.starttime,
-                        transcript: selectedMeeting.transcript,
-                        summary: selectedMeeting.quick_summary || selectedMeeting.detailed_summary,
-                        client: clientInfo
-                      };
-                      setAdviclyContext(meetingContext);
-                      setShowAdvicly(true);
+                      const meetingTitle = selectedMeeting.summary || selectedMeeting.title || 'Meeting';
+                      const meetingDate = selectedMeeting.startTime || selectedMeeting.start || selectedMeeting.date;
+
+                      // Build enhanced URL parameters for meeting context
+                      const params = new URLSearchParams({
+                        contextType: 'meeting',
+                        meetingId: selectedMeeting.id,
+                        meetingTitle: meetingTitle,
+                        meetingDate: meetingDate,
+                        hasTranscript: (!!selectedMeeting.transcript).toString(),
+                        hasSummary: (!!selectedMeeting.quick_summary).toString()
+                      });
+
+                      if (clientInfo) {
+                        params.set('clientName', clientInfo.name);
+                        params.set('clientEmail', clientInfo.email);
+                      }
+
+                      navigate(`/ask-advicly?${params.toString()}`);
                     }}
                     className="h-12 text-base font-semibold border-2 shadow-md hover:shadow-lg transition-all"
                   >
