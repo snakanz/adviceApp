@@ -37,7 +37,7 @@ function SidebarCalendarStatus() {
       const connections = response.connections || response || [];
 
       const googleConnection = connections.find(c => c.provider === 'google');
-      const microsoftConnection = connections.find(c => c.provider === 'outlook');
+      const microsoftConnection = connections.find(c => c.provider === 'microsoft');
 
       setIntegrations({
         google: {
