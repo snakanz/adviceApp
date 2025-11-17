@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { CheckCircle2, Calendar as CalendarIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
-import api from '../utils/api';
+import api from '../services/api';
 
 // Integration icons
 const GoogleCalendarIcon = () => (
