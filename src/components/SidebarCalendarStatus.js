@@ -32,20 +32,23 @@ function SidebarCalendarStatus() {
   const checkIntegrationStatus = useCallback(async () => {
     try {
       const response = await api.request('/calendar-connections');
-      
-      const googleConnection = response.find(c => c.provider === 'google_calendar');
-      const microsoftConnection = response.find(c => c.provider === 'microsoft_calendar');
-      
+
+      // API returns { success: true, connections: [...] }
+      const connections = response.connections || response || [];
+
+      const googleConnection = connections.find(c => c.provider === 'google');
+      const microsoftConnection = connections.find(c => c.provider === 'outlook');
+
       setIntegrations({
         google: {
           connected: !!googleConnection,
           active: googleConnection?.is_active || false,
-          email: googleConnection?.connected_account
+          email: googleConnection?.provider_account_email
         },
         microsoft: {
           connected: !!microsoftConnection,
           active: microsoftConnection?.is_active || false,
-          email: microsoftConnection?.connected_account
+          email: microsoftConnection?.provider_account_email
         }
       });
     } catch (error) {
