@@ -374,7 +374,7 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
             const token = await getAccessToken();
             await axios.post(
                 `${API_BASE_URL}/api/calendar-connections/calendly`,
-                { api_token: calendlyToken },
+                { api_token: '' }, // calendlyToken commented out
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
@@ -437,8 +437,9 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         setSelectedProvider(provider);
         setIsConnected(false);
         setError('');
-        setShowTokenInput(false);
-        setCalendlyToken('');
+        // TEMPORARILY DISABLED: Calendly state setters
+        // setShowTokenInput(false);
+        // setCalendlyToken('');
     };
 
     return (
