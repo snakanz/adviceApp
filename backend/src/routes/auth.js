@@ -581,6 +581,9 @@ router.get('/microsoft/callback', async (req, res) => {
     console.log('📅 /api/auth/microsoft/callback called');
     console.log('  - code:', code ? '✅ Present' : '❌ Missing');
     console.log('  - state:', state ? `✅ Present (popup mode - user: ${state})` : '❌ Missing (redirect mode)');
+    console.log('  - Full query params:', JSON.stringify(req.query));
+    console.log('  - error:', req.query.error || 'none');
+    console.log('  - error_description:', req.query.error_description || 'none');
 
     // Check if Supabase is available
     if (!isSupabaseAvailable()) {

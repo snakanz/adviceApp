@@ -50,7 +50,7 @@ class MicrosoftCalendarService {
       scopes: scopes,
       redirectUri: this.redirectUri,
       state: state,
-      prompt: 'consent' // Force consent to get refresh token
+      prompt: 'select_account' // Allow account selection without forcing consent
     };
 
     return this.cca.getAuthCodeUrl(authCodeUrlParameters);
