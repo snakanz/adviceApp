@@ -44,6 +44,17 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                 if (connectionTimeout) clearTimeout(connectionTimeout);
                 setError(event.data.error || 'Failed to connect to Google Calendar');
                 setIsConnecting(false);
+            } else if (event.data.type === 'MICROSOFT_OAUTH_SUCCESS') {
+                console.log('✅ Microsoft Calendar OAuth successful');
+                if (connectionTimeout) clearTimeout(connectionTimeout);
+                setIsConnected(true);
+                setIsConnecting(false);
+                setError('');
+            } else if (event.data.type === 'MICROSOFT_OAUTH_ERROR') {
+                console.error('❌ Microsoft Calendar OAuth error:', event.data.error);
+                if (connectionTimeout) clearTimeout(connectionTimeout);
+                setError(event.data.error || 'Failed to connect to Microsoft Calendar');
+                setIsConnecting(false);
             } else if (event.data.type === 'CALENDLY_OAUTH_SUCCESS') {
                 console.log('✅ Calendly OAuth successful');
                 if (connectionTimeout) clearTimeout(connectionTimeout);
@@ -107,6 +118,12 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
             if (selectedProvider === 'google') {
                 const response = await axios.get(
                     `${API_BASE_URL}/api/auth/google/status`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+                setIsConnected(response.data.connected);
+            } else if (selectedProvider === 'microsoft') {
+                const response = await axios.get(
+                    `${API_BASE_URL}/api/auth/microsoft/status`,
                     { headers: { Authorization: `Bearer ${token}` } }
                 );
                 setIsConnected(response.data.connected);
@@ -175,6 +192,60 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         } catch (err) {
             console.error('Error connecting to Google:', err);
             setError('Failed to connect to Google Calendar');
+            setIsConnecting(false);
+        }
+    };
+
+    const handleMicrosoftConnect = async () => {
+        setIsConnecting(true);
+        setError('');
+
+        try {
+            const token = await getAccessToken();
+
+            // Get OAuth URL from auth endpoint with state parameter for popup mode
+            const response = await axios.get(
+                `${API_BASE_URL}/api/auth/microsoft?state=${user.id}`,
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            if (response.data.url && user?.id) {
+                // OAuth URL already includes state parameter from backend
+                const oauthUrl = response.data.url;
+
+                // Open OAuth in popup window instead of full-page redirect
+                const width = 600;
+                const height = 700;
+                const left = window.screen.width / 2 - width / 2;
+                const top = window.screen.height / 2 - height / 2;
+
+                const popup = window.open(
+                    oauthUrl,
+                    'Microsoft Calendar OAuth',
+                    `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,location=no,status=no`
+                );
+
+                if (!popup || popup.closed) {
+                    setError('Popup blocked. Please allow popups and try again.');
+                    setIsConnecting(false);
+                } else {
+                    console.log('✅ Microsoft OAuth popup opened successfully');
+
+                    // Set 30-second timeout for OAuth completion
+                    const timeout = setTimeout(() => {
+                        if (isConnecting) {
+                            console.warn('⚠️ OAuth connection timed out after 30 seconds');
+                            setError('Connection timed out. The backend may be starting up. Please try again in a moment.');
+                            setIsConnecting(false);
+                        }
+                    }, 30000);
+
+                    setConnectionTimeout(timeout);
+                }
+            }
+        } catch (err) {
+            console.error('Error connecting to Microsoft:', err);
+            setError('Failed to connect to Microsoft Calendar');
             setIsConnecting(false);
         }
     };
@@ -327,6 +398,8 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                                 ? 'Select your primary calendar provider or skip to set up later'
                                 : selectedProvider === 'google'
                                 ? 'Authorize Advicly to access your Google Calendar'
+                                : selectedProvider === 'microsoft'
+                                ? 'Authorize Advicly to access your Outlook Calendar'
                                 : 'Connect your Calendly account'
                             }
                         </p>
@@ -353,26 +426,23 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                                 </div>
                             </button>
 
-                            {/* Outlook Calendar - Disabled */}
+                            {/* Outlook Calendar */}
                             <button
-                                disabled
-                                className="w-full p-4 border-2 border-border rounded-lg text-left opacity-50 cursor-not-allowed"
+                                onClick={() => handleSelectProvider('microsoft')}
+                                className="w-full p-4 border-2 border-border rounded-lg text-left hover:border-primary/50 hover:bg-muted/50 transition-all"
                             >
                                 <div className="flex items-center space-x-4">
                                     <div className="flex-shrink-0">
                                         <svg className="w-12 h-12" viewBox="0 0 48 48">
                                             <rect fill="#0078D4" width="48" height="48" rx="4"/>
                                             <path fill="white" d="M12 14h24v20H12z" opacity="0.2"/>
+                                            <path fill="white" d="M14 16h20v16H14z"/>
+                                            <path fill="#0078D4" d="M16 18h16v12H16z"/>
                                         </svg>
                                     </div>
                                     <div className="flex-1">
-                                        <div className="flex items-center gap-2">
-                                            <h3 className="font-semibold text-foreground">Outlook Calendar</h3>
-                                            <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded-full">
-                                                Coming Soon
-                                            </span>
-                                        </div>
-                                        <p className="text-sm text-muted-foreground">Coming soon</p>
+                                        <h3 className="font-semibold text-foreground">Outlook Calendar</h3>
+                                        <p className="text-sm text-muted-foreground">Connect your Outlook Calendar</p>
                                     </div>
                                 </div>
                             </button>
@@ -411,7 +481,7 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                                         <div>
                                             <h3 className="font-semibold text-green-900">Connected!</h3>
                                             <p className="text-sm text-green-700 mt-1">
-                                                Your {selectedProvider === 'google' ? 'Google Calendar' : 'Calendly'} is connected
+                                                Your {selectedProvider === 'google' ? 'Google Calendar' : selectedProvider === 'microsoft' ? 'Outlook Calendar' : 'Calendly'} is connected
                                             </p>
                                         </div>
                                     </div>
@@ -454,6 +524,24 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                                                 </>
                                             ) : (
                                                 'Connect Google Calendar'
+                                            )}
+                                        </Button>
+                                    )}
+
+                                    {selectedProvider === 'microsoft' && (
+                                        <Button
+                                            onClick={handleMicrosoftConnect}
+                                            disabled={isConnecting}
+                                            size="lg"
+                                            className="w-full"
+                                        >
+                                            {isConnecting ? (
+                                                <>
+                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                    Connecting...
+                                                </>
+                                            ) : (
+                                                'Connect Outlook Calendar'
                                             )}
                                         </Button>
                                     )}
