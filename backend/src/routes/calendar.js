@@ -1526,6 +1526,249 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
 
     console.log(`✅ Transcript updated for meeting ${existingMeeting.id}`);
 
+    // ========================================
+    // AUTO-GENERATE SUMMARIES AND ACTION ITEMS
+    // This makes manual upload work identically to Recall.ai webhook
+    // ========================================
+
+    if (transcript && transcript.trim()) {
+      console.log(`🤖 Auto-generating summaries for manually uploaded transcript (meeting ${existingMeeting.id})`);
+
+      try {
+        // Fetch full meeting with client info
+        const { data: fullMeeting, error: fullMeetingError } = await req.supabase
+          .from('meetings')
+          .select(`
+            *,
+            clients(id, name, email)
+          `)
+          .eq('id', existingMeeting.id)
+          .single();
+
+        if (fullMeetingError || !fullMeeting) {
+          console.error('❌ Error fetching full meeting details:', fullMeetingError);
+          throw fullMeetingError;
+        }
+
+        const clientName = fullMeeting.clients?.name || 'Client';
+
+        // Generate Quick Summary (single sentence for Clients page)
+        const quickSummaryPrompt = `Create a brief, single-sentence summary of this meeting transcript. Focus on the main outcome or key decision made.
+
+Requirements:
+• Must be exactly ONE sentence
+• Include the most important outcome or decision
+• Keep it professional and concise
+• Maximum 150 characters
+
+Transcript:
+${transcript}
+
+Respond with ONLY the single sentence summary, no additional text.`;
+
+        const quickSummary = await openai.generateMeetingSummary(transcript, 'standard', { prompt: quickSummaryPrompt });
+
+        // Generate Email Summary using Auto template with client name
+        const autoTemplate = `Role: You are Nelson Greenwood, a professional financial advisor creating a concise follow-up email for a client.
+
+Goal: Generate a brief, clean email (NO markdown formatting) that summarizes the meeting and confirms next steps.
+
+Constraints:
+1. NO markdown symbols (no **, ##, *, or bullet points)
+2. Keep it SHORT - maximum 200 words total
+3. Use plain text with simple numbered lists
+4. Professional but warm tone
+5. Include specific numbers/dates from the transcript
+6. Focus on what matters most to the client
+
+Format:
+
+Hi ${clientName},
+
+[One sentence: pleasure meeting + main topic discussed]
+
+[2-3 short paragraphs covering the key points with specific numbers/details]
+
+Next Steps:
+1. [Action item with timeline]
+2. [Action item with timeline]
+3. [Action item with timeline]
+
+[One sentence: invitation to ask questions]
+
+Best regards,
+Nelson Greenwood
+Financial Advisor
+
+Transcript:
+${transcript}
+
+Respond with the email body only - no subject line, no markdown formatting.`;
+
+        const emailSummary = await openai.generateMeetingSummary(transcript, 'standard', { prompt: autoTemplate });
+
+        // Generate action points as structured JSON array
+        const actionPointsPrompt = `You are an AI assistant that extracts action items from meeting transcripts.
+
+Extract ONLY concrete, actionable tasks from this meeting transcript.
+
+INCLUDE ONLY:
+- Specific tasks with clear deliverables (e.g., "Send the updated Suitability Letter")
+- Follow-up meetings to schedule (e.g., "Schedule follow-up meeting after budget")
+- Documents to send, sign, or complete (e.g., "Complete internal BA check")
+- Account setups or administrative tasks (e.g., "Set up online account logins")
+- Client-facing actions that must be DONE (not discussed)
+
+EXCLUDE:
+- Advisor preparation work (e.g., "Research...", "Prepare information...")
+- Discussion topics (e.g., "Discuss...", "Review options...")
+- General notes or meeting agenda items
+- Vague or exploratory items
+- Anything that is not a concrete action
+
+CRITICAL: Return ONLY a valid JSON array of strings. No markdown, no code blocks, no explanations.
+Format: ["action 1", "action 2", "action 3"]
+Limit: Maximum 5-7 most important action items.
+
+Transcript:
+${transcript}
+
+Return only the JSON array:`;
+
+        const actionPointsResponse = await openai.generateMeetingSummary(transcript, 'standard', { prompt: actionPointsPrompt });
+
+        // Parse action points JSON with robust error handling
+        let actionPointsArray = [];
+        let actionPoints = actionPointsResponse;
+
+        try {
+          // Clean the response - remove markdown code blocks if present
+          let cleanedResponse = actionPointsResponse.trim();
+
+          // Remove markdown code block markers
+          cleanedResponse = cleanedResponse.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '');
+
+          // Try to extract JSON array from the response
+          const jsonMatch = cleanedResponse.match(/\[[\s\S]*\]/);
+          if (jsonMatch) {
+            cleanedResponse = jsonMatch[0];
+          }
+
+          // Parse the JSON
+          const parsed = JSON.parse(cleanedResponse);
+
+          if (Array.isArray(parsed)) {
+            // Filter out invalid entries (empty strings, non-strings, broken JSON fragments)
+            actionPointsArray = parsed
+              .filter(item => typeof item === 'string' && item.trim().length > 0)
+              .filter(item => {
+                // Exclude broken JSON artifacts
+                const trimmed = item.trim();
+                return trimmed !== 'json' &&
+                       trimmed !== '[' &&
+                       trimmed !== ']' &&
+                       trimmed !== '"""' &&
+                       trimmed !== '"' &&
+                       trimmed !== '{' &&
+                       trimmed !== '}' &&
+                       !trimmed.match(/^["'\[\]{}]+$/);
+              })
+              .map(item => item.trim())
+              .slice(0, 7); // Enforce max 7 items
+
+            // Convert to bullet list for display
+            actionPoints = actionPointsArray.join('\n• ');
+            if (actionPoints) actionPoints = '• ' + actionPoints;
+          } else {
+            console.warn('Action points response is not an array:', parsed);
+            actionPointsArray = [];
+            actionPoints = '';
+          }
+        } catch (e) {
+          console.error('Failed to parse action points JSON:', e.message);
+          console.error('Raw response:', actionPointsResponse);
+
+          // Fallback: try to extract clean bullet points from plain text
+          const lines = actionPointsResponse
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line.length > 0)
+            .map(line => line.replace(/^[•\-\*\d]+[\.\)]\s*/, '').trim())
+            .filter(line => {
+              // Exclude broken JSON artifacts and invalid entries
+              return line.length > 10 && // Minimum length for valid action item
+                     line !== 'json' &&
+                     line !== '[' &&
+                     line !== ']' &&
+                     line !== '"""' &&
+                     !line.match(/^["'\[\]{}]+$/) &&
+                     !line.toLowerCase().startsWith('research') &&
+                     !line.toLowerCase().startsWith('prepare to discuss');
+            })
+            .slice(0, 7);
+
+          actionPointsArray = lines;
+          actionPoints = lines.length > 0 ? '• ' + lines.join('\n• ') : '';
+        }
+
+        // Save individual action items to PENDING table (awaiting approval)
+        if (actionPointsArray.length > 0) {
+          // First, delete existing pending action items for this meeting
+          await req.supabase
+            .from('pending_transcript_action_items')
+            .delete()
+            .eq('meeting_id', fullMeeting.id);
+
+          // Insert new pending action items
+          const actionItemsToInsert = actionPointsArray.map((actionText, index) => ({
+            meeting_id: fullMeeting.id,
+            client_id: fullMeeting.client_id,
+            advisor_id: userId,
+            action_text: actionText,
+            display_order: index
+          }));
+
+          const { error: actionItemsError } = await req.supabase
+            .from('pending_transcript_action_items')
+            .insert(actionItemsToInsert);
+
+          if (actionItemsError) {
+            console.error('Error saving pending action items:', actionItemsError);
+            // Don't fail the whole request, just log the error
+          } else {
+            console.log(`✅ Saved ${actionPointsArray.length} PENDING action items for meeting ${fullMeeting.id} (awaiting approval)`);
+          }
+        }
+
+        // Return response with summaries (matching frontend expectations)
+        console.log(`✅ Auto-generated summaries for manual transcript upload (meeting ${existingMeeting.id})`);
+
+        return res.json({
+          message: 'Transcript uploaded and summaries generated successfully',
+          meeting: {
+            ...updatedMeeting,
+            id: updatedMeeting.id,
+            startTime: updatedMeeting.starttime,
+            googleEventId: updatedMeeting.external_id
+          },
+          summaries: {
+            quickSummary,
+            emailSummary,
+            detailedSummary: emailSummary, // Use email summary as detailed summary
+            actionPoints
+          },
+          actionItemsCount: actionPointsArray.length,
+          autoGenerated: true
+        });
+
+      } catch (aiError) {
+        console.error('❌ Error generating summaries for manual transcript:', aiError);
+        // Still return success for transcript upload, just without summaries
+        // This ensures the transcript is saved even if AI generation fails
+      }
+    }
+
+    // Fallback response (if AI generation fails or no transcript)
     res.json({
       message: 'Transcript updated successfully',
       meeting: {
