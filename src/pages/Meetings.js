@@ -1100,6 +1100,27 @@ export default function Meetings() {
             templateId: templateId
           })
         });
+
+        // Update the meetings state to persist the email summary
+        setMeetings(prevMeetings =>
+          prevMeetings.map(meeting =>
+            meeting.id === selectedMeeting.id
+              ? {
+                  ...meeting,
+                  email_summary_draft: summary,
+                  templateId: templateId
+                }
+              : meeting
+          )
+        );
+
+        // Also update selectedMeeting to reflect the change immediately
+        setSelectedMeeting(prev => ({
+          ...prev,
+          email_summary_draft: summary,
+          templateId: templateId
+        }));
+
       } catch (saveError) {
         console.error('Error saving template summary:', saveError);
       }
@@ -3039,20 +3060,9 @@ export default function Meetings() {
                         {/* Email Summary Section */}
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
-                            <h3 className="text-sm font-semibold text-foreground">Email Summary</h3>
-                            {/* Generate Email Button - only show if transcript exists and no email draft */}
-                            {selectedMeeting?.transcript && !selectedMeeting?.email_summary_draft && (
-                              <Button
-                                onClick={handleGenerateAISummary}
-                                disabled={generatingSummary}
-                                size="sm"
-                                variant="default"
-                                className="h-6 px-3 text-xs bg-blue-600 hover:bg-blue-700 text-white"
-                              >
-                                <Mail className="w-3 h-3 mr-1" />
-                                {generatingSummary ? 'Generating...' : 'Generate Email'}
-                              </Button>
-                            )}
+                            <h3 className="text-sm font-semibold text-foreground">
+                              {currentSummaryTemplate ? currentSummaryTemplate.title : 'Email Summary'}
+                            </h3>
                           </div>
 
                           {/* Template Selection - only show when generating or regenerating */}
@@ -3096,7 +3106,41 @@ export default function Meetings() {
                           )}
 
                           {/* Email Summary Content */}
-                          {(emailSummary || selectedMeeting?.email_summary_draft) ? (
+                          {generatingSummary ? (
+                            <Card className="border-border/50 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20">
+                              <CardContent className="p-8 text-center">
+                                <div className="flex flex-col items-center justify-center gap-4">
+                                  {/* Animated Mail Icon */}
+                                  <div className="relative">
+                                    <div className="absolute inset-0 animate-ping">
+                                      <Mail className="w-12 h-12 text-blue-400 opacity-75" />
+                                    </div>
+                                    <Mail className="w-12 h-12 text-blue-600 relative z-10" />
+                                  </div>
+
+                                  {/* Loading Text */}
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-center gap-2">
+                                      <div className="animate-spin rounded-full h-5 w-5 border-3 border-blue-600 border-t-transparent"></div>
+                                      <p className="text-base font-semibold text-foreground">
+                                        Generating Email Summary...
+                                      </p>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                      Using {selectedTemplate?.title || 'Advicly Summary'} template
+                                    </p>
+                                  </div>
+
+                                  {/* Progress Dots */}
+                                  <div className="flex gap-2">
+                                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ) : (emailSummary || selectedMeeting?.email_summary_draft) ? (
                             <Card className="border-border/50">
                               <CardContent className="p-4">
                                 {/* Client Information Header */}
