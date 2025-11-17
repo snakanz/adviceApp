@@ -491,6 +491,16 @@ router.get('/google/callback', async (req, res) => {
 // ============================================================================
 
 // Get Microsoft OAuth URL
+// Test endpoint to verify Microsoft callback route is accessible
+router.get('/microsoft/callback/test', (req, res) => {
+  console.log('🧪 Microsoft callback test endpoint hit');
+  res.json({
+    success: true,
+    message: 'Microsoft callback route is accessible',
+    timestamp: new Date().toISOString()
+  });
+});
+
 router.get('/microsoft', (req, res) => {
   try {
     const MicrosoftCalendarService = require('../services/microsoftCalendar');
@@ -506,6 +516,10 @@ router.get('/microsoft', (req, res) => {
     // Pass through state parameter for popup-based OAuth
     const state = req.query.state || '';
     const url = microsoftService.getAuthorizationUrl(state);
+
+    console.log('🔗 Generated Microsoft OAuth URL');
+    console.log('  - State parameter:', state || '(none)');
+    console.log('  - Redirect URI:', microsoftService.redirectUri);
 
     res.json({ url });
   } catch (error) {
@@ -578,12 +592,19 @@ router.get('/microsoft/callback', async (req, res) => {
   try {
     const { code, state } = req.query;
 
-    console.log('📅 /api/auth/microsoft/callback called');
+    // Log with timestamp and all request details
+    const timestamp = new Date().toISOString();
+    console.log('='.repeat(80));
+    console.log(`📅 MICROSOFT CALLBACK HIT - ${timestamp}`);
+    console.log('='.repeat(80));
     console.log('  - code:', code ? '✅ Present' : '❌ Missing');
     console.log('  - state:', state ? `✅ Present (popup mode - user: ${state})` : '❌ Missing (redirect mode)');
     console.log('  - Full query params:', JSON.stringify(req.query));
     console.log('  - error:', req.query.error || 'none');
     console.log('  - error_description:', req.query.error_description || 'none');
+    console.log('  - Request URL:', req.url);
+    console.log('  - Request headers:', JSON.stringify(req.headers, null, 2));
+    console.log('='.repeat(80));
 
     // Check if Supabase is available
     if (!isSupabaseAvailable()) {
