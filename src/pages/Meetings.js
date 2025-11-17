@@ -1102,8 +1102,19 @@ export default function Meetings() {
         });
 
         // Update the meetings state to persist the email summary
-        setMeetings(prevMeetings =>
-          prevMeetings.map(meeting =>
+        // selectedMeeting will automatically update via useMemo when meetings changes
+        setMeetings(prevMeetings => ({
+          ...prevMeetings,
+          past: prevMeetings.past.map(meeting =>
+            meeting.id === selectedMeeting.id
+              ? {
+                  ...meeting,
+                  email_summary_draft: summary,
+                  templateId: templateId
+                }
+              : meeting
+          ),
+          future: prevMeetings.future.map(meeting =>
             meeting.id === selectedMeeting.id
               ? {
                   ...meeting,
@@ -1112,13 +1123,6 @@ export default function Meetings() {
                 }
               : meeting
           )
-        );
-
-        // Also update selectedMeeting to reflect the change immediately
-        setSelectedMeeting(prev => ({
-          ...prev,
-          email_summary_draft: summary,
-          templateId: templateId
         }));
 
       } catch (saveError) {
