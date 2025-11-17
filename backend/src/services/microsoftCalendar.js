@@ -212,6 +212,80 @@ class MicrosoftCalendarService {
   }
 
   /**
+   * Renew Microsoft Calendar webhook subscription
+   * Extends the expiration time before it expires
+   */
+  async renewCalendarWatch(userId) {
+    try {
+      console.log(`🔄 Renewing Microsoft Calendar webhook for user ${userId}...`);
+
+      // Get current subscription info from database
+      const { data: connection } = await getSupabase()
+        .from('calendar_connections')
+        .select('microsoft_subscription_id, microsoft_subscription_expires_at')
+        .eq('user_id', userId)
+        .eq('provider', 'microsoft')
+        .eq('is_active', true)
+        .single();
+
+      if (!connection || !connection.microsoft_subscription_id) {
+        console.log('⚠️  No Microsoft subscription found, setting up new one...');
+        return await this.setupCalendarWatch(userId);
+      }
+
+      // Check if subscription is expired or about to expire
+      const expiresAt = new Date(connection.microsoft_subscription_expires_at);
+      const now = new Date();
+      const hoursUntilExpiry = (expiresAt - now) / (1000 * 60 * 60);
+
+      if (hoursUntilExpiry < 0) {
+        console.log('❌ Subscription already expired, creating new one...');
+        return await this.setupCalendarWatch(userId);
+      }
+
+      console.log(`⏰ Subscription expires in ${hoursUntilExpiry.toFixed(1)} hours`);
+
+      const client = await this.initializeClientForUser(userId);
+
+      // Renew subscription by updating expiration time (3 days from now)
+      const newExpirationDateTime = new Date(Date.now() + (3 * 24 * 60 * 60 * 1000)).toISOString();
+
+      const response = await client
+        .api(`/subscriptions/${connection.microsoft_subscription_id}`)
+        .patch({
+          expirationDateTime: newExpirationDateTime
+        });
+
+      console.log('✅ Microsoft Calendar webhook renewed:', {
+        subscriptionId: response.id,
+        newExpirationDateTime: response.expirationDateTime
+      });
+
+      // Update expiration time in database
+      await getSupabase()
+        .from('calendar_connections')
+        .update({
+          microsoft_subscription_expires_at: response.expirationDateTime,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .eq('provider', 'microsoft');
+
+      return response;
+    } catch (error) {
+      console.error('❌ Error renewing Microsoft Calendar webhook:', error);
+
+      // If renewal fails (e.g., subscription not found), create a new one
+      if (error.statusCode === 404) {
+        console.log('🔄 Subscription not found, creating new one...');
+        return await this.setupCalendarWatch(userId);
+      }
+
+      throw error;
+    }
+  }
+
+  /**
    * Stop Microsoft Calendar webhook subscription
    */
   async stopCalendarWatch(userId) {

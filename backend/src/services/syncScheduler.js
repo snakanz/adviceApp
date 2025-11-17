@@ -1,16 +1,18 @@
 const cron = require('node-cron');
 const CalendlyService = require('./calendlyService');
 const GoogleCalendarWebhook = require('./googleCalendarWebhook');
+const MicrosoftCalendarService = require('./microsoftCalendar');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 
 /**
  * Sync Scheduler Service
- * Handles automatic periodic syncing of Calendly meetings
+ * Handles automatic periodic syncing of Calendly meetings and webhook renewals
  */
 class SyncScheduler {
   constructor() {
     this.calendlyService = new CalendlyService();
     this.googleCalendarWebhook = new GoogleCalendarWebhook();
+    this.microsoftCalendarService = new MicrosoftCalendarService();
     this.isRunning = false;
     this.scheduledTasks = [];
   }
@@ -42,20 +44,33 @@ class SyncScheduler {
 
     // Schedule Google Calendar webhook renewal every day at 2 AM
     // 0 2 * * * = every day at 2:00 AM
-    const webhookRenewalTask = cron.schedule('0 2 * * *', async () => {
+    const googleWebhookRenewalTask = cron.schedule('0 2 * * *', async () => {
       await this.renewGoogleCalendarWebhooksForAllUsers();
     });
 
     this.scheduledTasks.push({
       name: 'Google Calendar Webhook Renewal',
-      task: webhookRenewalTask,
+      task: googleWebhookRenewalTask,
       schedule: 'Every day at 2:00 AM'
+    });
+
+    // Schedule Microsoft Calendar webhook renewal every day at 3 AM
+    // 0 3 * * * = every day at 3:00 AM
+    const microsoftWebhookRenewalTask = cron.schedule('0 3 * * *', async () => {
+      await this.renewMicrosoftCalendarWebhooksForAllUsers();
+    });
+
+    this.scheduledTasks.push({
+      name: 'Microsoft Calendar Webhook Renewal',
+      task: microsoftWebhookRenewalTask,
+      schedule: 'Every day at 3:00 AM'
     });
 
     this.isRunning = true;
     console.log('✅ Sync scheduler started successfully');
     console.log('📅 Calendly sync will run every 15 minutes');
     console.log('📡 Google Calendar webhooks will renew daily at 2:00 AM');
+    console.log('📡 Microsoft Calendar webhooks will renew daily at 3:00 AM');
   }
 
   /**
@@ -217,6 +232,81 @@ class SyncScheduler {
   async triggerManualWebhookRenewal() {
     console.log('📡 Manual webhook renewal triggered...');
     await this.renewGoogleCalendarWebhooksForAllUsers();
+  }
+
+  /**
+   * Renew Microsoft Calendar webhooks for all users
+   * Prevents webhook expiration (3-day limit)
+   */
+  async renewMicrosoftCalendarWebhooksForAllUsers() {
+    try {
+      console.log('\n📡 [Webhook Renewal] Starting Microsoft Calendar webhook renewal...');
+
+      if (!isSupabaseAvailable()) {
+        console.log('❌ [Webhook Renewal] Database unavailable, skipping renewal');
+        return;
+      }
+
+      // Get all users with active Microsoft Calendar connections
+      const { data: connections, error } = await getSupabase()
+        .from('calendar_connections')
+        .select('user_id, microsoft_subscription_expires_at')
+        .eq('provider', 'microsoft')
+        .eq('is_active', true);
+
+      if (error) {
+        console.error('❌ [Webhook Renewal] Error fetching connections:', error);
+        return;
+      }
+
+      if (!connections || connections.length === 0) {
+        console.log('⚠️  [Webhook Renewal] No active Microsoft Calendar connections found');
+        return;
+      }
+
+      console.log(`📊 [Webhook Renewal] Found ${connections.length} active Microsoft Calendar connection(s)`);
+
+      // Renew webhook for each user
+      let renewed = 0;
+      let failed = 0;
+
+      for (const connection of connections) {
+        try {
+          // Check if webhook is expiring soon (within 24 hours)
+          const expiresAt = new Date(connection.microsoft_subscription_expires_at);
+          const now = new Date();
+          const hoursUntilExpiry = (expiresAt - now) / (1000 * 60 * 60);
+
+          if (hoursUntilExpiry < 24) {
+            console.log(`  🔄 Renewing webhook for user ${connection.user_id} (expires in ${hoursUntilExpiry.toFixed(1)}h)...`);
+
+            await this.microsoftCalendarService.renewCalendarWatch(connection.user_id);
+
+            renewed++;
+            console.log(`  ✅ Webhook renewed for user ${connection.user_id}`);
+          } else {
+            console.log(`  ⏭️  Skipping user ${connection.user_id} (expires in ${hoursUntilExpiry.toFixed(1)}h)`);
+          }
+        } catch (userError) {
+          console.error(`  ❌ Error renewing webhook for user ${connection.user_id}:`, userError.message);
+          failed++;
+        }
+      }
+
+      console.log(`\n✅ [Webhook Renewal] Completed: ${renewed} renewed, ${failed} failed`);
+      console.log(`⏰ Next renewal check in 24 hours\n`);
+
+    } catch (error) {
+      console.error('❌ [Webhook Renewal] Fatal error:', error);
+    }
+  }
+
+  /**
+   * Manually trigger Microsoft webhook renewal (for testing or immediate renewal needs)
+   */
+  async triggerManualMicrosoftWebhookRenewal() {
+    console.log('📡 Manual Microsoft webhook renewal triggered...');
+    await this.renewMicrosoftCalendarWebhooksForAllUsers();
   }
 
   /**

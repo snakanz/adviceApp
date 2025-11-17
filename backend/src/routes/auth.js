@@ -108,6 +108,7 @@ router.post('/verify-webhooks', authenticateSupabaseUser, async (req, res) => {
 
     const webhookResults = {
       google: { status: 'not_connected' },
+      microsoft: { status: 'not_connected' },
       calendly: { status: 'not_connected' }
     };
 
@@ -131,6 +132,61 @@ router.post('/verify-webhooks', authenticateSupabaseUser, async (req, res) => {
       }
     } catch (err) {
       console.log(`ℹ️ Google Calendar not connected for user ${userId}`);
+    }
+
+    // Check Microsoft Calendar webhook and renew if needed
+    try {
+      const { data: microsoftConnection } = await req.supabase
+        .from('calendar_connections')
+        .select('microsoft_subscription_id, microsoft_subscription_expires_at')
+        .eq('user_id', userId)
+        .eq('provider', 'microsoft')
+        .eq('is_active', true)
+        .single();
+
+      if (microsoftConnection && microsoftConnection.microsoft_subscription_id) {
+        console.log(`✅ Microsoft Calendar is active for user ${userId}`);
+
+        const expiresAt = new Date(microsoftConnection.microsoft_subscription_expires_at);
+        const now = new Date();
+        const hoursUntilExpiry = (expiresAt - now) / (1000 * 60 * 60);
+
+        // Renew if expiring within 24 hours or already expired
+        if (hoursUntilExpiry < 24) {
+          console.log(`🔄 Microsoft webhook expiring soon (${hoursUntilExpiry.toFixed(1)}h), renewing...`);
+
+          try {
+            const MicrosoftCalendarService = require('../services/microsoftCalendar');
+            const microsoftService = new MicrosoftCalendarService();
+            await microsoftService.renewCalendarWatch(userId);
+            console.log('✅ Microsoft webhook renewed on login');
+
+            webhookResults.microsoft = {
+              status: 'active',
+              sync_method: 'webhook',
+              message: 'Microsoft Calendar webhook renewed',
+              expires_in_hours: 72 // Renewed for 3 days
+            };
+          } catch (renewError) {
+            console.error('❌ Failed to renew Microsoft webhook:', renewError.message);
+            webhookResults.microsoft = {
+              status: 'error',
+              sync_method: 'webhook',
+              message: 'Failed to renew webhook',
+              error: renewError.message
+            };
+          }
+        } else {
+          webhookResults.microsoft = {
+            status: 'active',
+            sync_method: 'webhook',
+            message: 'Microsoft Calendar webhook is active',
+            expires_in_hours: hoursUntilExpiry.toFixed(1)
+          };
+        }
+      }
+    } catch (err) {
+      console.log(`ℹ️ Microsoft Calendar not connected for user ${userId}`);
     }
 
     // Check Calendly webhook
