@@ -327,6 +327,36 @@ router.patch('/:id/toggle-sync', authenticateSupabaseUser, async (req, res) => {
         }
       }
 
+      // Microsoft Calendar: Set up webhook and sync
+      if (data.provider === 'microsoft') {
+        try {
+          console.log('📡 Setting up Microsoft Calendar webhook...');
+          const MicrosoftCalendarService = require('../services/microsoftCalendar');
+          const microsoftService = new MicrosoftCalendarService();
+
+          // Set up webhook (non-blocking)
+          microsoftService.setupCalendarWatch(userId).catch(err => {
+            console.warn('⚠️ Microsoft webhook setup failed (non-fatal):', err.message);
+          });
+
+          console.log('🔄 Triggering Microsoft Calendar sync in background...');
+          const CalendarSyncService = require('../services/calendarSync');
+          const syncService = new CalendarSyncService();
+
+          // Don't await - let it run in background
+          syncService.syncUserCalendar(userId, {
+            timeRange: 'extended',
+            includeDeleted: true
+          }).then(syncResult => {
+            console.log('✅ Microsoft Calendar sync completed:', syncResult);
+          }).catch(syncErr => {
+            console.warn('⚠️ Microsoft Calendar sync failed (non-fatal):', syncErr.message);
+          });
+        } catch (syncErr) {
+          console.warn('⚠️ Failed to start Microsoft background sync:', syncErr.message);
+        }
+      }
+
       // Calendly: Trigger background sync
       if (data.provider === 'calendly') {
         try {
@@ -346,18 +376,32 @@ router.patch('/:id/toggle-sync', authenticateSupabaseUser, async (req, res) => {
       }
     }
 
-    // If disabling Google Calendar, stop the webhook
-    if (!sync_enabled && data.provider === 'google') {
-      try {
-        console.log('🛑 Stopping Google Calendar webhook...');
-        const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
-        const webhookService = new GoogleCalendarWebhookService();
+    // If disabling calendar, stop the webhook
+    if (!sync_enabled) {
+      if (data.provider === 'google') {
+        try {
+          console.log('🛑 Stopping Google Calendar webhook...');
+          const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
+          const webhookService = new GoogleCalendarWebhookService();
 
-        webhookService.stopCalendarWatch(userId).catch(err => {
-          console.warn('⚠️ Webhook cleanup failed (non-fatal):', err.message);
-        });
-      } catch (err) {
-        console.warn('⚠️ Failed to stop webhook:', err.message);
+          webhookService.stopCalendarWatch(userId).catch(err => {
+            console.warn('⚠️ Webhook cleanup failed (non-fatal):', err.message);
+          });
+        } catch (err) {
+          console.warn('⚠️ Failed to stop Google webhook:', err.message);
+        }
+      } else if (data.provider === 'microsoft') {
+        try {
+          console.log('🛑 Stopping Microsoft Calendar webhook...');
+          const MicrosoftCalendarService = require('../services/microsoftCalendar');
+          const microsoftService = new MicrosoftCalendarService();
+
+          microsoftService.stopCalendarWatch(userId).catch(err => {
+            console.warn('⚠️ Microsoft webhook cleanup failed (non-fatal):', err.message);
+          });
+        } catch (err) {
+          console.warn('⚠️ Failed to stop Microsoft webhook:', err.message);
+        }
       }
     }
 

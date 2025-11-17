@@ -1181,9 +1181,52 @@ router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) =
 
     console.log(`✅ User ${userId} completed onboarding with active subscription`);
 
-    // Trigger calendar sync now that onboarding is complete
+    // Trigger calendar sync and webhook setup now that onboarding is complete
     try {
-      console.log('🔄 Triggering calendar sync after onboarding completion...');
+      console.log('🔄 Setting up calendar webhooks and sync after onboarding completion...');
+
+      // Check which calendar provider the user has connected
+      const { data: calendarConnection } = await req.supabase
+        .from('calendar_connections')
+        .select('provider')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .single();
+
+      if (calendarConnection) {
+        const provider = calendarConnection.provider;
+        console.log(`📅 User has ${provider} calendar connected`);
+
+        // Set up webhook based on provider
+        if (provider === 'google') {
+          try {
+            console.log('📡 Setting up Google Calendar webhook...');
+            const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
+            const webhookService = new GoogleCalendarWebhookService();
+
+            webhookService.setupCalendarWatch(userId).catch(err => {
+              console.warn('⚠️ Google webhook setup failed (non-fatal):', err.message);
+            });
+          } catch (webhookErr) {
+            console.warn('⚠️ Failed to set up Google webhook:', webhookErr.message);
+          }
+        } else if (provider === 'microsoft') {
+          try {
+            console.log('📡 Setting up Microsoft Calendar webhook...');
+            const MicrosoftCalendarService = require('../services/microsoftCalendar');
+            const microsoftService = new MicrosoftCalendarService();
+
+            microsoftService.setupCalendarWatch(userId).catch(err => {
+              console.warn('⚠️ Microsoft webhook setup failed (non-fatal):', err.message);
+            });
+          } catch (webhookErr) {
+            console.warn('⚠️ Failed to set up Microsoft webhook:', webhookErr.message);
+          }
+        }
+      }
+
+      // Trigger calendar sync
+      console.log('🔄 Triggering calendar sync...');
       const calendarSyncService = require('../services/calendarSync');
 
       // Don't await - let it run in background
