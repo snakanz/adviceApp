@@ -30,25 +30,30 @@ class CalendarSyncService {
     console.log(`🔄 Starting calendar sync for user ${userId}...`);
 
     try {
-      // Get user's active Google Calendar connection from calendar_connections table
-      const { data: connection, error: connError } = await getSupabase()
+      // Get user's active calendar connection (Google OR Microsoft)
+      const { data: connections, error: connError } = await getSupabase()
         .from('calendar_connections')
         .select('*')
         .eq('user_id', userId)
-        .eq('provider', 'google')
         .eq('is_active', true)
-        .single();
+        .in('provider', ['google', 'microsoft']);
 
-      if (connError || !connection) {
+      if (connError || !connections || connections.length === 0) {
         console.error('Calendar connection error:', connError);
-        throw new Error(`No active Google Calendar connection found for user ${userId}. Please reconnect your Google Calendar.`);
+        throw new Error(`No active calendar connection found for user ${userId}. Please connect your calendar.`);
       }
+
+      // Use the first active connection (user should only have one active at a time)
+      const connection = connections[0];
+      const provider = connection.provider;
+
+      console.log(`📅 Found active ${provider} Calendar connection for user ${userId}`);
 
       if (!connection.access_token) {
-        throw new Error('Google Calendar token not available');
+        throw new Error(`${provider} Calendar token not available`);
       }
 
-      console.log(`📅 Found active Google Calendar connection for user ${userId}, expires: ${connection.token_expires_at}`);
+      console.log(`📅 Token expires: ${connection.token_expires_at}`);
 
       // Check if token is expired
       const expiresAt = connection.token_expires_at ? new Date(connection.token_expires_at) : null;
@@ -57,59 +62,21 @@ class CalendarSyncService {
 
       console.log(`🔐 Token status: ${isExpired ? 'EXPIRED' : 'VALID'} (expires: ${expiresAt?.toISOString() || 'unknown'})`);
 
-      // Set up OAuth client
-      this.oauth2Client.setCredentials({
-        access_token: connection.access_token,
-        refresh_token: connection.refresh_token,
-        expiry_date: expiresAt ? expiresAt.getTime() : null
-      });
-
-      // If token is expired, try to refresh it
-      if (isExpired && connection.refresh_token) {
-        console.log('🔄 Refreshing expired access token...');
-        try {
-          const { credentials } = await this.oauth2Client.refreshAccessToken();
-
-          // Update the token in database
-          const newExpiresAt = new Date(credentials.expiry_date);
-          await getSupabase()
-            .from('calendar_connections')
-            .update({
-              access_token: credentials.access_token,
-              token_expires_at: newExpiresAt.toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', connection.id);
-
-          console.log(`✅ Token refreshed successfully, new expiry: ${newExpiresAt.toISOString()}`);
-        } catch (refreshError) {
-          console.error('❌ Failed to refresh token:', refreshError);
-          throw new Error('Google Calendar token expired and could not be refreshed. Please reconnect your Google Calendar.');
-        }
-      }
-
-      // Calculate time range (reuse 'now' from token expiry check)
+      // Calculate time range
       const timeMin = timeRange === 'recent'
         ? new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000) // 2 weeks ago
         : new Date(now.getTime() - 180 * 24 * 60 * 60 * 1000); // 6 months ago
 
-      // Fetch events from Google Calendar
-      const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
-      
-      console.log(`📅 Fetching events from ${timeMin.toISOString()} to future...`);
-      
-      const response = await calendar.events.list({
-        calendarId: 'primary',
-        timeMin: timeMin.toISOString(),
-        maxResults: 2500, // Increased for comprehensive sync
-        singleEvents: true,
-        orderBy: 'startTime',
-        showDeleted: includeDeleted, // This is key for deletion detection
-        fields: 'items(id,summary,start,end,location,description,attendees,status,conferenceData)' // Request attendees data and conference data for meeting URLs
-      });
+      let calendarEvents = [];
 
-      const calendarEvents = response.data.items || [];
-      console.log(`📊 Found ${calendarEvents.length} events in calendar`);
+      // Fetch events based on provider
+      if (provider === 'google') {
+        calendarEvents = await this.fetchGoogleCalendarEvents(connection, timeMin, includeDeleted, isExpired);
+      } else if (provider === 'microsoft') {
+        calendarEvents = await this.fetchMicrosoftCalendarEvents(connection, userId, timeMin, includeDeleted, isExpired);
+      }
+
+      console.log(`📊 Found ${calendarEvents.length} events in ${provider} calendar`);
 
       // Get existing meetings from database in the same time range
       const { data: existingMeetings } = await getSupabase()
@@ -123,10 +90,10 @@ class CalendarSyncService {
 
       // Process sync results
       const syncResults = await this.processSyncResults(
-        userId, 
-        calendarEvents, 
-        existingMeetings || [], 
-        { dryRun }
+        userId,
+        calendarEvents,
+        existingMeetings || [],
+        { dryRun, provider }
       );
 
       // Update user's last sync time
@@ -168,10 +135,150 @@ class CalendarSyncService {
   }
 
   /**
+   * Fetch events from Google Calendar
+   */
+  async fetchGoogleCalendarEvents(connection, timeMin, includeDeleted, isExpired) {
+    console.log('📅 Fetching events from Google Calendar...');
+
+    // Set up OAuth client
+    this.oauth2Client.setCredentials({
+      access_token: connection.access_token,
+      refresh_token: connection.refresh_token,
+      expiry_date: connection.token_expires_at ? new Date(connection.token_expires_at).getTime() : null
+    });
+
+    // If token is expired, try to refresh it
+    if (isExpired && connection.refresh_token) {
+      console.log('🔄 Refreshing expired Google access token...');
+      try {
+        const { credentials } = await this.oauth2Client.refreshAccessToken();
+
+        // Update the token in database
+        const newExpiresAt = new Date(credentials.expiry_date);
+        await getSupabase()
+          .from('calendar_connections')
+          .update({
+            access_token: credentials.access_token,
+            token_expires_at: newExpiresAt.toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', connection.id);
+
+        console.log(`✅ Google token refreshed successfully, new expiry: ${newExpiresAt.toISOString()}`);
+      } catch (refreshError) {
+        console.error('❌ Failed to refresh Google token:', refreshError);
+        throw new Error('Google Calendar token expired and could not be refreshed. Please reconnect your Google Calendar.');
+      }
+    }
+
+    // Fetch events from Google Calendar
+    const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
+
+    console.log(`📅 Fetching Google events from ${timeMin.toISOString()} to future...`);
+
+    const response = await calendar.events.list({
+      calendarId: 'primary',
+      timeMin: timeMin.toISOString(),
+      maxResults: 2500,
+      singleEvents: true,
+      orderBy: 'startTime',
+      showDeleted: includeDeleted,
+      fields: 'items(id,summary,start,end,location,description,attendees,status,conferenceData)'
+    });
+
+    return response.data.items || [];
+  }
+
+  /**
+   * Fetch events from Microsoft Calendar
+   */
+  async fetchMicrosoftCalendarEvents(connection, userId, timeMin, includeDeleted, isExpired) {
+    console.log('📅 Fetching events from Microsoft Calendar...');
+
+    const MicrosoftCalendarService = require('./microsoftCalendar');
+    const microsoftService = new MicrosoftCalendarService();
+
+    // Refresh token if expired
+    if (isExpired && connection.refresh_token) {
+      console.log('🔄 Refreshing expired Microsoft access token...');
+      try {
+        const refreshedTokens = await microsoftService.refreshAccessToken(connection.refresh_token);
+
+        // Update tokens in database
+        await getSupabase()
+          .from('calendar_connections')
+          .update({
+            access_token: refreshedTokens.accessToken,
+            token_expires_at: refreshedTokens.expiresOn ? new Date(refreshedTokens.expiresOn).toISOString() : null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', connection.id);
+
+        console.log('✅ Microsoft token refreshed successfully');
+
+        // Update connection object with new token
+        connection.access_token = refreshedTokens.accessToken;
+      } catch (refreshError) {
+        console.error('❌ Failed to refresh Microsoft token:', refreshError);
+        throw new Error('Microsoft Calendar token expired and could not be refreshed. Please reconnect your Microsoft Calendar.');
+      }
+    }
+
+    // Get Microsoft Graph client
+    const client = microsoftService.getGraphClient(connection.access_token);
+
+    console.log(`📅 Fetching Microsoft events from ${timeMin.toISOString()} to future...`);
+
+    // Fetch events using calendarView (supports time range filtering)
+    const endDateTime = new Date(Date.now() + (365 * 24 * 60 * 60 * 1000)).toISOString(); // 1 year ahead
+
+    const response = await client
+      .api('/me/calendar/calendarView')
+      .query({
+        startDateTime: timeMin.toISOString(),
+        endDateTime: endDateTime,
+        $select: 'id,subject,start,end,location,attendees,body,isOnlineMeeting,onlineMeetingUrl,isCancelled',
+        $orderby: 'start/dateTime',
+        $top: 2500
+      })
+      .get();
+
+    // Transform Microsoft events to match Google Calendar format
+    const events = (response.value || []).map(event => ({
+      id: event.id,
+      summary: event.subject,
+      start: {
+        dateTime: event.start?.dateTime,
+        timeZone: event.start?.timeZone
+      },
+      end: {
+        dateTime: event.end?.dateTime,
+        timeZone: event.end?.timeZone
+      },
+      location: event.location?.displayName || '',
+      description: event.body?.content || '',
+      attendees: event.attendees?.map(a => ({
+        email: a.emailAddress?.address,
+        displayName: a.emailAddress?.name,
+        responseStatus: a.status?.response
+      })) || [],
+      status: event.isCancelled ? 'cancelled' : 'confirmed',
+      conferenceData: event.isOnlineMeeting ? {
+        entryPoints: [{
+          entryPointType: 'video',
+          uri: event.onlineMeetingUrl
+        }]
+      } : null
+    }));
+
+    return events;
+  }
+
+  /**
    * Process sync results and handle additions, updates, deletions
    */
   async processSyncResults(userId, calendarEvents, existingMeetings, options = {}) {
-    const { dryRun = false } = options;
+    const { dryRun = false, provider = 'google' } = options;
     
     // Create maps for efficient lookup
     const calendarEventsMap = new Map(
@@ -205,7 +312,7 @@ class CalendarSyncService {
           await this.handleDeletedEvent(userId, calendarEvent, existingMeetingsMap, results, dryRun);
         } else {
           // Handle active events (add or update)
-          await this.handleActiveEvent(userId, calendarEvent, existingMeetingsMap, results, dryRun);
+          await this.handleActiveEvent(userId, calendarEvent, existingMeetingsMap, results, dryRun, provider);
         }
       } catch (error) {
         console.error(`Error processing event ${calendarEvent.id}:`, error);
@@ -274,14 +381,14 @@ class CalendarSyncService {
   /**
    * Handle active events (add or update)
    */
-  async handleActiveEvent(userId, calendarEvent, existingMeetingsMap, results, dryRun) {
+  async handleActiveEvent(userId, calendarEvent, existingMeetingsMap, results, dryRun, provider = 'google') {
     // Skip all-day events
     if (!calendarEvent.start?.dateTime) {
       return;
     }
 
     const existingMeeting = existingMeetingsMap.get(calendarEvent.id);
-    const meetingData = this.extractMeetingData(userId, calendarEvent);
+    const meetingData = this.extractMeetingData(userId, calendarEvent, provider);
 
     if (existingMeeting) {
       // Check if meeting was previously deleted and is now restored
@@ -346,15 +453,16 @@ class CalendarSyncService {
 
         // Schedule Recall bot if transcription is enabled AND meeting is in the future AND user has access
         try {
-          const connection = await getSupabase()
+          const { data: connections } = await getSupabase()
             .from('calendar_connections')
-            .select('transcription_enabled')
+            .select('transcription_enabled, provider')
             .eq('user_id', userId)
-            .eq('provider', 'google')
             .eq('is_active', true)
-            .single();
+            .in('provider', ['google', 'microsoft']);
 
-          if (connection.data?.transcription_enabled) {
+          const connection = connections?.[0];
+
+          if (connection?.transcription_enabled) {
             const now = new Date();
             const meetingStart = new Date(calendarEvent.start.dateTime || calendarEvent.start.date);
 
@@ -508,9 +616,9 @@ class CalendarSyncService {
   }
 
   /**
-   * Extract meeting data from Google Calendar event
+   * Extract meeting data from calendar event (Google or Microsoft)
    */
-  extractMeetingData(userId, calendarEvent) {
+  extractMeetingData(userId, calendarEvent, provider = 'google') {
     return {
       external_id: calendarEvent.id,
       user_id: userId,
@@ -523,7 +631,7 @@ class CalendarSyncService {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       is_deleted: false,
-      meeting_source: 'google',
+      meeting_source: provider, // 'google' or 'microsoft'
       last_calendar_sync: new Date().toISOString()
     };
   }
