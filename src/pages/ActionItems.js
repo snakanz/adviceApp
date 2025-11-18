@@ -438,7 +438,8 @@ export default function ActionItems() {
 
   const toggleActionItem = async (actionItemId) => {
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/transcript-action-items/action-items/${actionItemId}/toggle`, {
         method: 'PATCH',
         headers: {

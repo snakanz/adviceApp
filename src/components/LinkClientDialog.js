@@ -53,7 +53,7 @@ export default function LinkClientDialog({
 
       if (response.ok) {
         const data = await response.json();
-        setClients(data.clients || []);
+        setClients(data || []);
       }
     } catch (err) {
       console.error('Error loading clients:', err);
