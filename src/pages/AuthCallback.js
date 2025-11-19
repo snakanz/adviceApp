@@ -17,23 +17,45 @@ const AuthCallback = () => {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        // DETECTION LOGIC - Check URL parameters to determine auth type
+        // IMPROVED DETECTION LOGIC - Distinguish between OAuth and email confirmation
         const params = new URLSearchParams(window.location.search);
         const urlHash = new URLSearchParams(window.location.hash.substring(1));
 
-        // Email confirmation URLs have 'type=signup' or 'token_hash' parameter
-        const isEmailConfirmation = params.get('type') === 'signup' ||
-                                     params.get('type') === 'email' ||
-                                     urlHash.get('type') === 'signup' ||
-                                     params.has('token_hash') ||
-                                     urlHash.has('token_hash');
+        console.log('🔍 AuthCallback: Analyzing URL...');
+        console.log('🔍 Query params:', window.location.search);
+        console.log('🔍 Hash params:', window.location.hash);
 
-        if (isEmailConfirmation) {
-          console.log('📧 AuthCallback: Detected email confirmation flow');
-          await handleEmailConfirmation();
-        } else {
-          console.log('🔐 AuthCallback: Detected OAuth callback flow');
+        // OAuth callbacks have access_token or code in the URL
+        // Google/Microsoft OAuth returns: #access_token=... or ?code=...
+        const hasOAuthTokens = urlHash.has('access_token') ||
+                               params.has('code') ||
+                               urlHash.has('code');
+
+        if (hasOAuthTokens) {
+          // This is definitely OAuth (Google/Microsoft)
+          console.log('🔐 AuthCallback: Detected OAuth callback flow (has access_token or code)');
           await handleOAuthCallback();
+        } else {
+          // No OAuth tokens in URL - check if we have a session
+          // Email confirmations redirect without tokens but create a session
+          console.log('📧 AuthCallback: No OAuth tokens found, checking for email confirmation...');
+
+          // Wait a moment for Supabase to establish session after redirect
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+          const { data: { session } } = await supabase.auth.getSession();
+
+          if (session) {
+            // Session exists without OAuth tokens = email confirmation
+            console.log('📧 AuthCallback: Detected email confirmation flow (session exists, no OAuth tokens)');
+            await handleEmailConfirmation();
+          } else {
+            // No OAuth tokens and no session = error
+            console.error('❌ AuthCallback: No OAuth tokens and no session found');
+            setStatus('error');
+            setMessage('Authentication failed. Please try again.');
+            setTimeout(() => navigate('/login'), 3000);
+          }
         }
 
       } catch (err) {
@@ -50,10 +72,7 @@ const AuthCallback = () => {
       setStatus('processing');
       setMessage('Confirming your email...');
 
-      // Wait a moment for Supabase to establish the session after email confirmation
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Get the session
+      // Get the session (already waited 500ms in detection logic)
       const { data: { session }, error } = await supabase.auth.getSession();
 
       if (error) {
