@@ -481,21 +481,121 @@ router.get('/google/callback', async (req, res) => {
     if (isPopupMode) {
       console.log('✅ Popup mode - Sending success message to parent window');
       return res.send(`
+        <!DOCTYPE html>
         <html>
           <head>
             <title>Google Calendar Connected</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                margin: 0;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                text-align: center;
+                padding: 20px;
+              }
+              .container {
+                background: white;
+                color: #333;
+                padding: 40px;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                max-width: 400px;
+              }
+              .success-icon {
+                width: 64px;
+                height: 64px;
+                margin: 0 auto 20px;
+                background: #10b981;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 32px;
+              }
+              h1 {
+                margin: 0 0 10px;
+                font-size: 24px;
+                color: #1f2937;
+              }
+              p {
+                margin: 0 0 20px;
+                color: #6b7280;
+                line-height: 1.5;
+              }
+              .close-btn {
+                background: #667eea;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: background 0.2s;
+              }
+              .close-btn:hover {
+                background: #5568d3;
+              }
+              .auto-close {
+                margin-top: 15px;
+                font-size: 14px;
+                color: #9ca3af;
+              }
+            </style>
           </head>
           <body>
+            <div class="container">
+              <div class="success-icon">✓</div>
+              <h1>Calendar Connected!</h1>
+              <p>Your Google Calendar has been successfully connected to Advicly.</p>
+              <button class="close-btn" onclick="closeWindow()">Close Window</button>
+              <p class="auto-close">This window will close automatically in <span id="countdown">3</span> seconds...</p>
+            </div>
             <script>
+              // Send success message to parent window
               if (window.opener) {
                 window.opener.postMessage({
                   type: 'GOOGLE_OAUTH_SUCCESS',
                   message: 'Google Calendar connected successfully'
                 }, '*');
+
+                // Focus parent window
+                window.opener.focus();
               }
-              window.close();
+
+              // Function to close window
+              function closeWindow() {
+                window.close();
+                // If window.close() doesn't work (some browsers block it),
+                // show a message
+                setTimeout(function() {
+                  document.querySelector('.container').innerHTML =
+                    '<div class="success-icon">✓</div>' +
+                    '<h1>Success!</h1>' +
+                    '<p>You can now close this window manually.</p>';
+                }, 100);
+              }
+
+              // Auto-close countdown
+              let seconds = 3;
+              const countdownEl = document.getElementById('countdown');
+              const countdown = setInterval(function() {
+                seconds--;
+                if (countdownEl) countdownEl.textContent = seconds;
+                if (seconds <= 0) {
+                  clearInterval(countdown);
+                  closeWindow();
+                }
+              }, 1000);
             </script>
-            <p>Google Calendar connected successfully! This window will close automatically.</p>
           </body>
         </html>
       `);
@@ -901,21 +1001,121 @@ router.get('/microsoft/callback', async (req, res) => {
     if (isPopupMode) {
       console.log('✅ Popup mode - Sending success message');
       return res.send(`
+        <!DOCTYPE html>
         <html>
           <head>
             <title>Microsoft Calendar Connected</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                margin: 0;
+                background: linear-gradient(135deg, #0078d4 0%, #00bcf2 100%);
+                color: white;
+                text-align: center;
+                padding: 20px;
+              }
+              .container {
+                background: white;
+                color: #333;
+                padding: 40px;
+                border-radius: 12px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+                max-width: 400px;
+              }
+              .success-icon {
+                width: 64px;
+                height: 64px;
+                margin: 0 auto 20px;
+                background: #10b981;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 32px;
+              }
+              h1 {
+                margin: 0 0 10px;
+                font-size: 24px;
+                color: #1f2937;
+              }
+              p {
+                margin: 0 0 20px;
+                color: #6b7280;
+                line-height: 1.5;
+              }
+              .close-btn {
+                background: #0078d4;
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 6px;
+                font-size: 16px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: background 0.2s;
+              }
+              .close-btn:hover {
+                background: #006cbe;
+              }
+              .auto-close {
+                margin-top: 15px;
+                font-size: 14px;
+                color: #9ca3af;
+              }
+            </style>
           </head>
           <body>
+            <div class="container">
+              <div class="success-icon">✓</div>
+              <h1>Calendar Connected!</h1>
+              <p>Your Microsoft Calendar has been successfully connected to Advicly.</p>
+              <button class="close-btn" onclick="closeWindow()">Close Window</button>
+              <p class="auto-close">This window will close automatically in <span id="countdown">3</span> seconds...</p>
+            </div>
             <script>
+              // Send success message to parent window
               if (window.opener) {
                 window.opener.postMessage({
                   type: 'MICROSOFT_OAUTH_SUCCESS',
                   message: 'Microsoft Calendar connected successfully'
                 }, '*');
+
+                // Focus parent window
+                window.opener.focus();
               }
-              window.close();
+
+              // Function to close window
+              function closeWindow() {
+                window.close();
+                // If window.close() doesn't work (some browsers block it),
+                // show a message
+                setTimeout(function() {
+                  document.querySelector('.container').innerHTML =
+                    '<div class="success-icon">✓</div>' +
+                    '<h1>Success!</h1>' +
+                    '<p>You can now close this window manually.</p>';
+                }, 100);
+              }
+
+              // Auto-close countdown
+              let seconds = 3;
+              const countdownEl = document.getElementById('countdown');
+              const countdown = setInterval(function() {
+                seconds--;
+                if (countdownEl) countdownEl.textContent = seconds;
+                if (seconds <= 0) {
+                  clearInterval(countdown);
+                  closeWindow();
+                }
+              }, 1000);
             </script>
-            <p>Microsoft Calendar connected successfully! This window will close automatically.</p>
           </body>
         </html>
       `);

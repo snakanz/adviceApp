@@ -7,6 +7,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
+import { supabase } from '../lib/supabase';
 
 const RegisterPage = () => {
     const navigate = useNavigate();
@@ -80,6 +81,7 @@ const RegisterPage = () => {
         setIsLoading(true);
 
         try {
+            // Attempt to sign up
             const result = await signUpWithEmail(
                 formData.email,
                 formData.password,
@@ -87,9 +89,54 @@ const RegisterPage = () => {
             );
 
             if (!result.success) {
-                setError(result.error || 'Registration failed');
+                // Check if error indicates user already exists
+                const errorMsg = result.error?.toLowerCase() || '';
+
+                console.log('📧 Signup error:', result.error);
+
+                // Supabase returns "User already registered" when email exists
+                if (errorMsg.includes('already registered') ||
+                    errorMsg.includes('already exists') ||
+                    errorMsg.includes('user already registered')) {
+                    console.log('❌ User already exists');
+                    setError(
+                        <span>
+                            An account with this email already exists. Please{' '}
+                            <Link to="/login" className="text-primary hover:underline font-semibold">
+                                sign in
+                            </Link>{' '}
+                            instead.
+                        </span>
+                    );
+                } else {
+                    setError(result.error || 'Registration failed');
+                }
                 setIsLoading(false);
                 return;
+            }
+
+            // Supabase may return success even if user exists (for security)
+            // Check if we got a user back
+            if (result.data?.user) {
+                // Check if this is a new signup or existing user
+                // New signups with email confirmation will have identities
+                const isNewUser = result.data.user.identities && result.data.user.identities.length > 0;
+
+                if (!isNewUser && !result.data.session) {
+                    // User exists but no session = already registered, email not confirmed
+                    console.log('❌ User already exists (no identities, no session)');
+                    setError(
+                        <span>
+                            An account with this email already exists. Please{' '}
+                            <Link to="/login" className="text-primary hover:underline font-semibold">
+                                sign in
+                            </Link>{' '}
+                            instead, or check your email for the confirmation link.
+                        </span>
+                    );
+                    setIsLoading(false);
+                    return;
+                }
             }
 
             // Check if email confirmation is required
