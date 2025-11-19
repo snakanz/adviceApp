@@ -1041,15 +1041,15 @@ console.log('✅ All API routes mounted');
 // app.use('/api', routes);
 // console.log('✅ Main routes mounted at /api');
 
-// DISABLED: Automatic sync scheduler (replaced with webhook-only sync)
-// The system now relies entirely on webhooks for real-time calendar updates
-// Polling has been removed to reduce API calls and improve efficiency
-console.log('ℹ️  Automatic sync scheduler DISABLED - using webhook-only sync');
-// const syncScheduler = require('./services/syncScheduler');
-// setTimeout(() => {
-//   syncScheduler.start();
-//   console.log('✅ Automatic sync scheduler initialized');
-// }, 5000);
+// ✅ ENABLED: Automatic webhook renewal scheduler
+// This handles automatic renewal of Google/Microsoft webhooks before they expire
+// Note: Polling is still disabled - this only runs webhook renewal cron jobs
+console.log('✅ Automatic webhook renewal scheduler ENABLED');
+const syncScheduler = require('./services/syncScheduler');
+setTimeout(() => {
+  syncScheduler.start();
+  console.log('✅ Automatic sync scheduler initialized (webhook renewal only)');
+}, 5000);
 
 const port = process.env.PORT || 8787;
 app.listen(port, () => {

@@ -1460,11 +1460,12 @@ router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) =
             const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
             const webhookService = new GoogleCalendarWebhookService();
 
-            webhookService.setupCalendarWatch(userId).catch(err => {
-              console.warn('⚠️ Google webhook setup failed (non-fatal):', err.message);
-            });
+            // ✅ FIX: Await webhook creation to ensure it completes successfully
+            await webhookService.setupCalendarWatch(userId);
+            console.log('✅ Google Calendar webhook created successfully');
           } catch (webhookErr) {
-            console.warn('⚠️ Failed to set up Google webhook:', webhookErr.message);
+            console.error('❌ Failed to set up Google webhook:', webhookErr.message);
+            // Don't fail onboarding, but log the error prominently
           }
         } else if (provider === 'microsoft') {
           try {
@@ -1472,11 +1473,12 @@ router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) =
             const MicrosoftCalendarService = require('../services/microsoftCalendar');
             const microsoftService = new MicrosoftCalendarService();
 
-            microsoftService.setupCalendarWatch(userId).catch(err => {
-              console.warn('⚠️ Microsoft webhook setup failed (non-fatal):', err.message);
-            });
+            // ✅ FIX: Await webhook creation to ensure it completes successfully
+            await microsoftService.setupCalendarWatch(userId);
+            console.log('✅ Microsoft Calendar webhook created successfully');
           } catch (webhookErr) {
-            console.warn('⚠️ Failed to set up Microsoft webhook:', webhookErr.message);
+            console.error('❌ Failed to set up Microsoft webhook:', webhookErr.message);
+            // Don't fail onboarding, but log the error prominently
           }
         }
       }
