@@ -1,11 +1,14 @@
 /**
  * UserService - Consolidated user creation and management
- * 
+ *
  * This service handles all user creation logic in one place to ensure:
  * - Consistent UUID usage (always Supabase Auth UUID)
  * - Automatic tenant creation
  * - Proper error handling
  * - No duplicate user creation
+ *
+ * IMPORTANT: This service ALWAYS uses the service role client (bypasses RLS)
+ * to ensure it can find existing users by email during OAuth flows.
  */
 
 const { getSupabase } = require('../lib/supabase');
@@ -13,11 +16,12 @@ const { getSupabase } = require('../lib/supabase');
 class UserService {
   /**
    * Get or create a user
-   * 
+   *
    * @param {Object} supabaseUser - User object from Supabase Auth
-   * @param {string} supabaseUser.id - Supabase Auth UUID
+   * @param {string} supabaseUser.id - Supabase Auth UUID (or provider ID for new users)
    * @param {string} supabaseUser.email - User email
    * @param {string} supabaseUser.user_metadata - User metadata (name, etc)
+   * @param {string} supabaseUser.app_metadata - App metadata (provider, etc)
    * @returns {Promise<Object>} User object with id, email, name, etc
    */
   static async getOrCreateUser(supabaseUser) {
@@ -27,8 +31,12 @@ class UserService {
 
     console.log(`🔍 UserService: Checking if user exists: ${supabaseUser.email}`);
 
-    // Check if user already exists by email
-    const { data: existingUser, error: findError } = await getSupabase()
+    // CRITICAL: Use service role client to bypass RLS
+    // This allows us to find existing users by email during OAuth flows
+    const supabase = getSupabase();
+
+    // Check if user already exists by email (using service role to bypass RLS)
+    const { data: existingUser, error: findError } = await supabase
       .from('users')
       .select('*')
       .eq('email', supabaseUser.email)
@@ -49,17 +57,48 @@ class UserService {
     // User doesn't exist - create them
     console.log(`📝 UserService: Creating new user: ${supabaseUser.email}`);
 
+    // For new users from OAuth, we need to get their Supabase Auth UUID
+    // Check if this is a Google/Microsoft provider ID (numeric string) vs Supabase UUID
+    const isProviderID = /^\d+$/.test(supabaseUser.id);
+
+    let actualUserId = supabaseUser.id;
+
+    if (isProviderID) {
+      // This is a provider ID (e.g., Google: "114999123539570830796")
+      // We need to get the actual Supabase Auth UUID for this user
+      console.log(`🔍 UserService: Provider ID detected, fetching Supabase Auth UUID for: ${supabaseUser.email}`);
+
+      // Query Supabase Auth to get the actual user UUID
+      const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
+
+      if (authError) {
+        console.error('❌ UserService: Error fetching auth users:', authError);
+        throw new Error(`Failed to fetch auth user: ${authError.message}`);
+      }
+
+      // Find the user by email in Supabase Auth
+      const authUser = authUsers.users.find(u => u.email === supabaseUser.email);
+
+      if (authUser) {
+        actualUserId = authUser.id;
+        console.log(`✅ UserService: Found Supabase Auth UUID: ${actualUserId}`);
+      } else {
+        console.error(`❌ UserService: No Supabase Auth user found for email: ${supabaseUser.email}`);
+        throw new Error(`No Supabase Auth user found for email: ${supabaseUser.email}`);
+      }
+    }
+
     const newUserData = {
-      id: supabaseUser.id,  // ✅ Always use Supabase Auth UUID
+      id: actualUserId,  // ✅ Always use Supabase Auth UUID
       email: supabaseUser.email,
       name: supabaseUser.user_metadata?.full_name || supabaseUser.email.split('@')[0],
       provider: supabaseUser.app_metadata?.provider || 'email',  // ✅ Detect actual provider (google, email, microsoft, etc.)
-      providerid: supabaseUser.id,
+      providerid: actualUserId,
       onboarding_completed: false,
       timezone: 'UTC'
     };
 
-    const { data: newUser, error: createError } = await getSupabase()
+    const { data: newUser, error: createError } = await supabase
       .from('users')
       .insert(newUserData)
       .select()
@@ -80,7 +119,7 @@ class UserService {
 
   /**
    * Ensure user has a tenant (create default if needed)
-   * 
+   *
    * @param {Object} user - User object
    * @returns {Promise<string>} Tenant ID
    */
@@ -97,8 +136,11 @@ class UserService {
 
     console.log(`📝 UserService: Creating default tenant for user: ${user.id}`);
 
+    // CRITICAL: Use service role client to bypass RLS
+    const supabase = getSupabase();
+
     // Create default tenant
-    const { data: newTenant, error: tenantError } = await getSupabase()
+    const { data: newTenant, error: tenantError } = await supabase
       .from('tenants')
       .insert({
         name: `${user.name || user.email}'s Business`,
@@ -117,7 +159,7 @@ class UserService {
     console.log(`✅ UserService: Tenant created: ${newTenant.id}`);
 
     // Update user with tenant_id
-    const { error: updateError } = await getSupabase()
+    const { error: updateError } = await supabase
       .from('users')
       .update({ tenant_id: newTenant.id })
       .eq('id', user.id);
