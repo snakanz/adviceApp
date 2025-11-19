@@ -53,7 +53,7 @@ class UserService {
       id: supabaseUser.id,  // ✅ Always use Supabase Auth UUID
       email: supabaseUser.email,
       name: supabaseUser.user_metadata?.full_name || supabaseUser.email.split('@')[0],
-      provider: 'google',
+      provider: supabaseUser.app_metadata?.provider || 'email',  // ✅ Detect actual provider (google, email, microsoft, etc.)
       providerid: supabaseUser.id,
       onboarding_completed: false,
       timezone: 'UTC'

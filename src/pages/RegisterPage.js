@@ -21,6 +21,7 @@ const RegisterPage = () => {
     });
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [emailSent, setEmailSent] = useState(false);
 
     // Store selected plan in session storage on mount
     useEffect(() => {
@@ -93,7 +94,8 @@ const RegisterPage = () => {
 
             // Check if email confirmation is required
             if (result.data?.user && !result.data?.session) {
-                setError('Please check your email to confirm your account');
+                console.log('✅ Registration successful - email confirmation required');
+                setEmailSent(true);
                 setIsLoading(false);
                 return;
             }
@@ -260,12 +262,20 @@ const RegisterPage = () => {
                                 </div>
                             )}
 
+                            {emailSent && (
+                                <div className="p-4 text-sm text-green-700 bg-green-50 border border-green-200 rounded-md space-y-2">
+                                    <p className="font-semibold">✅ Check your email!</p>
+                                    <p>We've sent a confirmation link to <strong>{formData.email}</strong>. Click the link in the email to complete your registration.</p>
+                                    <p className="text-xs text-green-600 mt-2">Don't see it? Check your spam folder.</p>
+                                </div>
+                            )}
+
                             <Button
                                 type="submit"
                                 className="w-full h-12 text-base font-medium"
-                                disabled={isLoading}
+                                disabled={isLoading || emailSent}
                             >
-                                {isLoading ? 'Creating Account...' : 'Create Account'}
+                                {isLoading ? 'Creating Account...' : emailSent ? 'Email Sent - Check Your Inbox' : 'Create Account'}
                             </Button>
                         </form>
 

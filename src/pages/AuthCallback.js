@@ -17,52 +17,118 @@ const AuthCallback = () => {
   useEffect(() => {
     const handleCallback = async () => {
       try {
-        console.log('🔄 AuthCallback: Starting OAuth callback processing...');
-        setStatus('processing');
-        setMessage('Setting up your account...');
+        // DETECTION LOGIC - Check URL parameters to determine auth type
+        const params = new URLSearchParams(window.location.search);
+        const urlHash = new URLSearchParams(window.location.hash.substring(1));
 
-        // Get the session directly from Supabase
-        const { data: { session }, error } = await supabase.auth.getSession();
+        // Email confirmation URLs have 'type=signup' or 'token_hash' parameter
+        const isEmailConfirmation = params.get('type') === 'signup' ||
+                                     params.get('type') === 'email' ||
+                                     urlHash.get('type') === 'signup' ||
+                                     params.has('token_hash') ||
+                                     urlHash.has('token_hash');
 
-        if (error) {
-          console.error('❌ Error getting session:', error);
-          throw error;
+        if (isEmailConfirmation) {
+          console.log('📧 AuthCallback: Detected email confirmation flow');
+          await handleEmailConfirmation();
+        } else {
+          console.log('🔐 AuthCallback: Detected OAuth callback flow');
+          await handleOAuthCallback();
         }
 
-        if (!session) {
-          console.error('❌ No session found after OAuth callback');
-          setStatus('error');
-          setMessage('Authentication failed. Please try again.');
-          setTimeout(() => navigate('/login'), 3000);
-          return;
-        }
+      } catch (err) {
+        console.error('❌ Auth callback error:', err);
+        setStatus('error');
+        setMessage(err.message || 'Authentication failed');
+        setTimeout(() => navigate('/login'), 3000);
+      }
+    };
 
-        console.log('✅ Session established:', session.user.email);
+    // Handle email confirmation flow (email/password signup)
+    const handleEmailConfirmation = async () => {
+      console.log('📧 Processing email confirmation...');
+      setStatus('processing');
+      setMessage('Confirming your email...');
 
-        const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
+      // Wait a moment for Supabase to establish the session after email confirmation
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Fetch profile to check onboarding status
-        let onboardingCompleted = false;
-        try {
-          const response = await fetch(`${apiBaseUrl}/api/users/profile`, {
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`
-            }
-          });
+      // Get the session
+      const { data: { session }, error } = await supabase.auth.getSession();
 
-          if (response.ok) {
-            const profileData = await response.json();
-            onboardingCompleted = profileData.onboarding_completed || false;
-            console.log('✅ Profile loaded successfully. Onboarding completed:', onboardingCompleted);
-          } else {
-            console.warn('⚠️ Profile endpoint returned:', response.status);
+      if (error) {
+        console.error('❌ Error getting session after email confirmation:', error);
+        throw error;
+      }
+
+      if (!session) {
+        console.error('❌ No session found after email confirmation');
+        setStatus('error');
+        setMessage('Email confirmation failed. Please try logging in.');
+        setTimeout(() => navigate('/login'), 3000);
+        return;
+      }
+
+      console.log('✅ Email confirmed, session established:', session.user.email);
+
+      // Complete the auth flow (shared logic)
+      await completeAuthFlow(session, false); // false = don't auto-connect calendar for email users
+    };
+
+    // Handle OAuth callback flow (Google/Microsoft)
+    const handleOAuthCallback = async () => {
+      console.log('🔐 Processing OAuth callback...');
+      setStatus('processing');
+      setMessage('Setting up your account...');
+
+      // Get the session directly from Supabase
+      const { data: { session }, error } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error('❌ Error getting session:', error);
+        throw error;
+      }
+
+      if (!session) {
+        console.error('❌ No session found after OAuth callback');
+        setStatus('error');
+        setMessage('Authentication failed. Please try again.');
+        setTimeout(() => navigate('/login'), 3000);
+        return;
+      }
+
+      console.log('✅ OAuth session established:', session.user.email);
+
+      // Complete the auth flow (shared logic)
+      await completeAuthFlow(session, true); // true = auto-connect calendar for OAuth users
+    };
+
+    // Shared completion logic for both email and OAuth flows
+    const completeAuthFlow = async (session, shouldAutoConnectCalendar) => {
+      const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
+
+      // Fetch profile to check onboarding status
+      let onboardingCompleted = false;
+      try {
+        const response = await fetch(`${apiBaseUrl}/api/users/profile`, {
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`
           }
-        } catch (profileError) {
-          console.warn('⚠️ Error fetching profile:', profileError);
-        }
+        });
 
-        // Auto-connect Google Calendar in background (don't wait for it)
-        // This runs asynchronously and won't block the redirect
+        if (response.ok) {
+          const profileData = await response.json();
+          onboardingCompleted = profileData.onboarding_completed || false;
+          console.log('✅ Profile loaded successfully. Onboarding completed:', onboardingCompleted);
+        } else {
+          console.warn('⚠️ Profile endpoint returned:', response.status);
+        }
+      } catch (profileError) {
+        console.warn('⚠️ Error fetching profile:', profileError);
+      }
+
+      // Auto-connect calendar only for OAuth users (Google/Microsoft)
+      if (shouldAutoConnectCalendar) {
         fetch(`${apiBaseUrl}/api/auth/auto-connect-calendar`, {
           method: 'POST',
           headers: {
@@ -81,28 +147,21 @@ const AuthCallback = () => {
           .catch(error => {
             console.warn('⚠️ Error auto-connecting calendar:', error);
           });
-
-        // Success - redirect immediately (don't wait for calendar)
-        setStatus('success');
-        setMessage('Redirecting...');
-
-        // Redirect immediately
-        setTimeout(() => {
-          if (onboardingCompleted) {
-            console.log('🔄 Onboarding complete - Redirecting to /meetings...');
-            navigate('/meetings', { replace: true });
-          } else {
-            console.log('🔄 Onboarding incomplete - Redirecting to /onboarding...');
-            navigate('/onboarding', { replace: true });
-          }
-        }, 500);
-
-      } catch (err) {
-        console.error('❌ Auth callback error:', err);
-        setStatus('error');
-        setMessage(err.message || 'Authentication failed');
-        setTimeout(() => navigate('/login'), 3000);
       }
+
+      // Success - redirect
+      setStatus('success');
+      setMessage('Redirecting...');
+
+      setTimeout(() => {
+        if (onboardingCompleted) {
+          console.log('🔄 Onboarding complete - Redirecting to /meetings...');
+          navigate('/meetings', { replace: true });
+        } else {
+          console.log('🔄 Onboarding incomplete - Redirecting to /onboarding...');
+          navigate('/onboarding', { replace: true });
+        }
+      }, 500);
     };
 
     handleCallback();
