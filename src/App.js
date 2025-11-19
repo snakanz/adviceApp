@@ -12,6 +12,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import PricingPage from './pages/PricingPage';
 import AuthCallback from './pages/AuthCallback';
+import AuthConfirm from './pages/AuthConfirm';
 import OnboardingFlow from './pages/Onboarding/OnboardingFlow';
 import AskAdvicly from './pages/AskAdvicly';
 import notificationService from './services/notificationService';
@@ -168,6 +169,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/auth/confirm" element={<AuthConfirm />} />
 
           {/* Protected routes */}
           <Route element={<PrivateRoute />}>
