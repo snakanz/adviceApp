@@ -57,6 +57,39 @@ class MicrosoftCalendarService {
   }
 
   /**
+   * Extract refresh token from MSAL token cache
+   * MSAL stores refresh tokens in an internal cache for security
+   * We need to extract it to store in our database
+   */
+  async getRefreshTokenFromCache(homeAccountId) {
+    try {
+      const cache = this.cca.getTokenCache();
+      const cacheData = cache.serialize();
+
+      // Parse the serialized cache
+      const parsedCache = JSON.parse(cacheData);
+
+      // Refresh tokens are stored in the RefreshToken section
+      const refreshTokens = parsedCache.RefreshToken || {};
+
+      // Find the refresh token for this specific account
+      for (const key in refreshTokens) {
+        const token = refreshTokens[key];
+        if (token.home_account_id === homeAccountId) {
+          console.log('✅ Refresh token found in MSAL cache for account:', homeAccountId);
+          return token.secret; // This is the actual refresh token string
+        }
+      }
+
+      console.warn('⚠️ No refresh token found in cache for account:', homeAccountId);
+      return null;
+    } catch (error) {
+      console.error('❌ Error extracting refresh token from cache:', error);
+      return null;
+    }
+  }
+
+  /**
    * Exchange authorization code for access token
    */
   async exchangeCodeForToken(code) {
@@ -72,7 +105,24 @@ class MicrosoftCalendarService {
     };
 
     const response = await this.cca.acquireTokenByCode(tokenRequest);
-    return response;
+
+    // Extract refresh token from MSAL cache
+    const refreshToken = await this.getRefreshTokenFromCache(
+      response.account.homeAccountId
+    );
+
+    console.log('🔑 Microsoft OAuth - Refresh token extracted:', refreshToken ? 'YES ✅' : 'NO ❌');
+    console.log('📊 Microsoft OAuth - Access token received:', response.accessToken ? 'YES ✅' : 'NO ❌');
+    console.log('⏰ Microsoft OAuth - Token expires on:', response.expiresOn);
+
+    // Return enhanced response with refresh token
+    return {
+      accessToken: response.accessToken,
+      refreshToken: refreshToken,
+      expiresOn: response.expiresOn,
+      account: response.account,
+      scopes: response.scopes
+    };
   }
 
   /**
