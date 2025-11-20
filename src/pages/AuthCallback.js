@@ -126,6 +126,36 @@ const AuthCallback = () => {
     const completeAuthFlow = async (session, shouldAutoConnectCalendar) => {
       const apiBaseUrl = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
+      // Check if returning from onboarding OAuth redirect
+      const onboardingState = sessionStorage.getItem('onboarding_state');
+
+      if (onboardingState) {
+        console.log('🔄 Detected onboarding OAuth return, restoring state...');
+        const state = JSON.parse(onboardingState);
+
+        // Mark OAuth as successful in sessionStorage for Step3 to detect
+        sessionStorage.setItem('oauth_return', JSON.stringify({
+          provider: state.selectedProvider,
+          success: true
+        }));
+
+        // Clear onboarding state
+        sessionStorage.removeItem('onboarding_state');
+
+        // Success - redirect back to onboarding
+        setStatus('success');
+        setMessage('Calendar connected! Returning to onboarding...');
+
+        setTimeout(() => {
+          console.log(`🔄 Redirecting to onboarding step ${state.currentStep}...`);
+          navigate('/onboarding', {
+            replace: true,
+            state: { restoredData: state }
+          });
+        }, 500);
+        return;
+      }
+
       // Fetch profile to check onboarding status
       let onboardingCompleted = false;
       try {

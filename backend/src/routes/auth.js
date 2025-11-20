@@ -23,9 +23,7 @@ router.get('/google', (req, res) => {
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: scopes,
-    prompt: 'consent',
-    // Pass through state parameter for popup-based OAuth
-    state: req.query.state || ''
+    prompt: 'consent'
   });
 
     res.json({ url });
@@ -241,55 +239,14 @@ router.get('/google/callback', async (req, res) => {
 
     console.log('📅 /api/auth/google/callback called');
     console.log('  - code:', code ? '✅ Present' : '❌ Missing');
-    console.log('  - state:', state ? `✅ Present (popup mode - user: ${state})` : '❌ Missing (redirect mode)');
 
     // Check if Supabase is available
     if (!isSupabaseAvailable()) {
-      if (state) {
-        // Popup mode - send error to parent window
-        return res.send(`
-          <html>
-            <body>
-              <script>
-                if (window.opener) {
-                  window.opener.postMessage({
-                    type: 'GOOGLE_OAUTH_ERROR',
-                    error: 'Database service unavailable'
-                  }, '*');
-                }
-                window.close();
-              </script>
-              <p>Error: Database service unavailable</p>
-            </body>
-          </html>
-        `);
-      }
-      return res.status(503).json({
-        error: 'Database service unavailable. Please contact support.'
-      });
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=database_unavailable`);
     }
 
     if (!code) {
-      if (state) {
-        // Popup mode - send error to parent window
-        return res.send(`
-          <html>
-            <body>
-              <script>
-                if (window.opener) {
-                  window.opener.postMessage({
-                    type: 'GOOGLE_OAUTH_ERROR',
-                    error: 'No authorization code received'
-                  }, '*');
-                }
-                window.close();
-              </script>
-              <p>Error: No authorization code received</p>
-            </body>
-          </html>
-        `);
-      }
-      return res.redirect(`${process.env.FRONTEND_URL}/login?error=NoCode`);
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=missing_code`);
     }
 
     // Exchange code for tokens
@@ -302,12 +259,6 @@ router.get('/google/callback', async (req, res) => {
 
     console.log('📅 Google OAuth callback - User:', userInfo.data.email);
     console.log('📅 Google tokens received - Access token:', tokens.access_token ? 'yes' : 'no', 'Refresh token:', tokens.refresh_token ? 'yes' : 'no');
-
-    // Determine if this is popup mode (onboarding) or redirect mode (initial login)
-    const isPopupMode = !!state;
-    const userId = state || null; // state contains user ID in popup mode
-
-    console.log(`📍 Mode: ${isPopupMode ? 'POPUP (onboarding)' : 'REDIRECT (initial login)'}`);
 
     // Find or create user
     const { data: existingUser, error: findError } = await getSupabase()
@@ -376,34 +327,7 @@ router.get('/google/callback', async (req, res) => {
         console.error('Error updating calendar connection:', updateError);
       } else {
         console.log('✅ Google Calendar connection updated successfully');
-
-        // Only setup webhook and sync if NOT in popup mode (onboarding)
-        if (!isPopupMode) {
-          console.log('📡 Setting up webhook and initial sync (not in onboarding)...');
-          // Setup webhook for automatic sync
-          try {
-            console.log('📡 Setting up Google Calendar webhook for automatic sync...');
-            const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
-            const webhookService = new GoogleCalendarWebhookService();
-            await webhookService.setupCalendarWatch(user.id);
-            console.log('✅ Webhook setup completed - meetings will sync automatically');
-
-            // Trigger initial sync to fetch existing meetings
-            try {
-              console.log('🔄 Triggering initial sync to fetch existing meetings...');
-              await webhookService.syncCalendarEvents(user.id);
-              console.log('✅ Initial sync completed - existing meetings fetched');
-            } catch (syncError) {
-              console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
-              // Don't fail the connection if initial sync fails
-            }
-          } catch (webhookError) {
-            console.warn('⚠️  Webhook setup failed (non-fatal):', webhookError.message);
-            // Don't fail the connection if webhook setup fails
-          }
-        } else {
-          console.log('⏭️  Skipping webhook setup and sync during onboarding - will sync after subscription');
-        }
+        console.log('⏭️  Skipping webhook setup during OAuth - will be set up after onboarding completion');
       }
     } else {
       console.log('✅ Creating new Google Calendar connection...');
@@ -446,162 +370,11 @@ router.get('/google/callback', async (req, res) => {
         console.error('Error creating calendar connection:', createError);
       } else {
         console.log('✅ Google Calendar connection created successfully');
-
-        // Only setup webhook and sync if NOT in popup mode (onboarding)
-        if (!isPopupMode) {
-          console.log('📡 Setting up webhook and initial sync (not in onboarding)...');
-          // Setup webhook for automatic sync
-          try {
-            console.log('📡 Setting up Google Calendar webhook for automatic sync...');
-            const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
-            const webhookService = new GoogleCalendarWebhookService();
-            await webhookService.setupCalendarWatch(user.id);
-            console.log('✅ Webhook setup completed - meetings will sync automatically');
-
-            // Trigger initial sync to fetch existing meetings
-            try {
-              console.log('🔄 Triggering initial sync to fetch existing meetings...');
-              await webhookService.syncCalendarEvents(user.id);
-              console.log('✅ Initial sync completed - existing meetings fetched');
-            } catch (syncError) {
-              console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
-              // Don't fail the connection if initial sync fails
-            }
-          } catch (webhookError) {
-            console.warn('⚠️  Webhook setup failed (non-fatal):', webhookError.message);
-            // Don't fail the connection if webhook setup fails
-          }
-        } else {
-          console.log('⏭️  Skipping webhook setup and sync during onboarding - will sync after subscription');
-        }
+        console.log('⏭️  Skipping webhook setup during OAuth - will be set up after onboarding completion');
       }
     }
 
-    // If popup mode (onboarding), send postMessage and close popup
-    if (isPopupMode) {
-      console.log('✅ Popup mode - Sending success message to parent window');
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Google Calendar Connected</title>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                min-height: 100vh;
-                margin: 0;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                text-align: center;
-                padding: 20px;
-              }
-              .container {
-                background: white;
-                color: #333;
-                padding: 40px;
-                border-radius: 12px;
-                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-                max-width: 400px;
-              }
-              .success-icon {
-                width: 64px;
-                height: 64px;
-                margin: 0 auto 20px;
-                background: #10b981;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 32px;
-              }
-              h1 {
-                margin: 0 0 10px;
-                font-size: 24px;
-                color: #1f2937;
-              }
-              p {
-                margin: 0 0 20px;
-                color: #6b7280;
-                line-height: 1.5;
-              }
-              .close-btn {
-                background: #667eea;
-                color: white;
-                border: none;
-                padding: 12px 24px;
-                border-radius: 6px;
-                font-size: 16px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: background 0.2s;
-              }
-              .close-btn:hover {
-                background: #5568d3;
-              }
-              .auto-close {
-                margin-top: 15px;
-                font-size: 14px;
-                color: #9ca3af;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="success-icon">✓</div>
-              <h1>Calendar Connected!</h1>
-              <p>Your Google Calendar has been successfully connected to Advicly.</p>
-              <button class="close-btn" onclick="closeWindow()">Close Window</button>
-              <p class="auto-close">This window will close automatically in <span id="countdown">3</span> seconds...</p>
-            </div>
-            <script>
-              // Send success message to parent window
-              if (window.opener) {
-                window.opener.postMessage({
-                  type: 'GOOGLE_OAUTH_SUCCESS',
-                  message: 'Google Calendar connected successfully'
-                }, '*');
-
-                // Focus parent window
-                window.opener.focus();
-              }
-
-              // Function to close window
-              function closeWindow() {
-                window.close();
-                // If window.close() doesn't work (some browsers block it),
-                // show a message
-                setTimeout(function() {
-                  document.querySelector('.container').innerHTML =
-                    '<div class="success-icon">✓</div>' +
-                    '<h1>Success!</h1>' +
-                    '<p>You can now close this window manually.</p>';
-                }, 100);
-              }
-
-              // Auto-close countdown
-              let seconds = 3;
-              const countdownEl = document.getElementById('countdown');
-              const countdown = setInterval(function() {
-                seconds--;
-                if (countdownEl) countdownEl.textContent = seconds;
-                if (seconds <= 0) {
-                  clearInterval(countdown);
-                  closeWindow();
-                }
-              }, 1000);
-            </script>
-          </body>
-        </html>
-      `);
-    }
-
-    // Redirect mode (initial login) - generate JWT and redirect
+    // Generate JWT and redirect to frontend
     console.log('✅ Redirect mode - Generating JWT and redirecting to /auth/callback');
     const jwtToken = jwt.sign(
       {
@@ -617,27 +390,6 @@ router.get('/google/callback', async (req, res) => {
     res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${jwtToken}`);
   } catch (error) {
     console.error('Google auth error:', error);
-
-    // If popup mode, send error to parent window
-    if (req.query.state) {
-      return res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({
-                  type: 'GOOGLE_OAUTH_ERROR',
-                  error: '${error.message || 'Authentication failed'}'
-                }, '*');
-              }
-              window.close();
-            </script>
-            <p>Error: ${error.message || 'Authentication failed'}</p>
-          </body>
-        </html>
-      `);
-    }
-
     res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
   }
 });
@@ -695,15 +447,11 @@ router.get('/microsoft', async (req, res) => {
       });
     }
 
-    // Pass through state parameter for popup-based OAuth
-    const state = req.query.state || '';
-
     console.log('🔗 Generating Microsoft OAuth URL...');
-    console.log('  - State parameter:', state || '(none)');
     console.log('  - Redirect URI:', microsoftService.redirectUri);
 
     // IMPORTANT: getAuthCodeUrl() returns a Promise, so we need to await it
-    const url = await microsoftService.getAuthorizationUrl(state);
+    const url = await microsoftService.getAuthorizationUrl();
 
     console.log('✅ Microsoft OAuth URL generated successfully');
     console.log('  - URL length:', url.length);
@@ -788,12 +536,9 @@ router.get('/microsoft/callback', async (req, res) => {
     console.log(`📅 MICROSOFT CALLBACK HIT - ${timestamp}`);
     console.log('='.repeat(80));
     console.log('  - code:', code ? '✅ Present' : '❌ Missing');
-    console.log('  - state:', state ? `✅ Present (popup mode - user: ${state})` : '❌ Missing (redirect mode)');
     console.log('  - Full query params:', JSON.stringify(req.query));
     console.log('  - error:', req.query.error || 'none');
     console.log('  - error_description:', req.query.error_description || 'none');
-    console.log('  - Request URL:', req.url);
-    console.log('  - Request headers:', JSON.stringify(req.headers, null, 2));
     console.log('='.repeat(80));
 
     // Check if Supabase is available
@@ -858,12 +603,6 @@ router.get('/microsoft/callback', async (req, res) => {
     console.log('📅 Microsoft OAuth callback - User:', userInfo.mail || userInfo.userPrincipalName);
     console.log('📅 Microsoft tokens received - Access token:', accessToken ? 'yes' : 'no', 'Refresh token:', refreshToken ? 'yes' : 'no');
 
-    // Determine if this is popup mode (onboarding) or redirect mode (initial login)
-    const isPopupMode = !!state;
-    const userId = state || null;
-
-    console.log(`📍 Mode: ${isPopupMode ? 'POPUP (onboarding)' : 'REDIRECT (initial login)'}`);
-
     // Find or create user
     const userEmail = userInfo.mail || userInfo.userPrincipalName;
     const { data: existingUser, error: findError } = await getSupabase()
@@ -926,23 +665,7 @@ router.get('/microsoft/callback', async (req, res) => {
         console.error('Error updating calendar connection:', updateError);
       } else {
         console.log('✅ Microsoft Calendar connection updated successfully');
-
-        // Setup webhook and sync if NOT in popup mode
-        if (!isPopupMode) {
-          try {
-            console.log('📡 Setting up Microsoft Calendar webhook...');
-            await microsoftService.setupCalendarWatch(user.id);
-            console.log('✅ Webhook setup completed');
-
-            console.log('🔄 Triggering initial sync...');
-            await microsoftService.syncCalendarEvents(user.id);
-            console.log('✅ Initial sync completed');
-          } catch (webhookError) {
-            console.warn('⚠️  Webhook/sync setup failed (non-fatal):', webhookError.message);
-          }
-        } else {
-          console.log('⏭️  Skipping webhook setup during onboarding');
-        }
+        console.log('⏭️  Skipping webhook setup during OAuth - will be set up after onboarding completion');
       }
     } else {
       console.log('✅ Creating new Microsoft Calendar connection...');
@@ -977,152 +700,12 @@ router.get('/microsoft/callback', async (req, res) => {
         console.error('Error creating calendar connection:', createError);
       } else {
         console.log('✅ Microsoft Calendar connection created successfully');
-
-        // Setup webhook and sync if NOT in popup mode
-        if (!isPopupMode) {
-          try {
-            console.log('📡 Setting up Microsoft Calendar webhook...');
-            await microsoftService.setupCalendarWatch(user.id);
-            console.log('✅ Webhook setup completed');
-
-            console.log('🔄 Triggering initial sync...');
-            await microsoftService.syncCalendarEvents(user.id);
-            console.log('✅ Initial sync completed');
-          } catch (webhookError) {
-            console.warn('⚠️  Webhook/sync setup failed (non-fatal):', webhookError.message);
-          }
-        } else {
-          console.log('⏭️  Skipping webhook setup during onboarding');
-        }
+        console.log('⏭️  Skipping webhook setup during OAuth - will be set up after onboarding completion');
       }
     }
 
-    // If popup mode, send postMessage and close
-    if (isPopupMode) {
-      console.log('✅ Popup mode - Sending success message');
-      return res.send(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Microsoft Calendar Connected</title>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                min-height: 100vh;
-                margin: 0;
-                background: linear-gradient(135deg, #0078d4 0%, #00bcf2 100%);
-                color: white;
-                text-align: center;
-                padding: 20px;
-              }
-              .container {
-                background: white;
-                color: #333;
-                padding: 40px;
-                border-radius: 12px;
-                box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-                max-width: 400px;
-              }
-              .success-icon {
-                width: 64px;
-                height: 64px;
-                margin: 0 auto 20px;
-                background: #10b981;
-                border-radius: 50%;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 32px;
-              }
-              h1 {
-                margin: 0 0 10px;
-                font-size: 24px;
-                color: #1f2937;
-              }
-              p {
-                margin: 0 0 20px;
-                color: #6b7280;
-                line-height: 1.5;
-              }
-              .close-btn {
-                background: #0078d4;
-                color: white;
-                border: none;
-                padding: 12px 24px;
-                border-radius: 6px;
-                font-size: 16px;
-                font-weight: 600;
-                cursor: pointer;
-                transition: background 0.2s;
-              }
-              .close-btn:hover {
-                background: #006cbe;
-              }
-              .auto-close {
-                margin-top: 15px;
-                font-size: 14px;
-                color: #9ca3af;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="success-icon">✓</div>
-              <h1>Calendar Connected!</h1>
-              <p>Your Microsoft Calendar has been successfully connected to Advicly.</p>
-              <button class="close-btn" onclick="closeWindow()">Close Window</button>
-              <p class="auto-close">This window will close automatically in <span id="countdown">3</span> seconds...</p>
-            </div>
-            <script>
-              // Send success message to parent window
-              if (window.opener) {
-                window.opener.postMessage({
-                  type: 'MICROSOFT_OAUTH_SUCCESS',
-                  message: 'Microsoft Calendar connected successfully'
-                }, '*');
-
-                // Focus parent window
-                window.opener.focus();
-              }
-
-              // Function to close window
-              function closeWindow() {
-                window.close();
-                // If window.close() doesn't work (some browsers block it),
-                // show a message
-                setTimeout(function() {
-                  document.querySelector('.container').innerHTML =
-                    '<div class="success-icon">✓</div>' +
-                    '<h1>Success!</h1>' +
-                    '<p>You can now close this window manually.</p>';
-                }, 100);
-              }
-
-              // Auto-close countdown
-              let seconds = 3;
-              const countdownEl = document.getElementById('countdown');
-              const countdown = setInterval(function() {
-                seconds--;
-                if (countdownEl) countdownEl.textContent = seconds;
-                if (seconds <= 0) {
-                  clearInterval(countdown);
-                  closeWindow();
-                }
-              }, 1000);
-            </script>
-          </body>
-        </html>
-      `);
-    }
-
-    // Redirect mode - generate JWT and redirect
-    console.log('✅ Redirect mode - Generating JWT');
+    // Generate JWT and redirect to frontend
+    console.log('✅ Generating JWT and redirecting to /auth/callback');
     const jwtToken = jwt.sign(
       {
         id: user.id,
@@ -1133,29 +716,10 @@ router.get('/microsoft/callback', async (req, res) => {
       { expiresIn: '24h' }
     );
 
+    // Redirect to frontend with token
     res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${jwtToken}`);
   } catch (error) {
     console.error('Microsoft auth error:', error);
-
-    if (req.query.state) {
-      return res.send(`
-        <html>
-          <body>
-            <script>
-              if (window.opener) {
-                window.opener.postMessage({
-                  type: 'MICROSOFT_OAUTH_ERROR',
-                  error: '${error.message || 'Authentication failed'}'
-                }, '*');
-              }
-              window.close();
-            </script>
-            <p>Error: ${error.message || 'Authentication failed'}</p>
-          </body>
-        </html>
-      `);
-    }
-
     res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
   }
 });

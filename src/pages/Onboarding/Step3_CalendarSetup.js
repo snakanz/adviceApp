@@ -22,62 +22,29 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
     const [enableTranscription, setEnableTranscription] = useState(false);
     const [connectionTimeout, setConnectionTimeout] = useState(null);
 
-    // Listen for OAuth messages from popup windows
+    // Check if returning from OAuth redirect
     useEffect(() => {
-        const handleOAuthMessage = (event) => {
-            // Verify origin for security - accept from localhost, advicly domains, and render.com
-            const validOrigins = ['localhost', 'advicly', 'render.com', 'onrender.com'];
-            const isValidOrigin = validOrigins.some(origin => event.origin.includes(origin));
+        const checkOAuthReturn = async () => {
+            const oauthReturn = sessionStorage.getItem('oauth_return');
+            if (oauthReturn) {
+                const { provider, success, error: oauthError } = JSON.parse(oauthReturn);
+                sessionStorage.removeItem('oauth_return');
 
-            if (!isValidOrigin) {
-                console.warn('⚠️ Ignoring message from invalid origin:', event.origin);
-                return;
-            }
-
-            console.log('📨 Received message from popup:', event.data);
-
-            if (event.data.type === 'GOOGLE_OAUTH_SUCCESS') {
-                console.log('✅ Google Calendar OAuth successful');
-                if (connectionTimeout) clearTimeout(connectionTimeout);
-                setIsConnected(true);
-                setIsConnecting(false);
-                setError('');
-            } else if (event.data.type === 'GOOGLE_OAUTH_ERROR') {
-                console.error('❌ Google Calendar OAuth error:', event.data.error);
-                if (connectionTimeout) clearTimeout(connectionTimeout);
-                setError(event.data.error || 'Failed to connect to Google Calendar');
-                setIsConnecting(false);
-            } else if (event.data.type === 'MICROSOFT_OAUTH_SUCCESS') {
-                console.log('✅ Microsoft Calendar OAuth successful');
-                if (connectionTimeout) clearTimeout(connectionTimeout);
-                setIsConnected(true);
-                setIsConnecting(false);
-                setError('');
-            } else if (event.data.type === 'MICROSOFT_OAUTH_ERROR') {
-                console.error('❌ Microsoft Calendar OAuth error:', event.data.error);
-                if (connectionTimeout) clearTimeout(connectionTimeout);
-                setError(event.data.error || 'Failed to connect to Microsoft Calendar');
-                setIsConnecting(false);
-            } else if (event.data.type === 'CALENDLY_OAUTH_SUCCESS') {
-                console.log('✅ Calendly OAuth successful');
-                if (connectionTimeout) clearTimeout(connectionTimeout);
-                setIsConnected(true);
-                setIsConnecting(false);
-                setError('');
-            } else if (event.data.type === 'CALENDLY_OAUTH_ERROR') {
-                console.error('❌ Calendly OAuth error:', event.data.error);
-                if (connectionTimeout) clearTimeout(connectionTimeout);
-                setError(event.data.error || 'Failed to connect to Calendly');
+                if (success) {
+                    console.log(`✅ ${provider} Calendar OAuth successful`);
+                    setSelectedProvider(provider);
+                    setIsConnected(true);
+                    setError('');
+                } else {
+                    console.error(`❌ ${provider} Calendar OAuth error:`, oauthError);
+                    setError(oauthError || `Failed to connect to ${provider} Calendar`);
+                }
                 setIsConnecting(false);
             }
         };
 
-        window.addEventListener('message', handleOAuthMessage);
-        return () => {
-            window.removeEventListener('message', handleOAuthMessage);
-            if (connectionTimeout) clearTimeout(connectionTimeout);
-        };
-    }, [connectionTimeout]);
+        checkOAuthReturn();
+    }, []);
 
     // Check if already connected on mount (from auto-connect)
     useEffect(() => {
@@ -149,48 +116,30 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         try {
             const token = await getAccessToken();
 
-            // Get OAuth URL from auth endpoint with state parameter for popup mode
-            // This endpoint returns a URL that can be used for popup-based OAuth
+            // Get OAuth URL from auth endpoint
             const response = await axios.get(
-                `${API_BASE_URL}/api/auth/google?state=${user.id}`,
+                `${API_BASE_URL}/api/auth/google`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
             if (response.data.url && user?.id) {
-                // OAuth URL already includes state parameter from backend
-                const oauthUrl = response.data.url;
+                console.log('🔄 Saving onboarding state and redirecting to Google OAuth...');
 
-                // Open OAuth in popup window instead of full-page redirect
-                // IMPORTANT: Must open popup synchronously in response to user click
-                // to avoid browser popup blocker converting it to a new tab
-                const width = 600;
-                const height = 700;
-                const left = window.screen.width / 2 - width / 2;
-                const top = window.screen.height / 2 - height / 2;
+                // Save onboarding state to sessionStorage before redirect
+                sessionStorage.setItem('onboarding_state', JSON.stringify({
+                    currentStep: 3,
+                    selectedProvider: 'google',
+                    selectedPlan: data.selected_plan,
+                    business_name: data.business_name,
+                    business_type: data.business_type,
+                    team_size: data.team_size,
+                    timezone: data.timezone,
+                    enable_transcription: enableTranscription,
+                    user_id: user.id
+                }));
 
-                const popup = window.open(
-                    oauthUrl,
-                    'Google Calendar OAuth',
-                    `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,location=no,status=no`
-                );
-
-                if (!popup || popup.closed) {
-                    setError('Popup blocked. Please allow popups and try again.');
-                    setIsConnecting(false);
-                } else {
-                    console.log('✅ Google OAuth popup opened successfully');
-
-                    // Set 30-second timeout for OAuth completion
-                    const timeout = setTimeout(() => {
-                        if (isConnecting) {
-                            console.warn('⚠️ OAuth connection timed out after 30 seconds');
-                            setError('Connection timed out. The backend may be starting up. Please try again in a moment.');
-                            setIsConnecting(false);
-                        }
-                    }, 30000);
-
-                    setConnectionTimeout(timeout);
-                }
+                // Redirect to OAuth (no popup blockers!)
+                window.location.href = response.data.url;
             }
         } catch (err) {
             console.error('Error connecting to Google:', err);
@@ -206,16 +155,12 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         try {
             console.log('🔵 Starting Microsoft OAuth flow...');
             const token = await getAccessToken();
-            console.log('✅ Access token obtained');
 
-            // Get OAuth URL from auth endpoint with state parameter for popup mode
-            console.log('📡 Requesting OAuth URL from backend...');
+            // Get OAuth URL from auth endpoint
             const response = await axios.get(
-                `${API_BASE_URL}/api/auth/microsoft?state=${user.id}`,
+                `${API_BASE_URL}/api/auth/microsoft`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
-
-            console.log('📥 Backend response:', response.data);
 
             if (!response.data.url) {
                 console.error('❌ No OAuth URL in response:', response.data);
@@ -231,73 +176,31 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                 return;
             }
 
-            // OAuth URL already includes state parameter from backend
-            const oauthUrl = response.data.url;
-            console.log('🔗 OAuth URL received (length:', oauthUrl.length, ')');
-            console.log('🔗 OAuth URL preview:', oauthUrl.substring(0, 100) + '...');
+            console.log('🔄 Saving onboarding state and redirecting to Microsoft OAuth...');
 
-            // Open OAuth in popup window instead of full-page redirect
-            const width = 600;
-            const height = 700;
-            const left = window.screen.width / 2 - width / 2;
-            const top = window.screen.height / 2 - height / 2;
+            // Save onboarding state to sessionStorage before redirect
+            sessionStorage.setItem('onboarding_state', JSON.stringify({
+                currentStep: 3,
+                selectedProvider: 'microsoft',
+                selectedPlan: data.selected_plan,
+                business_name: data.business_name,
+                business_type: data.business_type,
+                team_size: data.team_size,
+                timezone: data.timezone,
+                enable_transcription: enableTranscription,
+                user_id: user.id
+            }));
 
-            console.log('🪟 Opening popup window...');
-            const popup = window.open(
-                oauthUrl,
-                'Microsoft Calendar OAuth',
-                `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,location=no,status=no`
-            );
-
-            if (!popup || popup.closed) {
-                console.error('❌ Popup was blocked or failed to open');
-                setError('Popup blocked. Please allow popups and try again.');
-                setIsConnecting(false);
-            } else {
-                console.log('✅ Microsoft OAuth popup opened successfully');
-                console.log('🪟 Popup object:', popup);
-
-                // Monitor popup to see if it closes unexpectedly
-                const popupMonitor = setInterval(() => {
-                    if (popup.closed) {
-                        console.log('🪟 Popup was closed');
-                        clearInterval(popupMonitor);
-                        if (isConnecting) {
-                            console.warn('⚠️ Popup closed without completing OAuth');
-                            setError('OAuth window was closed. Please try again.');
-                            setIsConnecting(false);
-                        }
-                    }
-                }, 500);
-
-                // Set 30-second timeout for OAuth completion
-                const timeout = setTimeout(() => {
-                    clearInterval(popupMonitor);
-                    if (isConnecting) {
-                        console.warn('⚠️ OAuth connection timed out after 30 seconds');
-                        setError('Connection timed out. Please try again.');
-                        setIsConnecting(false);
-                        if (popup && !popup.closed) {
-                            popup.close();
-                        }
-                    }
-                }, 30000);
-
-                setConnectionTimeout(timeout);
-            }
+            // Redirect to OAuth (no popup blockers!)
+            window.location.href = response.data.url;
         } catch (err) {
             console.error('❌ Error connecting to Microsoft:', err);
-            console.error('  - Error message:', err.message);
-            console.error('  - Error response:', err.response?.data);
-            console.error('  - Error status:', err.response?.status);
-
             let errorMessage = 'Failed to connect to Microsoft Calendar';
             if (err.response?.data?.error) {
                 errorMessage = err.response.data.error;
             } else if (err.message) {
                 errorMessage = err.message;
             }
-
             setError(errorMessage);
             setIsConnecting(false);
         }
@@ -317,40 +220,24 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
             );
 
             if (response.data.url && user?.id) {
-                // Add state parameter with user ID for popup-based flow
+                console.log('🔄 Saving onboarding state and redirecting to Calendly OAuth...');
+
+                // Save onboarding state to sessionStorage before redirect
+                sessionStorage.setItem('onboarding_state', JSON.stringify({
+                    currentStep: 3,
+                    selectedProvider: 'calendly',
+                    selectedPlan: data.selected_plan,
+                    business_name: data.business_name,
+                    business_type: data.business_type,
+                    team_size: data.team_size,
+                    timezone: data.timezone,
+                    enable_transcription: enableTranscription,
+                    user_id: user.id
+                }));
+
+                // Add state parameter with user ID and redirect
                 const oauthUrl = `${response.data.url}&state=${user.id}`;
-
-                // Open OAuth in popup window instead of full-page redirect
-                // IMPORTANT: Must open popup synchronously in response to user click
-                // to avoid browser popup blocker converting it to a new tab
-                const width = 600;
-                const height = 700;
-                const left = window.screen.width / 2 - width / 2;
-                const top = window.screen.height / 2 - height / 2;
-
-                const popup = window.open(
-                    oauthUrl,
-                    'Calendly OAuth',
-                    `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,location=no,status=no`
-                );
-
-                if (!popup || popup.closed) {
-                    setError('Popup blocked. Please allow popups and try again.');
-                    setIsConnecting(false);
-                } else {
-                    console.log('✅ Calendly OAuth popup opened successfully');
-
-                    // Set 30-second timeout for OAuth completion
-                    const timeout = setTimeout(() => {
-                        if (isConnecting) {
-                            console.warn('⚠️ OAuth connection timed out after 30 seconds');
-                            setError('Connection timed out. The backend may be starting up. Please try again in a moment.');
-                            setIsConnecting(false);
-                        }
-                    }, 30000);
-
-                    setConnectionTimeout(timeout);
-                }
+                window.location.href = oauthUrl;
             }
         } catch (err) {
             console.error('Error connecting to Calendly via OAuth:', err);
