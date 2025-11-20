@@ -20,7 +20,6 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
     // const [calendlyToken, setCalendlyToken] = useState('');
     // const [showTokenInput, setShowTokenInput] = useState(false);
     const [enableTranscription, setEnableTranscription] = useState(false);
-    const [connectionTimeout, setConnectionTimeout] = useState(null);
 
     // Check if returning from OAuth redirect
     useEffect(() => {
