@@ -11,7 +11,6 @@ import OutlookIcon from '../components/OutlookIcon';
 const RegisterPage = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const selectedPlan = searchParams.get('plan') || 'free'; // Get plan from URL
     const { isAuthenticated, signUpWithEmail, signInWithOAuth } = useAuth();
     const [formData, setFormData] = useState({
         name: '',
@@ -23,21 +22,12 @@ const RegisterPage = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [emailSent, setEmailSent] = useState(false);
 
-    // Store selected plan in session storage on mount
-    useEffect(() => {
-        if (selectedPlan) {
-            sessionStorage.setItem('selectedPlan', selectedPlan);
-        }
-    }, [selectedPlan]);
-
     useEffect(() => {
         if (isAuthenticated) {
-            // Get plan from session storage (in case of OAuth redirect)
-            const plan = sessionStorage.getItem('selectedPlan') || selectedPlan;
-            // Pass selected plan to onboarding
-            navigate(`/onboarding?plan=${plan}`);
+            // Redirect to onboarding (plan selection happens there)
+            navigate('/onboarding');
         }
-    }, [isAuthenticated, navigate, selectedPlan]);
+    }, [isAuthenticated, navigate]);
 
     const handleChange = (e) => {
         setFormData({

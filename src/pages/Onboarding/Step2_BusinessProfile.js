@@ -3,6 +3,9 @@ import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Badge } from '../../components/ui/badge';
+import { Check } from 'lucide-react';
 import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
@@ -33,6 +36,8 @@ const Step2_BusinessProfile = ({ data, onNext, user }) => {
         team_size: data.team_size || 1,
         timezone: data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
     });
+    const [selectedPlan, setSelectedPlan] = useState(data.selected_plan || null);
+    const [billingCycle, setBillingCycle] = useState('monthly');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
@@ -54,6 +59,11 @@ const Step2_BusinessProfile = ({ data, onNext, user }) => {
             return;
         }
 
+        if (!selectedPlan) {
+            setError('Please select a plan to continue');
+            return;
+        }
+
         setIsLoading(true);
 
         try {
@@ -66,10 +76,17 @@ const Step2_BusinessProfile = ({ data, onNext, user }) => {
 
             console.log('✅ Business profile saved:', response.data);
 
-            // Pass tenant_id to next step
+            // Determine the actual plan value to pass
+            let planValue = selectedPlan;
+            if (selectedPlan === 'professional' && billingCycle === 'annual') {
+                planValue = 'professional_annual';
+            }
+
+            // Pass tenant_id and selected plan to next step
             onNext({
                 ...formData,
-                tenant_id: response.data.tenant_id
+                tenant_id: response.data.tenant_id,
+                selected_plan: planValue
             });
         } catch (err) {
             console.error('Error saving business profile:', err);
@@ -197,11 +214,185 @@ const Step2_BusinessProfile = ({ data, onNext, user }) => {
                     </form>
                 </div>
 
-                {/* RIGHT COLUMN - Illustration */}
-                <div className="hidden lg:flex items-center justify-center">
-                    <div className="w-full h-96 bg-gradient-to-br from-yellow-100 to-yellow-50 rounded-lg flex items-center justify-center border border-border">
-                        <span className="text-muted-foreground text-sm">Business Setup Illustration</span>
+                {/* RIGHT COLUMN - Plan Selection */}
+                <div className="space-y-6">
+                    <div className="space-y-3">
+                        <h2 className="text-2xl font-bold text-foreground">
+                            Choose Your Plan
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
+                            Select a plan to continue <span className="text-red-500">*</span>
+                        </p>
                     </div>
+
+                    {/* Free Plan Card */}
+                    <Card
+                        className={`cursor-pointer transition-all ${
+                            selectedPlan === 'free'
+                                ? 'border-2 border-primary shadow-lg'
+                                : 'border-border hover:border-primary/50'
+                        }`}
+                        onClick={() => setSelectedPlan('free')}
+                    >
+                        <CardHeader className="space-y-3">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <CardTitle className="text-xl font-bold">Free</CardTitle>
+                                    <CardDescription className="text-sm mt-1">
+                                        Try Advicly with 5 free meetings
+                                    </CardDescription>
+                                </div>
+                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                    selectedPlan === 'free'
+                                        ? 'border-primary bg-primary'
+                                        : 'border-border'
+                                }`}>
+                                    {selectedPlan === 'free' && (
+                                        <div className="w-2 h-2 bg-white rounded-full" />
+                                    )}
+                                </div>
+                            </div>
+                            <div className="space-y-1">
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-4xl font-bold">£0</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    5 free AI-transcribed meetings
+                                </p>
+                            </div>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            <div className="flex items-start gap-2">
+                                <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                                <span className="text-sm">5 AI-transcribed meetings</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                                <span className="text-sm">Meeting summaries</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                                <span className="text-sm">Client management</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                                <span className="text-sm">Basic pipeline tracking</span>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Professional Plan Card */}
+                    <Card
+                        className={`cursor-pointer transition-all relative ${
+                            selectedPlan === 'professional'
+                                ? 'border-2 border-primary shadow-lg'
+                                : 'border-border hover:border-primary/50'
+                        }`}
+                        onClick={() => setSelectedPlan('professional')}
+                    >
+                        {/* Most Popular Badge */}
+                        <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                            <Badge className="bg-yellow-400 text-black border-0 px-3 py-1 text-xs font-bold">
+                                MOST POPULAR
+                            </Badge>
+                        </div>
+
+                        <CardHeader className="space-y-3 pt-6">
+                            <div className="flex items-start justify-between">
+                                <div>
+                                    <CardTitle className="text-xl font-bold">Professional</CardTitle>
+                                    <CardDescription className="text-sm mt-1">
+                                        Unlimited meetings & AI features
+                                    </CardDescription>
+                                </div>
+                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                                    selectedPlan === 'professional'
+                                        ? 'border-primary bg-primary'
+                                        : 'border-border'
+                                }`}>
+                                    {selectedPlan === 'professional' && (
+                                        <div className="w-2 h-2 bg-white rounded-full" />
+                                    )}
+                                </div>
+                            </div>
+                            <div className="space-y-1">
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-4xl font-bold">
+                                        {billingCycle === 'monthly' ? '£70' : '£56'}
+                                    </span>
+                                    <span className="text-muted-foreground text-sm">/month</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    {billingCycle === 'monthly'
+                                        ? 'Billed monthly'
+                                        : 'Billed annually (£672/year)'}
+                                </p>
+                            </div>
+
+                            {/* Billing Cycle Toggle */}
+                            {selectedPlan === 'professional' && (
+                                <div className="inline-flex items-center bg-muted rounded-full p-1">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setBillingCycle('monthly');
+                                        }}
+                                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                                            billingCycle === 'monthly'
+                                                ? 'bg-background text-foreground shadow-sm'
+                                                : 'text-muted-foreground'
+                                        }`}
+                                    >
+                                        Monthly
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setBillingCycle('annual');
+                                        }}
+                                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                                            billingCycle === 'annual'
+                                                ? 'bg-background text-foreground shadow-sm'
+                                                : 'text-muted-foreground'
+                                        }`}
+                                    >
+                                        Annual
+                                        <Badge className="ml-1 bg-yellow-400 text-black border-0 text-[10px] px-1">
+                                            -20%
+                                        </Badge>
+                                    </button>
+                                </div>
+                            )}
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            <div className="flex items-start gap-2">
+                                <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                                <span className="text-sm font-medium">Unlimited AI-transcribed meetings</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                                <span className="text-sm font-medium">Advanced AI summaries</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                                <span className="text-sm font-medium">Full pipeline management</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                                <span className="text-sm font-medium">Ask Advicly AI assistant</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                                <span className="text-sm font-medium">Document uploads</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                                <span className="text-sm font-medium">Priority support</span>
+                            </div>
+                        </CardContent>
+                    </Card>
                 </div>
             </div>
         </div>

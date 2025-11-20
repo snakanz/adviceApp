@@ -903,7 +903,7 @@ router.post('/onboarding/business-profile', authenticateSupabaseUser, async (req
       .update({
         business_name,
         timezone: timezone || 'UTC',
-        onboarding_completed: true,
+        // onboarding_completed will be set by /onboarding/complete at the end
         updated_at: new Date().toISOString()
       })
       .eq('id', userId);
@@ -913,7 +913,7 @@ router.post('/onboarding/business-profile', authenticateSupabaseUser, async (req
       return res.status(500).json({ error: 'Failed to save business profile' });
     }
 
-    console.log(`✅ Onboarding completed for user ${userId}`);
+    console.log(`✅ Business profile saved for user ${userId}`);
 
     res.json({
       success: true,

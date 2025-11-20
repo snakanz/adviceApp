@@ -115,6 +115,12 @@ const OnboardingFlow = () => {
         // Update onboarding data with step-specific data
         setOnboardingData(prev => ({ ...prev, ...stepData }));
 
+        // Update selected plan if it's in the step data
+        if (stepData.selected_plan) {
+            setSelectedPlan(stepData.selected_plan);
+            sessionStorage.setItem('selectedPlan', stepData.selected_plan);
+        }
+
         // Move to next step
         const nextStep = currentStep + 1;
         setCurrentStep(nextStep);
@@ -215,7 +221,7 @@ const OnboardingFlow = () => {
 
             {/* Step Content */}
             <div className="max-w-4xl mx-auto px-6 py-12">
-                {/* Step 2: Business Profile */}
+                {/* Step 2: Business Profile + Plan Selection */}
                 {currentStep === 2 && (
                     <BusinessProfile
                         data={onboardingData}
@@ -224,17 +230,8 @@ const OnboardingFlow = () => {
                     />
                 )}
 
-                {/* Step 3: Calendar Setup (Consolidated) */}
-                {currentStep === 3 && (
-                    <CalendarSetup
-                        data={onboardingData}
-                        onNext={handleNext}
-                        onBack={handleBack}
-                    />
-                )}
-
-                {/* Step 4: Payment (only for paid plans) */}
-                {currentStep === 4 && selectedPlan !== 'free' && (
+                {/* Step 3: Payment (ONLY for paid plans) OR Calendar Setup (for free) */}
+                {currentStep === 3 && selectedPlan !== 'free' && (
                     <SubscriptionPlan
                         data={onboardingData}
                         selectedPlan={selectedPlan}
@@ -243,8 +240,33 @@ const OnboardingFlow = () => {
                     />
                 )}
 
-                {/* Step 4/5: Complete (with auto-sync) */}
-                {((currentStep === 4 && selectedPlan === 'free') || (currentStep === 5 && selectedPlan !== 'free')) && (
+                {currentStep === 3 && selectedPlan === 'free' && (
+                    <CalendarSetup
+                        data={onboardingData}
+                        onNext={handleNext}
+                        onBack={handleBack}
+                    />
+                )}
+
+                {/* Step 4: Calendar Setup (for paid) OR Complete (for free) */}
+                {currentStep === 4 && selectedPlan !== 'free' && (
+                    <CalendarSetup
+                        data={onboardingData}
+                        onNext={handleNext}
+                        onBack={handleBack}
+                    />
+                )}
+
+                {currentStep === 4 && selectedPlan === 'free' && (
+                    <Complete
+                        data={onboardingData}
+                        selectedPlan={selectedPlan}
+                        onComplete={handleComplete}
+                    />
+                )}
+
+                {/* Step 5: Complete (for paid plans) */}
+                {currentStep === 5 && selectedPlan !== 'free' && (
                     <Complete
                         data={onboardingData}
                         selectedPlan={selectedPlan}

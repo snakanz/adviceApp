@@ -28,9 +28,9 @@ const PricingPage = () => {
         'Priority support'
     ];
 
-    const handleSelectPlan = (plan) => {
-        // Navigate to register page with selected plan
-        navigate(`/register?plan=${plan}`);
+    const handleSelectPlan = () => {
+        // Navigate to register page (plan selection happens in onboarding)
+        navigate('/register');
     };
 
     const handleSignIn = () => {
@@ -142,11 +142,11 @@ const PricingPage = () => {
 
                             {/* CTA Button */}
                             <Button
-                                onClick={() => handleSelectPlan('free')}
+                                onClick={handleSelectPlan}
                                 size="lg"
                                 className="w-full text-base h-12 bg-primary hover:bg-primary/90"
                             >
-                                Try for free
+                                Get started
                             </Button>
                         </CardContent>
                     </Card>
@@ -196,11 +196,11 @@ const PricingPage = () => {
 
                             {/* CTA Button */}
                             <Button
-                                onClick={() => handleSelectPlan(billingCycle === 'monthly' ? 'paid' : 'paid_annual')}
+                                onClick={handleSelectPlan}
                                 size="lg"
                                 className="w-full text-base h-12 bg-primary hover:bg-primary/90"
                             >
-                                Select Plan
+                                Get started
                             </Button>
 
                             <div className="text-center">
