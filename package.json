@@ -37,8 +37,8 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "node verify-env.js && react-scripts build",
-    "build:skip-verify": "react-scripts build",
+    "build": "react-scripts build",
+    "build:verify": "node verify-env.js && react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "dev": "react-scripts start",
