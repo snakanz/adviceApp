@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
@@ -10,7 +10,6 @@ import OutlookIcon from '../components/OutlookIcon';
 
 const RegisterPage = () => {
     const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
     const { isAuthenticated, signUpWithEmail, signInWithOAuth } = useAuth();
     const [formData, setFormData] = useState({
         name: '',
