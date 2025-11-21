@@ -370,83 +370,84 @@ export default function SimplifiedAskAdvicly({
                     )}
                     onClick={() => setActiveThreadId(thread.id)}
                   >
-                  <div className="flex items-center gap-2">
-                    {/* Context-aware icon */}
-                    {thread.context_type === 'meeting' ? (
-                      <Calendar className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                    ) : thread.context_type === 'client' ? (
-                      <User className="w-4 h-4 text-green-600 flex-shrink-0" />
-                    ) : (
-                      <MessageSquare className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                    )}
-
-                    <div className="flex-1 min-w-0">
-                      {editingThreadId === thread.id ? (
-                        <input
-                          value={editingTitle}
-                          onChange={(e) => setEditingTitle(e.target.value)}
-                          onBlur={() => updateThreadTitle(thread.id, editingTitle)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              updateThreadTitle(thread.id, editingTitle);
-                            } else if (e.key === 'Escape') {
-                              setEditingThreadId(null);
-                              setEditingTitle('');
-                            }
-                          }}
-                          className="w-full bg-transparent border-none outline-none text-sm font-medium"
-                          autoFocus
-                        />
+                    <div className="flex items-center gap-2">
+                      {/* Context-aware icon */}
+                      {thread.context_type === 'meeting' ? (
+                        <Calendar className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                      ) : thread.context_type === 'client' ? (
+                        <User className="w-4 h-4 text-green-600 flex-shrink-0" />
                       ) : (
-                        <div className="text-sm font-medium text-foreground truncate">
-                          {thread.title}
-                        </div>
+                        <MessageSquare className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                       )}
 
-                      <div className="text-xs text-muted-foreground truncate mt-1">
-                        {thread.context_type === 'meeting' && 'Meeting Discussion'}
-                        {thread.context_type === 'client' && 'Client Discussion'}
-                        {thread.context_type === 'general' && 'General Advisory'}
-                        {thread.updated_at && (
-                          <span className="ml-2">
-                            {new Date(thread.updated_at).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric'
-                            })}
-                          </span>
+                      <div className="flex-1 min-w-0">
+                        {editingThreadId === thread.id ? (
+                          <input
+                            value={editingTitle}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            onBlur={() => updateThreadTitle(thread.id, editingTitle)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                updateThreadTitle(thread.id, editingTitle);
+                              } else if (e.key === 'Escape') {
+                                setEditingThreadId(null);
+                                setEditingTitle('');
+                              }
+                            }}
+                            className="w-full bg-transparent border-none outline-none text-sm font-medium"
+                            autoFocus
+                          />
+                        ) : (
+                          <div className="text-sm font-medium text-foreground truncate">
+                            {thread.title}
+                          </div>
                         )}
+
+                        <div className="text-xs text-muted-foreground truncate mt-1">
+                          {thread.context_type === 'meeting' && 'Meeting Discussion'}
+                          {thread.context_type === 'client' && 'Client Discussion'}
+                          {thread.context_type === 'general' && 'General Advisory'}
+                          {thread.updated_at && (
+                            <span className="ml-2">
+                              {new Date(thread.updated_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric'
+                              })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Thread actions */}
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingThreadId(thread.id);
+                            setEditingTitle(thread.title);
+                          }}
+                          className="h-6 w-6 p-0"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteThread(thread.id);
+                          }}
+                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
                       </div>
                     </div>
-
-                    {/* Thread actions */}
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingThreadId(thread.id);
-                          setEditingTitle(thread.title);
-                        }}
-                        className="h-6 w-6 p-0"
-                      >
-                        <Edit3 className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteThread(thread.id);
-                        }}
-                        className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
-                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
