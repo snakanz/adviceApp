@@ -153,7 +153,7 @@ function RootRedirect() {
     );
   }
 
-  return isAuthenticated ? <Navigate to="/meetings" /> : <Navigate to="/pricing" />;
+  return isAuthenticated ? <Navigate to="/meetings" /> : <Navigate to="/register" />;
 }
 
 function App() {
@@ -189,7 +189,7 @@ function App() {
           </Route>
 
           {/* Catch-all redirect */}
-          <Route path="*" element={<Navigate to="/pricing" />} />
+          <Route path="*" element={<Navigate to="/register" />} />
         </Routes>
       </Router>
     </AuthProvider>
