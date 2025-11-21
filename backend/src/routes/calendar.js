@@ -919,21 +919,6 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
       });
     }
 
-    // Determine if user has paid subscription for potential premium polish
-    let isPaid = false;
-    try {
-      const { data: subscription } = await getSupabase()
-        .from('subscriptions')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      isPaid = !!(subscription &&
-        (subscription.status === 'active' || subscription.status === 'trialing') &&
-        subscription.plan !== 'free');
-    } catch (subError) {
-      console.warn('⚠️  Could not determine subscription status for premium polish:', subError.message);
-    }
 
     // Use unified generator to get quick summary, email summary, detailed summary, and action points
     const unified = await openai.generateUnifiedMeetingSummary(meeting.transcript, {
@@ -944,13 +929,13 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
 
     let { quickSummary, emailSummary, detailedSummary, actionPointsArray } = unified;
 
-    // Optionally apply GPT-4 polish to the email summary for paid users
-    if (isPaid && emailSummary) {
+    // Apply GPT-4 polish to the email summary for all users
+    if (emailSummary) {
       try {
         const polishPrompt = 'Please refine this client follow-up email to improve clarity, tone, and professionalism without changing the factual content or adding any placeholders. Keep it in plain text with no markdown.';
         emailSummary = await openai.adjustMeetingSummary(emailSummary, polishPrompt);
       } catch (polishError) {
-        console.warn('⚠️  Premium polish failed, falling back to base email summary:', polishError.message);
+        console.warn('⚠️  Email polish failed, falling back to base email summary:', polishError.message);
       }
     }
 
@@ -1438,21 +1423,6 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
 
         const clientName = fullMeeting.clients?.name || 'Client';
 
-        // Determine if user has paid subscription for potential premium polish
-        let isPaid = false;
-        try {
-          const { data: subscription } = await getSupabase()
-            .from('subscriptions')
-            .select('*')
-            .eq('user_id', userId)
-            .single();
-
-          isPaid = !!(subscription &&
-            (subscription.status === 'active' || subscription.status === 'trialing') &&
-            subscription.plan !== 'free');
-        } catch (subError) {
-          console.warn('⚠️  Could not determine subscription status for premium polish:', subError.message);
-        }
 
         // Use unified generator to get quick summary, email summary, detailed summary, and action points
         const unified = await openai.generateUnifiedMeetingSummary(transcript, {
@@ -1463,13 +1433,13 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
 
         let { quickSummary, emailSummary, detailedSummary, actionPointsArray } = unified;
 
-        // Optionally apply GPT-4 polish to the email summary for paid users
-        if (isPaid && emailSummary) {
+        // Apply GPT-4 polish to the email summary for all users
+        if (emailSummary) {
           try {
             const polishPrompt = 'Please refine this client follow-up email to improve clarity, tone, and professionalism without changing the factual content or adding any placeholders. Keep it in plain text with no markdown.';
             emailSummary = await openai.adjustMeetingSummary(emailSummary, polishPrompt);
           } catch (polishError) {
-            console.warn('⚠️  Premium polish failed, falling back to base email summary:', polishError.message);
+            console.warn('⚠️  Email polish failed, falling back to base email summary:', polishError.message);
           }
         }
 
@@ -1885,13 +1855,13 @@ The email you output must be ready to send to the client exactly as written.`;
     // Base review email generation using gpt-4o-mini
     let summary = await openai.generateMeetingSummary(transcript, undefined, { prompt: reviewTemplatePrompt });
 
-    // Optionally apply GPT-4 polish to the review email for paid users
-    if (isPaid && summary) {
+    // Apply GPT-4 polish to the review email for all users
+    if (summary) {
       try {
         const polishPrompt = 'Please refine this client review email to improve clarity, tone, and professionalism without changing the factual content or adding any placeholders. Keep it in plain text with no markdown.';
         summary = await openai.adjustMeetingSummary(summary, polishPrompt);
       } catch (polishError) {
-        console.warn('⚠️  Premium polish for review email failed, falling back to base summary:', polishError.message);
+        console.warn('⚠️  Review email polish failed, falling back to base summary:', polishError.message);
       }
     }
 

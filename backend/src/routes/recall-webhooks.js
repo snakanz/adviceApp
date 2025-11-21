@@ -315,21 +315,6 @@ async function handleTranscriptComplete(botId, data, userId) {
         }
       }
 
-      // Determine if user has paid subscription for potential premium polish
-      let isPaid = false;
-      try {
-        const { data: subscription } = await getSupabase()
-          .from('subscriptions')
-          .select('*')
-          .eq('user_id', userId)
-          .single();
-
-        isPaid = !!(subscription &&
-          (subscription.status === 'active' || subscription.status === 'trialing') &&
-          subscription.plan !== 'free');
-      } catch (subError) {
-        console.warn('⚠️  Could not determine subscription status for premium polish:', subError.message);
-      }
 
       // Use unified generator to get quick summary, email summary, detailed summary, and action points
       const unified = await generateUnifiedMeetingSummary(transcriptText, {
@@ -340,8 +325,8 @@ async function handleTranscriptComplete(botId, data, userId) {
 
       let { quickSummary, emailSummary, detailedSummary, actionPointsArray } = unified;
 
-      // Optionally apply GPT-4 polish to the email summary for paid users
-      if (isPaid && emailSummary) {
+      // Apply GPT-4 polish to the email summary for all users
+      if (emailSummary) {
         try {
           const polishPrompt = 'Please refine this client follow-up email to improve clarity, tone, and professionalism without changing the factual content or adding any placeholders. Keep it in plain text with no markdown.';
           emailSummary = await adjustMeetingSummary(emailSummary, polishPrompt);
