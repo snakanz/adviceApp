@@ -40,6 +40,8 @@ import { getRecallBotStatus, getStatusColor, getStatusIcon } from '../utils/reca
 import CreateMeetingDialog from '../components/CreateMeetingDialog';
 import EditMeetingDialog from '../components/EditMeetingDialog';
 import LinkClientDialog from '../components/LinkClientDialog';
+import ReviewWizard from './ReviewWizard';
+
 import DataImport from '../components/DataImport';
 import {
   Tooltip,
@@ -291,10 +293,10 @@ export default function Meetings() {
     weekStart.setHours(0, 0, 0, 0);
     return weekStart;
   });
-  
+
   const selectedMeetingIdRef = useRef(null);
   selectedMeetingIdRef.current = selectedMeetingId;
-  
+
   const [transcriptUpload, setTranscriptUpload] = useState('');
   const [uploadingTranscript, setUploadingTranscript] = useState(false);
   const [showTranscriptUpload, setShowTranscriptUpload] = useState(false);
@@ -314,6 +316,10 @@ export default function Meetings() {
 
   // Template selection modal state
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+
+  // Review wizard state (for smarter review template)
+  const [showReviewWizard, setShowReviewWizard] = useState(false);
+  const [reviewWizardMeeting, setReviewWizardMeeting] = useState(null);
 
   // Add import dialog state
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -344,7 +350,7 @@ export default function Meetings() {
   const [linkClientMeeting, setLinkClientMeeting] = useState(null);
 
   console.log('Meetings component render:', { activeTab, selectedMeetingId });
-  
+
   const selectedMeeting = React.useMemo(() => {
     return (
       meetings.past.find(m => m.id === selectedMeetingId) ||
@@ -3387,7 +3393,15 @@ Example:
                     onClick={() => {
                       setSelectedTemplate(template);
                       setShowTemplateModal(false);
-                      handleGenerateAISummary();
+
+                      // If this is the smarter Review template, open the wizard
+                      if (template.type === 'review-summary' && selectedMeeting?.transcript) {
+                        setReviewWizardMeeting(selectedMeeting);
+                        setShowReviewWizard(true);
+                      } else {
+                        // Otherwise, use the standard generation flow
+                        handleGenerateAISummary();
+                      }
                     }}
                     className={cn(
                       "w-full text-left p-4 rounded-lg border-2 transition-all hover:shadow-md",
@@ -3436,6 +3450,25 @@ Example:
           </div>
         </div>
       )}
+      {/* Review Wizard Modal for smarter Review template */}
+      {showReviewWizard && reviewWizardMeeting && selectedMeeting?.id === reviewWizardMeeting.id && (
+        <ReviewWizard
+          meeting={reviewWizardMeeting}
+          transcript={reviewWizardMeeting.transcript}
+          isOpen={showReviewWizard}
+          onClose={() => {
+            setShowReviewWizard(false);
+            setReviewWizardMeeting(null);
+          }}
+          onComplete={({ emailBody }) => {
+            // When the wizard completes, drop the generated email into the email summary box
+            setEmailSummary(emailBody || '');
+            setShowReviewWizard(false);
+            setReviewWizardMeeting(null);
+          }}
+        />
+      )}
+
 
       {/* Import Dialog */}
       {showImportDialog && (

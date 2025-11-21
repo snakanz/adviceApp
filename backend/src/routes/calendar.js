@@ -443,7 +443,7 @@ router.get('/auth/google/callback', async (req, res) => {
 router.post('/meetings', authenticateSupabaseUser, async (req, res) => {
   try {
     const { title, description, date, time, duration } = req.body;
-    
+
     // Create meeting in database
     const meeting = await prisma.meeting.create({
       data: {
@@ -692,7 +692,7 @@ router.post('/meetings/:id/record/stop', authenticateSupabaseUser, async (req, r
     const { id } = req.params;
     const { recordingUrl } = req.body;
     await meetingService.stopRecording(id, recordingUrl);
-    
+
     // Generate transcript and summary
     const transcript = await meetingService.generateTranscript(id);
     const summary = await meetingService.generateSummary(id);
@@ -714,7 +714,7 @@ router.get('/meetings/:eventId', authenticateSupabaseUser, async (req, res) => {
         const userId = req.user.id;
 
         const meetingDetails = await calendarService.getMeetingDetails(userId, eventId);
-        
+
         // If the meeting has a transcript and we need to generate a summary
         if (meetingDetails.hasRecording && meetingDetails.transcript && !meetingDetails.summary) {
             // Get the meeting template preference if any
@@ -724,7 +724,7 @@ router.get('/meetings/:eventId', authenticateSupabaseUser, async (req, res) => {
             });
 
             const template = user?.preferences?.defaultTemplate || 'standard';
-            
+
             // Generate summary using OpenAI
             const summary = await openai.generateMeetingSummary(
                 meetingDetails.transcript,
@@ -919,163 +919,47 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
       });
     }
 
-    // Generate Quick Summary (single sentence for Clients page)
-    const quickSummaryPrompt = `Create a brief, single-sentence summary of this meeting transcript. Focus on the main outcome or key decision made.
-
-Requirements:
-• Must be exactly ONE sentence
-• Include the most important outcome or decision
-• Keep it professional and concise
-• Maximum 150 characters
-
-Transcript:
-${meeting.transcript}
-
-Respond with ONLY the single sentence summary, no additional text.`;
-
-    const quickSummary = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: quickSummaryPrompt });
-
-    // Generate Email Summary using Auto template with client name
-    const autoTemplate = `Role: You are Nelson Greenwood, a professional financial advisor creating a concise follow-up email for a client.
-
-Goal: Generate a brief, clean email (NO markdown formatting) that summarizes the meeting and confirms next steps.
-
-Constraints:
-1. NO markdown symbols (no **, ##, *, or bullet points)
-2. Keep it SHORT - maximum 200 words total
-3. Use plain text with simple numbered lists
-4. Professional but warm tone
-5. Include specific numbers/dates from the transcript
-6. Focus on what matters most to the client
-
-Format:
-
-Hi ${clientName},
-
-[One sentence: pleasure meeting + main topic discussed]
-
-[2-3 short paragraphs covering the key points with specific numbers/details]
-
-Next Steps:
-1. [Action item with timeline]
-2. [Action item with timeline]
-3. [Action item with timeline]
-
-[One sentence: invitation to ask questions]
-
-Best regards,
-Nelson Greenwood
-Financial Advisor
-
-Transcript:
-${meeting.transcript}
-
-Respond with the email body only - no subject line, no markdown formatting.`;
-
-    const emailSummary = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: autoTemplate });
-
-    // Generate action points as structured JSON array
-    const actionPointsPrompt = `You are an AI assistant that extracts action items from meeting transcripts.
-
-Extract ONLY concrete, actionable tasks from this meeting transcript.
-
-INCLUDE ONLY:
-- Specific tasks with clear deliverables (e.g., "Send the updated Suitability Letter")
-- Follow-up meetings to schedule (e.g., "Schedule follow-up meeting after budget")
-- Documents to send, sign, or complete (e.g., "Complete internal BA check")
-- Account setups or administrative tasks (e.g., "Set up online account logins")
-- Client-facing actions that must be DONE (not discussed)
-
-EXCLUDE:
-- Advisor preparation work (e.g., "Research...", "Prepare information...")
-- Discussion topics (e.g., "Discuss...", "Review options...")
-- General notes or meeting agenda items
-- Vague or exploratory items
-- Anything that is not a concrete action
-
-CRITICAL: Return ONLY a valid JSON array of strings. No markdown, no code blocks, no explanations.
-Format: ["action 1", "action 2", "action 3"]
-Limit: Maximum 5-7 most important action items.
-
-Transcript:
-${meeting.transcript}
-
-Return only the JSON array:`;
-
-    const actionPointsResponse = await openai.generateMeetingSummary(meeting.transcript, 'standard', { prompt: actionPointsPrompt });
-
-    // Parse action points JSON with robust error handling
-    let actionPointsArray = [];
-    let actionPoints = actionPointsResponse;
-
+    // Determine if user has paid subscription for potential premium polish
+    let isPaid = false;
     try {
-      // Clean the response - remove markdown code blocks if present
-      let cleanedResponse = actionPointsResponse.trim();
+      const { data: subscription } = await getSupabase()
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
 
-      // Remove markdown code block markers
-      cleanedResponse = cleanedResponse.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '');
+      isPaid = !!(subscription &&
+        (subscription.status === 'active' || subscription.status === 'trialing') &&
+        subscription.plan !== 'free');
+    } catch (subError) {
+      console.warn('⚠️  Could not determine subscription status for premium polish:', subError.message);
+    }
 
-      // Try to extract JSON array from the response
-      const jsonMatch = cleanedResponse.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        cleanedResponse = jsonMatch[0];
+    // Use unified generator to get quick summary, email summary, detailed summary, and action points
+    const unified = await openai.generateUnifiedMeetingSummary(meeting.transcript, {
+      clientName,
+      includeDetailedSummary: false,
+      maxActionItems: 7
+    });
+
+    let { quickSummary, emailSummary, detailedSummary, actionPointsArray } = unified;
+
+    // Optionally apply GPT-4 polish to the email summary for paid users
+    if (isPaid && emailSummary) {
+      try {
+        const polishPrompt = 'Please refine this client follow-up email to improve clarity, tone, and professionalism without changing the factual content or adding any placeholders. Keep it in plain text with no markdown.';
+        emailSummary = await openai.adjustMeetingSummary(emailSummary, polishPrompt);
+      } catch (polishError) {
+        console.warn('⚠️  Premium polish failed, falling back to base email summary:', polishError.message);
       }
+    }
 
-      // Parse the JSON
-      const parsed = JSON.parse(cleanedResponse);
-
-      if (Array.isArray(parsed)) {
-        // Filter out invalid entries (empty strings, non-strings, broken JSON fragments)
-        actionPointsArray = parsed
-          .filter(item => typeof item === 'string' && item.trim().length > 0)
-          .filter(item => {
-            // Exclude broken JSON artifacts
-            const trimmed = item.trim();
-            return trimmed !== 'json' &&
-                   trimmed !== '[' &&
-                   trimmed !== ']' &&
-                   trimmed !== '"""' &&
-                   trimmed !== '"' &&
-                   trimmed !== '{' &&
-                   trimmed !== '}' &&
-                   !trimmed.match(/^["'\[\]{}]+$/);
-          })
-          .map(item => item.trim())
-          .slice(0, 7); // Enforce max 7 items
-
-        // Convert to bullet list for display
-        actionPoints = actionPointsArray.join('\n• ');
-        if (actionPoints) actionPoints = '• ' + actionPoints;
-      } else {
-        console.warn('Action points response is not an array:', parsed);
-        actionPointsArray = [];
-        actionPoints = '';
-      }
-    } catch (e) {
-      console.error('Failed to parse action points JSON:', e.message);
-      console.error('Raw response:', actionPointsResponse);
-
-      // Fallback: try to extract clean bullet points from plain text
-      const lines = actionPointsResponse
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0)
-        .map(line => line.replace(/^[•\-\*\d]+[\.\)]\s*/, '').trim())
-        .filter(line => {
-          // Exclude broken JSON artifacts and invalid entries
-          return line.length > 10 && // Minimum length for valid action item
-                 line !== 'json' &&
-                 line !== '[' &&
-                 line !== ']' &&
-                 line !== '"""' &&
-                 !line.match(/^["'\[\]{}]+$/) &&
-                 !line.toLowerCase().startsWith('research') &&
-                 !line.toLowerCase().startsWith('prepare to discuss');
-        })
-        .slice(0, 7);
-
-      actionPointsArray = lines;
-      actionPoints = lines.length > 0 ? '• ' + lines.join('\n• ') : '';
+    // Build actionPoints bullet string for storage (for backward compatibility)
+    let actionPoints = '';
+    if (Array.isArray(actionPointsArray) && actionPointsArray.length > 0) {
+      actionPoints = '• ' + actionPointsArray.join('\n• ');
+    } else {
+      actionPointsArray = [];
     }
 
     // Save summaries to database
@@ -1083,7 +967,7 @@ Return only the JSON array:`;
       .from('meetings')
       .update({
         quick_summary: quickSummary,
-        detailed_summary: emailSummary,
+        detailed_summary: emailSummary, // keep for compatibility
         action_points: actionPoints,
         updated_at: new Date().toISOString()
       })
@@ -1186,7 +1070,7 @@ router.delete('/meetings', authenticateSupabaseUser, async (req, res) => {
     const { olderThan } = req.query; // Optional: delete meetings older than X days
 
     let whereClause = { userId };
-    
+
     if (olderThan) {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - parseInt(olderThan));
@@ -1215,7 +1099,7 @@ router.delete('/meetings', authenticateSupabaseUser, async (req, res) => {
       where: whereClause
     });
 
-    res.json({ 
+    res.json({
       message: `Deleted ${deletedCount.count} meetings successfully`,
       deletedCount: deletedCount.count
     });
@@ -1554,163 +1438,47 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
 
         const clientName = fullMeeting.clients?.name || 'Client';
 
-        // Generate Quick Summary (single sentence for Clients page)
-        const quickSummaryPrompt = `Create a brief, single-sentence summary of this meeting transcript. Focus on the main outcome or key decision made.
-
-Requirements:
-• Must be exactly ONE sentence
-• Include the most important outcome or decision
-• Keep it professional and concise
-• Maximum 150 characters
-
-Transcript:
-${transcript}
-
-Respond with ONLY the single sentence summary, no additional text.`;
-
-        const quickSummary = await openai.generateMeetingSummary(transcript, 'standard', { prompt: quickSummaryPrompt });
-
-        // Generate Email Summary using Auto template with client name
-        const autoTemplate = `Role: You are Nelson Greenwood, a professional financial advisor creating a concise follow-up email for a client.
-
-Goal: Generate a brief, clean email (NO markdown formatting) that summarizes the meeting and confirms next steps.
-
-Constraints:
-1. NO markdown symbols (no **, ##, *, or bullet points)
-2. Keep it SHORT - maximum 200 words total
-3. Use plain text with simple numbered lists
-4. Professional but warm tone
-5. Include specific numbers/dates from the transcript
-6. Focus on what matters most to the client
-
-Format:
-
-Hi ${clientName},
-
-[One sentence: pleasure meeting + main topic discussed]
-
-[2-3 short paragraphs covering the key points with specific numbers/details]
-
-Next Steps:
-1. [Action item with timeline]
-2. [Action item with timeline]
-3. [Action item with timeline]
-
-[One sentence: invitation to ask questions]
-
-Best regards,
-Nelson Greenwood
-Financial Advisor
-
-Transcript:
-${transcript}
-
-Respond with the email body only - no subject line, no markdown formatting.`;
-
-        const emailSummary = await openai.generateMeetingSummary(transcript, 'standard', { prompt: autoTemplate });
-
-        // Generate action points as structured JSON array
-        const actionPointsPrompt = `You are an AI assistant that extracts action items from meeting transcripts.
-
-Extract ONLY concrete, actionable tasks from this meeting transcript.
-
-INCLUDE ONLY:
-- Specific tasks with clear deliverables (e.g., "Send the updated Suitability Letter")
-- Follow-up meetings to schedule (e.g., "Schedule follow-up meeting after budget")
-- Documents to send, sign, or complete (e.g., "Complete internal BA check")
-- Account setups or administrative tasks (e.g., "Set up online account logins")
-- Client-facing actions that must be DONE (not discussed)
-
-EXCLUDE:
-- Advisor preparation work (e.g., "Research...", "Prepare information...")
-- Discussion topics (e.g., "Discuss...", "Review options...")
-- General notes or meeting agenda items
-- Vague or exploratory items
-- Anything that is not a concrete action
-
-CRITICAL: Return ONLY a valid JSON array of strings. No markdown, no code blocks, no explanations.
-Format: ["action 1", "action 2", "action 3"]
-Limit: Maximum 5-7 most important action items.
-
-Transcript:
-${transcript}
-
-Return only the JSON array:`;
-
-        const actionPointsResponse = await openai.generateMeetingSummary(transcript, 'standard', { prompt: actionPointsPrompt });
-
-        // Parse action points JSON with robust error handling
-        let actionPointsArray = [];
-        let actionPoints = actionPointsResponse;
-
+        // Determine if user has paid subscription for potential premium polish
+        let isPaid = false;
         try {
-          // Clean the response - remove markdown code blocks if present
-          let cleanedResponse = actionPointsResponse.trim();
+          const { data: subscription } = await getSupabase()
+            .from('subscriptions')
+            .select('*')
+            .eq('user_id', userId)
+            .single();
 
-          // Remove markdown code block markers
-          cleanedResponse = cleanedResponse.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '');
+          isPaid = !!(subscription &&
+            (subscription.status === 'active' || subscription.status === 'trialing') &&
+            subscription.plan !== 'free');
+        } catch (subError) {
+          console.warn('⚠️  Could not determine subscription status for premium polish:', subError.message);
+        }
 
-          // Try to extract JSON array from the response
-          const jsonMatch = cleanedResponse.match(/\[[\s\S]*\]/);
-          if (jsonMatch) {
-            cleanedResponse = jsonMatch[0];
+        // Use unified generator to get quick summary, email summary, detailed summary, and action points
+        const unified = await openai.generateUnifiedMeetingSummary(transcript, {
+          clientName,
+          includeDetailedSummary: false,
+          maxActionItems: 7
+        });
+
+        let { quickSummary, emailSummary, detailedSummary, actionPointsArray } = unified;
+
+        // Optionally apply GPT-4 polish to the email summary for paid users
+        if (isPaid && emailSummary) {
+          try {
+            const polishPrompt = 'Please refine this client follow-up email to improve clarity, tone, and professionalism without changing the factual content or adding any placeholders. Keep it in plain text with no markdown.';
+            emailSummary = await openai.adjustMeetingSummary(emailSummary, polishPrompt);
+          } catch (polishError) {
+            console.warn('⚠️  Premium polish failed, falling back to base email summary:', polishError.message);
           }
+        }
 
-          // Parse the JSON
-          const parsed = JSON.parse(cleanedResponse);
-
-          if (Array.isArray(parsed)) {
-            // Filter out invalid entries (empty strings, non-strings, broken JSON fragments)
-            actionPointsArray = parsed
-              .filter(item => typeof item === 'string' && item.trim().length > 0)
-              .filter(item => {
-                // Exclude broken JSON artifacts
-                const trimmed = item.trim();
-                return trimmed !== 'json' &&
-                       trimmed !== '[' &&
-                       trimmed !== ']' &&
-                       trimmed !== '"""' &&
-                       trimmed !== '"' &&
-                       trimmed !== '{' &&
-                       trimmed !== '}' &&
-                       !trimmed.match(/^["'\[\]{}]+$/);
-              })
-              .map(item => item.trim())
-              .slice(0, 7); // Enforce max 7 items
-
-            // Convert to bullet list for display
-            actionPoints = actionPointsArray.join('\n• ');
-            if (actionPoints) actionPoints = '• ' + actionPoints;
-          } else {
-            console.warn('Action points response is not an array:', parsed);
-            actionPointsArray = [];
-            actionPoints = '';
-          }
-        } catch (e) {
-          console.error('Failed to parse action points JSON:', e.message);
-          console.error('Raw response:', actionPointsResponse);
-
-          // Fallback: try to extract clean bullet points from plain text
-          const lines = actionPointsResponse
-            .split('\n')
-            .map(line => line.trim())
-            .filter(line => line.length > 0)
-            .map(line => line.replace(/^[•\-\*\d]+[\.\)]\s*/, '').trim())
-            .filter(line => {
-              // Exclude broken JSON artifacts and invalid entries
-              return line.length > 10 && // Minimum length for valid action item
-                     line !== 'json' &&
-                     line !== '[' &&
-                     line !== ']' &&
-                     line !== '"""' &&
-                     !line.match(/^["'\[\]{}]+$/) &&
-                     !line.toLowerCase().startsWith('research') &&
-                     !line.toLowerCase().startsWith('prepare to discuss');
-            })
-            .slice(0, 7);
-
-          actionPointsArray = lines;
-          actionPoints = lines.length > 0 ? '• ' + lines.join('\n• ') : '';
+        // Build actionPoints bullet string for storage (for backward compatibility)
+        let actionPoints = '';
+        if (Array.isArray(actionPointsArray) && actionPointsArray.length > 0) {
+          actionPoints = '• ' + actionPointsArray.join('\n• ');
+        } else {
+          actionPointsArray = [];
         }
 
         // Save individual action items to PENDING table (awaiting approval)
@@ -1876,6 +1644,263 @@ router.delete('/meetings/:meetingId/transcript', authenticateSupabaseUser, async
 // ============================================================================
 // ANNUAL REVIEW ENDPOINTS
 // ============================================================================
+
+// Detect key review fields from a transcript (for smarter Review wizard)
+router.post('/meetings/:id/detect-review-fields', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const { transcript } = req.body;
+
+    if (!transcript) {
+      return res.status(400).json({ error: 'Transcript is required.' });
+    }
+
+    if (!openai.isOpenAIAvailable()) {
+      return res.status(503).json({ error: 'OpenAI service is not available.' });
+    }
+
+    const systemPrompt = 'You are a helpful assistant that analyzes UK retail financial advice review meeting transcripts and extracts key client review data. Always respond with valid JSON only.';
+
+    const userPrompt = `You will be given a full financial review meeting transcript.
+Your task is to extract key fields that are useful for a client review letter wizard.
+
+Return a JSON object with a single property "fields" which is an array.
+Each item in fields must have the shape:
+{
+  "key": string,           // machine key, e.g. "client_name", "retirement_age"
+  "label": string,         // human label, e.g. "Client name"
+  "detected_value": any,   // value inferred from transcript if clear, otherwise null
+  "confidence": string,    // "high", "medium" or "low"
+  "should_ask_user": boolean, // true if the wizard should explicitly ask the adviser to confirm/fill this
+  "question_text": string  // concise question to show the adviser
+}
+
+Focus on fields such as:
+- client_name
+- meeting_date
+- retirement_age
+- health_status
+- personal_circumstances
+- income_expenditure
+- assets_liabilities
+- emergency_fund
+- tax_status
+- capacity_for_loss
+- attitude_to_risk
+- investment_knowledge_level
+- current_investments (can be a short text summary)
+- protection_notes
+- estate_planning_notes
+- cashflow_modelling_notes
+- follow_up_actions (a short bullet-style text)
+- next_review_timing
+
+Only set should_ask_user to true when the information is missing, unclear, or low confidence.
+
+Transcript:
+${transcript}`;
+
+    const completion = await openaiClient.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt }
+      ],
+      temperature: 0.3,
+      response_format: { type: 'json_object' }
+    });
+
+    const aiResponse = completion.choices[0].message.content;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(aiResponse);
+    } catch (err) {
+      console.error('Error parsing detect-review-fields response:', err, aiResponse);
+      return res.status(500).json({ error: 'Failed to parse AI response.' });
+    }
+
+    if (!parsed || !Array.isArray(parsed.fields)) {
+      return res.status(500).json({ error: 'Invalid AI response format.' });
+    }
+
+    return res.json({ fields: parsed.fields });
+  } catch (error) {
+    console.error('Error detecting review fields:', error);
+    res.status(500).json({ error: 'Failed to detect review fields.' });
+  }
+});
+
+// Generate final Review email using transcript + confirmed reviewData
+router.post('/meetings/:id/generate-review-email', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const { transcript, reviewData } = req.body;
+
+    if (!transcript) {
+      return res.status(400).json({ error: 'Transcript is required.' });
+    }
+
+    if (!openai.isOpenAIAvailable()) {
+      return res.status(503).json({ error: 'OpenAI service is not available.' });
+    }
+
+    const safeReviewData = reviewData || {};
+
+    // Reuse the template content from the frontend definition
+    const reviewTemplatePrompt = `You are Advicly's Review Meeting Assistant.
+
+You are given two inputs:
+1) A full meeting transcript as plain text.
+2) A JSON object called reviewData that contains CONFIRMED details about the client and this review meeting.
+
+reviewData is the primary source of truth. If a field exists in reviewData and is non-empty, you MUST treat it as accurate and up to date, even if the transcript is ambiguous or incomplete.
+Only when a field is missing or null in reviewData may you infer or phrase things more generically from the transcript.
+
+The two inputs will be injected like this:
+- TRANSCRIPT:
+${transcript}
+
+- REVIEW DATA (JSON):
+${JSON.stringify(safeReviewData, null, 2)}
+
+---
+
+YOUR TASK
+
+Using BOTH the transcript and reviewData, write a single, finished client email that:
+- Is clear, professional, and UK retail financial advice compliant.
+- Contains NO placeholders like [X]%, [Insert Amount], [TO CONFIRM], or similar.
+- Contains NO questions to the client asking for missing data.
+- Does NOT include any markdown formatting (no **bold**, no headings, no tables).
+- Is ready to send exactly as written.
+
+If important information is missing from BOTH the transcript and reviewData (for example, an exact retirement age or plan number), then:
+- Do NOT invent numbers or facts.
+- Instead, use neutral wording such as "This will be confirmed separately" or "We will discuss this in more detail at our next review", so the email still reads complete and professional.
+
+---
+
+EMAIL STRUCTURE (PLAIN TEXT ONLY)
+
+Follow this structure in free-flowing paragraphs and simple lists where helpful. Do NOT include headings or markdown symbols in the final output.
+
+1) Greeting and Introduction
+- Address the client by name if available in reviewData.client_name; otherwise use a neutral greeting like "Dear Client".
+- Thank them for their time and explain that this is a summary of their recent review meeting.
+
+2) Your Circumstances
+Based primarily on reviewData and supported by the transcript, briefly describe:
+- Health status
+- Personal circumstances (employment, family, home situation)
+- Income and expenditure (including any expected changes or short-term income needs)
+- Assets and liabilities (only at a high level, no unnecessary detail)
+- Emergency fund position
+- Tax status (high-level, e.g. basic rate taxpayer, higher rate, etc., if known)
+- Capacity for loss
+- Attitude to risk
+
+Keep the tone factual and reassuring. If some of these points are not clearly covered in either the transcript or reviewData, omit them or describe them in neutral terms without inventing specifics.
+
+3) Your Goals and Objectives
+Summarise the client’s main goals, using reviewData where available:
+- Retirement timing and lifestyle goals (e.g. desired retirement age, income targets in retirement)
+- Capital growth or income objectives
+- Any other specific goals mentioned (e.g. paying off mortgage, helping children, estate planning, etc.)
+
+If cashflow modelling has been discussed and captured in reviewData (for example, required rate of return or additional contributions), explain this in clear, client-friendly language without including raw placeholder-style figures. Where exact figures are available in reviewData, you may include them. Where they are not, explain the conclusion in words (for example, that the current plan appears on track, or that additional saving may be required).
+
+4) Your Current Investments
+Provide a concise narrative summary of the client’s existing plans based on reviewData.current_investments and/or the transcript, such as:
+- Types of plans held (e.g. pensions, ISAs, general investment accounts)
+- Overall value range (if known) and any regular contributions
+- How the current investments align with the agreed risk profile and objectives
+- Any notable changes since the last review (e.g. fund switches, top-ups, transfers)
+
+Do NOT use a markdown table. Instead, describe holdings in sentences or a simple bullet-style list if that reads more clearly.
+
+5) Investment Knowledge & Experience, Capacity for Loss, and Risk Profile
+Using reviewData.investment_knowledge_level, reviewData.capacity_for_loss and reviewData.attitude_to_risk (plus the transcript where helpful), clearly state:
+- The client’s level of investment knowledge and experience, with a short justification.
+- Their capacity for loss (low / moderate / high) with reasons.
+- Their agreed attitude to risk (e.g. cautious, balanced, adventurous) and how the current portfolio aligns with this.
+
+If any of these fields are missing in reviewData and not clearly stated in the transcript, describe them in neutral language (for example, "your current portfolio is invested in a way that aims to balance growth with an appropriate level of risk for your circumstances").
+
+6) Protection, Wills and Power of Attorney, and Estate Planning
+If reviewData.protection_notes, reviewData.estate_planning_notes or related information is available, summarise:
+- The client’s current protection position (e.g. life cover, critical illness, income protection) and whether it appears adequate.
+- Any discussion around wills, powers of attorney, and inheritance tax planning.
+
+If these topics were not discussed or are unclear, either omit them or write one short paragraph noting that this will be reviewed in future meetings, without inventing specific recommendations.
+
+7) Agreed Actions and Next Steps
+Based on reviewData.follow_up_actions (if provided) and the transcript, list the concrete next steps that were agreed. Present them as a short, numbered or bulleted list in plain text. For each action, mention:
+- What will be done
+- Who is responsible (you, the client, or a third party)
+- Any relevant timescales if they are clearly known
+
+If there are no clear follow-up actions, include a single line noting that no immediate changes are required but that the plan will continue to be reviewed regularly.
+
+8) Cashflow Modelling and Ongoing Reviews
+If cashflow modelling was discussed (and this is reflected in reviewData or the transcript), briefly explain:
+- The purpose of the modelling (e.g. to assess whether retirement goals remain achievable)
+- The high-level conclusion (on track / may need further contributions / further review required)
+
+Then confirm that you will continue to review their position regularly, and, if reviewData.next_review_timing is available, refer to the expected timing of the next review.
+
+9) Closing
+End with a professional closing paragraph that:
+- Invites the client to ask questions or request clarification at any time.
+- Reassures them that you will keep their plan under regular review.
+- Signs off with your name and role if this is evident in the transcript; otherwise use a generic professional sign-off such as "Best regards" followed by your name.
+
+---
+
+OUTPUT FORMAT
+
+Your entire response must be a SINGLE, continuous plain text email body, with normal paragraph breaks and simple numbered or bulleted lists where appropriate.
+
+Do NOT include:
+- Any headings or markdown syntax (no #, no **, no tables).
+- Any meta-commentary about what you are doing.
+- Any placeholders or instructions to the adviser.
+
+The email you output must be ready to send to the client exactly as written.`;
+
+    // Determine if user has paid subscription for potential premium polish
+    let isPaid = false;
+    try {
+      const { data: subscription } = await getSupabase()
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', req.user.id)
+        .single();
+
+      isPaid = !!(subscription &&
+        (subscription.status === 'active' || subscription.status === 'trialing') &&
+        subscription.plan !== 'free');
+    } catch (subError) {
+      console.warn('⚠️  Could not determine subscription status for premium polish:', subError.message);
+    }
+
+    // Base review email generation using gpt-4o-mini
+    let summary = await openai.generateMeetingSummary(transcript, undefined, { prompt: reviewTemplatePrompt });
+
+    // Optionally apply GPT-4 polish to the review email for paid users
+    if (isPaid && summary) {
+      try {
+        const polishPrompt = 'Please refine this client review email to improve clarity, tone, and professionalism without changing the factual content or adding any placeholders. Keep it in plain text with no markdown.';
+        summary = await openai.adjustMeetingSummary(summary, polishPrompt);
+      } catch (polishError) {
+        console.warn('⚠️  Premium polish for review email failed, falling back to base summary:', polishError.message);
+      }
+    }
+
+    return res.json({ summary });
+  } catch (error) {
+    console.error('Error generating review email:', error);
+    res.status(500).json({ error: 'Failed to generate review email.' });
+  }
+});
 
 
 
