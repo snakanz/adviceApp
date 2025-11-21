@@ -3,7 +3,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const axios = require('axios');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
-const { generateMeetingSummary } = require('../services/openai');
+const { generateUnifiedMeetingSummary, adjustMeetingSummary } = require('../services/openai');
 
 /**
  * SVIX Webhook Verification (Correct Implementation)
