@@ -241,7 +241,7 @@ async function improveTemplate(template, improvementRequest) {
   }
 }
 
-// Generate AI chat response for Ask Advicly
+// Generate AI chat response for Ask Advicly using cheap model + GPT-4 polish
 async function generateChatResponse(userMessage, systemPrompt, maxTokens = 1200) {
   try {
     if (!isOpenAIAvailable()) {
@@ -251,8 +251,9 @@ async function generateChatResponse(userMessage, systemPrompt, maxTokens = 1200)
     console.log('🤖 Generating AI response with context length:', systemPrompt.length);
     console.log('💬 User message:', userMessage.substring(0, 100) + '...');
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4", // Upgraded to GPT-4 for better context understanding
+    // Step 1: use gpt-4o-mini for main reasoning over the rich context
+    const baseResponse = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -264,11 +265,38 @@ async function generateChatResponse(userMessage, systemPrompt, maxTokens = 1200)
         }
       ],
       max_tokens: maxTokens,
-      temperature: 0.3, // Lower temperature for more focused, accurate responses
+      temperature: 0.3, // focused, accurate responses
     });
 
-    const aiResponse = response.choices[0].message.content.trim();
-    console.log('✅ AI response generated, length:', aiResponse.length);
+    let aiResponse = (baseResponse.choices[0]?.message?.content || '').trim();
+    console.log('✅ Base AI response generated, length:', aiResponse.length);
+
+    // Step 2: lightly polish wording with GPT-4 for better readability
+    try {
+      const polishPrompt = `You are Advicly's writing assistant. Improve the clarity, structure, and professionalism of the following advisor-facing answer without changing any of the factual content or recommendations. Keep the response in plain text (no markdown) and similar length.\n\nOriginal answer:\n${aiResponse}`;
+
+      const polishResponse = await openai.chat.completions.create({
+        model: "gpt-4",
+        messages: [
+          {
+            role: "user",
+            content: polishPrompt
+          }
+        ],
+        max_tokens: maxTokens,
+        temperature: 0.4,
+      });
+
+      const polished = (polishResponse.choices[0]?.message?.content || '').trim();
+      if (polished) {
+        console.log('✨ Applied GPT-4 polish, length:', polished.length);
+        aiResponse = polished;
+      } else {
+        console.warn('⚠️ GPT-4 polish returned empty content, keeping base response');
+      }
+    } catch (polishError) {
+      console.warn('⚠️ GPT-4 polish failed for Ask Advicly response, using base response:', polishError.message);
+    }
 
     return aiResponse;
   } catch (error) {

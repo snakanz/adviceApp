@@ -14,6 +14,9 @@ import {
   Trash2
 } from 'lucide-react';
 import { api } from '../services/api'; // Fixed import path for deployment
+import ContextHeader from './ContextHeader';
+import NewChatModal from './NewChatModal';
+
 
 const PROMPT_SUGGESTIONS = [
   "How many meetings did I have last month?",
@@ -112,14 +115,14 @@ export default function SimplifiedAskAdvicly({
     if (threads.length > 0 && !activeThreadId) {
       // Auto-select appropriate thread based on context
       if (contextType === 'meeting' && meetingId) {
-        const meetingThread = threads.find(t => 
+        const meetingThread = threads.find(t =>
           t.context_type === 'meeting' && t.meeting_id === meetingId
         );
         if (meetingThread) {
           setActiveThreadId(meetingThread.id);
         }
       } else if (contextType === 'client' && clientId) {
-        const clientThread = threads.find(t => 
+        const clientThread = threads.find(t =>
           t.context_type === 'client' && t.client_id === clientId
         );
         if (clientThread) {
@@ -241,8 +244,13 @@ export default function SimplifiedAskAdvicly({
         })
       });
 
-      // Handle the AI response message
-      setMessages(prev => [...prev, response.aiMessage || response]);
+      // Cross-client hard block: backend may return a special flag when the
+      // question appears to be about a different client than this thread.
+      if (response.crossClientBlock) {
+        setMessages(prev => [...prev, response.aiMessage]);
+      } else {
+        setMessages(prev => [...prev, response.aiMessage || response]);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       setMessages(prev => [...prev, {
@@ -263,7 +271,7 @@ export default function SimplifiedAskAdvicly({
         body: JSON.stringify({ title: newTitle })
       });
 
-      setThreads(prev => prev.map(t => 
+      setThreads(prev => prev.map(t =>
         t.id === threadId ? { ...t, title: newTitle } : t
       ));
       setEditingThreadId(null);
@@ -308,24 +316,29 @@ export default function SimplifiedAskAdvicly({
   };
 
   const activeThread = threads.find(t => t.id === activeThreadId);
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
 
   return (
     <div className={cn("h-full flex bg-background", className)}>
       {/* Sidebar with threads */}
       <div className="w-80 border-r border-border/50 flex flex-col">
         {/* Header */}
-        <div className="p-4 border-b border-border/50">
-          <div className="flex items-center justify-between">
+        <div className="p-4 border-b border-border/50 flex items-center justify-between">
+          <div>
             <h2 className="font-semibold text-foreground">Conversations</h2>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={createNewThread}
-              className="h-8 w-8 p-0"
-            >
-              <Plus className="w-4 h-4" />
-            </Button>
+            <p className="text-xs text-muted-foreground mt-1">
+              Client / meeting-specific chats stay scoped. Orange = all-clients.
+            </p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowNewChatModal(true)}
+            className="h-8 px-3 text-xs"
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            New chat
+          </Button>
         </div>
 
         {/* Thread list */}
@@ -340,18 +353,23 @@ export default function SimplifiedAskAdvicly({
             </div>
           ) : (
             <div className="p-2 space-y-1">
-              {threads.map((thread) => (
-                <div
-                  key={thread.id}
-                  className={cn(
-                    "group p-3 rounded-lg cursor-pointer transition-colors",
-                    "hover:bg-muted/50",
-                    activeThreadId === thread.id
-                      ? "bg-primary/10 border border-primary/20"
-                      : "border border-transparent"
-                  )}
-                  onClick={() => setActiveThreadId(thread.id)}
-                >
+              {threads.map((thread) => {
+                const isGeneral = thread.context_type === 'general' || thread.context_data?.scope === 'all_clients';
+                return (
+                  <div
+                    key={thread.id}
+                    className={cn(
+                      "group p-3 rounded-lg cursor-pointer transition-colors border",
+                      isGeneral
+                        ? "bg-amber-50/60 border-amber-300/70 hover:bg-amber-50"
+                        : "hover:bg-muted/50 border-transparent",
+                      activeThreadId === thread.id &&
+                        (isGeneral
+                          ? "ring-1 ring-amber-400"
+                          : "bg-primary/10 border-primary/20")
+                    )}
+                    onClick={() => setActiveThreadId(thread.id)}
+                  >
                   <div className="flex items-center gap-2">
                     {/* Context-aware icon */}
                     {thread.context_type === 'meeting' ? (
@@ -361,7 +379,7 @@ export default function SimplifiedAskAdvicly({
                     ) : (
                       <MessageSquare className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                     )}
-                    
+
                     <div className="flex-1 min-w-0">
                       {editingThreadId === thread.id ? (
                         <input
@@ -384,16 +402,16 @@ export default function SimplifiedAskAdvicly({
                           {thread.title}
                         </div>
                       )}
-                      
+
                       <div className="text-xs text-muted-foreground truncate mt-1">
                         {thread.context_type === 'meeting' && 'Meeting Discussion'}
                         {thread.context_type === 'client' && 'Client Discussion'}
                         {thread.context_type === 'general' && 'General Advisory'}
                         {thread.updated_at && (
                           <span className="ml-2">
-                            {new Date(thread.updated_at).toLocaleDateString('en-US', { 
-                              month: 'short', 
-                              day: 'numeric' 
+                            {new Date(thread.updated_at).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric'
                             })}
                           </span>
                         )}
@@ -438,16 +456,15 @@ export default function SimplifiedAskAdvicly({
       <div className="flex-1 flex flex-col">
         {activeThread ? (
           <>
-            {/* Context Banner */}
-            <ContextBanner 
+            <ContextHeader
               contextType={contextType}
               contextData={contextData}
-              onRemove={contextType !== 'general' ? clearContext : null}
+              onContextChange={contextType !== 'general' ? clearContext : null}
             />
 
             {/* Messages */}
-            <div 
-              ref={feedRef} 
+            <div
+              ref={feedRef}
               className="flex-1 overflow-y-auto p-6 space-y-4"
             >
               {messages.length === 0 ? (
@@ -488,7 +505,7 @@ export default function SimplifiedAskAdvicly({
                         </AvatarFallback>
                       </Avatar>
                     )}
-                    
+
                     <div
                       className={cn(
                         "max-w-[80%] rounded-lg px-4 py-2",
@@ -512,7 +529,7 @@ export default function SimplifiedAskAdvicly({
                   </div>
                 ))
               )}
-              
+
               {loading && (
                 <div className="flex gap-3 justify-start">
                   <Avatar className="w-8 h-8 flex-shrink-0">
@@ -564,7 +581,7 @@ export default function SimplifiedAskAdvicly({
               <p className="text-muted-foreground mb-4">
                 Choose a conversation from the sidebar or create a new one
               </p>
-              <Button onClick={createNewThread}>
+              <Button onClick={() => setShowNewChatModal(true)}>
                 <Plus className="w-4 h-4 mr-2" />
                 New Conversation
               </Button>
@@ -572,6 +589,15 @@ export default function SimplifiedAskAdvicly({
           </div>
         )}
       </div>
+      {/* New chat modal lives at the root so it can be opened from sidebar or empty state */}
+      <NewChatModal
+        open={showNewChatModal}
+        onOpenChange={setShowNewChatModal}
+        onThreadCreated={(thread) => {
+          setThreads(prev => [thread, ...prev]);
+          setActiveThreadId(thread.id);
+        }}
+      />
     </div>
   );
 }

@@ -1,7 +1,8 @@
 const express = require('express');
-const { isSupabaseAvailable } = require('../lib/supabase');
+const { isSupabaseAvailable, getSupabase } = require('../lib/supabase');
 const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 const { generateMeetingSummary, generateChatResponse } = require('../services/openai');
+const clientDocumentsService = require('../services/clientDocuments');
 
 // Generate proactive insights based on meeting content
 function generateProactiveInsights(meetingData) {
@@ -333,21 +334,124 @@ router.post('/threads/:threadId/messages', authenticateSupabaseUser, async (req,
     // Get comprehensive advisor context
     let advisorContext = '';
 
-    // Get ALL meetings for the advisor (for general questions)
+    // Base meeting + client queries (scoped later depending on thread type)
     const { data: allMeetings } = await req.supabase
       .from('meetings')
-      .select('title, starttime, endtime, transcript, quick_summary, detailed_summary, attendees')
+      .select('id, external_id, title, starttime, endtime, transcript, quick_summary, detailed_summary, attendees')
       .eq('user_id', advisorId)
       .order('starttime', { ascending: false })
-      .limit(50); // Get recent 50 meetings
+      .limit(50); // recent meetings only to control token use
 
-    // Get all clients for the advisor
     const { data: allClients } = await req.supabase
       .from('clients')
-      .select('name, email, pipeline_stage, notes')
+      .select('id, name, email, pipeline_stage, notes')
       .eq('user_id', advisorId);
 
-    // Build comprehensive context
+    // Cross-client hard block: if this is a client-specific thread and the
+    // advisor appears to ask about a different client, block and suggest
+    // using an all-clients chat instead.
+    let primaryClient = null;
+    let mentionedOtherClient = null;
+
+    if (thread.context_type === 'client' && thread.client_id && allClients && Array.isArray(allClients)) {
+      primaryClient = allClients.find(c => c.id === thread.client_id) || null;
+      const lowerContent = content.toLowerCase();
+
+      for (const c of allClients) {
+        if (c.id === thread.client_id) continue;
+        if (!c || (!c.name && !c.email)) continue;
+
+        const nameMatch = c.name && c.name.length > 2 && lowerContent.includes(c.name.toLowerCase());
+        const emailMatch = c.email && lowerContent.includes(c.email.toLowerCase());
+
+        if (nameMatch || emailMatch) {
+          mentionedOtherClient = c;
+          break;
+        }
+      }
+    }
+
+    if (primaryClient && mentionedOtherClient) {
+      const blockText = `This conversation is scoped only to ${primaryClient.name || primaryClient.email}.
+It looks like you may be asking about another client (${mentionedOtherClient.name || mentionedOtherClient.email}).
+\nTo ask about other clients or compare across your whole client base, please start an "All clients" chat (orange in the sidebar).`;
+
+      const { data: aiMessage, error: aiMessageError } = await req.supabase
+        .from('ask_messages')
+        .insert({
+          thread_id: threadId,
+          role: 'assistant',
+          content: blockText
+        })
+        .select()
+        .single();
+
+      if (aiMessageError) {
+        console.error('Error saving cross-client block message:', aiMessageError);
+        return res.status(500).json({ error: 'Failed to save AI response' });
+      }
+
+      return res.json({
+        userMessage,
+        aiMessage,
+        crossClientBlock: true,
+        primaryClient: primaryClient
+          ? { id: primaryClient.id, name: primaryClient.name, email: primaryClient.email }
+          : null,
+        mentionedClient: mentionedOtherClient
+          ? { id: mentionedOtherClient.id, name: mentionedOtherClient.name, email: mentionedOtherClient.email }
+          : null
+      });
+    }
+
+    // Fetch documents for this client/meeting when applicable so AI can use PDFs etc.
+    let clientDocuments = [];
+    let meetingDocuments = [];
+
+    try {
+      if (thread.context_type === 'client' && thread.client_id) {
+        clientDocuments = await clientDocumentsService.getClientDocuments(thread.client_id, advisorId);
+      }
+
+      if (thread.context_type === 'meeting' && thread.meeting_id) {
+        meetingDocuments = await clientDocumentsService.getMeetingDocuments(thread.meeting_id, advisorId);
+      }
+    } catch (docError) {
+      console.error('Error loading client/meeting documents for Ask Advicly context:', docError);
+    }
+
+    // Build human-readable document context text
+    let documentsContext = '';
+
+    if ((clientDocuments && clientDocuments.length > 0) || (meetingDocuments && meetingDocuments.length > 0)) {
+      const formatDoc = (doc) => {
+        const parts = [];
+        if (doc.original_name) parts.push(`File: ${doc.original_name}`);
+        if (doc.file_category) parts.push(`Type: ${doc.file_category}`);
+        if (doc.ai_summary) {
+          parts.push(`AI summary: ${doc.ai_summary}`);
+        } else if (doc.extracted_text) {
+          parts.push(`Key content: ${doc.extracted_text.substring(0, 600)}${doc.extracted_text.length > 600 ? '...' : ''}`);
+        }
+        return parts.join(' | ');
+      };
+
+      if (clientDocuments && clientDocuments.length > 0) {
+        documentsContext += `\n\nClient Documents (for this client):\n${clientDocuments.slice(0, 6).map(d => `- ${formatDoc(d)}`).join('\n')}`;
+        if (clientDocuments.length > 6) {
+          documentsContext += `\n(+ ${clientDocuments.length - 6} more client document(s) not fully shown)`;
+        }
+      }
+
+      if (meetingDocuments && meetingDocuments.length > 0) {
+        documentsContext += `\n\nMeeting Documents (for this specific meeting):\n${meetingDocuments.slice(0, 6).map(d => `- ${formatDoc(d)}`).join('\n')}`;
+        if (meetingDocuments.length > 6) {
+          documentsContext += `\n(+ ${meetingDocuments.length - 6} more meeting document(s) not fully shown)`;
+        }
+      }
+    }
+
+    // By default, build a lightweight global stats block; more detail is added per-context below
     if (allMeetings && allMeetings.length > 0) {
       const currentDate = new Date();
       const lastMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
@@ -363,114 +467,81 @@ router.post('/threads/:threadId/messages', authenticateSupabaseUser, async (req,
         return meetingDate >= thisMonth;
       });
 
-      advisorContext = `\n\nYour Meeting Data:
+      advisorContext = `\n\nYour Overall Meeting Data:
       - Total meetings in database: ${allMeetings.length}
       - Meetings last month: ${lastMonthMeetings.length}
       - Meetings this month: ${thisMonthMeetings.length}
-      - Total clients: ${allClients ? allClients.length : 0}
-
-      Recent Meetings:
-      ${allMeetings.slice(0, 10).map(m =>
-        `• ${m.title} (${new Date(m.starttime).toLocaleDateString()})${m.quick_summary ? ` - ${m.quick_summary.substring(0, 100)}...` : ''}`
-      ).join('\n')}`;
+      - Total clients: ${allClients ? allClients.length : 0}`;
     }
 
     // Add enhanced context based on thread type
     let specificContext = '';
 
     if (thread.context_type === 'meeting' && thread.meeting_id) {
-      // Meeting-specific context
-      console.log(`🔍 Looking for meeting with googleeventid: ${thread.meeting_id}`);
+      // Meeting-specific context – use numeric ID first, then external_id fallback
+      console.log(`🔍 Looking for meeting with id or external_id: ${thread.meeting_id}`);
       console.log(`📊 Available meetings count: ${allMeetings?.length || 0}`);
 
-      const meetingData = allMeetings?.find(m => m.googleeventid === thread.meeting_id);
-      console.log(`🎯 Found meeting data:`, meetingData ? 'YES' : 'NO');
+      const meetingData = allMeetings?.find(m => {
+        const idMatch = String(m.id) === String(thread.meeting_id);
+        const externalMatch = m.external_id && String(m.external_id) === String(thread.meeting_id);
+        return idMatch || externalMatch;
+      });
+
+      console.log('🎯 Found meeting data:', meetingData ? 'YES' : 'NO');
 
       if (meetingData) {
         console.log(`✅ Meeting found: ${meetingData.title}`);
-        console.log(`📝 Has transcript: ${!!meetingData.transcript}`);
-        console.log(`📋 Has quick summary: ${!!meetingData.quick_summary}`);
+        console.log('📝 Has transcript:', !!meetingData.transcript);
+        console.log('📋 Has quick summary:', !!meetingData.quick_summary);
 
-        // Build comprehensive meeting context with explicit instructions
         let meetingContextParts = [
-          `=== SPECIFIC MEETING CONTEXT ===`,
+          '=== SPECIFIC MEETING CONTEXT ===',
           `Meeting Title: ${meetingData.title}`,
           `Date: ${new Date(meetingData.starttime).toLocaleDateString()}`,
           `Attendees: ${meetingData.attendees || 'Not specified'}`,
-          ``
+          ''
         ];
 
         if (meetingData.quick_summary) {
-          meetingContextParts.push(`QUICK SUMMARY:`);
+          meetingContextParts.push('QUICK SUMMARY:');
           meetingContextParts.push(meetingData.quick_summary);
-          meetingContextParts.push(``);
+          meetingContextParts.push('');
         }
 
-        if (meetingData.email_summary_draft) {
-          meetingContextParts.push(`DETAILED SUMMARY:`);
-          meetingContextParts.push(meetingData.email_summary_draft);
-          meetingContextParts.push(``);
+        if (meetingData.detailed_summary) {
+          meetingContextParts.push('DETAILED SUMMARY:');
+          meetingContextParts.push(meetingData.detailed_summary);
+          meetingContextParts.push('');
         }
 
         if (meetingData.transcript) {
-          meetingContextParts.push(`FULL MEETING TRANSCRIPT:`);
+          meetingContextParts.push('FULL MEETING TRANSCRIPT:');
           meetingContextParts.push(`"${meetingData.transcript}"`);
-          meetingContextParts.push(``);
+          meetingContextParts.push('');
         }
 
-        meetingContextParts.push(`=== END MEETING CONTEXT ===`);
+        meetingContextParts.push('=== END MEETING CONTEXT ===');
 
-        // Add proactive insights
         const proactiveInsights = generateProactiveInsights(meetingData);
-
-        // Find related meetings with the same client for cross-reference
-        let relatedMeetingsContext = '';
-        if (meetingData.attendees) {
-          try {
-            const attendeeEmails = JSON.parse(meetingData.attendees).map(a => a.email).filter(Boolean);
-            if (attendeeEmails.length > 0) {
-              const relatedMeetings = allMeetings?.filter(m =>
-                m.googleeventid !== meetingData.googleeventid &&
-                m.attendees &&
-                attendeeEmails.some(email => m.attendees.includes(email))
-              ).slice(0, 3);
-
-              if (relatedMeetings && relatedMeetings.length > 0) {
-                relatedMeetingsContext = `\n\nRELATED MEETINGS WITH SAME CLIENT(S):
-                ${relatedMeetings.map(m =>
-                  `• ${m.title} (${new Date(m.starttime).toLocaleDateString()})${m.quick_summary ? ` - ${m.quick_summary}` : ''}`
-                ).join('\n')}
-
-                Use this relationship history to provide continuity and context in your responses.`;
-              }
-            }
-          } catch (e) {
-            console.log('Error parsing attendees for cross-reference:', e);
-          }
-        }
 
         specificContext = `\n\n${meetingContextParts.join('\n')}
 
-        ${proactiveInsights}${relatedMeetingsContext}
+        ${proactiveInsights}
 
-        CRITICAL: You are discussing the specific meeting "${meetingData.title}" from ${new Date(meetingData.starttime).toLocaleDateString()}.
+        CRITICAL: You are discussing ONLY the specific meeting "${meetingData.title}" from ${new Date(meetingData.starttime).toLocaleDateString()}.
+        - Stay within the scope of this meeting unless explicitly asked about history for the SAME client
         - Reference specific quotes, decisions, and details from the transcript above
         - Mention specific client concerns, goals, or situations discussed
-        - Provide insights based on the actual conversation content
-        - Suggest follow-up actions based on what was actually discussed
-        - Cross-reference with related meetings when relevant for relationship continuity
-        - Never give generic responses when you have this specific meeting data
-        - Be proactive in offering relevant insights and suggestions based on the meeting content`;
+        - Provide insights and follow-up actions based on what was actually discussed`;
       } else {
-        console.log(`❌ No meeting found with googleeventid: ${thread.meeting_id}`);
-        console.log(`📋 Available googleeventids:`, allMeetings?.slice(0, 5).map(m => m.googleeventid));
+        console.log('❌ No meeting found for thread.meeting_id:', thread.meeting_id);
       }
     } else if (thread.context_type === 'client' && thread.client_id && thread.clients) {
       // Client-specific context
       const clientEmail = thread.clients.email;
       const clientName = thread.clients.name;
 
-      // Get recent meetings for this specific client
       const clientMeetings = allMeetings?.filter(m => {
         if (!m.attendees) return false;
         try {
@@ -480,8 +551,7 @@ router.post('/threads/:threadId/messages', authenticateSupabaseUser, async (req,
             (typeof attendee === 'object' && attendee.email && attendee.email.toLowerCase() === clientEmail.toLowerCase())
           );
         } catch (e) {
-          // Fallback to string search if JSON parsing fails
-          return m.attendees.toLowerCase().includes(clientEmail.toLowerCase());
+          return String(m.attendees).toLowerCase().includes(clientEmail.toLowerCase());
         }
       }) || [];
 
@@ -493,23 +563,26 @@ router.post('/threads/:threadId/messages', authenticateSupabaseUser, async (req,
           `• ${m.title} (${new Date(m.starttime).toLocaleDateString()})${m.quick_summary ? ` - ${m.quick_summary}` : ''}`
         ).join('\n')}
 
-        IMPORTANT: This conversation is specifically about ${clientName}. Focus your responses on this client's relationship, meetings, and specific needs.`;
+        IMPORTANT: This conversation is specifically about ${clientName}. Do not discuss, compare, or speculate about other clients.`;
+      } else {
+        specificContext = `\n\nClient-Specific Context for ${clientName} (${clientEmail}):
+        - No past meetings found in the system.
+        - Focus on general planning and questions for this client only.`;
       }
     } else if (thread.context_type === 'general') {
-      // General context
-      specificContext = `\n\nGeneral Advisory Context:
+      // General / all-clients context
+      specificContext = `\n\nGeneral Advisory Context (All Clients):
       - This is a general advisory conversation covering cross-client insights and portfolio-level analysis
-      - You have access to data from all ${allMeetings?.length || 0} meetings and ${allClients?.length || 0} clients
+      - You can use insights from all ${allMeetings?.length || 0} meetings and ${allClients?.length || 0} clients
       - Focus on broader financial planning, market insights, and business development advice`;
     }
 
-    // Add mentioned clients context
+    // Add mentioned clients context (used mainly for general threads)
     let mentionedClientsContext = '';
     if (mentionedClients && mentionedClients.length > 0) {
       const mentionedClientDetails = [];
 
       for (const mentionedClient of mentionedClients) {
-        // Get meetings for this mentioned client
         const clientMeetings = allMeetings?.filter(m => {
           if (!m.attendees) return false;
           try {
@@ -519,12 +592,10 @@ router.post('/threads/:threadId/messages', authenticateSupabaseUser, async (req,
               (typeof attendee === 'object' && attendee.email && attendee.email.toLowerCase() === mentionedClient.email.toLowerCase())
             );
           } catch (e) {
-            // Fallback to string search if JSON parsing fails
             return JSON.stringify(m.attendees).toLowerCase().includes(mentionedClient.email.toLowerCase());
           }
         }) || [];
 
-        // Get client details from database
         const { data: fullClientData } = await req.supabase
           .from('clients')
           .select('*')
@@ -550,37 +621,38 @@ router.post('/threads/:threadId/messages', authenticateSupabaseUser, async (req,
       `).join('\n')}`;
     }
 
-    // Generate AI response with enhanced context-aware prompt
     const systemPrompt = `You are Advicly AI, an expert financial advisor assistant with deep contextual awareness.
 
     CRITICAL INSTRUCTIONS:
-    1. You have access to SPECIFIC meeting transcripts, client data, and conversation details below
+    1. You have access to SPECIFIC meeting transcripts, client data, uploaded documents, and conversation details below
     2. ALWAYS reference and use the actual data provided - never give generic responses
-    3. When discussing meetings, quote specific details from transcripts and summaries
+    3. When discussing meetings, quote specific details from transcripts, summaries, and documents
     4. Demonstrate deep understanding by referencing specific client situations, decisions made, and action items
-    5. Provide proactive insights based on the actual meeting content
-    6. Cross-reference information across multiple meetings when relevant
+    5. Provide proactive insights based on the actual meeting content and any uploaded PDFs/documents
+    6. Respect the current conversation scope:
+       - If this is a client-specific thread, do NOT discuss other clients.
+       - If this is a meeting-specific thread, focus primarily on that meeting (you may bring in history for the SAME client).
+       - If this is a general thread, you may draw on all clients as appropriate.
 
     CONTEXT DATA AVAILABLE:
-    ${advisorContext}${specificContext}${mentionedClientsContext}
+    ${advisorContext}${specificContext}${mentionedClientsContext}${documentsContext}
 
     RESPONSE GUIDELINES:
     - Always start responses by acknowledging the specific context (e.g., "Based on your meeting with John on August 12th...")
     - Quote specific details from transcripts when available
     - Reference specific decisions, concerns, or goals mentioned in meetings
-    - Provide actionable insights based on the actual conversation content
+    - Explicitly reference relevant uploaded documents where helpful (e.g., suitability reports, statements, fact finds)
+    - Provide actionable insights based on the actual conversation content and documents
     - Suggest follow-up actions based on what was discussed
     - Never say you don't have access to information when context data is provided above
 
-    Your responses should demonstrate that you have thoroughly "read" and "understood" the specific meeting content.`;
+    Your responses should demonstrate that you have thoroughly "read" and "understood" the specific meeting, client context, and any related documents.`;
 
-    // Log context for debugging
     console.log('🎯 Final system prompt length:', systemPrompt.length);
-    console.log('📋 Context includes meeting data:', specificContext.includes('MEETING CONTEXT'));
+    console.log('📋 Context includes meeting data:', specificContext.includes('MEETING CONTEXT') || specificContext.includes('SPECIFIC MEETING CONTEXT'));
     console.log('💬 User question:', content.trim());
     console.log('🔍 System prompt preview:', systemPrompt.substring(0, 500) + '...');
 
-    // Log specific context details
     if (thread.context_type === 'meeting') {
       console.log('🎪 Meeting context details:');
       console.log('  - Meeting ID:', thread.meeting_id);
@@ -590,7 +662,6 @@ router.post('/threads/:threadId/messages', authenticateSupabaseUser, async (req,
 
     const aiResponse = await generateChatResponse(content.trim(), systemPrompt, 1200);
 
-    // Save AI response
     const { data: aiMessage, error: aiMessageError } = await req.supabase
       .from('ask_messages')
       .insert({
@@ -606,7 +677,6 @@ router.post('/threads/:threadId/messages', authenticateSupabaseUser, async (req,
       return res.status(500).json({ error: 'Failed to save AI response' });
     }
 
-    // Update thread timestamp
     await req.supabase
       .from('ask_threads')
       .update({ updated_at: new Date().toISOString() })
@@ -614,7 +684,13 @@ router.post('/threads/:threadId/messages', authenticateSupabaseUser, async (req,
 
     res.json({
       userMessage,
-      aiMessage
+      aiMessage,
+      // For future frontend UX: indicate this response came from a scoped thread
+      meta: {
+        contextType: thread.context_type,
+        clientId: thread.client_id,
+        meetingId: thread.meeting_id
+      }
     });
   } catch (error) {
     console.error('Error in POST /threads/:threadId/messages:', error);

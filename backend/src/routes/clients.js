@@ -278,6 +278,46 @@ router.post('/upsert', authenticateSupabaseUser, async (req, res) => {
     res.status(500).json({ error: 'Failed to upsert client', details: error.message });
   }
 });
+// Minimal client creation for Ask Advicly (name optional, email optional)
+router.post('/create-minimal', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { name, email, notes } = req.body || {};
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    const insertData = {
+      user_id: userId,
+      email: email || `no-email-${Date.now()}@placeholder.advicly`,
+      name: name || null,
+      notes: notes || null,
+      pipeline_stage: 'prospect',
+      priority_level: 3
+    };
+
+    const { data: newClient, error: insertError } = await req.supabase
+      .from('clients')
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error creating minimal client:', insertError);
+      return res.status(500).json({ error: 'Failed to create client' });
+    }
+
+    res.json({ message: 'Client created successfully', client: newClient });
+  } catch (error) {
+    console.error('Error creating minimal client:', error);
+    res.status(500).json({ error: 'Failed to create minimal client', details: error.message });
+  }
+});
+
+
 
 // Update client name and pipeline data
 router.post('/update-name', authenticateSupabaseUser, async (req, res) => {
