@@ -278,9 +278,10 @@ async function generateChatResponse(userMessage, systemPrompt, maxTokens = 1200)
 }
 
 module.exports = {
-    generateMeetingSummary,
-    adjustMeetingSummary,
-    improveTemplate,
-    generateChatResponse,
-    isOpenAIAvailable
+  generateMeetingSummary,
+  generateUnifiedMeetingSummary,
+  adjustMeetingSummary,
+  improveTemplate,
+  generateChatResponse,
+  isOpenAIAvailable
 };
