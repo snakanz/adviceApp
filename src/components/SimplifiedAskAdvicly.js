@@ -10,7 +10,6 @@ import {
   Plus,
   Edit3,
   Calendar,
-  X,
   Trash2
 } from 'lucide-react';
 import { api } from '../services/api'; // Fixed import path for deployment
@@ -26,64 +25,7 @@ const PROMPT_SUGGESTIONS = [
   "Show me this client's meeting history"
 ];
 
-// Simple Context Banner Component
-const ContextBanner = ({ contextType, contextData, onRemove }) => {
-  if (contextType === 'general') return null;
 
-  const getBannerContent = () => {
-    if (contextType === 'meeting') {
-      return {
-        icon: <Calendar className="w-4 h-4" />,
-        title: `Meeting Context: ${contextData.meetingTitle || 'Untitled Meeting'}`,
-        subtitle: `${contextData.clientName} • ${new Date(contextData.meetingDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`,
-        bgColor: 'bg-blue-50',
-        borderColor: 'border-blue-200',
-        textColor: 'text-blue-800'
-      };
-    } else if (contextType === 'client') {
-      return {
-        icon: <User className="w-4 h-4" />,
-        title: `Client Context: ${contextData.clientName}`,
-        subtitle: `${contextData.meetingCount || 0} meetings • ${contextData.pipelineStatus || 'Unknown status'}`,
-        bgColor: 'bg-green-50',
-        borderColor: 'border-green-200',
-        textColor: 'text-green-800'
-      };
-    }
-  };
-
-  const banner = getBannerContent();
-  if (!banner) return null;
-
-  return (
-    <div className={cn(
-      "mx-4 mb-4 p-3 rounded-lg border",
-      banner.bgColor,
-      banner.borderColor,
-      banner.textColor
-    )}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {banner.icon}
-          <div>
-            <div className="font-medium text-sm">{banner.title}</div>
-            <div className="text-xs opacity-75">{banner.subtitle}</div>
-          </div>
-        </div>
-        {onRemove && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onRemove}
-            className="h-6 w-6 p-0 hover:bg-white/50"
-          >
-            <X className="w-3 h-3" />
-          </Button>
-        )}
-      </div>
-    </div>
-  );
-};
 
 export default function SimplifiedAskAdvicly({
   contextType = 'general',
