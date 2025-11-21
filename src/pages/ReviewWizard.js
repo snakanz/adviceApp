@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/button';
+import { supabase } from '../lib/supabase';
+
 
 // Minimal, self-contained wizard UI for review meetings.
 // This is intentionally simple so we can wire the backend first,
@@ -53,7 +55,8 @@ export default function ReviewWizard({
         setLoading(true);
         setError(null);
         const apiBase = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
-        const token = window.localStorage.getItem('supabaseToken');
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
         const res = await fetch(`${apiBase}/api/calendar/meetings/${meeting.id}/detect-review-fields`, {
           method: 'POST',
           headers: {
@@ -118,7 +121,8 @@ export default function ReviewWizard({
       setError(null);
 
       const apiBase = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
-      const token = window.localStorage.getItem('supabaseToken');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
 
       const reviewData = {};
       // Apply detected values first, then user answers override
