@@ -100,10 +100,10 @@ function PrivateRoute() {
             console.error('❌ 401 Unauthorized - token may be invalid');
           }
 
-          // If we get a 403 with subscription error, redirect to pricing
+          // If we get a 403 with subscription error, redirect to register
           if (error.response?.status === 403 && error.response?.data?.error?.includes('subscription')) {
-            console.log('🔄 Redirecting to pricing due to subscription issue...');
-            navigate('/pricing');
+            console.log('🔄 Redirecting to register due to subscription issue...');
+            navigate('/register');
           }
 
           setCheckingOnboarding(false);
