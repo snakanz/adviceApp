@@ -112,7 +112,11 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
       formData.append('clientId', clientId);
       // Note: Backend automatically sets upload_source='clients_page' for AI context tracking
 
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
       console.log('📤 Uploading to unified document system:', `${API_URL}/api/client-documents/upload`);
       console.log('   Client ID:', clientId);
       console.log('   Files:', Array.from(selectedFiles).map(f => f.name));
@@ -156,7 +160,11 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
     if (!window.confirm('Are you sure you want to delete this document?')) return;
 
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
       const response = await fetch(`${API_URL}/api/client-documents/${documentId}`, {
         method: 'DELETE',
         headers: {
@@ -178,7 +186,11 @@ export default function ClientDocumentsSection({ clientId, clientName, meetings 
 
   const handleDownloadDocument = async (documentId, fileName) => {
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
       const response = await fetch(`${API_URL}/api/client-documents/${documentId}/download`, {
         headers: {
           'Authorization': `Bearer ${token}`

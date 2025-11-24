@@ -94,7 +94,11 @@ export default function DocumentsTab({ meetingId, selectedMeeting }) {
       // Note: The backend endpoint /api/calendar/meetings/:meetingId/documents
       // now uses the unified client_documents system and automatically sets
       // upload_source='meetings_page' for AI context tracking
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
       const response = await fetch(`${API_URL}/api/calendar/meetings/${meetingId}/documents`, {
         method: 'POST',
         headers: {
@@ -129,7 +133,11 @@ export default function DocumentsTab({ meetingId, selectedMeeting }) {
     if (!window.confirm('Are you sure you want to delete this file?')) return;
 
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
       const response = await fetch(`${API_URL}/api/calendar/meetings/${meetingId}/documents/${fileId}`, {
         method: 'DELETE',
         headers: {

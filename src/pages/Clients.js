@@ -1097,7 +1097,7 @@ export default function Clients() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleCreatePipelineEntry(selectedClient)}
+                        onClick={() => handleEditBusinessTypes(selectedClient)}
                       >
                         Add Business Type
                       </Button>
