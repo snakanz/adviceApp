@@ -137,7 +137,7 @@ router.get('/threads', authenticateSupabaseUser, async (req, res) => {
         updated_at,
         clients(name, email)
       `)
-      .eq('advisor_id', advisorId)
+      .eq('user_id', advisorId)
       .eq('is_archived', false)
       .order('updated_at', { ascending: false });
 
@@ -187,7 +187,7 @@ router.get('/threads/:threadId/messages', authenticateSupabaseUser, async (req, 
       .from('ask_threads')
       .select('id')
       .eq('id', threadId)
-      .eq('advisor_id', advisorId)
+      .eq('user_id', advisorId)
       .single();
 
     if (threadError || !thread) {
@@ -239,7 +239,7 @@ router.post('/threads', authenticateSupabaseUser, async (req, res) => {
     const { data: thread, error } = await req.supabase
       .from('ask_threads')
       .insert({
-        advisor_id: advisorId,
+        user_id: advisorId,
         client_id: clientId || null,
         title: finalTitle,
         context_type: contextType,
@@ -308,7 +308,7 @@ router.post('/threads/:threadId/messages', authenticateSupabaseUser, async (req,
         clients(name, email)
       `)
       .eq('id', threadId)
-      .eq('advisor_id', advisorId)
+      .eq('user_id', advisorId)
       .single();
 
     if (threadError || !thread) {
@@ -722,7 +722,7 @@ router.patch('/threads/:threadId', authenticateSupabaseUser, async (req, res) =>
         updated_at: new Date().toISOString()
       })
       .eq('id', threadId)
-      .eq('advisor_id', advisorId)
+      .eq('user_id', advisorId)
       .select()
       .single();
 

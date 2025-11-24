@@ -97,12 +97,12 @@ class CascadeDeletionManager {
           // Archive threads instead of deleting them
           const { error } = await this.supabase
             .from('ask_threads')
-            .update({ 
-              is_archived: true, 
-              updated_at: new Date().toISOString() 
+            .update({
+              is_archived: true,
+              updated_at: new Date().toISOString()
             })
             .eq('client_id', clientId)
-            .eq('advisor_id', userId)
+            .eq('user_id', userId)
             .eq('is_archived', false);
 
           if (error) throw error;
@@ -366,12 +366,12 @@ class CascadeDeletionManager {
         if (!dryRun) {
           const { error } = await this.supabase
             .from('ask_threads')
-            .update({ 
-              is_archived: false, 
-              updated_at: new Date().toISOString() 
+            .update({
+              is_archived: false,
+              updated_at: new Date().toISOString()
             })
             .eq('client_id', clientId)
-            .eq('advisor_id', userId)
+            .eq('user_id', userId)
             .eq('is_archived', true);
 
           if (error) throw error;
