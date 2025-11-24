@@ -1175,25 +1175,24 @@ export default function Pipeline() {
                             </div>
                           )}
                         </div>
-
-              {/* AI Next Steps Summary (List View) */}
-              <div className="col-span-5">
-                <label className="text-[11px] font-medium text-muted-foreground mb-1 block flex items-center gap-1">
-                  <Sparkles className="w-3 h-3" />
-                  Next Steps to Close
-                </label>
-                <div className="text-[11px] text-foreground/90 bg-muted/40 border border-border/60 rounded-md px-2 py-1.5 max-h-16 overflow-hidden">
-                  {client.pipeline_next_steps ? (
-                    <span className="line-clamp-3">
-                      {client.pipeline_next_steps}
-                    </span>
-                  ) : (
-                    <span className="italic text-muted-foreground">No AI summary yet – open this client to generate next steps.</span>
-                  )}
-                </div>
-              </div>
-
                       )}
+                    </div>
+
+                    {/* AI Next Steps Summary (List View) */}
+                    <div className="col-span-5">
+                      <label className="text-[11px] font-medium text-muted-foreground mb-1 block flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" />
+                        Next Steps to Close
+                      </label>
+                      <div className="text-[11px] text-foreground/90 bg-muted/40 border border-border/60 rounded-md px-2 py-1.5 max-h-16 overflow-hidden">
+                        {client.pipeline_next_steps ? (
+                          <span className="line-clamp-3">
+                            {client.pipeline_next_steps}
+                          </span>
+                        ) : (
+                          <span className="italic text-muted-foreground">No AI summary yet – open this client to generate next steps.</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
