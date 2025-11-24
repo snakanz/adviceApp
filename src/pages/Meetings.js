@@ -516,6 +516,8 @@ export default function Meetings() {
           const start = new Date(startTime);
           const meetingData = {
             ...m,
+            // Normalise joined client relation so UI can always use .client
+            client: m.client || m.clients || null,
             id: meetingId, // Use database ID
             startTime: startTime, // Ensure consistent naming
           };

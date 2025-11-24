@@ -510,8 +510,37 @@ export default function SimplifiedAskAdvicly({
               )}
             </div>
 
-            {/* Input area */}
-            <div className="border-t border-border/50 p-4">
+            {/* Input + upload area */}
+            <div className="border-t border-border/50 p-4 space-y-3">
+              {/* Simple upload button – uses New Chat modal's unified client_documents backend */}
+              {(clientId || meetingId) && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <input
+                    id="ask-advicly-upload"
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={() => {
+                      // Re-use NewChatModal upload flow by opening the modal in client/meeting mode
+                      setShowNewChatModal(true);
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => document.getElementById('ask-advicly-upload')?.click()}
+                    disabled={loading}
+                  >
+                    Upload documents for this {contextType === 'meeting' ? 'meeting' : 'client'}
+                  </Button>
+                  <span>
+                    These files will appear under the client's Documents and be used in Ask Advicly.
+                  </span>
+                </div>
+              )}
+
               <div className="flex items-end gap-3">
                 <div className="flex-1 relative">
                   <textarea
