@@ -231,7 +231,7 @@ router.put('/client/:clientId', authenticateSupabaseUser, async (req, res) => {
       .from('clients')
       .update(updateData)
       .eq('id', clientId)
-      .eq('advisor_id', userId)
+      .eq('user_id', userId)
       .select()
       .single();
 

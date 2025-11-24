@@ -96,13 +96,38 @@ async function uploadToStorage(file, fileName, userId) {
 
 /**
  * Save file metadata to database
+ *
+ * NOTE: The live client_documents schema is a lean metadata table.
+ * We normalise the incoming payload to match actual columns and
+ * avoid insert failures when callers send extra fields.
  */
 async function saveFileMetadata(fileData) {
   const supabase = getSupabase();
 
+  // Enforce required fields for the current schema
+  if (!fileData || !fileData.user_id || !fileData.client_id || !fileData.file_name || !fileData.file_url) {
+    throw new Error('Missing required document fields (user_id, client_id, file_name, file_url)');
+  }
+
+  // Map to the actual columns that exist in client_documents
+  const payload = {
+    user_id: fileData.user_id,
+    client_id: fileData.client_id,
+    meeting_id: fileData.meeting_id ?? null,
+    file_name: fileData.file_name,
+    file_size: fileData.file_size ?? null,
+    file_type: fileData.file_type ?? null,
+    file_url: fileData.file_url,
+    upload_source: fileData.upload_source || 'manual',
+    uploaded_by: fileData.uploaded_by || fileData.user_id,
+    is_deleted: fileData.is_deleted ?? false,
+    uploaded_at: fileData.uploaded_at || new Date().toISOString(),
+    tenant_id: fileData.tenant_id ?? null
+  };
+
   const { data, error } = await supabase
     .from('client_documents')
-    .insert(fileData)
+    .insert(payload)
     .select()
     .single();
 
@@ -198,15 +223,31 @@ async function getClientDocuments(clientId, userId) {
     throw new Error(`Failed to fetch documents: ${error.message}`);
   }
 
-  // Add download URLs
+  // Add derived fields and download URLs for client documents
   const documentsWithUrls = await Promise.all(
     data.map(async (doc) => {
+      // Derive a sensible display name and category even though the
+      // live schema does not store original_name or file_category
+      const baseName = doc.file_name || (doc.file_url ? doc.file_url.split('/').pop() : 'document');
+      const derivedOriginalName = doc.original_name || baseName;
+      const derivedCategory = doc.file_category || getFileCategory(doc.file_type);
+
       try {
         const downloadUrl = await getFileDownloadUrl(doc.file_url);
-        return { ...doc, download_url: downloadUrl };
+        return {
+          ...doc,
+          original_name: derivedOriginalName,
+          file_category: derivedCategory,
+          download_url: downloadUrl
+        };
       } catch (err) {
         console.error(`Error generating URL for document ${doc.id}:`, err);
-        return { ...doc, download_url: null };
+        return {
+          ...doc,
+          original_name: derivedOriginalName,
+          file_category: derivedCategory,
+          download_url: null
+        };
       }
     })
   );
@@ -232,15 +273,29 @@ async function getMeetingDocuments(meetingId, userId) {
     throw new Error(`Failed to fetch meeting documents: ${error.message}`);
   }
 
-  // Add download URLs
+  // Add derived fields and download URLs for meeting documents
   const documentsWithUrls = await Promise.all(
     data.map(async (doc) => {
+      const baseName = doc.file_name || (doc.file_url ? doc.file_url.split('/').pop() : 'document');
+      const derivedOriginalName = doc.original_name || baseName;
+      const derivedCategory = doc.file_category || getFileCategory(doc.file_type);
+
       try {
         const downloadUrl = await getFileDownloadUrl(doc.file_url);
-        return { ...doc, download_url: downloadUrl };
+        return {
+          ...doc,
+          original_name: derivedOriginalName,
+          file_category: derivedCategory,
+          download_url: downloadUrl
+        };
       } catch (err) {
         console.error(`Error generating URL for document ${doc.id}:`, err);
-        return { ...doc, download_url: null };
+        return {
+          ...doc,
+          original_name: derivedOriginalName,
+          file_category: derivedCategory,
+          download_url: null
+        };
       }
     })
   );
@@ -266,15 +321,29 @@ async function getUnassignedDocuments(userId) {
     throw new Error(`Failed to fetch unassigned documents: ${error.message}`);
   }
 
-  // Add download URLs
+  // Add derived fields and download URLs for unassigned documents
   const documentsWithUrls = await Promise.all(
     data.map(async (doc) => {
+      const baseName = doc.file_name || (doc.file_url ? doc.file_url.split('/').pop() : 'document');
+      const derivedOriginalName = doc.original_name || baseName;
+      const derivedCategory = doc.file_category || getFileCategory(doc.file_type);
+
       try {
         const downloadUrl = await getFileDownloadUrl(doc.file_url);
-        return { ...doc, download_url: downloadUrl };
+        return {
+          ...doc,
+          original_name: derivedOriginalName,
+          file_category: derivedCategory,
+          download_url: downloadUrl
+        };
       } catch (err) {
         console.error(`Error generating URL for document ${doc.id}:`, err);
-        return { ...doc, download_url: null };
+        return {
+          ...doc,
+          original_name: derivedOriginalName,
+          file_category: derivedCategory,
+          download_url: null
+        };
       }
     })
   );
@@ -312,12 +381,11 @@ async function assignDocumentToClient(documentId, clientId, userId) {
     throw new Error('Client not found or access denied');
   }
 
-  // Update document
+  // Update document (live schema does not have manually_assigned column)
   const { data, error } = await supabase
     .from('client_documents')
     .update({
-      client_id: clientId,
-      manually_assigned: true
+      client_id: clientId
     })
     .eq('id', documentId)
     .select()

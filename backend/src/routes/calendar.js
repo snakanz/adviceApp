@@ -1904,6 +1904,12 @@ router.post('/meetings/:meetingId/documents', authenticateSupabaseUser, clientDo
       return res.status(404).json({ error: 'Meeting not found' });
     }
 
+    if (!meeting.client_id) {
+      return res.status(400).json({
+        error: 'Meeting is not linked to a client yet. Please assign a client before uploading documents.'
+      });
+    }
+
     const uploadedFiles = [];
     const errors = [];
 
@@ -1922,12 +1928,10 @@ router.post('/meetings/:meetingId/documents', authenticateSupabaseUser, clientDo
         const fileData = {
           user_id: userId,
           meeting_id: parseInt(meetingId),
-          client_id: meeting.client_id || null, // Link to client if available
+          client_id: meeting.client_id, // Link to client (already validated above)
           file_name: fileName,
-          original_name: file.originalname,
-          file_type: file.mimetype,
-          file_category: clientDocumentsService.getFileCategory(file.mimetype),
           file_size: file.size,
+          file_type: file.mimetype,
           file_url: storageResult.storagePath,
           uploaded_by: userId,
           upload_source: 'meetings_page', // Track source for AI context

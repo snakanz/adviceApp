@@ -141,6 +141,8 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
         created_at: client.created_at,
         updated_at: client.updated_at,
         avatar_url: client.avatar_url,
+        pipeline_next_steps: client.pipeline_next_steps,
+        pipeline_next_steps_generated_at: client.pipeline_next_steps_generated_at,
         meetings: meetings,
         upcoming_meetings_count: upcomingMeetings.length,
         has_upcoming_meetings: upcomingMeetings.length > 0

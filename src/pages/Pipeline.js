@@ -224,7 +224,10 @@ export default function Pipeline() {
           regular_contribution_amount: client.regular_contribution_amount,
           priority_level: client.priority_level || 3,
           last_contact_date: client.last_contact_date,
-          next_follow_up_date: client.next_follow_up_date
+          next_follow_up_date: client.next_follow_up_date,
+          // AI next steps summary fields
+          pipeline_next_steps: client.pipeline_next_steps || null,
+          pipeline_next_steps_generated_at: client.pipeline_next_steps_generated_at || null
         };
       });
 
@@ -1172,6 +1175,24 @@ export default function Pipeline() {
                             </div>
                           )}
                         </div>
+
+              {/* AI Next Steps Summary (List View) */}
+              <div className="col-span-5">
+                <label className="text-[11px] font-medium text-muted-foreground mb-1 block flex items-center gap-1">
+                  <Sparkles className="w-3 h-3" />
+                  Next Steps to Close
+                </label>
+                <div className="text-[11px] text-foreground/90 bg-muted/40 border border-border/60 rounded-md px-2 py-1.5 max-h-16 overflow-hidden">
+                  {client.pipeline_next_steps ? (
+                    <span className="line-clamp-3">
+                      {client.pipeline_next_steps}
+                    </span>
+                  ) : (
+                    <span className="italic text-muted-foreground">No AI summary yet – open this client to generate next steps.</span>
+                  )}
+                </div>
+              </div>
+
                       )}
                     </div>
                   </div>

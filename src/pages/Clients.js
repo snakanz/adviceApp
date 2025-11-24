@@ -907,14 +907,6 @@ export default function Clients() {
                   Edit
                 </Button>
                 <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleEditBusinessTypes(selectedClient)}
-                >
-                  <Building2 className="w-4 h-4 mr-2" />
-                  Business Types
-                </Button>
-                <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => setDetailPanelOpen(false)}
@@ -950,7 +942,7 @@ export default function Clients() {
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <Building2 className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-medium">Total IAF Expected</span>
+                      <span className="text-sm font-medium">Business Expected to Close (IAF)</span>
                     </div>
                     <div className="text-2xl font-bold text-foreground">
                       {selectedClient.iaf_expected ?
