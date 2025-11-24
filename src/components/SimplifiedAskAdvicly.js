@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from './ui/button';
 import { Avatar, AvatarFallback } from './ui/avatar';
 import { cn } from '../lib/utils';
@@ -84,16 +84,50 @@ export default function SimplifiedAskAdvicly({
   }, [threads, contextType, meetingId, clientId, activeThreadId]);
 
   const didAutoStartRef = useRef(false);
+  const createNewThread = useCallback(async () => {
+    try {
+      // Generate clean thread title based on context
+      let title = 'New Conversation';
+      if (contextType === 'meeting' && contextData.meetingTitle) {
+        title = `${contextData.clientName} - ${contextData.meetingTitle}`;
+      } else if (contextType === 'client' && contextData.clientName) {
+        title = `${contextData.clientName} - Client Discussion`;
+      } else {
+        title = 'General Advisory Chat';
+      }
+
+      const response = await api.request('/ask-advicly/threads', {
+        method: 'POST',
+        body: JSON.stringify({
+          clientId,
+          title,
+          contextType,
+          contextData,
+          meetingId
+        })
+      });
+
+      setThreads(prev => [response, ...prev]);
+      setActiveThreadId(response.id);
+      return response;
+    } catch (error) {
+      console.error('Error creating thread:', error);
+    }
+  }, [clientId, contextType, contextData, meetingId]);
+
 
   // Auto-create a new thread when navigated with autoStart=true and no active thread yet
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!autoStart || didAutoStartRef.current) return;
-    if (threads.length === 0 && !activeThreadId && (contextType === 'client' || contextType === 'meeting')) {
+    if (
+      threads.length === 0 &&
+      !activeThreadId &&
+      (contextType === 'client' || contextType === 'meeting')
+    ) {
       didAutoStartRef.current = true;
       createNewThread();
     }
-  }, [autoStart, threads, activeThreadId, contextType]);
+  }, [autoStart, threads, activeThreadId, contextType, createNewThread]);
 
   // Load messages when active thread changes
   useEffect(() => {
@@ -137,36 +171,6 @@ export default function SimplifiedAskAdvicly({
     }
   };
 
-  const createNewThread = async () => {
-    try {
-      // Generate clean thread title based on context
-      let title = 'New Conversation';
-      if (contextType === 'meeting' && contextData.meetingTitle) {
-        title = `${contextData.clientName} - ${contextData.meetingTitle}`;
-      } else if (contextType === 'client' && contextData.clientName) {
-        title = `${contextData.clientName} - Client Discussion`;
-      } else {
-        title = 'General Advisory Chat';
-      }
-
-      const response = await api.request('/ask-advicly/threads', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientId,
-          title,
-          contextType,
-          contextData,
-          meetingId
-        })
-      });
-
-      setThreads(prev => [response, ...prev]);
-      setActiveThreadId(response.id);
-      return response;
-    } catch (error) {
-      console.error('Error creating thread:', error);
-    }
-  };
 
   const sendMessage = async () => {
     if (!input.trim()) return;
