@@ -1920,25 +1920,25 @@ router.post('/meetings/:meetingId/documents', authenticateSupabaseUser, clientDo
 
         // Save metadata to unified client_documents table
         const fileData = {
+          user_id: userId,
           meeting_id: parseInt(meetingId),
           client_id: meeting.client_id || null, // Link to client if available
-          advisor_id: userId,
           file_name: fileName,
           original_name: file.originalname,
           file_type: file.mimetype,
           file_category: clientDocumentsService.getFileCategory(file.mimetype),
           file_size: file.size,
-          storage_path: storageResult.path,
-          storage_bucket: 'client-documents', // Unified bucket
+          file_url: storageResult.storagePath,
           uploaded_by: userId,
           upload_source: 'meetings_page', // Track source for AI context
-          analysis_status: 'pending'
+          is_deleted: false,
+          uploaded_at: new Date().toISOString()
         };
 
         const savedFile = await clientDocumentsService.saveFileMetadata(fileData);
 
         // Add download URL
-        savedFile.download_url = await clientDocumentsService.getFileDownloadUrl(storageResult.path);
+        savedFile.download_url = await clientDocumentsService.getFileDownloadUrl(storageResult.storagePath);
 
         uploadedFiles.push(savedFile);
         console.log(`  ✅ Uploaded: ${file.originalname}`);

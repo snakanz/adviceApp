@@ -11,12 +11,12 @@ const router = express.Router();
  */
 router.post('/upload', authenticateSupabaseUser, clientDocumentsService.upload.array('files', 10), async (req, res) => {
   try {
-    const advisorId = req.user.id;
+    const userId = req.user.id;
     const { clientId, meetingId } = req.body; // Optional client ID and meeting ID
     const files = req.files;
 
     console.log('📤 Client document upload request:', {
-      advisorId,
+      userId,
       clientId,
       meetingId,
       fileCount: files?.length || 0,
@@ -35,14 +35,14 @@ router.post('/upload', authenticateSupabaseUser, clientDocumentsService.upload.a
       });
     }
 
-    // If clientId provided, verify it belongs to advisor
+    // If clientId provided, verify it belongs to the current user
     if (clientId) {
-      console.log('🔍 Verifying client access:', { clientId, advisorId });
+      console.log('🔍 Verifying client access:', { clientId, userId });
       const { data: client, error: clientError } = await req.supabase
         .from('clients')
         .select('id, name')
         .eq('id', clientId)
-        .eq('advisor_id', advisorId)
+        .eq('user_id', userId)
         .single();
 
       if (clientError || !client) {
@@ -52,14 +52,14 @@ router.post('/upload', authenticateSupabaseUser, clientDocumentsService.upload.a
       console.log('✅ Client verified:', client.name);
     }
 
-    // If meetingId provided, verify it belongs to advisor
+    // If meetingId provided, verify it belongs to the current user
     if (meetingId) {
-      console.log('🔍 Verifying meeting access:', { meetingId, advisorId });
+      console.log('🔍 Verifying meeting access:', { meetingId, userId });
       const { data: meeting, error: meetingError } = await req.supabase
         .from('meetings')
         .select('id, title')
         .eq('id', meetingId)
-        .eq('userid', advisorId)
+        .eq('user_id', userId)
         .single();
 
       if (meetingError || !meeting) {
@@ -83,41 +83,34 @@ router.post('/upload', authenticateSupabaseUser, clientDocumentsService.upload.a
 
         // Upload to storage
         console.log(`  Uploading to storage...`);
-        const storageResult = await clientDocumentsService.uploadToStorage(file, fileName, advisorId);
-        console.log(`  ✅ Storage upload successful:`, storageResult.path);
+        const storageResult = await clientDocumentsService.uploadToStorage(file, fileName, userId);
+        console.log(`  ✅ Storage upload successful:`, storageResult.storagePath);
 
         // Save metadata to database
         const fileData = {
+          user_id: userId,
           client_id: clientId || null,
           meeting_id: meetingId || null,
-          advisor_id: advisorId,
           file_name: fileName,
           original_name: file.originalname,
           file_type: file.mimetype,
           file_category: clientDocumentsService.getFileCategory(file.mimetype),
           file_size: file.size,
-          storage_path: storageResult.path,
-          storage_bucket: 'client-documents',
-          uploaded_by: advisorId,
+          file_url: storageResult.storagePath,
+          uploaded_by: userId,
           upload_source: 'clients_page', // Track source for AI context
-          analysis_status: 'pending'
+          is_deleted: false,
+          uploaded_at: new Date().toISOString()
         };
 
         console.log(`  Saving metadata to database...`);
         const savedFile = await clientDocumentsService.saveFileMetadata(fileData);
         console.log(`  ✅ Metadata saved, ID: ${savedFile.id}`);
 
-        // Queue for AI analysis
-        console.log(`  Queueing for AI analysis...`);
-        await clientDocumentsService.queueDocumentForAnalysis(
-          savedFile.id,
-          'client_document',
-          advisorId,
-          clientId ? 5 : 3 // Higher priority for unassigned docs (auto-detection)
-        );
+        // AI document analysis queue is currently disabled; skipping queueDocumentForAnalysis
 
         // Add download URL
-        savedFile.download_url = await clientDocumentsService.getFileDownloadUrl(storageResult.path);
+        savedFile.download_url = await clientDocumentsService.getFileDownloadUrl(storageResult.storagePath);
 
         uploadedFiles.push(savedFile);
         console.log(`  ✅ File processed successfully: ${file.originalname}`);
@@ -158,7 +151,7 @@ router.post('/upload', authenticateSupabaseUser, clientDocumentsService.upload.a
  */
 router.get('/unassigned/list', authenticateSupabaseUser, async (req, res) => {
   try {
-    const advisorId = req.user.id;
+    const userId = req.user.id;
 
     if (!isSupabaseAvailable()) {
       return res.status(503).json({
@@ -166,7 +159,7 @@ router.get('/unassigned/list', authenticateSupabaseUser, async (req, res) => {
       });
     }
 
-    const documents = await clientDocumentsService.getUnassignedDocuments(advisorId);
+    const documents = await clientDocumentsService.getUnassignedDocuments(userId);
 
     res.json({
       count: documents.length,
@@ -185,7 +178,7 @@ router.get('/unassigned/list', authenticateSupabaseUser, async (req, res) => {
  */
 router.patch('/:documentId/assign', authenticateSupabaseUser, async (req, res) => {
   try {
-    const advisorId = req.user.id;
+    const userId = req.user.id;
     const { documentId } = req.params;
     const { clientId } = req.body;
 
@@ -202,7 +195,7 @@ router.patch('/:documentId/assign', authenticateSupabaseUser, async (req, res) =
     const updatedDocument = await clientDocumentsService.assignDocumentToClient(
       documentId,
       clientId,
-      advisorId
+      userId
     );
 
     res.json({
@@ -249,7 +242,7 @@ router.delete('/:documentId', authenticateSupabaseUser, async (req, res) => {
  */
 router.get('/:documentId/download', authenticateSupabaseUser, async (req, res) => {
   try {
-    const advisorId = req.user.id;
+    const userId = req.user.id;
     const { documentId } = req.params;
 
     if (!isSupabaseAvailable()) {
@@ -263,7 +256,7 @@ router.get('/:documentId/download', authenticateSupabaseUser, async (req, res) =
       .from('client_documents')
       .select('*')
       .eq('id', documentId)
-      .eq('advisor_id', advisorId)
+      .eq('user_id', userId)
       .eq('is_deleted', false)
       .single();
 
@@ -271,7 +264,7 @@ router.get('/:documentId/download', authenticateSupabaseUser, async (req, res) =
       return res.status(404).json({ error: 'Document not found' });
     }
 
-    const downloadUrl = await clientDocumentsService.getFileDownloadUrl(document.storage_path);
+    const downloadUrl = await clientDocumentsService.getFileDownloadUrl(document.file_url);
 
     res.json({
       documentId,
@@ -291,7 +284,7 @@ router.get('/:documentId/download', authenticateSupabaseUser, async (req, res) =
  */
 router.post('/:documentId/analyze', authenticateSupabaseUser, async (req, res) => {
   try {
-    const advisorId = req.user.id;
+    const userId = req.user.id;
     const { documentId } = req.params;
 
     if (!isSupabaseAvailable()) {
@@ -300,29 +293,9 @@ router.post('/:documentId/analyze', authenticateSupabaseUser, async (req, res) =
       });
     }
 
-    // Verify document belongs to advisor
-    const { data: document, error } = await req.supabase
-      .from('client_documents')
-      .select('id, analysis_status')
-      .eq('id', documentId)
-      .eq('advisor_id', advisorId)
-      .single();
-
-    if (error || !document) {
-      return res.status(404).json({ error: 'Document not found' });
-    }
-
-    // Queue for analysis with high priority
-    const queueEntry = await clientDocumentsService.queueDocumentForAnalysis(
-      documentId,
-      'client_document',
-      advisorId,
-      1 // High priority
-    );
-
+    // AI document analysis queue is currently disabled; respond with a friendly message
     res.json({
-      message: 'Document queued for analysis',
-      queueEntry
+      message: 'Document analysis queue is currently disabled. The document is uploaded and available for use in Ask Advicly context.'
     });
 
   } catch (error) {

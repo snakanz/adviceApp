@@ -69,14 +69,17 @@ function generateFileName(originalName, clientId = null) {
 
 /**
  * Upload file to Supabase storage
+ *
+ * NOTE: We continue to use Supabase Storage for binary files and
+ * store the storage path in the client_documents.file_url column.
  */
-async function uploadToStorage(file, fileName, advisorId) {
+async function uploadToStorage(file, fileName, userId) {
   const supabase = getSupabase();
-  const filePath = `${advisorId}/${fileName}`;
-  
+  const storagePath = `${userId}/${fileName}`;
+
   const { data, error } = await supabase.storage
     .from('client-documents')
-    .upload(filePath, file.buffer, {
+    .upload(storagePath, file.buffer, {
       contentType: file.mimetype,
       upsert: false
     });
@@ -86,7 +89,7 @@ async function uploadToStorage(file, fileName, advisorId) {
   }
 
   return {
-    path: filePath,
+    storagePath,
     fullPath: data.path
   };
 }
@@ -96,7 +99,7 @@ async function uploadToStorage(file, fileName, advisorId) {
  */
 async function saveFileMetadata(fileData) {
   const supabase = getSupabase();
-  
+
   const { data, error } = await supabase
     .from('client_documents')
     .insert(fileData)
@@ -111,14 +114,18 @@ async function saveFileMetadata(fileData) {
 }
 
 /**
- * Get file download URL
+ * Get file download URL from stored file_url (storage path)
  */
-async function getFileDownloadUrl(storagePath) {
+async function getFileDownloadUrl(fileUrl) {
   const supabase = getSupabase();
-  
+
+  if (!fileUrl) {
+    throw new Error('Missing file URL');
+  }
+
   const { data, error } = await supabase.storage
     .from('client-documents')
-    .createSignedUrl(storagePath, 3600); // 1 hour expiry
+    .createSignedUrl(fileUrl, 3600); // 1 hour expiry
 
   if (error) {
     throw new Error(`Failed to generate download URL: ${error.message}`);
@@ -130,29 +137,31 @@ async function getFileDownloadUrl(storagePath) {
 /**
  * Delete file from storage and database
  */
-async function deleteFile(fileId, advisorId) {
+async function deleteFile(fileId, userId) {
   const supabase = getSupabase();
-  
-  // Get file info
+
+  // Get file info and verify ownership
   const { data: fileData, error: fetchError } = await supabase
     .from('client_documents')
     .select('*')
     .eq('id', fileId)
-    .eq('advisor_id', advisorId)
+    .eq('user_id', userId)
     .single();
 
   if (fetchError || !fileData) {
     throw new Error('File not found or access denied');
   }
 
-  // Delete from storage
-  const { error: storageError } = await supabase.storage
-    .from('client-documents')
-    .remove([fileData.storage_path]);
+  // Delete from storage if we have a path
+  if (fileData.file_url) {
+    const { error: storageError } = await supabase.storage
+      .from('client-documents')
+      .remove([fileData.file_url]);
 
-  if (storageError) {
-    console.error('Storage deletion error:', storageError);
-    // Continue with database deletion even if storage fails
+    if (storageError) {
+      console.error('Storage deletion error:', storageError);
+      // Continue with database deletion even if storage fails
+    }
   }
 
   // Mark as deleted in database
@@ -174,14 +183,14 @@ async function deleteFile(fileId, advisorId) {
 /**
  * Get all documents for a client
  */
-async function getClientDocuments(clientId, advisorId) {
+async function getClientDocuments(clientId, userId) {
   const supabase = getSupabase();
 
   const { data, error } = await supabase
     .from('client_documents')
     .select('*')
     .eq('client_id', clientId)
-    .eq('user_id', advisorId)
+    .eq('user_id', userId)
     .eq('is_deleted', false)
     .order('uploaded_at', { ascending: false });
 
@@ -193,7 +202,7 @@ async function getClientDocuments(clientId, advisorId) {
   const documentsWithUrls = await Promise.all(
     data.map(async (doc) => {
       try {
-        const downloadUrl = await getFileDownloadUrl(doc.storage_path);
+        const downloadUrl = await getFileDownloadUrl(doc.file_url);
         return { ...doc, download_url: downloadUrl };
       } catch (err) {
         console.error(`Error generating URL for document ${doc.id}:`, err);
@@ -208,14 +217,14 @@ async function getClientDocuments(clientId, advisorId) {
 /**
  * Get all documents for a specific meeting
  */
-async function getMeetingDocuments(meetingId, advisorId) {
+async function getMeetingDocuments(meetingId, userId) {
   const supabase = getSupabase();
 
-  const { data, error} = await supabase
+  const { data, error } = await supabase
     .from('client_documents')
     .select('*')
     .eq('meeting_id', meetingId)
-    .eq('user_id', advisorId)
+    .eq('user_id', userId)
     .eq('is_deleted', false)
     .order('uploaded_at', { ascending: false });
 
@@ -227,7 +236,7 @@ async function getMeetingDocuments(meetingId, advisorId) {
   const documentsWithUrls = await Promise.all(
     data.map(async (doc) => {
       try {
-        const downloadUrl = await getFileDownloadUrl(doc.storage_path);
+        const downloadUrl = await getFileDownloadUrl(doc.file_url);
         return { ...doc, download_url: downloadUrl };
       } catch (err) {
         console.error(`Error generating URL for document ${doc.id}:`, err);
@@ -242,16 +251,16 @@ async function getMeetingDocuments(meetingId, advisorId) {
 /**
  * Get unassigned documents (for auto-detection review)
  */
-async function getUnassignedDocuments(advisorId) {
+async function getUnassignedDocuments(userId) {
   const supabase = getSupabase();
 
   const { data, error } = await supabase
     .from('client_documents')
     .select('*')
-    .eq('user_id', advisorId)
+    .eq('user_id', userId)
     .is('client_id', null)
     .eq('is_deleted', false)
-    .order('uploaded_at', { ascending: false});
+    .order('uploaded_at', { ascending: false });
 
   if (error) {
     throw new Error(`Failed to fetch unassigned documents: ${error.message}`);
@@ -261,7 +270,7 @@ async function getUnassignedDocuments(advisorId) {
   const documentsWithUrls = await Promise.all(
     data.map(async (doc) => {
       try {
-        const downloadUrl = await getFileDownloadUrl(doc.storage_path);
+        const downloadUrl = await getFileDownloadUrl(doc.file_url);
         return { ...doc, download_url: downloadUrl };
       } catch (err) {
         console.error(`Error generating URL for document ${doc.id}:`, err);
@@ -276,27 +285,27 @@ async function getUnassignedDocuments(advisorId) {
 /**
  * Manually assign document to client
  */
-async function assignDocumentToClient(documentId, clientId, advisorId) {
+async function assignDocumentToClient(documentId, clientId, userId) {
   const supabase = getSupabase();
-  
-  // Verify document belongs to advisor
+
+  // Verify document belongs to user
   const { data: doc, error: docError } = await supabase
     .from('client_documents')
     .select('id')
     .eq('id', documentId)
-    .eq('user_id', advisorId)
+    .eq('user_id', userId)
     .single();
 
   if (docError || !doc) {
     throw new Error('Document not found or access denied');
   }
 
-  // Verify client belongs to advisor
+  // Verify client belongs to user
   const { data: client, error: clientError } = await supabase
     .from('clients')
     .select('id')
     .eq('id', clientId)
-    .eq('user_id', advisorId)
+    .eq('user_id', userId)
     .single();
 
   if (clientError || !client) {
@@ -324,26 +333,11 @@ async function assignDocumentToClient(documentId, clientId, advisorId) {
 /**
  * Queue document for AI analysis
  */
-async function queueDocumentForAnalysis(documentId, documentType, advisorId, priority = 5) {
-  const supabase = getSupabase();
-  
-  const { data, error } = await supabase
-    .from('ai_document_analysis_queue')
-    .insert({
-      document_id: documentId,
-      document_type: documentType,
-      advisor_id: advisorId,
-      priority: priority,
-      status: 'pending'
-    })
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to queue document for analysis: ${error.message}`);
-  }
-
-  return data;
+async function queueDocumentForAnalysis() {
+  // Legacy AI document analysis queue is currently disabled because the
+  // ai_document_analysis_queue table does not exist in the live schema.
+  // This function is kept as a no-op to avoid breaking callers.
+  return null;
 }
 
 module.exports = {
