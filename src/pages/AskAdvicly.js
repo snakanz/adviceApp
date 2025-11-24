@@ -19,6 +19,7 @@ export default function AskAdvicly() {
   const pipelineStatus = searchParams.get('pipelineStatus');
   const likelyValue = searchParams.get('likelyValue');
   const lastMeetingDate = searchParams.get('lastMeetingDate');
+  const autoStart = searchParams.get('autoStart') === 'true';
 
   // Build context data object
   const contextData = {
@@ -56,6 +57,7 @@ export default function AskAdvicly() {
         meetingId={meetingId}
         meetingTitle={meetingParam}
         meetingDate={meetingDate}
+        autoStart={autoStart}
         className="h-full"
       />
     </div>

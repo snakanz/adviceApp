@@ -2587,7 +2587,8 @@ export default function Meetings() {
                         meetingTitle: meetingTitle,
                         meetingDate: meetingDate,
                         hasTranscript: (!!selectedMeeting.transcript).toString(),
-                        hasSummary: (!!selectedMeeting.quick_summary).toString()
+                        hasSummary: (!!selectedMeeting.quick_summary).toString(),
+                        autoStart: 'true'
                       });
 
                       if (clientInfo) {

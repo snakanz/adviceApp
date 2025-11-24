@@ -35,6 +35,7 @@ export default function SimplifiedAskAdvicly({
   meetingId,
   meetingTitle,
   meetingDate,
+  autoStart = false,
   className = ""
 }) {
   const [threads, setThreads] = useState([]);
@@ -52,7 +53,7 @@ export default function SimplifiedAskAdvicly({
     loadThreads();
   }, []);
 
-  // Context-aware thread management
+  // Context-aware thread management (auto-select existing threads when possible)
   useEffect(() => {
     if (threads.length > 0 && !activeThreadId) {
       // Auto-select appropriate thread based on context
@@ -62,6 +63,7 @@ export default function SimplifiedAskAdvicly({
         );
         if (meetingThread) {
           setActiveThreadId(meetingThread.id);
+          return;
         }
       } else if (contextType === 'client' && clientId) {
         const clientThread = threads.find(t =>
@@ -69,16 +71,29 @@ export default function SimplifiedAskAdvicly({
         );
         if (clientThread) {
           setActiveThreadId(clientThread.id);
+          return;
         }
-      } else {
-        // Default to most recent general thread
-        const generalThread = threads.find(t => t.context_type === 'general');
-        if (generalThread) {
-          setActiveThreadId(generalThread.id);
-        }
+      }
+
+      // Default to most recent general thread
+      const generalThread = threads.find(t => t.context_type === 'general');
+      if (generalThread) {
+        setActiveThreadId(generalThread.id);
       }
     }
   }, [threads, contextType, meetingId, clientId, activeThreadId]);
+
+  const didAutoStartRef = useRef(false);
+
+  // Auto-create a new thread when navigated with autoStart=true and no active thread yet
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!autoStart || didAutoStartRef.current) return;
+    if (threads.length === 0 && !activeThreadId && (contextType === 'client' || contextType === 'meeting')) {
+      didAutoStartRef.current = true;
+      createNewThread();
+    }
+  }, [autoStart, threads, activeThreadId, contextType]);
 
   // Load messages when active thread changes
   useEffect(() => {

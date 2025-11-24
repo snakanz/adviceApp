@@ -1199,7 +1199,8 @@ export default function Clients() {
                     clientEmail: selectedClient.email,
                     meetingCount: clientMeetings.length.toString(),
                     pipelineStatus: selectedClient.pipeline_stage || 'Unknown',
-                    likelyValue: selectedClient.likely_value?.toString() || '0'
+                    likelyValue: selectedClient.likely_value?.toString() || '0',
+                    autoStart: 'true'
                   });
 
                   if (clientMeetings.length > 0) {
