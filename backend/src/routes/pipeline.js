@@ -26,20 +26,16 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
         id,
         name,
         email,
-        business_type,
-        likely_value,
-        iaf_expected,
-        likely_close_month,
-        pipeline_stage,
         priority_level,
-        likelihood,
         last_contact_date,
         next_follow_up_date,
         created_at,
-        updated_at
+        updated_at,
+        pipeline_next_steps,
+        pipeline_next_steps_generated_at
       `)
       .eq('user_id', userId)
-      .order('likely_close_month', { ascending: true, nullsFirst: false });
+      .order('created_at', { ascending: false });
 
     if (clientsError) {
       console.error('Error fetching clients:', clientsError);
@@ -125,18 +121,36 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
       client.business_type = primaryBusinessType;
       client.business_types = businessTypesList;
       client.business_types_data = clientBusinessTypes;
-      client.business_amount = totalBusinessAmount || client.business_amount || null;
-      client.iaf_expected = totalIafExpected || client.iaf_expected || null;
-      client.likely_value = totalIafExpected || client.likely_value || null; // Use iaf_expected as likely_value
+      client.totalBusinessAmount = totalBusinessAmount;
+      client.totalIafExpected = totalIafExpected;
+
+      // For backward compatibility
+      client.business_amount = totalBusinessAmount;
+      client.iaf_expected = totalIafExpected;
+      client.likely_value = totalIafExpected;
 
       // Add to total value if specified
-      if (client.likely_value) {
-        totalValue += parseFloat(client.likely_value);
+      if (totalIafExpected) {
+        totalValue += parseFloat(totalIafExpected);
       }
 
-      if (client.likely_close_month) {
-        const monthKey = new Date(client.likely_close_month).toISOString().substring(0, 7); // YYYY-MM
-        const monthName = new Date(client.likely_close_month).toLocaleDateString('en-US', {
+      // Calculate expected month from business type expected_close_date
+      let expectedMonth = null;
+      const businessTypeDates = clientBusinessTypes
+        .filter(bt => bt.expected_close_date)
+        .map(bt => new Date(bt.expected_close_date))
+        .sort((a, b) => a - b);
+
+      if (businessTypeDates.length > 0) {
+        // Use earliest business type close date
+        const earliestDate = businessTypeDates[0];
+        expectedMonth = `${earliestDate.getFullYear()}-${String(earliestDate.getMonth() + 1).padStart(2, '0')}`;
+      }
+
+      if (expectedMonth) {
+        const monthKey = expectedMonth; // Already in YYYY-MM format
+        const date = new Date(expectedMonth + '-01');
+        const monthName = date.toLocaleDateString('en-US', {
           year: 'numeric',
           month: 'long'
         });
@@ -153,8 +167,8 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
 
         pipelineByMonth[monthKey].clients.push(client);
         pipelineByMonth[monthKey].clientCount++;
-        if (client.likely_value) {
-          pipelineByMonth[monthKey].totalValue += parseFloat(client.likely_value);
+        if (totalIafExpected) {
+          pipelineByMonth[monthKey].totalValue += parseFloat(totalIafExpected);
         }
       } else {
         unscheduledClients.push(client);
@@ -180,12 +194,12 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
   }
 });
 
-// Update client pipeline stage and close month (for drag and drop and inline editing)
+// Update client pipeline data (simplified - only priority level)
 router.put('/client/:clientId', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
     const { clientId } = req.params;
-    const { likely_close_month, pipeline_stage, priority_level, likelihood, iaf_expected } = req.body;
+    const { priority_level } = req.body;
 
     if (!isSupabaseAvailable()) {
       return res.status(503).json({
@@ -196,7 +210,7 @@ router.put('/client/:clientId', authenticateSupabaseUser, async (req, res) => {
     // Verify client belongs to advisor
     const { data: client, error: clientError } = await req.supabase
       .from('clients')
-      .select('id, pipeline_stage')
+      .select('id')
       .eq('id', clientId)
       .eq('user_id', userId)
       .single();
@@ -205,27 +219,9 @@ router.put('/client/:clientId', authenticateSupabaseUser, async (req, res) => {
       return res.status(404).json({ error: 'Client not found' });
     }
 
-    // Update client
+    // Update client - only priority_level is supported now
     const updateData = { updated_at: new Date().toISOString() };
-    if (likely_close_month !== undefined) updateData.likely_close_month = likely_close_month;
-    if (pipeline_stage !== undefined) updateData.pipeline_stage = pipeline_stage;
     if (priority_level !== undefined) updateData.priority_level = priority_level;
-    if (likelihood !== undefined) {
-      // Validate likelihood is between 0 and 100
-      const likelihoodValue = parseInt(likelihood);
-      if (isNaN(likelihoodValue) || likelihoodValue < 0 || likelihoodValue > 100) {
-        return res.status(400).json({ error: 'Likelihood must be between 0 and 100' });
-      }
-      updateData.likelihood = likelihoodValue;
-    }
-    if (iaf_expected !== undefined) {
-      // Validate iaf_expected is a valid number
-      const iafValue = parseFloat(iaf_expected);
-      if (isNaN(iafValue) || iafValue < 0) {
-        return res.status(400).json({ error: 'IAF Expected must be a positive number' });
-      }
-      updateData.iaf_expected = iafValue;
-    }
 
     const { data: updatedClient, error: updateError } = await req.supabase
       .from('clients')

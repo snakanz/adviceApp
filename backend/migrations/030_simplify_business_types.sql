@@ -43,14 +43,12 @@ ALTER TABLE client_business_types
   DROP COLUMN IF EXISTS regular_contribution_amount,
   DROP COLUMN IF EXISTS regular_contribution;
 
--- 6) Recreate client_business_summary view without contribution fields
+-- 6) Recreate client_business_summary view without contribution fields and without non-existent columns
 CREATE OR REPLACE VIEW client_business_summary AS
 SELECT
     c.id as client_id,
     c.name as client_name,
     c.email as client_email,
-    c.pipeline_stage,
-    c.likely_close_month,
     COUNT(cbt.id) as business_type_count,
     ARRAY_AGG(
         DISTINCT cbt.business_type
@@ -60,7 +58,7 @@ SELECT
     SUM(cbt.iaf_expected) as total_iaf_expected
 FROM clients c
 LEFT JOIN client_business_types cbt ON c.id = cbt.client_id
-GROUP BY c.id, c.name, c.email, c.pipeline_stage, c.likely_close_month;
+GROUP BY c.id, c.name, c.email;
 
 COMMENT ON VIEW client_business_summary IS 'Summary view of clients with their business types aggregated (simplified schema).';
 

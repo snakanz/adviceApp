@@ -21,13 +21,6 @@ import { cn } from '../lib/utils';
 import { api } from '../services/api';
 import CreateClientForm from '../components/CreateClientForm';
 import BusinessTypeManager from '../components/BusinessTypeManager';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
 
 
 

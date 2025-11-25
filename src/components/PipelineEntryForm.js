@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { X, Calendar, User, Plus, Trash2 } from 'lucide-react';
-import { cn } from '../lib/utils';
 
 const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
   // Helper function to create empty business type entry

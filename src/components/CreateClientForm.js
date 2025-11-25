@@ -19,26 +19,11 @@ import {
   CheckCircle2
 } from 'lucide-react';
 
-const PIPELINE_STAGES = [
-  'Client Signed',
-  'Waiting to Sign',
-  'Waiting on Paraplanning',
-  'Have Not Written Advice',
-  'Need to Book Meeting',
-  "Can't Contact Client"
-];
-
 const BUSINESS_TYPES = [
   'Investment',
   'Mortgage',
   'Insurance',
   'Other'
-];
-
-const CONTRIBUTION_METHODS = [
-  'Transfer',
-  'Regular Monthly Contribution',
-  'Lump Sum'
 ];
 
 const PRIORITY_LEVELS = [

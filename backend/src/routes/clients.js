@@ -123,11 +123,9 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
         business_type: primaryBusinessType,
         business_types: businessTypesList,
         business_types_data: clientBusinessTypes,
-        business_amount: totalBusinessAmount || client.business_amount || null,
-        iaf_expected: totalIafExpected || client.iaf_expected || null,
-        likely_value: totalIafExpected || client.likely_value || null, // Backward compatibility
-        likely_close_month: client.likely_close_month,
-        pipeline_stage: client.pipeline_stage,
+        business_amount: totalBusinessAmount,
+        iaf_expected: totalIafExpected,
+        likely_value: totalIafExpected, // Backward compatibility
         priority_level: client.priority_level,
         last_contact_date: client.last_contact_date,
         next_follow_up_date: client.next_follow_up_date,
@@ -532,11 +530,9 @@ router.get('/:clientId', authenticateSupabaseUser, async (req, res) => {
       business_type: primaryBusinessType,
       business_types: businessTypesList,
       business_types_data: businessTypes,
-      business_amount: totalBusinessAmount || client.business_amount || null,
-      iaf_expected: totalIafExpected || client.iaf_expected || null,
-      likely_value: totalIafExpected || client.likely_value || null, // Backward compatibility
-      likely_close_month: client.likely_close_month,
-      pipeline_stage: client.pipeline_stage,
+      business_amount: totalBusinessAmount,
+      iaf_expected: totalIafExpected,
+      likely_value: totalIafExpected, // Backward compatibility
       priority_level: client.priority_level,
       last_contact_date: client.last_contact_date,
       next_follow_up_date: client.next_follow_up_date,
