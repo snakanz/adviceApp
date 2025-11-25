@@ -408,19 +408,11 @@ router.post('/update-name', authenticateSupabaseUser, async (req, res) => {
         ? parseFloat(business_amount)
         : null;
 
-      // Determine contribution method from regular_contribution_type
-      let contributionMethod = null;
-      if (regular_contribution_type && regular_contribution_type !== '') {
-        contributionMethod = 'Regular Monthly Contribution';
-      }
-
       const businessTypeData = {
         client_id: client.id,
         business_type: business_type,
         business_amount: isNaN(parsedBusinessAmount) ? null : parsedBusinessAmount,
         iaf_expected: isNaN(parsedIafExpected) ? null : parsedIafExpected,
-        contribution_method: contributionMethod,
-        regular_contribution_amount: regular_contribution_amount || null,
         updated_at: new Date().toISOString()
       };
 
@@ -838,7 +830,6 @@ router.post('/:clientId/pipeline-entry', authenticateSupabaseUser, async (req, r
     const clientId = req.params.clientId;
 
     const {
-      pipeline_stage,
       likely_close_month,
       pipeline_notes,
       business_types, // Array of business type objects
@@ -850,13 +841,6 @@ router.post('/:clientId/pipeline-entry', authenticateSupabaseUser, async (req, r
       meeting_type,
       meeting_location
     } = req.body;
-
-    // Validate required pipeline fields
-    if (!pipeline_stage) {
-      return res.status(400).json({
-        error: 'Pipeline stage is required'
-      });
-    }
 
     // Validate business types array
     if (!business_types || !Array.isArray(business_types) || business_types.length === 0) {
@@ -908,7 +892,6 @@ router.post('/:clientId/pipeline-entry', authenticateSupabaseUser, async (req, r
     }
 
     const clientUpdateData = {
-      pipeline_stage,
       likely_close_month: closeMonthDate,
       updated_at: new Date().toISOString()
     };
@@ -975,17 +958,13 @@ router.post('/:clientId/pipeline-entry', authenticateSupabaseUser, async (req, r
       const parsedBusinessAmount = businessType.business_amount && businessType.business_amount !== ''
         ? parseFloat(businessType.business_amount)
         : null;
-      const parsedRegularContribution = businessType.regular_contribution_amount && businessType.regular_contribution_amount !== ''
-        ? parseFloat(businessType.regular_contribution_amount)
-        : null;
 
       const businessTypeData = {
         client_id: clientId,
         business_type: businessType.business_type,
         business_amount: isNaN(parsedBusinessAmount) ? null : parsedBusinessAmount,
         iaf_expected: isNaN(parsedIafExpected) ? null : parsedIafExpected,
-        contribution_method: businessType.contribution_method || null,
-        regular_contribution_amount: isNaN(parsedRegularContribution) ? null : parsedRegularContribution,
+        expected_close_date: businessType.expected_close_date || null,
         notes: businessType.notes || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -1029,12 +1008,12 @@ router.post('/:clientId/pipeline-entry', authenticateSupabaseUser, async (req, r
         .insert({
           client_id: clientId,
           user_id: userId,
-          activity_type: 'stage_change',
-          title: `Pipeline entry created - ${pipeline_stage}`,
-          description: `Pipeline entry created with stage: ${pipeline_stage}. Business types: ${businessTypeSummary}${pipeline_notes ? `. Notes: ${pipeline_notes}` : ''}`,
+          activity_type: 'pipeline_entry',
+          title: 'Pipeline entry created',
+          description: `Pipeline entry created. Business types: ${businessTypeSummary}${pipeline_notes ? `. Notes: ${pipeline_notes}` : ''}`,
           metadata: {
-            pipeline_stage,
             business_types: businessTypeResults,
+            likely_close_month: closeMonthDate,
             entry_type: 'pipeline_entry_creation'
           }
         });
@@ -1110,7 +1089,6 @@ router.post('/:clientId/pipeline-entry', authenticateSupabaseUser, async (req, r
       client: updatedClient,
       meeting: createdMeeting,
       pipeline_entry: {
-        pipeline_stage,
         likely_close_month,
         pipeline_notes,
         business_types: businessTypeResults
@@ -1212,8 +1190,6 @@ router.put('/:clientId/business-types', authenticateSupabaseUser, async (req, re
         client_id: clientId,
         business_type: bt.business_type,
         business_amount: bt.business_amount ? parseFloat(bt.business_amount) : null,
-        contribution_method: bt.contribution_method || null,
-        regular_contribution_amount: bt.regular_contribution_amount || null,
         iaf_expected: bt.iaf_expected ? parseFloat(bt.iaf_expected) : null,
         expected_close_date: bt.expected_close_date || null,
         notes: bt.notes || null
@@ -1325,7 +1301,6 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
       phone,
       address,
       // Pipeline info
-      pipeline_stage,
       likely_close_month,
       priority_level,
       notes,
@@ -1339,25 +1314,53 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
       return res.status(400).json({ error: 'Name and email are required' });
     }
 
-    if (!pipeline_stage) {
-      return res.status(400).json({ error: 'Pipeline stage is required' });
-    }
-
     if (!business_types || !Array.isArray(business_types) || business_types.length === 0) {
       return res.status(400).json({ error: 'At least one business type is required' });
     }
 
+    const hasValidBusinessType = business_types.some(
+      bt => bt.business_type && bt.business_type.trim() !== ''
+    );
+    if (!hasValidBusinessType) {
+      return res.status(400).json({ error: 'At least one business type must be selected' });
+    }
+
     // Validate business types
     for (const bt of business_types) {
-      if (!bt.business_type || !bt.contribution_method) {
+      if (!bt.business_type || bt.business_type.trim() === '') {
+        continue;
+      }
+
+      const { business_type, iaf_expected, business_amount } = bt;
+
+      if (
+        business_type === 'Investment' &&
+        (iaf_expected === undefined || iaf_expected === null || `${iaf_expected}`.trim() === '')
+      ) {
         return res.status(400).json({
-          error: 'Each business type must have a type and contribution method'
+          error: 'Expected fee is required for Investment business types'
         });
       }
 
-      if (bt.contribution_method === 'Regular Monthly Contribution' && !bt.regular_contribution_amount) {
+      if (
+        business_amount !== undefined &&
+        business_amount !== null &&
+        `${business_amount}`.trim() !== '' &&
+        isNaN(parseFloat(business_amount))
+      ) {
         return res.status(400).json({
-          error: 'Regular contribution amount is required for Regular Monthly Contribution'
+          error: 'Business amounts must be valid numbers'
+        });
+      }
+
+      if (
+        iaf_expected !== undefined &&
+        iaf_expected !== null &&
+        `${iaf_expected}`.trim() !== '' &&
+        isNaN(parseFloat(iaf_expected))
+      ) {
+        return res.status(400).json({
+          error: 'Expected fees must be valid numbers'
         });
       }
     }
@@ -1392,7 +1395,6 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
       email,
       phone: phone || null,
       address: address || null,
-      pipeline_stage,
       likely_close_month: likely_close_month || null,
       priority_level: priority_level || 3,
       notes: notes || null,
@@ -1414,16 +1416,16 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
     }
 
     // Create business types
-    const businessTypeData = business_types.map(bt => ({
-      client_id: newClient.id,
-      business_type: bt.business_type,
-      business_amount: bt.business_amount ? parseFloat(bt.business_amount) : null,
-      contribution_method: bt.contribution_method,
-      regular_contribution_amount: bt.regular_contribution_amount || null,
-      iaf_expected: bt.iaf_expected ? parseFloat(bt.iaf_expected) : null,
-      expected_close_date: bt.expected_close_date || null,
-      notes: bt.notes || null
-    }));
+    const businessTypeData = business_types
+      .filter(bt => bt.business_type && bt.business_type.trim() !== '')
+      .map(bt => ({
+        client_id: newClient.id,
+        business_type: bt.business_type,
+        business_amount: bt.business_amount ? parseFloat(bt.business_amount) : null,
+        iaf_expected: bt.iaf_expected ? parseFloat(bt.iaf_expected) : null,
+        expected_close_date: bt.expected_close_date || null,
+        notes: bt.notes || null
+      }));
 
     const { data: newBusinessTypes, error: businessTypeError } = await req.supabase
       .from('client_business_types')
@@ -1444,7 +1446,7 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
           user_id: userId,
           activity_type: 'note',
           title: 'Client created',
-          description: `New client created with pipeline stage: ${pipeline_stage}`,
+          description: `New client created. Business types: ${business_types.map(bt => bt.business_type).join(', ')}`,
           metadata: {
             source: 'client_creation',
             business_types: business_types.map(bt => bt.business_type)
@@ -1546,7 +1548,6 @@ router.post('/:clientId/generate-summary', authenticateSupabaseUser, async (req,
     const prompt = `You are a financial advisor's assistant. Generate a brief, professional summary (2-3 sentences) of where we're at with this client based on their recent meetings and business information.
 
 Client: ${client.name}
-Pipeline Stage: ${client.pipeline_stage || 'Not set'}
 
 Recent Meetings:
 ${meetingContext.map(m => `- ${new Date(m.date).toLocaleDateString()}: ${m.title}\n  ${m.summary}`).join('\n')}
@@ -1650,9 +1651,9 @@ router.post('/:clientId/generate-pipeline-summary', authenticateSupabaseUser, as
     const actionPoints = meetings?.filter(m => m.action_points).map(m => m.action_points).join('\n') || 'None';
 
     // Check if we have enough context
-    if (!client.pipeline_stage && (!businessTypes || businessTypes.length === 0)) {
+    if (!businessTypes || businessTypes.length === 0) {
       return res.json({
-        summary: 'No pipeline information available yet. Add pipeline stage and business types to get AI-generated next steps.',
+        summary: 'No pipeline information available yet. Add at least one business type to get AI-generated next steps.',
         generated_at: new Date().toISOString()
       });
     }
@@ -1675,9 +1676,7 @@ router.post('/:clientId/generate-pipeline-summary', authenticateSupabaseUser, as
     const prompt = `You are a financial advisor's assistant. Generate a brief, actionable summary (2-3 sentences maximum) explaining what needs to happen to finalize this business deal.
 
 Client: ${client.name}
-Pipeline Stage: ${client.pipeline_stage || 'Not set'}
-IAF Expected: £${client.iaf_expected?.toLocaleString() || 0}
-Likelihood: ${client.likelihood || 'Unknown'}%
+Total Expected Fees (IAF): £${client.iaf_expected?.toLocaleString() || 0}
 
 Business Types:
 ${businessContext.map(bt => `- ${bt.type}: £${bt.amount?.toLocaleString() || 0} (IAF: £${bt.iaf?.toLocaleString() || 0})

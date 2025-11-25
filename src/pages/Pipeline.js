@@ -68,15 +68,6 @@ export default function Pipeline() {
 
   const months = generateMonths();
 
-  // Pipeline stages for dropdown
-  const pipelineStages = [
-    'Client Signed',
-    'Waiting to Sign',
-    'Waiting on Paraplanning',
-    'Have Not Written Advice',
-    'Need to Book Meeting',
-    "Can't Contact Client"
-  ];
 
   // Inline editing handlers
   const handleStartEdit = (clientId, field, currentValue) => {
@@ -92,29 +83,22 @@ export default function Pipeline() {
   const handleSaveInlineEdit = async (clientId, field, value) => {
     setSavingInlineEdit(true);
     try {
-      const updateData = {};
-
-      if (field === 'pipeline_stage') {
-        updateData.pipeline_stage = value;
-      } else if (field === 'iaf_expected') {
-        const numValue = parseFloat(value);
-        if (isNaN(numValue) || numValue < 0) {
-          alert('Please enter a valid positive number for IAF Expected');
-          setSavingInlineEdit(false);
-          return;
-        }
-        updateData.iaf_expected = numValue;
-      } else if (field === 'likelihood') {
-        const numValue = parseInt(value);
-        if (isNaN(numValue) || numValue < 0 || numValue > 100) {
-          alert('Please enter a number between 0 and 100 for Likelihood');
-          setSavingInlineEdit(false);
-          return;
-        }
-        updateData.likelihood = numValue;
+      // Currently we only support inline editing of expected fees
+      if (field !== 'iaf_expected') {
+        setSavingInlineEdit(false);
+        return;
       }
 
-      // Update via API
+      const numValue = parseFloat(value);
+      if (isNaN(numValue) || numValue < 0) {
+        alert('Please enter a valid positive number for expected fees');
+        setSavingInlineEdit(false);
+        return;
+      }
+
+      const updateData = { iaf_expected: numValue };
+
+      // Update via API (keeps pipeline endpoint simple: only updating expected fees)
       await api.request(`/pipeline/client/${clientId}`, {
         method: 'PUT',
         body: JSON.stringify(updateData)
@@ -125,14 +109,8 @@ export default function Pipeline() {
         prevClients.map(client => {
           if (client.id === clientId) {
             const updated = { ...client };
-            if (field === 'pipeline_stage') {
-              updated.businessStage = value;
-            } else if (field === 'iaf_expected') {
-              updated.expectedValue = parseFloat(value);
-              updated.totalIafExpected = parseFloat(value);
-            } else if (field === 'likelihood') {
-              updated.likelihood = parseInt(value);
-            }
+            updated.expectedValue = numValue;
+            updated.totalIafExpected = numValue;
             return updated;
           }
           return client;
@@ -202,10 +180,7 @@ export default function Pipeline() {
           email: client.email,
           nextMeetingDate: nextMeetingDate,
           pastMeetingCount: client.meeting_count || 0,
-          businessStage: client.pipeline_stage || 'Need to Book Meeting',
-          pipelineNotes: client.notes || '',
-          likelihood: client.likelihood !== null && client.likelihood !== undefined ? client.likelihood : 75, // Use database value or default to 75
-          // Use aggregated data from business_types (SINGLE SOURCE OF TRUTH)
+          // Simple, aggregated pipeline view
           expectedValue: parseFloat(client.iaf_expected || client.likely_value || 0),
           expectedMonth: expectedMonth,
           businessType: client.business_type ? client.business_type.charAt(0).toUpperCase() + client.business_type.slice(1) : 'Not Set',
@@ -214,14 +189,10 @@ export default function Pipeline() {
           businessTypesDisplay: client.business_types && client.business_types.length > 0
             ? client.business_types.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')
             : (client.business_type ? client.business_type.charAt(0).toUpperCase() + client.business_type.slice(1) : 'Not Set'),
-          contributionMethods: client.contribution_methods || '',
           // Use aggregated totals from backend
           totalBusinessAmount: parseFloat(client.business_amount || 0),
           totalIafExpected: parseFloat(client.iaf_expected || client.likely_value || 0),
-          // Additional fields for pipeline management
-          business_amount: client.business_amount,
-          regular_contribution_type: client.regular_contribution_type,
-          regular_contribution_amount: client.regular_contribution_amount,
+          // Additional fields for pipeline management / context
           priority_level: client.priority_level || 3,
           last_contact_date: client.last_contact_date,
           next_follow_up_date: client.next_follow_up_date,
@@ -292,13 +263,6 @@ export default function Pipeline() {
     return colors[type] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
-  const getLikelihoodColor = (likelihood) => {
-    if (likelihood >= 80) return 'text-green-600';
-    if (likelihood >= 60) return 'text-yellow-600';
-    if (likelihood >= 40) return 'text-orange-600';
-    return 'text-red-600';
-  };
-
   // Helper function to get initials from name or email
   const getInitials = (name, email) => {
     const displayName = name || email;
@@ -311,23 +275,6 @@ export default function Pipeline() {
       .slice(0, 2);
   };
 
-  const getStageColor = (stage) => {
-    const colors = {
-      'Client Signed': 'bg-emerald-100 text-emerald-800',
-      'Waiting to Sign': 'bg-green-100 text-green-800',
-      'Waiting on Paraplanning': 'bg-yellow-100 text-yellow-800',
-      'Have Not Written Advice': 'bg-orange-100 text-orange-800',
-      'Need to Book Meeting': 'bg-blue-100 text-blue-800',
-      "Can't Contact Client": 'bg-red-100 text-red-800',
-      // Legacy stages for backward compatibility
-      'Initial Consultation': 'bg-blue-100 text-blue-800',
-      'Proposal Sent': 'bg-yellow-100 text-yellow-800',
-      'Follow-up Required': 'bg-red-100 text-red-800',
-      'Ready to Sign': 'bg-green-100 text-green-800',
-      'Signed': 'bg-purple-100 text-purple-800'
-    };
-    return colors[stage] || 'bg-gray-100 text-gray-800';
-  };
 
   // Calculate pipeline summary by stage (memoized to prevent flickering)
   // Currently unused but kept for future analytics features
@@ -866,12 +813,10 @@ export default function Pipeline() {
             {/* Table Header */}
             <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-4">
               <div className="grid grid-cols-12 gap-3 lg:gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                <div className="col-span-3">Client Information</div>
+                <div className="col-span-4">Client & Business Types</div>
                 <div className="col-span-2">Next Meeting</div>
-                <div className="col-span-2">Business Stage</div>
-                <div className="col-span-2">Pipeline Notes</div>
-                <div className="col-span-1">Likelihood</div>
-                <div className="col-span-2">IAF Expected</div>
+                <div className="col-span-3">Fees & Investment</div>
+                <div className="col-span-3">AI Next Steps</div>
               </div>
             </div>
 
@@ -883,8 +828,8 @@ export default function Pipeline() {
                   onClick={() => handleClientClick(client)}
                   className="grid grid-cols-12 gap-3 lg:gap-4 py-4 border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-all duration-200 group rounded-lg hover:shadow-sm"
                 >
-                  {/* Client Information - Enhanced */}
-                  <div className="col-span-3 flex items-center gap-3">
+                  {/* Client Information & Business Types */}
+                  <div className="col-span-4 flex items-center gap-3">
                     <Avatar className="w-10 h-10 flex-shrink-0">
                       <AvatarFallback className="text-sm bg-primary/10 text-primary font-semibold">
                         {getInitials(client.name, client.email)}
@@ -959,129 +904,9 @@ export default function Pipeline() {
                     </div>
                   </div>
 
-                  {/* Business Stage - Inline Editable */}
+                  {/* Expected Fees & Investment Amount */}
                   <div
-                    className="col-span-2 flex items-center"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!editingField || editingField.clientId !== client.id || editingField.field !== 'pipeline_stage') {
-                        handleStartEdit(client.id, 'pipeline_stage', client.businessStage);
-                      }
-                    }}
-                  >
-                    {editingField?.clientId === client.id && editingField?.field === 'pipeline_stage' ? (
-                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                        <Select
-                          value={editingValue}
-                          onValueChange={(value) => {
-                            setEditingValue(value);
-                            handleSaveInlineEdit(client.id, 'pipeline_stage', value);
-                          }}
-                        >
-                          <SelectTrigger className="h-7 text-xs w-[180px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {pipelineStages.map((stage) => (
-                              <SelectItem key={stage} value={stage} className="text-xs">
-                                {stage}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCancelEdit();
-                          }}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <Badge className={cn("text-xs px-2 py-1 font-medium cursor-pointer hover:opacity-80", getStageColor(client.businessStage))}>
-                        {client.businessStage}
-                      </Badge>
-                    )}
-                  </div>
-
-                  {/* Pipeline Notes */}
-                  <div className="col-span-2 flex items-center">
-                    <div className="text-xs text-muted-foreground truncate max-w-full">
-                      {client.pipelineNotes || 'No notes added'}
-                    </div>
-                  </div>
-
-                  {/* Likelihood - Inline Editable */}
-                  <div
-                    className="col-span-1 flex items-center justify-center"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!editingField || editingField.clientId !== client.id || editingField.field !== 'likelihood') {
-                        handleStartEdit(client.id, 'likelihood', client.likelihood);
-                      }
-                    }}
-                  >
-                    {editingField?.clientId === client.id && editingField?.field === 'likelihood' ? (
-                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={editingValue}
-                          onChange={(e) => setEditingValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              handleSaveInlineEdit(client.id, 'likelihood', editingValue);
-                            } else if (e.key === 'Escape') {
-                              handleCancelEdit();
-                            }
-                          }}
-                          className="h-7 w-16 text-xs"
-                          autoFocus
-                          disabled={savingInlineEdit}
-                        />
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSaveInlineEdit(client.id, 'likelihood', editingValue);
-                          }}
-                          disabled={savingInlineEdit}
-                        >
-                          <Check className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 w-6 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleCancelEdit();
-                          }}
-                          disabled={savingInlineEdit}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className={cn(
-                        "text-sm font-bold px-2 py-1 rounded-full bg-opacity-20 cursor-pointer hover:opacity-80",
-                        getLikelihoodColor(client.likelihood)
-                      )}>
-                        {client.likelihood}%
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Expected Value - Enhanced with Business Type Breakdown - Inline Editable IAF */}
-                  <div
-                    className="col-span-2 flex items-center gap-2"
+                    className="col-span-3 flex items-center gap-2"
                     onClick={(e) => {
                       e.stopPropagation();
                       if (!editingField || editingField.clientId !== client.id || editingField.field !== 'iaf_expected') {
@@ -1094,7 +919,7 @@ export default function Pipeline() {
                       {client.totalBusinessAmount > 0 && (
                         <div className="text-sm font-bold text-foreground mb-0.5">
                           {formatCurrency(client.totalBusinessAmount)}
-                          <span className="text-xs text-muted-foreground font-normal ml-1">Business</span>
+                          <span className="text-xs text-muted-foreground font-normal ml-1">Amount</span>
                         </div>
                       )}
                       {/* Show IAF Expected - Inline Editable */}
@@ -1149,7 +974,7 @@ export default function Pipeline() {
                           client.totalBusinessAmount > 0 ? "text-xs text-muted-foreground font-normal" : "mb-0.5"
                         )}>
                           {formatCurrency(client.expectedValue)}
-                          {client.totalBusinessAmount > 0 && <span className="ml-1">IAF</span>}
+                          {client.totalBusinessAmount > 0 && <span className="ml-1">Fees</span>}
                         </div>
                       )}
                       {/* Show breakdown if multiple business types */}
@@ -1163,12 +988,29 @@ export default function Pipeline() {
                       {/* Show business type breakdown on hover */}
                       {client.businessTypesData && client.businessTypesData.length > 0 && (
                         <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                          {client.businessTypesData.slice(0, 2).map((bt, idx) => (
-                            <div key={idx} className="flex items-center gap-1">
-                              <span className="font-medium">{bt.business_type}:</span>
-                              <span>{formatCurrency(parseFloat(bt.business_amount || 0))} / {formatCurrency(parseFloat(bt.iaf_expected || 0))} IAF</span>
-                            </div>
-                          ))}
+                          {client.businessTypesData.slice(0, 2).map((bt, idx) => {
+                            const isInvestment = bt.business_type === 'Investment';
+                            const hasAmount = !!bt.business_amount;
+                            const hasFees = !!bt.iaf_expected;
+                            return (
+                              <div key={idx} className="flex items-center gap-1">
+                                <span className="font-medium">{bt.business_type}:</span>
+                                <span>
+                                  {hasFees && (
+                                    <>
+                                      {formatCurrency(parseFloat(bt.iaf_expected || 0))} fees
+                                      {isInvestment && hasAmount && '  b7 '}
+                                    </>
+                                  )}
+                                  {isInvestment && hasAmount && (
+                                    <>
+                                      {formatCurrency(parseFloat(bt.business_amount || 0))} investment
+                                    </>
+                                  )}
+                                </span>
+                              </div>
+                            );
+                          })}
                           {client.businessTypesData.length > 2 && (
                             <div className="text-xs text-muted-foreground/70">
                               +{client.businessTypesData.length - 2} more...
@@ -1179,7 +1021,7 @@ export default function Pipeline() {
                     </div>
 
                     {/* AI Next Steps Summary (List View) */}
-                    <div className="col-span-5">
+                    <div className="col-span-3">
                       <label className="text-[11px] font-medium text-muted-foreground mb-1 block flex items-center gap-1">
                         <Sparkles className="w-3 h-3" />
                         Next Steps to Close
@@ -1373,43 +1215,15 @@ export default function Pipeline() {
                   </div>
                 </div>
 
-              {/* Pipeline Information - Read Only */}
+              {/* Pipeline Financials & Notes (Read Only) */}
               <div className="space-y-4">
-                {/* Business Stage */}
+                {/* Expected Fees (replaces IAF Expected) */}
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pipeline Stage</label>
-                  <div className="mt-2 p-3 bg-muted/30 border border-border rounded-lg">
-                    <Badge className={getStageColor(selectedClient.businessStage)}>
-                      {selectedClient.businessStage}
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* IAF Expected */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">IAF Expected</label>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Expected Fees</label>
                   <div className="mt-2 p-3 bg-muted/30 border border-border rounded-lg">
                     <span className="text-lg font-bold text-foreground">
                       {formatCurrency(selectedClient.expectedValue)}
                     </span>
-                  </div>
-                </div>
-
-                {/* Likelihood */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Likelihood of Sign-up</label>
-                  <div className="mt-2 p-3 bg-muted/30 border border-border rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <span className={cn("text-lg font-bold", getLikelihoodColor(selectedClient.likelihood))}>
-                        {selectedClient.likelihood}%
-                      </span>
-                      <div className="flex-1 h-2 bg-muted rounded-full overflow-hidden">
-                        <div
-                          className={cn("h-full transition-all", getLikelihoodColor(selectedClient.likelihood).replace('text-', 'bg-'))}
-                          style={{ width: `${selectedClient.likelihood}%` }}
-                        />
-                      </div>
-                    </div>
                   </div>
                 </div>
 
@@ -1435,19 +1249,14 @@ export default function Pipeline() {
                             </Badge>
                           ))}
                         </div>
-                        {selectedClient.contributionMethods && (
-                          <div className="text-xs text-muted-foreground">
-                            Methods: {selectedClient.contributionMethods}
-                          </div>
-                        )}
                         {selectedClient.totalBusinessAmount > 0 && (
                           <div className="text-xs text-muted-foreground">
-                            Total Business Amount: {formatCurrency(selectedClient.totalBusinessAmount)}
+                            Total Amount: {formatCurrency(selectedClient.totalBusinessAmount)}
                           </div>
                         )}
                         {selectedClient.totalIafExpected > 0 && (
                           <div className="text-xs text-muted-foreground">
-                            Total IAF Expected: {formatCurrency(selectedClient.totalIafExpected)}
+                            Total Expected Fees: {formatCurrency(selectedClient.totalIafExpected)}
                           </div>
                         )}
                       </div>

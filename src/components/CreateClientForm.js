@@ -29,12 +29,10 @@ const PIPELINE_STAGES = [
 ];
 
 const BUSINESS_TYPES = [
-  'Pension',
-  'ISA',
-  'Bond',
   'Investment',
+  'Mortgage',
   'Insurance',
-  'Mortgage'
+  'Other'
 ];
 
 const CONTRIBUTION_METHODS = [
@@ -84,9 +82,7 @@ export default function CreateClientForm({ onClose, onSuccess, isSubmitting = fa
   function createEmptyBusinessType() {
     return {
       business_type: '',
-      contribution_method: '',
       business_amount: '',
-      regular_contribution_amount: '',
       iaf_expected: '',
       expected_close_date: '',
       notes: ''
@@ -139,7 +135,6 @@ export default function CreateClientForm({ onClose, onSuccess, isSubmitting = fa
     // Basic validation
     if (!formData.name.trim()) newErrors.name = 'Name is required';
     if (!formData.email.trim()) newErrors.email = 'Email is required';
-    if (!formData.pipeline_stage) newErrors.pipeline_stage = 'Pipeline stage is required';
 
     // Email format validation
     if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
@@ -147,21 +142,49 @@ export default function CreateClientForm({ onClose, onSuccess, isSubmitting = fa
     }
 
     // Business types validation
-    const validBusinessTypes = formData.business_types.filter(bt => 
-      bt.business_type && bt.contribution_method
-    );
+    const validBusinessTypes = formData.business_types.filter((bt) => bt.business_type);
 
     if (validBusinessTypes.length === 0) {
-      newErrors.business_types = 'At least one complete business type is required';
+      newErrors.business_types = 'At least one business type is required';
     }
 
-    // Validate regular contribution amounts
-    for (let i = 0; i < formData.business_types.length; i++) {
-      const bt = formData.business_types[i];
-      if (bt.business_type && bt.contribution_method === 'Regular Monthly Contribution' && !bt.regular_contribution_amount) {
-        newErrors[`business_type_${i}_regular_amount`] = 'Regular contribution amount is required';
+    // Validate fees and amounts per business type
+    formData.business_types.forEach((bt, index) => {
+      if (!bt.business_type) return;
+
+      const { business_type, iaf_expected, business_amount } = bt;
+
+      // For Investment business we require an expected fee
+      if (business_type === 'Investment') {
+        if (
+          iaf_expected === undefined ||
+          iaf_expected === null ||
+          `${iaf_expected}`.trim() === ''
+        ) {
+          newErrors[`business_type_${index}_iaf`] =
+            'Expected fee is required for Investment business.';
+        }
       }
-    }
+
+      // If amounts/fees are provided they must be valid numbers
+      if (
+        business_amount !== undefined &&
+        business_amount !== null &&
+        `${business_amount}`.trim() !== '' &&
+        isNaN(parseFloat(business_amount))
+      ) {
+        newErrors[`business_type_${index}_amount`] = 'Amount must be a valid number';
+      }
+
+      if (
+        iaf_expected !== undefined &&
+        iaf_expected !== null &&
+        `${iaf_expected}`.trim() !== '' &&
+        isNaN(parseFloat(iaf_expected))
+      ) {
+        newErrors[`business_type_${index}_iaf`] = 'Expected fee must be a valid number';
+      }
+    });
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -169,15 +192,13 @@ export default function CreateClientForm({ onClose, onSuccess, isSubmitting = fa
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateForm()) {
       return;
     }
 
     // Filter out incomplete business types
-    const validBusinessTypes = formData.business_types.filter(bt => 
-      bt.business_type && bt.contribution_method
-    );
+    const validBusinessTypes = formData.business_types.filter((bt) => bt.business_type);
 
     const submitData = {
       ...formData,
@@ -315,26 +336,7 @@ export default function CreateClientForm({ onClose, onSuccess, isSubmitting = fa
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="pipeline_stage">Pipeline Stage *</Label>
-                  <Select 
-                    value={formData.pipeline_stage} 
-                    onValueChange={(value) => handleInputChange('pipeline_stage', value)}
-                  >
-                    <SelectTrigger className={errors.pipeline_stage ? 'border-red-500' : ''}>
-                      <SelectValue placeholder="Select pipeline stage" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PIPELINE_STAGES.map((stage) => (
-                        <SelectItem key={stage} value={stage.toLowerCase().replace(/[^a-z0-9]/g, '_')}>
-                          {stage}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {errors.pipeline_stage && <p className="text-sm text-red-600 mt-1">{errors.pipeline_stage}</p>}
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
                 <div>
                   <Label htmlFor="priority_level">Priority Level</Label>
@@ -442,24 +444,6 @@ export default function CreateClientForm({ onClose, onSuccess, isSubmitting = fa
                       </Select>
                     </div>
 
-                    <div>
-                      <Label>Contribution Method *</Label>
-                      <Select
-                        value={businessType.contribution_method}
-                        onValueChange={(value) => handleBusinessTypeChange(index, 'contribution_method', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select contribution method" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {CONTRIBUTION_METHODS.map((method) => (
-                            <SelectItem key={method} value={method}>
-                              {method}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
                   </div>
 
                   {businessType.contribution_method === 'Regular Monthly Contribution' && (
@@ -485,17 +469,25 @@ export default function CreateClientForm({ onClose, onSuccess, isSubmitting = fa
                         value={businessType.business_amount}
                         onChange={(e) => handleBusinessTypeChange(index, 'business_amount', e.target.value)}
                         placeholder="Enter amount in pounds"
+                        className={errors[`business_type_${index}_amount`] ? 'border-red-500' : ''}
                       />
+                      {errors[`business_type_${index}_amount`] && (
+                        <p className="text-sm text-red-600 mt-1">{errors[`business_type_${index}_amount`]}</p>
+                      )}
                     </div>
 
                     <div>
-                      <Label>IAF Expected (£)</Label>
+                      <Label>Expected Fee (£)</Label>
                       <Input
                         type="number"
                         value={businessType.iaf_expected}
                         onChange={(e) => handleBusinessTypeChange(index, 'iaf_expected', e.target.value)}
-                        placeholder="Initial advice fee expected"
+                        placeholder="Enter expected fee in pounds"
+                        className={errors[`business_type_${index}_iaf`] ? 'border-red-500' : ''}
                       />
+                      {errors[`business_type_${index}_iaf`] && (
+                        <p className="text-sm text-red-600 mt-1">{errors[`business_type_${index}_iaf`]}</p>
+                      )}
                     </div>
                   </div>
 

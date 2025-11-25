@@ -10,13 +10,10 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
     business_type: '',
     business_amount: '',
     iaf_expected: '',
-    contribution_method: '',
-    regular_contribution_amount: '',
     notes: ''
   });
 
   const [formData, setFormData] = useState({
-    pipeline_stage: '',
     likely_close_month: '',
     pipeline_notes: '',
     // Array of business types - start with one empty entry
@@ -32,29 +29,10 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
 
   const [errors, setErrors] = useState({});
 
-  const pipelineStages = [
-    'Client Signed',
-    'Waiting to Sign',
-    'Waiting on Paraplanning',
-    'Have Not Written Advice',
-    'Need to Book Meeting',
-    "Can't Contact Client"
-  ];
-
   const businessTypes = [
-    'Pension',
-    'ISA',
-    'Bond',
     'Investment',
-    'Insurance',
-    'Mortgage'
-  ];
-
-  const contributionMethods = [
-    'Transfer',
-    'Regular Monthly Contribution',
-    'Lump Sum',
-    'Both'
+    'Mortgage',
+    'Insurance'
   ];
 
   const meetingTypes = [
@@ -67,28 +45,47 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
   const validateForm = () => {
     const newErrors = {};
 
-    // Required pipeline fields
-    if (!formData.pipeline_stage) newErrors.pipeline_stage = 'Pipeline stage is required';
-
     // Validate business types - at least one must be filled
-    const hasValidBusinessType = formData.business_types.some(bt => bt.business_type);
+    const hasValidBusinessType = formData.business_types.some((bt) => bt.business_type);
     if (!hasValidBusinessType) {
       newErrors.business_types = 'At least one business type is required';
     }
 
     // Validate each business type entry
     formData.business_types.forEach((bt, index) => {
-      if (bt.business_type) {
-        // If business type is selected, validate numeric fields
-        if (bt.iaf_expected && isNaN(parseFloat(bt.iaf_expected))) {
-          newErrors[`business_type_${index}_iaf`] = 'IAF Expected must be a valid number';
+      if (!bt.business_type) return;
+
+      const { business_type, iaf_expected, business_amount } = bt;
+
+      // For Investment entries, an expected fee is required
+      if (business_type === 'Investment') {
+        if (
+          iaf_expected === undefined ||
+          iaf_expected === null ||
+          `${iaf_expected}`.trim() === ''
+        ) {
+          newErrors[`business_type_${index}_iaf`] = 'Expected fee is required for Investment business.';
         }
-        if (bt.business_amount && isNaN(parseFloat(bt.business_amount))) {
-          newErrors[`business_type_${index}_amount`] = 'Business amount must be a valid number';
-        }
-        if (bt.regular_contribution_amount && isNaN(parseFloat(bt.regular_contribution_amount))) {
-          newErrors[`business_type_${index}_contribution`] = 'Regular contribution must be a valid number';
-        }
+      }
+
+      // If a fee is provided (for any type) it must be a valid number
+      if (
+        iaf_expected !== undefined &&
+        iaf_expected !== null &&
+        `${iaf_expected}`.trim() !== '' &&
+        isNaN(parseFloat(iaf_expected))
+      ) {
+        newErrors[`business_type_${index}_iaf`] = 'Expected fee must be a valid number';
+      }
+
+      // Amount is always optional but must be numeric when provided
+      if (
+        business_amount !== undefined &&
+        business_amount !== null &&
+        `${business_amount}`.trim() !== '' &&
+        isNaN(parseFloat(business_amount))
+      ) {
+        newErrors[`business_type_${index}_amount`] = 'Amount must be a valid number';
       }
     });
 
@@ -185,29 +182,6 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
               Pipeline Information
             </h3>
 
-            {/* Pipeline Stage */}
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Pipeline Stage <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.pipeline_stage}
-                onChange={(e) => handleInputChange('pipeline_stage', e.target.value)}
-                className={cn(
-                  "w-full p-3 border rounded-md bg-background text-foreground",
-                  errors.pipeline_stage ? "border-red-500" : "border-border"
-                )}
-              >
-                <option value="">Select pipeline stage</option>
-                {pipelineStages.map(stage => (
-                  <option key={stage} value={stage}>{stage}</option>
-                ))}
-              </select>
-              {errors.pipeline_stage && (
-                <p className="text-red-500 text-xs mt-1">{errors.pipeline_stage}</p>
-              )}
-            </div>
-
             {/* Business Types - Repeatable */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -264,116 +238,39 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
                     </select>
                   </div>
 
-                  {/* Contribution Method - MOVED TO SECOND POSITION */}
+                  {/* Amount (optional) */}
                   <div>
-                    <label className="block text-sm font-medium mb-2">Contribution Method</label>
-                    <select
-                      value={businessType.contribution_method}
-                      onChange={(e) => handleBusinessTypeChange(index, 'contribution_method', e.target.value)}
-                      className="w-full p-3 border border-border rounded-md bg-background text-foreground"
-                    >
-                      <option value="">Select contribution method</option>
-                      {contributionMethods.map(method => (
-                        <option key={method} value={method}>{method}</option>
-                      ))}
-                    </select>
+                    <label className="block text-sm font-medium mb-2">Amount (£) (optional)</label>
+                    <Input
+                      type="number"
+                      value={businessType.business_amount}
+                      onChange={(e) => handleBusinessTypeChange(index, 'business_amount', e.target.value)}
+                      placeholder="Enter amount (if applicable)"
+                      min="0"
+                      step="0.01"
+                      className={errors[`business_type_${index}_amount`] ? "border-red-500" : ""}
+                    />
+                    {errors[`business_type_${index}_amount`] && (
+                      <p className="text-red-500 text-xs mt-1">{errors[`business_type_${index}_amount`]}</p>
+                    )}
                   </div>
 
-                  {/* Financial Information - Conditional based on Contribution Method */}
-                  {businessType.contribution_method === 'Regular Monthly Contribution' ? (
-                    // For Regular Monthly Contribution: Show ONLY Regular Contribution Amount and IAF Expected
-                    <>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-2">Regular Contribution Amount (£)</label>
-                          <Input
-                            type="number"
-                            value={businessType.regular_contribution_amount}
-                            onChange={(e) => handleBusinessTypeChange(index, 'regular_contribution_amount', e.target.value)}
-                            placeholder="e.g., 3000"
-                            min="0"
-                            step="0.01"
-                            className={errors[`business_type_${index}_contribution`] ? "border-red-500" : ""}
-                          />
-                          {errors[`business_type_${index}_contribution`] && (
-                            <p className="text-red-500 text-xs mt-1">{errors[`business_type_${index}_contribution`]}</p>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium mb-2">IAF Expected (£)</label>
-                          <Input
-                            type="number"
-                            value={businessType.iaf_expected}
-                            onChange={(e) => handleBusinessTypeChange(index, 'iaf_expected', e.target.value)}
-                            placeholder="Enter expected IAF"
-                            min="0"
-                            step="0.01"
-                            className={errors[`business_type_${index}_iaf`] ? "border-red-500" : ""}
-                          />
-                          {errors[`business_type_${index}_iaf`] && (
-                            <p className="text-red-500 text-xs mt-1">{errors[`business_type_${index}_iaf`]}</p>
-                          )}
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    // For other methods: Show Business Amount and IAF Expected
-                    <>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-2">Business Amount (£)</label>
-                          <Input
-                            type="number"
-                            value={businessType.business_amount}
-                            onChange={(e) => handleBusinessTypeChange(index, 'business_amount', e.target.value)}
-                            placeholder="Enter business amount"
-                            min="0"
-                            step="0.01"
-                            className={errors[`business_type_${index}_amount`] ? "border-red-500" : ""}
-                          />
-                          {errors[`business_type_${index}_amount`] && (
-                            <p className="text-red-500 text-xs mt-1">{errors[`business_type_${index}_amount`]}</p>
-                          )}
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium mb-2">IAF Expected (£)</label>
-                          <Input
-                            type="number"
-                            value={businessType.iaf_expected}
-                            onChange={(e) => handleBusinessTypeChange(index, 'iaf_expected', e.target.value)}
-                            placeholder="Enter expected IAF"
-                            min="0"
-                            step="0.01"
-                            className={errors[`business_type_${index}_iaf`] ? "border-red-500" : ""}
-                          />
-                          {errors[`business_type_${index}_iaf`] && (
-                            <p className="text-red-500 text-xs mt-1">{errors[`business_type_${index}_iaf`]}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Regular Contribution Amount - Only show for "Both" */}
-                      {businessType.contribution_method === 'Both' && (
-                        <div>
-                          <label className="block text-sm font-medium mb-2">Regular Contribution Amount (£)</label>
-                          <Input
-                            type="number"
-                            value={businessType.regular_contribution_amount}
-                            onChange={(e) => handleBusinessTypeChange(index, 'regular_contribution_amount', e.target.value)}
-                            placeholder="e.g., 3000"
-                            min="0"
-                            step="0.01"
-                            className={errors[`business_type_${index}_contribution`] ? "border-red-500" : ""}
-                          />
-                          {errors[`business_type_${index}_contribution`] && (
-                            <p className="text-red-500 text-xs mt-1">{errors[`business_type_${index}_contribution`]}</p>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
+                  {/* Expected Fee (required) */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Expected Fee (£)</label>
+                    <Input
+                      type="number"
+                      value={businessType.iaf_expected}
+                      onChange={(e) => handleBusinessTypeChange(index, 'iaf_expected', e.target.value)}
+                      placeholder="Enter expected fee in pounds"
+                      min="0"
+                      step="0.01"
+                      className={errors[`business_type_${index}_iaf`] ? "border-red-500" : ""}
+                    />
+                    {errors[`business_type_${index}_iaf`] && (
+                      <p className="text-red-500 text-xs mt-1">{errors[`business_type_${index}_iaf`]}</p>
+                    )}
+                  </div>
 
                   {/* Notes */}
                   <div>

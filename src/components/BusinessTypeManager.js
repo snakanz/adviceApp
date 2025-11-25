@@ -10,20 +10,29 @@ import { Plus, Trash2, AlertCircle, XCircle } from 'lucide-react';
 import { api } from '../services/api';
 
 
+// Canonical business types going forward. Older types like Pension/ISA/Bond are
+// normalised to Investment when loading existing data.
 const BUSINESS_TYPES = [
-  'Pension',
-  'ISA',
-  'Bond',
   'Investment',
-  'Insurance',
-  'Mortgage'
+  'Mortgage',
+  'Insurance'
 ];
 
-const CONTRIBUTION_METHODS = [
-  'Transfer',
-  'Regular Monthly Contribution',
-  'Lump Sum'
-];
+function getBusinessTypeLabel(type) {
+  switch (type) {
+    case 'Pension':
+    case 'ISA':
+    case 'Bond':
+    case 'Investment':
+      return 'Investment';
+    case 'Insurance':
+      return 'Protection / Insurance';
+    case 'Mortgage':
+      return 'Mortgage';
+    default:
+      return 'Other';
+  }
+}
 
 export default function BusinessTypeManager({
   clientId,
@@ -41,7 +50,16 @@ export default function BusinessTypeManager({
 
   useEffect(() => {
     if (initialBusinessTypes.length > 0) {
-      setBusinessTypes(initialBusinessTypes);
+      // Normalise legacy business types like Pension/ISA/Bond to Investment
+      const normalised = initialBusinessTypes.map((bt) => {
+        if (!bt || !bt.business_type) return bt;
+        let normalisedType = bt.business_type;
+        if (['Pension', 'ISA', 'Bond'].includes(normalisedType)) {
+          normalisedType = 'Investment';
+        }
+        return { ...bt, business_type: normalisedType };
+      });
+      setBusinessTypes(normalised);
     } else {
       // Start with one empty business type
       setBusinessTypes([createEmptyBusinessType()]);
@@ -53,8 +71,6 @@ export default function BusinessTypeManager({
       id: null, // null for new entries
       business_type: '',
       business_amount: '',
-      contribution_method: '',
-      regular_contribution_amount: '',
       iaf_expected: '',
       expected_close_date: '',
       notes: ''
@@ -114,7 +130,7 @@ export default function BusinessTypeManager({
     setError('');
 
     // Validate that at least one business type is properly filled
-    const validBusinessTypes = businessTypes.filter(bt =>
+    const validBusinessTypes = businessTypes.filter((bt) =>
       bt.business_type && bt.business_type.trim() !== ''
     );
 
@@ -123,11 +139,40 @@ export default function BusinessTypeManager({
       return;
     }
 
-    // Validate contribution methods for regular contributions
+    // Validate fees and amounts per business type
     for (const bt of validBusinessTypes) {
-      if (bt.contribution_method === 'Regular Monthly Contribution' &&
-          (!bt.regular_contribution_amount || bt.regular_contribution_amount.trim() === '')) {
-        setError('Please specify the regular contribution amount for all Regular Monthly Contribution entries.');
+      const { business_type, iaf_expected, business_amount } = bt;
+
+      // For Investment business we require an expected fee
+      if (business_type === 'Investment') {
+        if (
+          iaf_expected === undefined ||
+          iaf_expected === null ||
+          `${iaf_expected}`.trim() === ''
+        ) {
+          setError('Please enter an expected fee for each Investment business type.');
+          return;
+        }
+      }
+
+      // If amounts/fees are provided they must be valid numbers
+      if (
+        business_amount !== undefined &&
+        business_amount !== null &&
+        `${business_amount}`.trim() !== '' &&
+        isNaN(parseFloat(business_amount))
+      ) {
+        setError('Amounts must be valid numbers.');
+        return;
+      }
+
+      if (
+        iaf_expected !== undefined &&
+        iaf_expected !== null &&
+        `${iaf_expected}`.trim() !== '' &&
+        isNaN(parseFloat(iaf_expected))
+      ) {
+        setError('Expected fees must be valid numbers.');
         return;
       }
     }
@@ -210,73 +255,36 @@ export default function BusinessTypeManager({
                     <SelectContent>
                       {BUSINESS_TYPES.map((type) => (
                         <SelectItem key={type} value={type}>
-                          {type}
+                          {getBusinessTypeLabel(type)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* Business Amount - hide when Regular Monthly Contribution is selected */}
-                {businessType.contribution_method !== 'Regular Monthly Contribution' && (
-                  <div>
-                    <Label htmlFor={`business_amount_${index}`}>Business Amount (£)</Label>
-                    <Input
-                      id={`business_amount_${index}`}
-                      type="number"
-                      value={businessType.business_amount}
-                      onChange={(e) => updateBusinessType(index, 'business_amount', e.target.value)}
-                      placeholder="Enter business amount"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Contribution Method */}
-              <div>
-                <Label htmlFor={`contribution_method_${index}`}>Contribution Method</Label>
-                <Select
-                  value={businessType.contribution_method}
-                  onValueChange={(value) => updateBusinessType(index, 'contribution_method', value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select contribution method" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CONTRIBUTION_METHODS.map((method) => (
-                      <SelectItem key={method} value={method}>
-                        {method}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Regular Contribution Amount - only show if Regular Monthly is selected */}
-              {businessType.contribution_method === 'Regular Monthly Contribution' && (
+                {/* Amount (optional) */}
                 <div>
-                  <Label htmlFor={`regular_contribution_amount_${index}`}>
-                    Regular Contribution Amount *
-                  </Label>
+                  <Label htmlFor={`business_amount_${index}`}>Amount (£) (optional)</Label>
                   <Input
-                    id={`regular_contribution_amount_${index}`}
-                    value={businessType.regular_contribution_amount}
-                    onChange={(e) => updateBusinessType(index, 'regular_contribution_amount', e.target.value)}
-                    placeholder="e.g., £3,000 per month"
+                    id={`business_amount_${index}`}
+                    type="number"
+                    value={businessType.business_amount}
+                    onChange={(e) => updateBusinessType(index, 'business_amount', e.target.value)}
+                    placeholder="Enter amount (if applicable)"
                   />
                 </div>
-              )}
+              </div>
 
-              {/* IAF Expected and Expected Close Date */}
+              {/* Expected Fee and Expected Close Date */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor={`iaf_expected_${index}`}>IAF Expected (£)</Label>
+                  <Label htmlFor={`iaf_expected_${index}`}>Expected Fee (£)</Label>
                   <Input
                     id={`iaf_expected_${index}`}
                     type="number"
                     value={businessType.iaf_expected}
                     onChange={(e) => updateBusinessType(index, 'iaf_expected', e.target.value)}
-                    placeholder="Enter IAF expected in pounds"
+                    placeholder="Enter expected fee in pounds"
                   />
                 </div>
 
