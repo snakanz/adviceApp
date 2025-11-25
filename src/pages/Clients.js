@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import PipelineEntryForm from '../components/PipelineEntryForm';
 import BusinessTypeManager from '../components/BusinessTypeManager';
 import CreateClientForm from '../components/CreateClientForm';
 import ClientDocumentsSection from '../components/ClientDocumentsSection';
@@ -48,9 +47,6 @@ export default function Clients() {
   const [saving, setSaving] = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [extracting, setExtracting] = useState(false);
-  const [showPipelineForm, setShowPipelineForm] = useState(false);
-  const [pipelineClient, setPipelineClient] = useState(null);
-  const [creatingPipeline, setCreatingPipeline] = useState(false);
   const [clientFilter, setClientFilter] = useState('all'); // 'all', 'with-upcoming', 'no-upcoming'
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' }); // Sorting state
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
@@ -500,47 +496,7 @@ export default function Clients() {
     });
   };
 
-  const handleCreatePipelineEntry = (client) => {
-    setPipelineClient(client);
-    setShowPipelineForm(true);
-  };
 
-  const handleClosePipelineForm = () => {
-    setShowPipelineForm(false);
-    setPipelineClient(null);
-  };
-
-  const handleSubmitPipelineEntry = async (formData) => {
-    if (!pipelineClient) return;
-
-    setCreatingPipeline(true);
-    try {
-      const response = await api.request(`/clients/${pipelineClient.id}/pipeline-entry`, {
-        method: 'POST',
-        body: JSON.stringify(formData)
-      });
-
-      if (response) {
-        // Refresh clients data to show updated pipeline information
-        await fetchClients();
-
-        // Close the form
-        handleClosePipelineForm();
-
-        // Show success message
-        showSuccess('Pipeline entry created successfully!');
-        console.log('Pipeline entry created successfully:', response);
-      }
-    } catch (error) {
-      console.error('Error creating pipeline entry:', error);
-      console.error('Error details:', error.message, error.stack);
-      // Show the actual error message if available
-      const errorMessage = error.message || 'Failed to create pipeline entry. Please try again.';
-      showSuccess(`Failed to create pipeline entry: ${errorMessage}`);
-    } finally {
-      setCreatingPipeline(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -835,20 +791,18 @@ export default function Clients() {
 
                     {/* Actions */}
                     <div className="col-span-1 flex items-center justify-center">
-                      {!hasFutureMeetings(client) && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation(); // Prevent triggering the row click
-                            handleCreatePipelineEntry(client);
-                          }}
-                          className="h-7 px-2 text-xs bg-primary/5 border-primary/20 text-primary hover:bg-primary/10"
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          Pipeline
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation(); // Prevent triggering the row click
+                          handleEditBusinessTypes(client);
+                        }}
+                        className="h-7 px-2 text-xs bg-primary/5 border-primary/20 text-primary hover:bg-primary/10"
+                      >
+                        <Building2 className="w-3 h-3 mr-1" />
+                        Manage
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -918,90 +872,7 @@ export default function Clients() {
 
             {/* Panel Content - Scrollable */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* Client Info Cards */}
-              <div className="grid grid-cols-2 gap-4">
-                <Card className="border-border/50">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Calendar className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-medium">Meetings</span>
-                    </div>
-                    <div className="text-2xl font-bold text-foreground">
-                      {selectedClient.meeting_count || 0}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {selectedClient.has_upcoming_meetings ?
-                        `${selectedClient.upcoming_meetings_count} upcoming` :
-                        'No upcoming meetings'
-                      }
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-border/50">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Building2 className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-medium">Business Expected to Close (IAF)</span>
-                    </div>
-                    <div className="text-2xl font-bold text-foreground">
-                      {selectedClient.iaf_expected ?
-                        `£${parseFloat(selectedClient.iaf_expected).toLocaleString()}` :
-                        '£0'
-                      }
-                    </div>
-                    {selectedClient.business_amount && (
-                      <div className="text-xs text-muted-foreground">
-                        Total Business: £{parseFloat(selectedClient.business_amount).toLocaleString()}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* AI-Generated Client Summary */}
-              <Card className="border-border/50 bg-blue-50/50 dark:bg-blue-950/20">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-sm font-semibold text-foreground">Client Summary</h3>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleGenerateSummary(selectedClient.id)}
-                          disabled={generatingSummary}
-                          className="h-7 text-xs"
-                        >
-                          {generatingSummary ? (
-                            <>
-                              <div className="w-3 h-3 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mr-1" />
-                              Generating...
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="w-3 h-3 mr-1" />
-                              {selectedClient.ai_summary ? 'Refresh' : 'Generate'}
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                      {selectedClient.ai_summary ? (
-                        <p className="text-sm text-foreground/80 leading-relaxed">
-                          {selectedClient.ai_summary}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground italic">
-                          No summary available - click "Generate" to create AI insights from meeting notes
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Business Types - Inline Editable */}
+              {/* Business Types - Moved to Top */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-semibold text-foreground">Business Types</h3>
@@ -1019,9 +890,9 @@ export default function Clients() {
                     {selectedClient.business_types_data.map((bt, idx) => (
                       <Card key={idx} className={`border-border/50 ${bt.not_proceeding ? 'bg-gray-50 opacity-75' : ''}`}>
                         <CardContent className="p-4">
-                          <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
                                 {bt.business_type}
                               </span>
                               {bt.not_proceeding && (
@@ -1030,53 +901,42 @@ export default function Clients() {
                                 </span>
                               )}
                             </div>
+                            {bt.expected_close_date && (
+                              <span className="text-sm font-medium text-muted-foreground">
+                                Close: {new Date(bt.expected_close_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                              </span>
+                            )}
                           </div>
-                          <div className="grid grid-cols-2 gap-3 text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Business Amount:</span>
-                              <div className="font-medium">
-                                {bt.business_amount ? `£${parseFloat(bt.business_amount).toLocaleString()}` : 'Not set'}
-                              </div>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">IAF Expected:</span>
-                              <div className="font-medium">
-                                {bt.iaf_expected ? `£${parseFloat(bt.iaf_expected).toLocaleString()}` : 'Not set'}
-                              </div>
-                            </div>
-                            {bt.contribution_method && (
-                              <div className="col-span-2">
-                                <span className="text-muted-foreground">Method:</span>
-                                <div className="font-medium">{bt.contribution_method}</div>
+                          <div className="flex gap-4 mb-3">
+                            {bt.iaf_expected && (
+                              <div>
+                                <span className="text-xs text-muted-foreground">Expected Fees</span>
+                                <div className="text-lg font-semibold text-foreground">
+                                  £{parseFloat(bt.iaf_expected).toLocaleString()}
+                                </div>
                               </div>
                             )}
-                            {bt.regular_contribution_amount && (
-                              <div className="col-span-2">
-                                <span className="text-muted-foreground">Regular Contribution:</span>
-                                <div className="font-medium">£{parseFloat(bt.regular_contribution_amount).toLocaleString()}/month</div>
-                              </div>
-                            )}
-                            {bt.notes && (
-                              <div className="col-span-2">
-                                <span className="text-muted-foreground">Notes:</span>
-                                <div className="text-sm mt-1">{bt.notes}</div>
-                              </div>
-                            )}
-                            {bt.not_proceeding && bt.not_proceeding_reason && (
-                              <div className="col-span-2">
-                                <span className="text-muted-foreground">Not Proceeding Reason:</span>
-                                <div className="text-sm mt-1 text-orange-700">{bt.not_proceeding_reason}</div>
-                              </div>
-                            )}
-                            {bt.not_proceeding && bt.not_proceeding_date && (
-                              <div className="col-span-2">
-                                <span className="text-muted-foreground">Marked Not Proceeding:</span>
-                                <div className="text-sm mt-1 text-muted-foreground">
-                                  {new Date(bt.not_proceeding_date).toLocaleDateString()}
+                            {bt.business_type === 'Investment' && bt.business_amount && (
+                              <div>
+                                <span className="text-xs text-muted-foreground">Investment Amount</span>
+                                <div className="text-lg font-semibold text-foreground">
+                                  £{parseFloat(bt.business_amount).toLocaleString()}
                                 </div>
                               </div>
                             )}
                           </div>
+                          {bt.notes && (
+                            <div className="pt-3 border-t border-border/50">
+                              <span className="text-xs text-muted-foreground">Notes:</span>
+                              <p className="text-sm mt-1 text-foreground/80">{bt.notes}</p>
+                            </div>
+                          )}
+                          {bt.not_proceeding && bt.not_proceeding_reason && (
+                            <div className="pt-3 border-t border-border/50 mt-3">
+                              <span className="text-xs text-muted-foreground">Not Proceeding Reason:</span>
+                              <p className="text-sm mt-1 text-orange-700">{bt.not_proceeding_reason}</p>
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     ))}
@@ -1097,6 +957,65 @@ export default function Clients() {
                   </Card>
                 )}
               </div>
+
+              {/* AI-Generated Client Summary with Meetings */}
+              <Card className="border-border/50 bg-blue-50/50 dark:bg-blue-950/20">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-foreground">Client Summary</h3>
+                        <div className="flex items-center gap-3">
+                          {/* Meetings Mini Card */}
+                          <div className="flex items-center gap-2 px-3 py-1.5 bg-white/60 dark:bg-gray-800/60 rounded-md border border-border/30">
+                            <Calendar className="w-4 h-4 text-primary" />
+                            <div className="text-right">
+                              <div className="text-sm font-bold text-foreground">
+                                {selectedClient.meeting_count || 0}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {selectedClient.has_upcoming_meetings ?
+                                  `${selectedClient.upcoming_meetings_count} upcoming` :
+                                  'meetings'
+                                }
+                              </div>
+                            </div>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleGenerateSummary(selectedClient.id)}
+                            disabled={generatingSummary}
+                            className="h-7 text-xs"
+                          >
+                            {generatingSummary ? (
+                              <>
+                                <div className="w-3 h-3 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mr-1" />
+                                Generating...
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-3 h-3 mr-1" />
+                                {selectedClient.ai_summary ? 'Refresh' : 'Generate'}
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                      {selectedClient.ai_summary ? (
+                        <p className="text-sm text-foreground/80 leading-relaxed">
+                          {selectedClient.ai_summary}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">
+                          No summary available - click "Generate" to create AI insights from meeting notes
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Action Items Section */}
               <div>
@@ -1394,16 +1313,6 @@ export default function Clients() {
             />
           </div>
         </div>
-      )}
-
-      {/* Pipeline Entry Form Modal */}
-      {showPipelineForm && pipelineClient && (
-        <PipelineEntryForm
-          client={pipelineClient}
-          onClose={handleClosePipelineForm}
-          onSubmit={handleSubmitPipelineEntry}
-          isSubmitting={creatingPipeline}
-        />
       )}
 
       {/* Create Client Form Modal */}
