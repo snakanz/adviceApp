@@ -18,7 +18,9 @@ import {
   Plus,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -59,6 +61,7 @@ export default function Clients() {
   const [successMessage, setSuccessMessage] = useState('');
   const [generatingSummary, setGeneratingSummary] = useState(false);
   const [clientActionItems, setClientActionItems] = useState([]);
+  const [meetingHistoryCollapsed, setMeetingHistoryCollapsed] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -867,7 +870,49 @@ export default function Clients() {
 
             {/* Panel Content - Scrollable */}
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* Business Types - Moved to Top */}
+              {/* Client Summary - Full Width at Top */}
+              <Card className="border-border/50 bg-blue-50/50 dark:bg-blue-950/20">
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="text-sm font-semibold text-foreground">Client Summary</h3>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleGenerateSummary(selectedClient.id)}
+                          disabled={generatingSummary}
+                          className="h-7 text-xs"
+                        >
+                          {generatingSummary ? (
+                            <>
+                              <div className="w-3 h-3 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mr-1" />
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3 h-3 mr-1" />
+                              {selectedClient.ai_summary ? 'Refresh' : 'Generate'}
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      {selectedClient.ai_summary ? (
+                        <p className="text-sm text-foreground/80 leading-relaxed">
+                          {selectedClient.ai_summary}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground italic">
+                          No summary available - click "Generate" to create AI insights from meeting notes
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Business Types */}
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-lg font-semibold text-foreground">Business Types</h3>
@@ -953,65 +998,6 @@ export default function Clients() {
                 )}
               </div>
 
-              {/* AI-Generated Client Summary with Meetings */}
-              <Card className="border-border/50 bg-blue-50/50 dark:bg-blue-950/20">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-sm font-semibold text-foreground">Client Summary</h3>
-                        <div className="flex items-center gap-3">
-                          {/* Meetings Mini Card */}
-                          <div className="flex items-center gap-2 px-3 py-1.5 bg-white/60 dark:bg-gray-800/60 rounded-md border border-border/30">
-                            <Calendar className="w-4 h-4 text-primary" />
-                            <div className="text-right">
-                              <div className="text-sm font-bold text-foreground">
-                                {selectedClient.meeting_count || 0}
-                              </div>
-                              <div className="text-xs text-muted-foreground">
-                                {selectedClient.has_upcoming_meetings ?
-                                  `${selectedClient.upcoming_meetings_count} upcoming` :
-                                  'meetings'
-                                }
-                              </div>
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleGenerateSummary(selectedClient.id)}
-                            disabled={generatingSummary}
-                            className="h-7 text-xs"
-                          >
-                            {generatingSummary ? (
-                              <>
-                                <div className="w-3 h-3 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mr-1" />
-                                Generating...
-                              </>
-                            ) : (
-                              <>
-                                <Sparkles className="w-3 h-3 mr-1" />
-                                {selectedClient.ai_summary ? 'Refresh' : 'Generate'}
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                      {selectedClient.ai_summary ? (
-                        <p className="text-sm text-foreground/80 leading-relaxed">
-                          {selectedClient.ai_summary}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground italic">
-                          No summary available - click "Generate" to create AI insights from meeting notes
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
               {/* Action Items Section */}
               <div>
                 <h3 className="text-lg font-semibold text-foreground mb-3">Action Items</h3>
@@ -1093,41 +1079,83 @@ export default function Clients() {
                 )}
               </div>
 
-              {/* Ask Advicly Button */}
-              <Button
-                className="w-full"
-                onClick={() => {
-                  const clientMeetings = selectedClient.meetings || [];
-                  const params = new URLSearchParams({
-                    contextType: 'client',
-                    client: selectedClient.id,
-                    clientName: selectedClient.name,
-                    clientEmail: selectedClient.email,
-                    meetingCount: clientMeetings.length.toString(),
-                    pipelineStatus: selectedClient.pipeline_stage || 'Unknown',
-                    likelyValue: selectedClient.likely_value?.toString() || '0',
-                    autoStart: 'true'
-                  });
+              {/* Meetings Count & Ask Advicly Button - Side by Side */}
+              <div className="grid grid-cols-2 gap-3">
+                {/* Meetings Count Card */}
+                <Card className="border-border/50">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        <Calendar className="w-5 h-5 text-primary" />
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-foreground">
+                          {selectedClient.meeting_count || 0}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {selectedClient.has_upcoming_meetings ?
+                            `${selectedClient.upcoming_meetings_count} upcoming` :
+                            'meetings'
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                  if (clientMeetings.length > 0) {
-                    const lastMeeting = clientMeetings.sort((a, b) =>
-                      new Date(b.starttime) - new Date(a.starttime)
-                    )[0];
-                    params.set('lastMeetingDate', lastMeeting.starttime);
-                    params.set('lastMeetingTitle', lastMeeting.title);
-                  }
+                {/* Ask Advicly Button */}
+                <Button
+                  className="h-full"
+                  onClick={() => {
+                    const clientMeetings = selectedClient.meetings || [];
+                    const params = new URLSearchParams({
+                      contextType: 'client',
+                      client: selectedClient.id,
+                      clientName: selectedClient.name,
+                      clientEmail: selectedClient.email,
+                      meetingCount: clientMeetings.length.toString(),
+                      pipelineStatus: selectedClient.pipeline_stage || 'Unknown',
+                      likelyValue: selectedClient.likely_value?.toString() || '0',
+                      autoStart: 'true'
+                    });
 
-                  navigate(`/ask-advicly?${params.toString()}`);
-                }}
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                Ask About {selectedClient.name}
-              </Button>
+                    if (clientMeetings.length > 0) {
+                      const lastMeeting = clientMeetings.sort((a, b) =>
+                        new Date(b.starttime) - new Date(a.starttime)
+                      )[0];
+                      params.set('lastMeetingDate', lastMeeting.starttime);
+                      params.set('lastMeetingTitle', lastMeeting.title);
+                    }
 
-              {/* Meeting History */}
+                    navigate(`/ask-advicly?${params.toString()}`);
+                  }}
+                >
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Ask Advicly
+                </Button>
+              </div>
+
+              {/* Meeting History - Collapsible */}
               <div>
-                <h3 className="text-lg font-semibold text-foreground mb-4">Meeting History</h3>
-                {selectedClient.meetings && selectedClient.meetings.length > 0 ? (
+                <div
+                  className="flex items-center justify-between mb-4 cursor-pointer group"
+                  onClick={() => setMeetingHistoryCollapsed(!meetingHistoryCollapsed)}
+                >
+                  <h3 className="text-lg font-semibold text-foreground">
+                    Meeting History
+                    {selectedClient.meetings && selectedClient.meetings.length > 0 && (
+                      <span className="ml-2 text-sm font-normal text-muted-foreground">
+                        ({selectedClient.meetings.length})
+                      </span>
+                    )}
+                  </h3>
+                  {meetingHistoryCollapsed ? (
+                    <ChevronDown className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  ) : (
+                    <ChevronUp className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  )}
+                </div>
+                {!meetingHistoryCollapsed && selectedClient.meetings && selectedClient.meetings.length > 0 ? (
                   <div className="space-y-3">
                     {selectedClient.meetings
                       .sort((a, b) => new Date(b.starttime) - new Date(a.starttime))
@@ -1207,14 +1235,14 @@ export default function Clients() {
                       })
                     }
                   </div>
-                ) : (
+                ) : !meetingHistoryCollapsed ? (
                   <Card className="border-border/50">
                     <CardContent className="p-6 text-center">
                       <Calendar className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">No meetings found</p>
                     </CardContent>
                   </Card>
-                )}
+                ) : null}
               </div>
 
               {/* Documents Section */}
