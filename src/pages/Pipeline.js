@@ -12,8 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
-  Sparkles,
-  Check
+  Sparkles
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -40,10 +39,7 @@ export default function Pipeline() {
   const [generatingPipelineSummary, setGeneratingPipelineSummary] = useState(false); // AI summary generation state
   const [nextStepsSummary, setNextStepsSummary] = useState(null); // AI-generated next steps summary
 
-  // Inline editing state
-  const [editingField, setEditingField] = useState(null); // { clientId, field }
-  const [editingValue, setEditingValue] = useState('');
-  const [savingInlineEdit, setSavingInlineEdit] = useState(false);
+
 
   const { isAuthenticated} = useAuth();
   const navigate = useNavigate();
@@ -60,66 +56,6 @@ export default function Pipeline() {
   };
 
   const months = generateMonths();
-
-
-  // Inline editing handlers
-  const handleStartEdit = (clientId, field, currentValue) => {
-    setEditingField({ clientId, field });
-    setEditingValue(currentValue);
-  };
-
-  const handleCancelEdit = () => {
-    setEditingField(null);
-    setEditingValue('');
-  };
-
-  const handleSaveInlineEdit = async (clientId, field, value) => {
-    setSavingInlineEdit(true);
-    try {
-      // Currently we only support inline editing of expected fees
-      if (field !== 'iaf_expected') {
-        setSavingInlineEdit(false);
-        return;
-      }
-
-      const numValue = parseFloat(value);
-      if (isNaN(numValue) || numValue < 0) {
-        alert('Please enter a valid positive number for expected fees');
-        setSavingInlineEdit(false);
-        return;
-      }
-
-      const updateData = { iaf_expected: numValue };
-
-      // Update via API (keeps pipeline endpoint simple: only updating expected fees)
-      await api.request(`/pipeline/client/${clientId}`, {
-        method: 'PUT',
-        body: JSON.stringify(updateData)
-      });
-
-      // Update local state
-      setClients(prevClients =>
-        prevClients.map(client => {
-          if (client.id === clientId) {
-            const updated = { ...client };
-            updated.expectedValue = numValue;
-            updated.totalIafExpected = numValue;
-            return updated;
-          }
-          return client;
-        })
-      );
-
-      // Clear editing state
-      setEditingField(null);
-      setEditingValue('');
-    } catch (error) {
-      console.error('Error updating client:', error);
-      alert('Failed to update client. Please try again.');
-    } finally {
-      setSavingInlineEdit(false);
-    }
-  };
 
   const fetchPipelineData = useCallback(async () => {
     setLoading(true);
