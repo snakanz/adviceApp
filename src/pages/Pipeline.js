@@ -1169,7 +1169,7 @@ export default Pipeline;
                                   {hasFees && (
                                     <>
                                       {formatCurrency(parseFloat(bt.iaf_expected || 0))} fees
-                                      {isInvestment && hasAmount && '  b7 '}
+                                      {isInvestment && hasAmount && ' • '}
                                     </>
                                   )}
                                   {isInvestment && hasAmount && (
