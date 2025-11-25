@@ -128,7 +128,8 @@ export default function Pipeline() {
       const clientsData = await api.request('/clients');
 
       // Transform client data to pipeline format
-      const pipelineData = clientsData.map(client => {
+      // Create separate rows for each business type
+      const pipelineData = clientsData.flatMap(client => {
         // Get next meeting date (excluding annual review meetings)
         const now = new Date();
         const upcomingMeetings = (client.meetings || [])
@@ -141,58 +142,61 @@ export default function Pipeline() {
 
         const nextMeetingDate = upcomingMeetings.length > 0 ? upcomingMeetings[0].starttime : null;
 
-        // Calculate expected month from business type expected_close_date (PRIORITY)
-        // Fallback to client's likely_close_month if no business type dates
-        let expectedMonth = null;
         const businessTypesData = client.business_types_data || [];
 
-        // Get earliest expected close date from business types
-        const businessTypeDates = businessTypesData
-          .filter(bt => bt.expected_close_date)
-          .map(bt => new Date(bt.expected_close_date))
-          .sort((a, b) => a - b);
+        // Create separate rows for each business type
+        if (businessTypesData.length > 0) {
+          return businessTypesData.map((bt, btIndex) => {
+            let expectedMonth = null;
+            if (bt.expected_close_date) {
+              const closeDate = new Date(bt.expected_close_date);
+              expectedMonth = `${closeDate.getFullYear()}-${String(closeDate.getMonth() + 1).padStart(2, '0')}`;
+            }
 
-        if (businessTypeDates.length > 0) {
-          // Use earliest business type close date
-          const earliestDate = businessTypeDates[0];
-          expectedMonth = `${earliestDate.getFullYear()}-${String(earliestDate.getMonth() + 1).padStart(2, '0')}`;
-        } else if (client.likely_close_month) {
-          // Fallback to client's likely_close_month
-          // Handle both "YYYY-MM" and "YYYY-MM-DD" formats
-          const dateStr = client.likely_close_month.includes('-') && client.likely_close_month.split('-').length === 3
-            ? client.likely_close_month // Already has day (YYYY-MM-DD)
-            : `${client.likely_close_month}-01`; // Add day (YYYY-MM -> YYYY-MM-01)
-
-          const date = new Date(dateStr);
-          expectedMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            return {
+              id: `${client.id}-bt-${btIndex}`,
+              clientId: client.id,
+              name: client.name || client.email,
+              email: client.email,
+              businessType: bt.business_type,
+              expectedFees: parseFloat(bt.iaf_expected || 0),
+              investmentAmount: parseFloat(bt.business_amount || 0),
+              expectedCloseDate: bt.expected_close_date,
+              expectedMonth: expectedMonth,
+              nextMeetingDate: nextMeetingDate,
+              pastMeetingCount: client.meeting_count || 0,
+              fullClient: client,
+              businessTypesData: [bt], // Single business type for this row
+              priority_level: client.priority_level || 3,
+              last_contact_date: client.last_contact_date,
+              next_follow_up_date: client.next_follow_up_date,
+              pipeline_next_steps: client.pipeline_next_steps || null,
+              pipeline_next_steps_generated_at: client.pipeline_next_steps_generated_at || null
+            };
+          });
         }
 
-        return {
+        // Fallback for clients with no business types
+        return [{
           id: client.id,
+          clientId: client.id,
           name: client.name || client.email,
           email: client.email,
+          businessType: 'Not Set',
+          expectedFees: 0,
+          investmentAmount: 0,
+          expectedCloseDate: null,
+          expectedMonth: null,
           nextMeetingDate: nextMeetingDate,
           pastMeetingCount: client.meeting_count || 0,
-          // Simple, aggregated pipeline view
-          expectedValue: parseFloat(client.iaf_expected || client.likely_value || 0),
-          expectedMonth: expectedMonth,
-          businessType: client.business_type ? client.business_type.charAt(0).toUpperCase() + client.business_type.slice(1) : 'Not Set',
-          businessTypes: client.business_types || [], // Array of business types from client_business_types table
-          businessTypesData: client.business_types_data || [], // Full business type objects
-          businessTypesDisplay: client.business_types && client.business_types.length > 0
-            ? client.business_types.map(t => t.charAt(0).toUpperCase() + t.slice(1)).join(', ')
-            : (client.business_type ? client.business_type.charAt(0).toUpperCase() + client.business_type.slice(1) : 'Not Set'),
-          // Use aggregated totals from backend
-          totalBusinessAmount: parseFloat(client.business_amount || 0),
-          totalIafExpected: parseFloat(client.iaf_expected || client.likely_value || 0),
-          // Additional fields for pipeline management / context
+          fullClient: client,
+          businessTypesData: [],
           priority_level: client.priority_level || 3,
           last_contact_date: client.last_contact_date,
           next_follow_up_date: client.next_follow_up_date,
-          // AI next steps summary fields
           pipeline_next_steps: client.pipeline_next_steps || null,
           pipeline_next_steps_generated_at: client.pipeline_next_steps_generated_at || null
-        };
+        }];
       });
 
       setClients(pipelineData);
@@ -522,13 +526,13 @@ export default function Pipeline() {
   const getMonthlyTotal = (month) => {
     const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`;
     const monthClients = clients.filter(client => client.expectedMonth === monthKey);
-    return monthClients.reduce((total, client) => total + (client.expectedValue || 0), 0);
+    return monthClients.reduce((total, client) => total + (client.expectedFees || 0), 0);
   };
 
   const filteredClients = getCurrentMonthClients().filter(client =>
     client.name.toLowerCase().includes(search.toLowerCase()) ||
     client.email.toLowerCase().includes(search.toLowerCase()) ||
-    client.businessStage.toLowerCase().includes(search.toLowerCase())
+    client.businessType.toLowerCase().includes(search.toLowerCase())
   );
 
   if (loading) {
@@ -628,7 +632,7 @@ export default function Pipeline() {
               </Button>
               <div className="text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg">
                 Total Pipeline Value: <span className="font-semibold text-foreground">
-                  {formatCurrency(clients.reduce((total, client) => total + (client.expectedValue || 0), 0))}
+                  {formatCurrency(clients.reduce((total, client) => total + (client.expectedFees || 0), 0))}
                 </span>
               </div>
             </div>
@@ -667,7 +671,7 @@ export default function Pipeline() {
             const overdueClients = getOverdueOrNoDateClients();
             if (overdueClients.length === 0) return null;
 
-            const totalValue = overdueClients.reduce((total, client) => total + (client.expectedValue || 0), 0);
+            const totalValue = overdueClients.reduce((total, client) => total + (client.expectedFees || 0), 0);
 
             return (
               <div className="mb-6">
@@ -806,9 +810,10 @@ export default function Pipeline() {
             {/* Table Header */}
             <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-4">
               <div className="grid grid-cols-12 gap-3 lg:gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                <div className="col-span-4">Client & Business Types</div>
+                <div className="col-span-3">Client & Business Type</div>
                 <div className="col-span-2">Next Meeting</div>
-                <div className="col-span-3">Fees & Investment</div>
+                <div className="col-span-2">Expected Fees</div>
+                <div className="col-span-2">Investment</div>
                 <div className="col-span-3">AI Next Steps</div>
               </div>
             </div>
@@ -818,11 +823,11 @@ export default function Pipeline() {
               {filteredClients.map((client) => (
                 <div
                   key={client.id}
-                  onClick={() => handleClientClick(client)}
+                  onClick={() => handleClientClick(client.fullClient || client)}
                   className="grid grid-cols-12 gap-3 lg:gap-4 py-4 border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-all duration-200 group rounded-lg hover:shadow-sm"
                 >
-                  {/* Client Information & Business Types */}
-                  <div className="col-span-4 flex items-center gap-3">
+                  {/* Client Information & Business Type */}
+                  <div className="col-span-3 flex items-center gap-3">
                     <Avatar className="w-10 h-10 flex-shrink-0">
                       <AvatarFallback className="text-sm bg-primary/10 text-primary font-semibold">
                         {getInitials(client.name, client.email)}
@@ -832,34 +837,15 @@ export default function Pipeline() {
                       <div className="font-semibold text-sm text-foreground truncate mb-1">
                         {client.name || client.email}
                       </div>
-                      <div className="text-xs text-muted-foreground truncate mb-1">
-                        {client.email}
-                      </div>
-                      {/* Business Type Tags - Enhanced */}
-                      <div className="flex flex-wrap gap-1 items-center">
-                        {client.businessTypes && client.businessTypes.length > 0 ? (
-                          <>
-                            {client.businessTypes.slice(0, 2).map((type, index) => (
-                              <Badge key={index} className={cn("text-xs px-2 py-0.5", getBusinessTypeColor(type))}>
-                                {type}
-                              </Badge>
-                            ))}
-                            {client.businessTypes.length > 2 && (
-                              <Badge variant="secondary" className="text-xs px-1.5 py-0.5 bg-muted">
-                                +{client.businessTypes.length - 2}
-                              </Badge>
-                            )}
-                            {/* Show count badge if multiple types */}
-                            {client.businessTypes.length > 1 && (
-                              <Badge variant="outline" className="text-xs px-1.5 py-0 h-4 border-primary/30 text-primary">
-                                {client.businessTypes.length} types
-                              </Badge>
-                            )}
-                          </>
-                        ) : (
-                          <Badge className={cn("text-xs px-2 py-0.5", getBusinessTypeColor(client.businessType))}>
-                            {client.businessType}
-                          </Badge>
+                      {/* Business Type Badge with Close Date */}
+                      <div className="flex items-center gap-2">
+                        <Badge className={cn("text-xs px-2 py-0.5", getBusinessTypeColor(client.businessType))}>
+                          {client.businessType}
+                        </Badge>
+                        {client.expectedCloseDate && (
+                          <span className="text-xs text-muted-foreground">
+                            Close: {formatDate(client.expectedCloseDate)}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -897,124 +883,22 @@ export default function Pipeline() {
                     </div>
                   </div>
 
-                  {/* Expected Fees & Investment Amount */}
-                  <div
-                    className="col-span-3 flex items-center gap-2"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!editingField || editingField.clientId !== client.id || editingField.field !== 'iaf_expected') {
-                        handleStartEdit(client.id, 'iaf_expected', client.expectedValue);
-                      }
-                    }}
-                  >
-                    <div className="flex-1">
-                      {/* FIX ISSUE 2: Show Total Business Amount prominently */}
-                      {client.totalBusinessAmount > 0 && (
-                        <div className="text-sm font-bold text-foreground mb-0.5">
-                          {formatCurrency(client.totalBusinessAmount)}
-                          <span className="text-xs text-muted-foreground font-normal ml-1">Amount</span>
-                        </div>
-                      )}
-                      {/* Show IAF Expected - Inline Editable */}
-                      {editingField?.clientId === client.id && editingField?.field === 'iaf_expected' ? (
-                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                          <span className="text-xs text-muted-foreground">£</span>
-                          <Input
-                            type="number"
-                            min="0"
-                            step="100"
-                            value={editingValue}
-                            onChange={(e) => setEditingValue(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                handleSaveInlineEdit(client.id, 'iaf_expected', editingValue);
-                              } else if (e.key === 'Escape') {
-                                handleCancelEdit();
-                              }
-                            }}
-                            className="h-7 w-24 text-xs"
-                            autoFocus
-                            disabled={savingInlineEdit}
-                          />
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 w-6 p-0"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSaveInlineEdit(client.id, 'iaf_expected', editingValue);
-                            }}
-                            disabled={savingInlineEdit}
-                          >
-                            <Check className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 w-6 p-0"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCancelEdit();
-                            }}
-                            disabled={savingInlineEdit}
-                          >
-                            <X className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className={cn(
-                          "text-sm font-bold text-foreground cursor-pointer hover:opacity-80",
-                          client.totalBusinessAmount > 0 ? "text-xs text-muted-foreground font-normal" : "mb-0.5"
-                        )}>
-                          {formatCurrency(client.expectedValue)}
-                          {client.totalBusinessAmount > 0 && <span className="ml-1">Fees</span>}
-                        </div>
-                      )}
-                      {/* Show breakdown if multiple business types */}
-                      {client.businessTypesData && client.businessTypesData.length > 1 && (
-                        <div className="flex items-center gap-1 mt-1">
-                          <Badge variant="outline" className="text-xs px-1.5 py-0 h-4">
-                            {client.businessTypesData.length} types
-                          </Badge>
-                        </div>
-                      )}
-                      {/* Show business type breakdown on hover */}
-                      {client.businessTypesData && client.businessTypesData.length > 0 && (
-                        <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                          {client.businessTypesData.slice(0, 2).map((bt, idx) => {
-                            const isInvestment = bt.business_type === 'Investment';
-                            const hasAmount = !!bt.business_amount;
-                            const hasFees = !!bt.iaf_expected;
-                            return (
-                              <div key={idx} className="flex items-center gap-1">
-                                <span className="font-medium">{bt.business_type}:</span>
-                                <span>
-                                  {hasFees && (
-                                    <>
-                                      {formatCurrency(parseFloat(bt.iaf_expected || 0))} fees
-                                      {isInvestment && hasAmount && '  b7 '}
-                                    </>
-                                  )}
-                                  {isInvestment && hasAmount && (
-                                    <>
-                                      {formatCurrency(parseFloat(bt.business_amount || 0))} investment
-                                    </>
-                                  )}
-                                </span>
-                              </div>
-                            );
-                          })}
-                          {client.businessTypesData.length > 2 && (
-                            <div className="text-xs text-muted-foreground/70">
-                              +{client.businessTypesData.length - 2} more...
-                            </div>
-                          )}
-                        </div>
-                      )}
+                  {/* Expected Fees */}
+                  <div className="col-span-2 flex items-center">
+                    <div className="text-sm font-semibold text-foreground">
+                      {formatCurrency(client.expectedFees)}
                     </div>
+                  </div>
 
-                    {/* AI Next Steps Summary (List View) */}
-                    <div className="col-span-3">
+                  {/* Investment Amount */}
+                  <div className="col-span-2 flex items-center">
+                    <div className="text-sm font-semibold text-foreground">
+                      {client.investmentAmount > 0 ? formatCurrency(client.investmentAmount) : '-'}
+                    </div>
+                  </div>
+
+                  {/* AI Next Steps Summary (List View) */}
+                  <div className="col-span-3">
                       <label className="text-[11px] font-medium text-muted-foreground mb-1 block flex items-center gap-1">
                         <Sparkles className="w-3 h-3" />
                         Next Steps to Close
@@ -1029,7 +913,6 @@ export default function Pipeline() {
                         )}
                       </div>
                     </div>
-                  </div>
                 </div>
               ))}
             </div>
