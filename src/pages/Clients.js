@@ -313,11 +313,6 @@ export default function Clients() {
     return upcomingMeetings.length > 0 ? upcomingMeetings[0].starttime : null;
   };
 
-  // Helper function to check if client has future meetings
-  const hasFutureMeetings = (client) => {
-    return getNextMeetingDate(client) !== null;
-  };
-
   // Helper function to format date
   const formatDate = (dateString) => {
     if (!dateString) return '-';
