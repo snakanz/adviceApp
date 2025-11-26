@@ -88,6 +88,12 @@ class CalendlyService {
    * Fetch scheduled events from Calendly with pagination support
    * Fetches BOTH active and canceled events to properly sync deletions
    * Uses intelligent time ranges based on sync status
+   *
+   * IMPORTANT: The Calendly API has two ways to fetch events:
+   * 1. `user` parameter: Returns events where the user is the HOST
+   * 2. `organization` parameter: Returns ALL events in the organization (requires admin/owner)
+   *
+   * We try both approaches to ensure we get all events the user can see.
    */
   async fetchScheduledEvents(options = {}) {
     try {
@@ -114,16 +120,40 @@ class CalendlyService {
 
       console.log(`   Time range: ${timeMin.toISOString()} to ${timeMax.toISOString()}`);
 
-      // Fetch both active and canceled events
-      const activeEvents = await this.fetchEventsByStatus(user.uri, timeMin, timeMax, 'active');
-      const canceledEvents = await this.fetchEventsByStatus(user.uri, timeMin, timeMax, 'canceled');
+      // First, try fetching events using the USER parameter (events where user is HOST)
+      console.log(`\n🔍 STRATEGY 1: Fetching events where user is HOST (user parameter)...`);
+      const activeEventsAsHost = await this.fetchEventsByStatus(user.uri, null, timeMin, timeMax, 'active');
+      const canceledEventsAsHost = await this.fetchEventsByStatus(user.uri, null, timeMin, timeMax, 'canceled');
 
-      console.log(`✅ ${syncType} fetch complete: ${activeEvents.length} active, ${canceledEvents.length} canceled`);
+      console.log(`   Found ${activeEventsAsHost.length} active, ${canceledEventsAsHost.length} canceled as HOST`);
+
+      // Second, try fetching events using the ORGANIZATION parameter (all org events)
+      // This requires admin/owner privileges but will catch events where user is invitee
+      let activeEventsFromOrg = [];
+      let canceledEventsFromOrg = [];
+
+      if (user.current_organization) {
+        console.log(`\n🔍 STRATEGY 2: Fetching ALL organization events (organization parameter)...`);
+        try {
+          activeEventsFromOrg = await this.fetchEventsByStatus(null, user.current_organization, timeMin, timeMax, 'active');
+          canceledEventsFromOrg = await this.fetchEventsByStatus(null, user.current_organization, timeMin, timeMax, 'canceled');
+          console.log(`   Found ${activeEventsFromOrg.length} active, ${canceledEventsFromOrg.length} canceled in ORGANIZATION`);
+        } catch (orgError) {
+          // This might fail if user doesn't have admin/owner privileges
+          console.log(`   ⚠️ Organization fetch failed (may require admin privileges): ${orgError.message}`);
+        }
+      }
+
+      // Merge and deduplicate events from both strategies
+      const allActiveEvents = this.mergeAndDeduplicateEvents(activeEventsAsHost, activeEventsFromOrg);
+      const allCanceledEvents = this.mergeAndDeduplicateEvents(canceledEventsAsHost, canceledEventsFromOrg);
+
+      console.log(`\n✅ ${syncType} fetch complete: ${allActiveEvents.length} active, ${allCanceledEvents.length} canceled (after deduplication)`);
 
       return {
-        active: activeEvents,
-        canceled: canceledEvents,
-        all: [...activeEvents, ...canceledEvents],
+        active: allActiveEvents,
+        canceled: allCanceledEvents,
+        all: [...allActiveEvents, ...allCanceledEvents],
         syncType
       };
     } catch (error) {
@@ -133,17 +163,42 @@ class CalendlyService {
   }
 
   /**
+   * Merge and deduplicate events from multiple sources
+   * Uses event URI as unique identifier
+   */
+  mergeAndDeduplicateEvents(events1, events2) {
+    const eventMap = new Map();
+
+    // Add events from first array
+    for (const event of events1) {
+      eventMap.set(event.uri, event);
+    }
+
+    // Add events from second array (will overwrite duplicates)
+    for (const event of events2) {
+      eventMap.set(event.uri, event);
+    }
+
+    return Array.from(eventMap.values());
+  }
+
+  /**
    * Fetch events by status with keyset-based pagination (v2)
    * v2 uses cursor-based pagination instead of offset
+   *
+   * @param {string|null} userUri - User URI to filter by (events where user is host)
+   * @param {string|null} organizationUri - Organization URI to filter by (all org events)
+   * @param {Date} timeMin - Minimum start time
+   * @param {Date} timeMax - Maximum start time
+   * @param {string} status - Event status ('active' or 'canceled')
    */
-  async fetchEventsByStatus(userUri, timeMin, timeMax, status) {
+  async fetchEventsByStatus(userUri, organizationUri, timeMin, timeMax, status) {
     let allEvents = [];
     let pageCount = 0;
     let cursor = null; // v2 uses cursor for pagination
 
     // Build initial request URL with v2 parameters
     const params = new URLSearchParams({
-      user: userUri,
       min_start_time: timeMin.toISOString(),
       max_start_time: timeMax.toISOString(),
       status: status,
@@ -151,11 +206,21 @@ class CalendlyService {
       page_size: '100' // v2 uses page_size instead of count
     });
 
+    // Add either user or organization parameter (one is required)
+    if (userUri) {
+      params.set('user', userUri);
+    } else if (organizationUri) {
+      params.set('organization', organizationUri);
+    } else {
+      throw new Error('Either userUri or organizationUri must be provided');
+    }
+
     let requestUrl = `/scheduled_events?${params}`;
 
     // 🔍 DEBUG: Log the full request URL and parameters
-    console.log(`🔍 DEBUG: Fetching ${status} events with params:`);
-    console.log(`   User URI: ${userUri}`);
+    const filterType = userUri ? 'USER (host only)' : 'ORGANIZATION (all events)';
+    console.log(`🔍 DEBUG: Fetching ${status} events with ${filterType}:`);
+    console.log(`   ${userUri ? 'User URI' : 'Organization URI'}: ${userUri || organizationUri}`);
     console.log(`   Time Range: ${timeMin.toISOString()} to ${timeMax.toISOString()}`);
     console.log(`   Full URL: ${requestUrl}`);
 
