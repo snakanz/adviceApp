@@ -67,7 +67,17 @@ class CalendlyService {
   async getCurrentUser() {
     try {
       const data = await this.makeRequest('/users/me');
-      return data.resource;
+      const user = data.resource;
+
+      // 🔍 DEBUG: Log user info to verify we're using the right account
+      console.log(`🔍 DEBUG: Calendly User Info:`);
+      console.log(`   Name: ${user.name}`);
+      console.log(`   Email: ${user.email}`);
+      console.log(`   URI: ${user.uri}`);
+      console.log(`   Organization: ${user.current_organization}`);
+      console.log(`   Timezone: ${user.timezone}`);
+
+      return user;
     } catch (error) {
       console.error('Error fetching Calendly user:', error);
       throw error;
@@ -143,6 +153,12 @@ class CalendlyService {
 
     let requestUrl = `/scheduled_events?${params}`;
 
+    // 🔍 DEBUG: Log the full request URL and parameters
+    console.log(`🔍 DEBUG: Fetching ${status} events with params:`);
+    console.log(`   User URI: ${userUri}`);
+    console.log(`   Time Range: ${timeMin.toISOString()} to ${timeMax.toISOString()}`);
+    console.log(`   Full URL: ${requestUrl}`);
+
     do {
       console.log(`📄 Fetching ${status} events page ${pageCount + 1}...`);
 
@@ -159,6 +175,18 @@ class CalendlyService {
       pageCount++;
 
       console.log(`📊 Page ${pageCount}: Found ${events.length} ${status} events (Total: ${allEvents.length})`);
+
+      // 🔍 DEBUG: Log each event's key details
+      if (events.length > 0) {
+        console.log(`🔍 DEBUG: Events on page ${pageCount}:`);
+        events.forEach((event, idx) => {
+          const startTime = new Date(event.start_time);
+          const eventName = event.name || 'Unnamed';
+          const eventUri = event.uri || 'No URI';
+          const eventType = event.event_type || 'Unknown type';
+          console.log(`   [${idx + 1}] ${eventName} | Start: ${startTime.toISOString()} | URI: ${eventUri.split('/').pop()}`);
+        });
+      }
 
       // v2 uses pagination_token instead of next_page
       const pagination = data.pagination || {};
@@ -179,6 +207,21 @@ class CalendlyService {
     } while (cursor);
 
     console.log(`✅ Fetched ${allEvents.length} ${status} events across ${pageCount} pages`);
+
+    // 🔍 DEBUG: Log summary of all events with dates
+    if (allEvents.length > 0) {
+      console.log(`🔍 DEBUG: Summary of all ${status} events by date:`);
+      const eventsByDate = {};
+      allEvents.forEach(event => {
+        const dateKey = new Date(event.start_time).toISOString().split('T')[0];
+        if (!eventsByDate[dateKey]) eventsByDate[dateKey] = [];
+        eventsByDate[dateKey].push(event.name || 'Unnamed');
+      });
+      Object.keys(eventsByDate).sort().forEach(date => {
+        console.log(`   ${date}: ${eventsByDate[date].length} event(s) - ${eventsByDate[date].join(', ')}`);
+      });
+    }
+
     return allEvents;
   }
 
