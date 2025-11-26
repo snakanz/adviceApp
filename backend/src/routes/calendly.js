@@ -540,6 +540,111 @@ function generateSyncRecommendations(syncStatus) {
   return recommendations;
 }
 
+// 🔍 DEBUG: Test Calendly API directly to see raw response
+router.get('/debug-api', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    console.log(`\n🔍 DEBUG API TEST for user: ${userId}`);
+
+    // Get user's Calendly connection
+    const { data: connection, error: connectionError } = await req.supabase
+      .from('calendar_connections')
+      .select('access_token, calendly_user_uri, organization_uri, calendly_email')
+      .eq('user_id', userId)
+      .eq('provider', 'calendly')
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (connectionError || !connection) {
+      return res.status(404).json({
+        success: false,
+        error: 'No active Calendly connection found'
+      });
+    }
+
+    console.log(`🔍 DEBUG: Connected Calendly email: ${connection.calendly_email}`);
+    console.log(`🔍 DEBUG: User URI: ${connection.calendly_user_uri}`);
+    console.log(`🔍 DEBUG: Org URI: ${connection.organization_uri}`);
+
+    const calendlyService = new CalendlyService(connection.access_token);
+
+    // Get current user info
+    const userInfo = await calendlyService.getCurrentUser();
+
+    // Fetch events directly with minimal parameters
+    const now = new Date();
+    const timeMin = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days back
+    const timeMax = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000); // 60 days forward
+
+    console.log(`🔍 DEBUG: Fetching events from ${timeMin.toISOString()} to ${timeMax.toISOString()}`);
+
+    // Make direct API call
+    const params = new URLSearchParams({
+      min_start_time: timeMin.toISOString(),
+      max_start_time: timeMax.toISOString(),
+      status: 'active',
+      sort: 'start_time:asc',
+      page_size: '100',
+      user: userInfo.uri
+    });
+
+    const response = await fetch(`https://api.calendly.com/scheduled_events?${params}`, {
+      headers: {
+        'Authorization': `Bearer ${connection.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const data = await response.json();
+
+    // Format events for easy reading
+    const events = (data.collection || []).map(event => ({
+      name: event.name,
+      start_time: event.start_time,
+      end_time: event.end_time,
+      status: event.status,
+      uri: event.uri?.split('/').pop(),
+      created_at: event.created_at,
+      updated_at: event.updated_at
+    }));
+
+    // Group by date
+    const eventsByDate = {};
+    events.forEach(event => {
+      const date = event.start_time.split('T')[0];
+      if (!eventsByDate[date]) {
+        eventsByDate[date] = [];
+      }
+      eventsByDate[date].push(event);
+    });
+
+    res.json({
+      success: true,
+      user_info: {
+        name: userInfo.name,
+        email: userInfo.email,
+        uri: userInfo.uri,
+        organization: userInfo.current_organization
+      },
+      query_params: {
+        min_start_time: timeMin.toISOString(),
+        max_start_time: timeMax.toISOString(),
+        user_uri: userInfo.uri
+      },
+      total_events: events.length,
+      events_by_date: eventsByDate,
+      raw_events: events,
+      pagination: data.pagination
+    });
+  } catch (error) {
+    console.error('Error in debug API:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // Get Calendly meetings for user
 router.get('/meetings', authenticateSupabaseUser, async (req, res) => {
   try {

@@ -39,6 +39,12 @@ class CalendlyService {
     }
 
     const url = `${this.baseURL}${endpoint}`;
+
+    // 🔍 DEBUG: Log the token prefix to verify we're using the right token
+    const tokenPrefix = this.accessToken.substring(0, 20);
+    console.log(`🔍 DEBUG API Request: ${endpoint.substring(0, 100)}...`);
+    console.log(`   Token prefix: ${tokenPrefix}...`);
+
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -58,7 +64,24 @@ class CalendlyService {
       return null;
     }
 
-    return response.json();
+    const jsonData = await response.json();
+
+    // 🔍 DEBUG: Log raw response for scheduled_events endpoint
+    if (endpoint.includes('scheduled_events') && !endpoint.includes('invitees')) {
+      console.log(`🔍 DEBUG RAW RESPONSE for ${endpoint.substring(0, 50)}...:`);
+      console.log(`   Total events in response: ${jsonData.collection?.length || 0}`);
+      if (jsonData.collection && jsonData.collection.length > 0) {
+        // Log the LAST event (most recent by start_time since we sort asc)
+        const lastEvent = jsonData.collection[jsonData.collection.length - 1];
+        console.log(`   LAST event in response: ${lastEvent.name} at ${lastEvent.start_time}`);
+        // Log the FIRST event (oldest)
+        const firstEvent = jsonData.collection[0];
+        console.log(`   FIRST event in response: ${firstEvent.name} at ${firstEvent.start_time}`);
+      }
+      console.log(`   Pagination: ${JSON.stringify(jsonData.pagination || {})}`);
+    }
+
+    return jsonData;
   }
 
   /**
