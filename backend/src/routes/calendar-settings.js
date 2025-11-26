@@ -627,13 +627,14 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
 
     // ✅ Connection data with all required fields for sync to work
     // Note: Column is provider_account_email, not account_email
+    // webhook_status must be one of: 'active', 'missing', 'error', 'unknown'
     const connectionData = {
       access_token: api_token.trim(),
       is_active: true,
       calendly_user_uri: calendlyUserUri,
       calendly_organization_uri: calendlyOrganizationUri,
       provider_account_email: calendlyEmail,
-      webhook_status: 'not_available', // Free plan doesn't support webhooks
+      webhook_status: 'missing', // Free plan uses polling instead of webhooks
       updated_at: new Date().toISOString()
     };
 
