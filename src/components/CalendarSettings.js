@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent } from './ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card';
 import { Button } from './ui/button';
-// TEMPORARILY DISABLED: Calendly integration hidden from UI
-// import { Input } from './ui/input';
-// import { Label } from './ui/label';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import {
@@ -16,9 +15,8 @@ import {
   Zap,
   Clock
 } from 'lucide-react';
-// TEMPORARILY DISABLED: Calendly integration hidden from UI
 // import CalendlySyncButton from './CalendlySyncButton';
-// import CalendlyPlanInfo from './CalendlyPlanInfo';
+import CalendlyPlanInfo from './CalendlyPlanInfo';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
@@ -29,11 +27,10 @@ export default function CalendarSettings() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // TEMPORARILY DISABLED: Calendly connection state
-  // const [showCalendlyForm, setShowCalendlyForm] = useState(false);
+  const [showCalendlyForm, setShowCalendlyForm] = useState(false);
   const [calendlyToken, setCalendlyToken] = useState('');
-  // const [isConnecting, setIsConnecting] = useState(false);
-  // const [calendlyAuthMethod, setCalendlyAuthMethod] = useState('oauth'); // 'oauth' or 'token'
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [calendlyAuthMethod, setCalendlyAuthMethod] = useState('oauth'); // 'oauth' or 'token'
   const [webhookStatus, setWebhookStatus] = useState({});
 
   useEffect(() => {
@@ -252,7 +249,7 @@ export default function CalendarSettings() {
   // eslint-disable-next-line no-unused-vars
   const handleConnectCalendlyOAuth = async () => {
     try {
-      // setIsConnecting(true);
+      setIsConnecting(true);
       setError('');
       setSuccess('');
       const token = await getAccessToken();
@@ -316,7 +313,7 @@ export default function CalendarSettings() {
 
         if (!popup) {
           setError('Popup blocked. Please allow popups for this site and try again.');
-          // setIsConnecting(false);
+          setIsConnecting(false);
           return;
         }
 
@@ -324,7 +321,7 @@ export default function CalendarSettings() {
         const checkPopup = setInterval(() => {
           if (popup.closed) {
             clearInterval(checkPopup);
-            // setIsConnecting(false);
+            setIsConnecting(false);
             console.log('✅ Calendly OAuth popup closed');
             // Reload connections to show updated status
             setTimeout(() => loadConnections(), 500);
@@ -334,7 +331,7 @@ export default function CalendarSettings() {
     } catch (err) {
       console.error('Error connecting Calendly via OAuth:', err);
       setError(err.response?.data?.error || 'Failed to connect Calendly');
-      // setIsConnecting(false);
+      setIsConnecting(false);
     }
   };
 
@@ -364,7 +361,7 @@ export default function CalendarSettings() {
     }
 
     try {
-      // setIsConnecting(true);
+      setIsConnecting(true);
       setError('');
       setSuccess('');
       const token = await getAccessToken();
@@ -377,14 +374,14 @@ export default function CalendarSettings() {
 
       setSuccess('Calendly connected successfully!');
       setCalendlyToken('');
-      // setShowCalendlyForm(false);
-      // setCalendlyAuthMethod('oauth');
+      setShowCalendlyForm(false);
+      setCalendlyAuthMethod('oauth');
       loadConnections();
     } catch (err) {
       console.error('Error connecting Calendly:', err);
       setError(err.response?.data?.error || 'Failed to connect Calendly');
     } finally {
-      // setIsConnecting(false);
+      setIsConnecting(false);
     }
   };
 
@@ -749,8 +746,8 @@ export default function CalendarSettings() {
             </Card>
           )}
 
-          {/* TEMPORARILY DISABLED: Calendly */}
-          {/* {!connections.some(c => c.provider === 'calendly') ? (
+          {/* Calendly */}
+          {!connections.some(c => c.provider === 'calendly') ? (
             <Card
               className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer"
               onClick={() => setShowCalendlyForm(!showCalendlyForm)}
@@ -782,7 +779,7 @@ export default function CalendarSettings() {
                 </div>
               </CardContent>
             </Card>
-          )} */}
+          )}
 
           {/* Microsoft Calendar */}
           {!connections.some(c => c.provider === 'microsoft' || c.provider === 'outlook') ? (
@@ -820,8 +817,8 @@ export default function CalendarSettings() {
           )}
         </div>
 
-        {/* TEMPORARILY DISABLED: Calendly Connection Form */}
-        {/* {showCalendlyForm && (
+        {/* Calendly Connection Form */}
+        {showCalendlyForm && (
           <Card className="border-primary/50">
             <CardHeader>
               <CardTitle>Connect Calendly</CardTitle>
