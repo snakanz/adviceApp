@@ -12,6 +12,7 @@ class WebhookHealthService {
   /**
    * Check if a user's Calendly webhook is still active
    * If missing, automatically recreate it
+   * ✅ FIX: Skip webhook recreation for free plan users (use polling instead)
    * @param {string} userId - User ID
    * @returns {Promise<Object>} Health status
    */
@@ -27,7 +28,7 @@ class WebhookHealthService {
       // Get user's Calendly connection
       const { data: connection, error: connError } = await supabase
         .from('calendar_connections')
-        .select('id, access_token, refresh_token, token_expires_at, calendly_user_uri, calendly_organization_uri, webhook_status, webhook_last_verified_at')
+        .select('id, access_token, refresh_token, token_expires_at, calendly_user_uri, calendly_organization_uri, webhook_status, webhook_last_verified_at, webhook_last_error')
         .eq('user_id', userId)
         .eq('provider', 'calendly')
         .eq('is_active', true)
@@ -38,6 +39,22 @@ class WebhookHealthService {
       }
 
       console.log(`\n🔍 Checking webhook health for user ${userId}...`);
+
+      // ✅ FIX: Skip webhook recreation for free plan users
+      // If the last error indicates a free plan limitation, don't retry webhook creation
+      // The 15-minute polling will handle syncing for these users
+      if (connection.webhook_status === 'error' &&
+          connection.webhook_last_error &&
+          (connection.webhook_last_error.includes('upgrade your Calendly account') ||
+           connection.webhook_last_error.includes('Permission Denied'))) {
+        console.log(`⏭️  Skipping webhook check for user ${userId} - Calendly free plan detected`);
+        console.log(`   Using 15-minute polling instead of webhooks`);
+        return {
+          status: 'polling_only',
+          message: 'Using polling (Calendly free plan - webhooks not supported)',
+          plan_limit: 'calendly_free_plan'
+        };
+      }
 
       // Check if webhook was verified recently (within last 24 hours)
       const lastVerified = connection.webhook_last_verified_at ? new Date(connection.webhook_last_verified_at) : null;
@@ -149,8 +166,36 @@ class WebhookHealthService {
     } catch (error) {
       console.error('❌ Error recreating webhook:', error.message);
 
-      // Update error status
       const supabase = getSupabase();
+
+      // ✅ FIX: Detect free plan limitation and mark connection appropriately
+      // This prevents future retry attempts for users who can't use webhooks
+      const isFreePlanError = error.message.includes('upgrade your Calendly account') ||
+                              error.message.includes('Permission Denied') ||
+                              error.message.includes('403');
+
+      if (isFreePlanError) {
+        console.log(`⚠️  User ${userId} appears to be on Calendly free plan - webhooks not supported`);
+        console.log(`   Will use 15-minute polling instead`);
+
+        await supabase
+          .from('calendar_connections')
+          .update({
+            webhook_status: 'error',
+            webhook_last_error: error.message,
+            // Don't increment attempts for free plan - this is a permanent limitation
+            webhook_verification_attempts: 0
+          })
+          .eq('id', connection.id);
+
+        return {
+          status: 'polling_only',
+          message: 'Calendly free plan detected - using polling instead of webhooks',
+          plan_limit: 'calendly_free_plan'
+        };
+      }
+
+      // Update error status for other errors
       await supabase
         .from('calendar_connections')
         .update({

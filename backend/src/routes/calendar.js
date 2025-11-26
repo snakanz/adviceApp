@@ -2597,6 +2597,7 @@ router.get('/calendly/oauth/callback', async (req, res) => {
     // ✅ Create USER-SCOPED webhook subscription (one per user, not per organization)
     // This ensures each user gets their own webhook with their own signing key
     // Supports 100s of users with their own private Calendly accounts
+    // ✅ FIX: Handle free plan users gracefully - they will use polling instead
     try {
       console.log('📡 Setting up user-scoped Calendly webhook subscription...');
       const CalendlyWebhookService = require('../services/calendlyWebhookService');
@@ -2613,31 +2614,56 @@ router.get('/calendly/oauth/callback', async (req, res) => {
 
         if (webhookResult.created) {
           console.log('✅ User-scoped Calendly webhook subscription created:', webhookResult.webhook_uri);
+
+          // ✅ Store webhook ID AND signing key in calendar_connections table
+          const { error: webhookUpdateError } = await getSupabase()
+            .from('calendar_connections')
+            .update({
+              calendly_webhook_id: webhookResult.webhook_uri,
+              calendly_webhook_signing_key: webhookResult.webhook_signing_key,
+              webhook_status: 'active',
+              webhook_last_verified_at: new Date().toISOString(),
+              webhook_last_error: null
+            })
+            .eq('user_id', userId)
+            .eq('provider', 'calendly');
+
+          if (webhookUpdateError) {
+            console.error('❌ Error storing webhook ID in calendar_connections:', webhookUpdateError);
+          } else {
+            console.log('✅ Webhook ID stored in calendar_connections:', webhookResult.webhook_uri);
+            console.log('🔑 Webhook signing key stored for verification');
+          }
         } else {
           console.log('✅ User-scoped Calendly webhook subscription already exists:', webhookResult.webhook_uri);
-        }
-
-        // ✅ Store webhook ID AND signing key in calendar_connections table
-        const { error: webhookUpdateError } = await getSupabase()
-          .from('calendar_connections')
-          .update({
-            calendly_webhook_id: webhookResult.webhook_uri,
-            calendly_webhook_signing_key: webhookResult.webhook_signing_key  // ✅ Store signing key
-          })
-          .eq('user_id', userId)
-          .eq('provider', 'calendly');
-
-        if (webhookUpdateError) {
-          console.error('❌ Error storing webhook ID in calendar_connections:', webhookUpdateError);
-        } else {
-          console.log('✅ Webhook ID stored in calendar_connections:', webhookResult.webhook_uri);
-          console.log('🔑 Webhook signing key stored for verification');
         }
       } else {
         console.warn('⚠️  Calendly webhook service not configured (missing signing key)');
       }
     } catch (webhookError) {
       console.warn('⚠️  Failed to setup webhook:', webhookError.message);
+
+      // ✅ FIX: Detect free plan limitation and mark connection appropriately
+      const isFreePlanError = webhookError.message.includes('upgrade your Calendly account') ||
+                              webhookError.message.includes('Permission Denied') ||
+                              webhookError.message.includes('403');
+
+      if (isFreePlanError) {
+        console.log('📊 Calendly free plan detected - webhooks not supported');
+        console.log('   User will use 15-minute polling for sync instead');
+
+        // Update connection to indicate free plan limitation
+        await getSupabase()
+          .from('calendar_connections')
+          .update({
+            webhook_status: 'error',
+            webhook_last_error: 'Calendly free plan - webhooks not supported. Using 15-minute polling instead.',
+            webhook_verification_attempts: 0
+          })
+          .eq('user_id', userId)
+          .eq('provider', 'calendly');
+      }
+
       // Don't fail the connection if webhook setup fails - user can still use polling
     }
 

@@ -452,24 +452,35 @@ router.post('/sync', authenticateSupabaseUser, async (req, res) => {
 
     const calendlyService = new CalendlyService(accessToken);
 
-    // Get sync status before sync
-    const { data: beforeStatus } = await req.supabase
-      .rpc('get_calendly_sync_status', { user_id: userId });
+    // ✅ FIX: Get meeting count before sync using direct query instead of RPC
+    // The get_calendly_sync_status RPC function doesn't exist
+    const { data: beforeMeetings } = await req.supabase
+      .from('meetings')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('meeting_source', 'calendly')
+      .eq('is_deleted', false);
+
+    const totalBefore = beforeMeetings?.length || 0;
 
     // Perform the sync
     const syncResult = await calendlyService.syncMeetingsToDatabase(userId);
 
-    // Get sync status after sync
-    const { data: afterStatus } = await req.supabase
-      .rpc('get_calendly_sync_status', { user_id: userId });
+    // ✅ FIX: Get meeting count after sync using direct query
+    const { count: totalAfter } = await req.supabase
+      .from('meetings')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('meeting_source', 'calendly')
+      .eq('is_deleted', false);
 
     // Calculate improvements
     const improvement = {
       meetings_added: syncResult.synced || 0,
-      total_before: beforeStatus?.total_calendly_meetings || 0,
-      total_after: afterStatus?.total_calendly_meetings || 0,
-      sync_health_before: beforeStatus?.sync_health || 'unknown',
-      sync_health_after: afterStatus?.sync_health || 'unknown'
+      total_before: totalBefore,
+      total_after: totalAfter || 0,
+      sync_health_before: 'unknown',
+      sync_health_after: syncResult.errors === 0 ? 'healthy' : 'warning'
     };
 
     console.log(`✅ Calendly sync completed:`, improvement);
@@ -479,7 +490,10 @@ router.post('/sync', authenticateSupabaseUser, async (req, res) => {
       message: `Successfully synced ${syncResult.synced} Calendly meetings`,
       sync_result: syncResult,
       improvement,
-      recommendations: generateSyncRecommendations(afterStatus)
+      recommendations: generateSyncRecommendations({
+        total_calendly_meetings: totalAfter,
+        sync_health: improvement.sync_health_after
+      })
     });
   } catch (error) {
     console.error('Error syncing Calendly meetings:', error);

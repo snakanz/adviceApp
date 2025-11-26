@@ -25,13 +25,13 @@ const CalendlyPlanInfo = ({
             <div className="flex items-center gap-1">
               <Zap className="w-3 h-3 text-green-600" />
               <span className="font-medium">Live sync active</span>
-              <span className="text-blue-700 dark:text-blue-300">- Meetings sync automatically</span>
+              <span className="text-blue-700 dark:text-blue-300">- Meetings sync instantly</span>
             </div>
           ) : (
             <div className="flex items-center gap-1">
               <RefreshCw className="w-3 h-3" />
-              <span className="font-medium">Manual sync required</span>
-              <span className="text-blue-700 dark:text-blue-300">- Free Calendly plan</span>
+              <span className="font-medium">Polling sync active</span>
+              <span className="text-blue-700 dark:text-blue-300">- Syncs every 15 min</span>
             </div>
           )}
         </div>
@@ -116,26 +116,26 @@ const CalendlyPlanInfo = ({
               <div className="flex items-center gap-2">
                 <RefreshCw className="w-4 h-4 text-blue-600" />
                 <p className="font-semibold text-blue-900 dark:text-blue-100">
-                  Manual Sync Required
+                  Polling Sync Active
                 </p>
               </div>
               <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
-                Your Calendly account is on the <strong>Free plan</strong>, which doesn't support automatic webhooks.
+                Your Calendly account is on the <strong>Free plan</strong>. Meetings sync automatically every 15 minutes.
               </p>
-              
+
               {showSyncButton && (
                 <p className="text-xs text-blue-700 dark:text-blue-300 mb-2">
-                  👇 Click <strong>"Sync Now"</strong> below to manually fetch your latest meetings (takes 5-10 seconds).
+                  👇 Need immediate sync? Click <strong>"Sync Now"</strong> below (takes 5-10 seconds).
                 </p>
               )}
 
               <div className="pt-2 border-t border-blue-200 dark:border-blue-800">
                 <p className="text-xs text-blue-700 dark:text-blue-300 mb-1">
-                  <strong>Want automatic sync?</strong> Upgrade to Calendly Standard or higher:
+                  <strong>Want instant sync?</strong> Upgrade to Calendly Standard or higher for real-time webhooks:
                 </p>
-                <a 
-                  href="https://calendly.com/pricing" 
-                  target="_blank" 
+                <a
+                  href="https://calendly.com/pricing"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline"
                 >
