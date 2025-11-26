@@ -15,7 +15,7 @@ import {
   Zap,
   Clock
 } from 'lucide-react';
-// import CalendlySyncButton from './CalendlySyncButton';
+import CalendlySyncButton from './CalendlySyncButton';
 import CalendlyPlanInfo from './CalendlyPlanInfo';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
@@ -639,8 +639,7 @@ export default function CalendarSettings() {
                           </label>
                         </div>
 
-                        {/* TEMPORARILY DISABLED: Calendly Plan Info & Sync Button */}
-                        {/* {connection.is_active && connection.provider === 'calendly' && (
+                        {connection.is_active && connection.provider === 'calendly' && (
                           <div className="mt-4 space-y-3" onClick={(e) => e.stopPropagation()}>
                             <CalendlyPlanInfo
                               variant="compact"
@@ -657,7 +656,7 @@ export default function CalendarSettings() {
                               />
                             )}
                           </div>
-                        )} */}
+                        )}
                       </div>
                     </div>
 

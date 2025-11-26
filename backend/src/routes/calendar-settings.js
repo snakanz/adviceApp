@@ -816,7 +816,12 @@ router.get('/:id/webhook-status', authenticateSupabaseUser, async (req, res) => 
       webhook_active: false,
       webhook_expires_at: null,
       days_until_expiration: null,
-      sync_method: 'polling' // Default to polling
+      sync_method: 'polling', // Default to polling
+      // Surface raw webhook health from the connection record so the UI
+      // can distinguish plan limitations from real errors
+      webhook_status: connection.webhook_status || null,
+      webhook_last_error: connection.webhook_last_error || null,
+      webhook_last_verified_at: connection.webhook_last_verified_at || null
     };
 
     // Check Google Calendar webhook status
@@ -846,53 +851,55 @@ router.get('/:id/webhook-status', authenticateSupabaseUser, async (req, res) => 
     // Check Calendly webhook status
     if (connection.provider === 'calendly' && connection.is_active) {
       try {
-        // Check if webhook subscription exists for this user's organization
-        // The connection has calendly_organization_uri which links to the webhook subscription
-        const organizationUri = connection.calendly_organization_uri;
+        // Prefer per-user webhook subscriptions where available
+        const { data: webhookSub, error: webhookError } = await req.supabase
+          .from('calendly_webhook_subscriptions')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .eq('scope', 'user')
+          .maybeSingle(); // Use maybeSingle() instead of single() to avoid error if not found
 
-        if (!organizationUri) {
-          console.warn(`⚠️ No organization URI found for connection ${connectionId}`);
-          webhookStatus.webhook_active = false;
-          webhookStatus.has_webhook = false;
-          webhookStatus.sync_method = 'polling';
-          webhookStatus.message = 'Manual sync required (No organization URI)';
+        const hasWebhook = !webhookError && webhookSub;
+
+        webhookStatus.webhook_active = hasWebhook;
+        webhookStatus.has_webhook = hasWebhook;
+        webhookStatus.sync_method = hasWebhook ? 'webhook' : 'polling';
+
+        if (hasWebhook) {
+          webhookStatus.webhook_url = webhookSub.webhook_url;
+          webhookStatus.webhook_events = webhookSub.events;
+          webhookStatus.message = 'Real-time sync enabled via webhooks';
+          webhookStatus.webhook_created_at = webhookSub.created_at;
         } else {
-          // Check if webhook subscription exists for this organization
-          const { data: webhookSub, error: webhookError } = await req.supabase
-            .from('calendly_webhook_subscriptions')
-            .select('*')
-            .eq('organization_uri', organizationUri)
-            .eq('is_active', true)
-            .maybeSingle(); // Use maybeSingle() instead of single() to avoid error if not found
+          // If webhooks are not active, fall back to polling and try to explain why
+          const lastError = connection.webhook_last_error || '';
 
-          const hasWebhook = !webhookError && webhookSub;
-
-          webhookStatus.webhook_active = hasWebhook;
-          webhookStatus.has_webhook = hasWebhook;
-          webhookStatus.sync_method = hasWebhook ? 'webhook' : 'polling';
-
-          if (hasWebhook) {
-            webhookStatus.webhook_url = webhookSub.webhook_url;
-            webhookStatus.webhook_events = webhookSub.events;
-            webhookStatus.message = 'Real-time sync enabled via webhooks';
-            webhookStatus.webhook_created_at = webhookSub.created_at;
+          if (connection.webhook_status === 'error' &&
+              lastError.includes('Please upgrade your Calendly account to Standard')) {
+            webhookStatus.message = 'Manual sync required (Calendly free plan – webhooks not supported)';
+            webhookStatus.plan_limit = 'calendly_free_plan';
+          } else if (connection.webhook_status === 'error' && lastError) {
+            webhookStatus.message = lastError;
           } else {
-            webhookStatus.message = 'Manual sync required (Free Calendly plan)';
+            webhookStatus.message = 'Manual sync required (no active webhook)';
           }
-
-          console.log(`📊 Calendly webhook status for user ${userId}:`, {
-            organization_uri: organizationUri,
-            has_webhook: hasWebhook,
-            sync_method: webhookStatus.sync_method
-          });
         }
+
+        console.log(`📊 Calendly webhook status for user ${userId}:`, {
+          user_id: userId,
+          has_webhook: hasWebhook,
+          sync_method: webhookStatus.sync_method
+        });
       } catch (err) {
         console.warn('Error checking Calendly webhook status:', err.message);
         // Fallback: no webhook
         webhookStatus.webhook_active = false;
         webhookStatus.has_webhook = false;
         webhookStatus.sync_method = 'polling';
-        webhookStatus.message = 'Manual sync required';
+        if (!webhookStatus.message) {
+          webhookStatus.message = 'Manual sync required';
+        }
       }
     }
 
