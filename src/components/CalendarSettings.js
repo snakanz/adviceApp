@@ -30,7 +30,7 @@ export default function CalendarSettings() {
   const [showCalendlyForm, setShowCalendlyForm] = useState(false);
   const [calendlyToken, setCalendlyToken] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
-  const [calendlyAuthMethod, setCalendlyAuthMethod] = useState('token'); // 'token' is now the only method
+  // calendlyAuthMethod removed - now using API token only
   const [webhookStatus, setWebhookStatus] = useState({});
 
   useEffect(() => {
@@ -245,75 +245,7 @@ export default function CalendarSettings() {
     }
   };
 
-  // Calendly OAuth handler - opens popup IMMEDIATELY to avoid popup blocking
-  const handleConnectCalendlyOAuth = async () => {
-    // ✅ STEP 1: Open popup IMMEDIATELY on user click to avoid popup blocking
-    // Browser security requires popups to be opened synchronously from user gesture
-    const width = 500;
-    const height = 700;
-    const left = window.screenX + (window.outerWidth - width) / 2;
-    const top = window.screenY + (window.outerHeight - height) / 2;
-    const popupName = `CalendlyOAuth_${Date.now()}`;
-
-    // Open popup immediately with a loading page
-    const popup = window.open(
-      'about:blank',
-      popupName,
-      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
-    );
-
-    if (!popup) {
-      setError('Popup blocked. Please allow popups for this site and try again.');
-      return;
-    }
-
-    // Show loading message in popup
-    popup.document.write('<html><body style="font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;"><div style="text-align: center;"><h2>Connecting to Calendly...</h2><p>Please wait...</p></div></body></html>');
-
-    try {
-      setIsConnecting(true);
-      setError('');
-      setSuccess('');
-      const token = await getAccessToken();
-
-      // ✅ STEP 2: Get OAuth URL
-      console.log('🔓 Getting Calendly OAuth URL...');
-      const response = await axios.get(
-        `${API_BASE_URL}/api/calendar-connections/calendly/auth-url`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (response.data.url) {
-        const userIdFromToken = await getUserIdFromToken();
-        // Add cache-busting timestamp to force fresh OAuth
-        const urlWithState = `${response.data.url}&state=${userIdFromToken}&t=${Date.now()}`;
-
-        // ✅ STEP 3: Navigate popup to OAuth URL
-        console.log('🔓 Navigating to Calendly OAuth...');
-        popup.location.href = urlWithState;
-
-        // Poll for popup closure and reload connections
-        const checkPopup = setInterval(() => {
-          if (popup.closed) {
-            clearInterval(checkPopup);
-            setIsConnecting(false);
-            console.log('✅ Calendly OAuth popup closed');
-            // Reload connections to show updated status
-            setTimeout(() => loadConnections(), 500);
-          }
-        }, 500);
-      } else {
-        popup.close();
-        setError('Failed to get Calendly authorization URL');
-        setIsConnecting(false);
-      }
-    } catch (err) {
-      console.error('Error connecting Calendly via OAuth:', err);
-      popup.close();
-      setError(err.response?.data?.error || 'Failed to connect Calendly');
-      setIsConnecting(false);
-    }
-  };
+  // OAuth handler removed - now using API token only
 
   const getUserIdFromToken = async () => {
     try {
