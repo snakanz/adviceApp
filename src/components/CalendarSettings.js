@@ -30,7 +30,7 @@ export default function CalendarSettings() {
   const [showCalendlyForm, setShowCalendlyForm] = useState(false);
   const [calendlyToken, setCalendlyToken] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
-  const [calendlyAuthMethod, setCalendlyAuthMethod] = useState('oauth'); // 'oauth' or 'token'
+  const [calendlyAuthMethod, setCalendlyAuthMethod] = useState('token'); // 'token' is now the only method
   const [webhookStatus, setWebhookStatus] = useState({});
 
   useEffect(() => {
@@ -355,7 +355,6 @@ export default function CalendarSettings() {
       setSuccess('Calendly connected successfully!');
       setCalendlyToken('');
       setShowCalendlyForm(false);
-      setCalendlyAuthMethod('oauth');
       loadConnections();
     } catch (err) {
       console.error('Error connecting Calendly:', err);
@@ -808,61 +807,8 @@ export default function CalendarSettings() {
             <CardContent className="space-y-6">
               <CalendlyPlanInfo variant="settings" hasWebhook={false} showSyncButton={true} />
 
-              <div className="space-y-3">
-                <Label>Connection Method</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setCalendlyAuthMethod('oauth')}
-                    className={`p-3 rounded-lg border-2 transition-colors ${
-                      calendlyAuthMethod === 'oauth'
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                  >
-                    <div className="font-semibold text-sm">OAuth (Recommended)</div>
-                    <div className="text-xs text-muted-foreground">Secure & easy</div>
-                  </button>
-                  <button
-                    onClick={() => setCalendlyAuthMethod('token')}
-                    className={`p-3 rounded-lg border-2 transition-colors ${
-                      calendlyAuthMethod === 'token'
-                        ? 'border-primary bg-primary/10'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                  >
-                    <div className="font-semibold text-sm">API Token</div>
-                    <div className="text-xs text-muted-foreground">Manual setup</div>
-                  </button>
-                </div>
-              </div>
-
-              {calendlyAuthMethod === 'oauth' && (
-                <div className="space-y-4 p-4 bg-muted/30 rounded-lg">
-                  <p className="text-sm text-muted-foreground">
-                    Click the button below to authorize Advicly with your Calendly account. You'll be redirected to Calendly to approve access.
-                  </p>
-                  <Button
-                    onClick={handleConnectCalendlyOAuth}
-                    disabled={isConnecting}
-                    className="w-full bg-primary hover:bg-primary/90"
-                  >
-                    {isConnecting ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Redirecting to Calendly...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="w-4 h-4 mr-2" />
-                        Connect with Calendly OAuth
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-
-              {calendlyAuthMethod === 'token' && (
-                <div className="space-y-4">
+              {/* ✅ API Token Method - Now the only/recommended approach */}
+              <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="calendly-token">Calendly API Token</Label>
                     <Input
@@ -905,7 +851,6 @@ export default function CalendarSettings() {
                     </Button>
                   </div>
                 </div>
-              )}
 
               <Button
                 variant="outline"
@@ -913,7 +858,6 @@ export default function CalendarSettings() {
                 onClick={() => {
                   setShowCalendlyForm(false);
                   setCalendlyToken('');
-                  setCalendlyAuthMethod('oauth');
                 }}
               >
                 Cancel

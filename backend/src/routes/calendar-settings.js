@@ -552,7 +552,8 @@ router.get('/calendly/auth-url', authenticateSupabaseUser, async (req, res) => {
 
 /**
  * POST /api/calendar-connections/calendly
- * Connect a Calendly account (via API token)
+ * Connect a Calendly account (via Personal Access Token)
+ * ✅ FIXED: Now validates token and fetches user info before storing
  */
 router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
   try {
@@ -571,59 +572,33 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
       });
     }
 
-    // Get user's email
-    const { data: userData, error: userError } = await req.supabase
-      .from('users')
-      .select('email')
-      .eq('id', userId)
-      .single();
+    console.log(`🔑 Validating Calendly API token for user ${userId}...`);
 
-    if (userError) {
-      console.error('Error getting user data:', userError);
-      return res.status(500).json({
-        error: 'Failed to fetch user data'
+    // ✅ FIXED: Validate the token by fetching user info from Calendly
+    const CalendlyService = require('../services/calendlyService');
+    const calendlyService = new CalendlyService(api_token.trim());
+
+    let calendlyUser;
+    try {
+      calendlyUser = await calendlyService.getCurrentUser();
+      console.log(`✅ Calendly token valid for user: ${calendlyUser.name} (${calendlyUser.email})`);
+    } catch (validationError) {
+      console.error('❌ Calendly token validation failed:', validationError.message);
+      return res.status(400).json({
+        error: 'Invalid Calendly API token',
+        details: 'Could not validate token with Calendly. Please check your token and try again.'
       });
     }
 
-    // TODO: Validate the Calendly API token by making a test API call
-    // For now, we'll just store it
+    // Extract user URI and organization URI from Calendly response
+    const calendlyUserUri = calendlyUser.uri;
+    const calendlyOrganizationUri = calendlyUser.current_organization;
+    const calendlyEmail = calendlyUser.email;
+    const calendlyName = calendlyUser.name;
 
-    // Check if Calendly connection already exists
-    const { data: existingConnection } = await req.supabase
-      .from('calendar_connections')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('provider', 'calendly')
-      .single();
-
-    if (existingConnection) {
-      // Update existing connection
-      const { data, error } = await req.supabase
-        .from('calendar_connections')
-        .update({
-          access_token: api_token,
-          is_active: true,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', existingConnection.id)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error updating Calendly connection:', error);
-        return res.status(500).json({
-          error: 'Failed to update Calendly connection'
-        });
-      }
-
-      console.log(`✅ Calendly connection updated for user ${userId}`);
-
-      return res.json({
-        success: true,
-        message: 'Calendly connection updated successfully',
-        connection: data
-      });
-    }
+    console.log(`📋 Calendly user: ${calendlyName}`);
+    console.log(`   User URI: ${calendlyUserUri}`);
+    console.log(`   Organization URI: ${calendlyOrganizationUri}`);
 
     // Get user's tenant_id
     const { data: user, error: tenantError } = await req.supabase
@@ -642,51 +617,85 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
       return res.status(400).json({ error: 'User must have a tenant to connect calendar' });
     }
 
-    // Deactivate all other active connections (single active connection per user)
-    console.log(`🔄 Deactivating other active calendar connections for user ${userId}...`);
-    const { error: deactivateError } = await req.supabase
+    // Check if Calendly connection already exists
+    const { data: existingConnection } = await req.supabase
       .from('calendar_connections')
-      .update({
-        is_active: false,
-        updated_at: new Date().toISOString()
-      })
+      .select('id')
       .eq('user_id', userId)
-      .eq('is_active', true);
+      .eq('provider', 'calendly')
+      .maybeSingle();
 
-    if (deactivateError) {
-      console.warn(`Warning: Could not deactivate other connections for user ${userId}:`, deactivateError);
+    // ✅ Connection data with all required fields for sync to work
+    const connectionData = {
+      access_token: api_token.trim(),
+      is_active: true,
+      calendly_user_uri: calendlyUserUri,
+      calendly_organization_uri: calendlyOrganizationUri,
+      account_email: calendlyEmail,
+      account_name: calendlyName,
+      webhook_status: 'not_available', // Free plan doesn't support webhooks
+      updated_at: new Date().toISOString()
+    };
+
+    let connectionResult;
+
+    if (existingConnection) {
+      // Update existing connection
+      const { data, error } = await req.supabase
+        .from('calendar_connections')
+        .update(connectionData)
+        .eq('id', existingConnection.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating Calendly connection:', error);
+        return res.status(500).json({
+          error: 'Failed to update Calendly connection'
+        });
+      }
+
+      console.log(`✅ Calendly connection updated for user ${userId}`);
+      connectionResult = data;
     } else {
-      console.log(`✅ Other connections deactivated for user ${userId}`);
+      // Deactivate all other active connections (single active connection per user)
+      console.log(`🔄 Deactivating other active calendar connections for user ${userId}...`);
+      await req.supabase
+        .from('calendar_connections')
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .eq('is_active', true);
+
+      // Create new Calendly connection
+      const { data, error } = await req.supabase
+        .from('calendar_connections')
+        .insert({
+          user_id: userId,
+          tenant_id: user.tenant_id,
+          provider: 'calendly',
+          ...connectionData
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating Calendly connection:', error);
+        return res.status(500).json({
+          error: 'Failed to connect Calendly',
+          details: error.message
+        });
+      }
+
+      console.log(`✅ Calendly connected successfully for user ${userId}`);
+      connectionResult = data;
     }
 
-    // Create new Calendly connection
-    const { data, error } = await req.supabase
-      .from('calendar_connections')
-      .insert({
-        user_id: userId,
-        tenant_id: user.tenant_id,
-        provider: 'calendly',
-        access_token: api_token,
-        is_active: true
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating Calendly connection:', error);
-      return res.status(500).json({
-        error: 'Failed to connect Calendly',
-        details: error.message
-      });
-    }
-
-    console.log(`✅ Calendly connected successfully for user ${userId}`);
-
-    // Trigger automatic sync in background
+    // ✅ Trigger automatic sync in background
     try {
       console.log('🔄 Triggering initial Calendly sync in background...');
-      const CalendlyService = require('../services/calendlyService');
-      const calendlyService = new CalendlyService(api_token);
 
       // Don't await - let it run in background
       calendlyService.syncMeetingsToDatabase(userId).then(syncResult => {
@@ -701,7 +710,11 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
     res.json({
       success: true,
       message: 'Calendly connected successfully',
-      connection: data
+      connection: connectionResult,
+      calendly_user: {
+        name: calendlyName,
+        email: calendlyEmail
+      }
     });
 
   } catch (error) {
