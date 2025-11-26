@@ -245,77 +245,52 @@ export default function CalendarSettings() {
     }
   };
 
-  // Calendly OAuth handler with forced fresh login
+  // Calendly OAuth handler - opens popup IMMEDIATELY to avoid popup blocking
   const handleConnectCalendlyOAuth = async () => {
+    // ✅ STEP 1: Open popup IMMEDIATELY on user click to avoid popup blocking
+    // Browser security requires popups to be opened synchronously from user gesture
+    const width = 500;
+    const height = 700;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    const popupName = `CalendlyOAuth_${Date.now()}`;
+
+    // Open popup immediately with a loading page
+    const popup = window.open(
+      'about:blank',
+      popupName,
+      `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
+
+    if (!popup) {
+      setError('Popup blocked. Please allow popups for this site and try again.');
+      return;
+    }
+
+    // Show loading message in popup
+    popup.document.write('<html><body style="font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;"><div style="text-align: center;"><h2>Connecting to Calendly...</h2><p>Please wait...</p></div></body></html>');
+
     try {
       setIsConnecting(true);
       setError('');
       setSuccess('');
       const token = await getAccessToken();
 
-      // ✅ STEP 1: Force logout from Calendly by opening logout URL in hidden iframe
-      // This clears Calendly's session cookies so OAuth will show login screen
-      console.log('🔓 Step 1: Forcing Calendly logout via hidden iframe...');
-      await new Promise((resolve) => {
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = 'https://calendly.com/logout';
-        iframe.onload = () => {
-          console.log('✅ Calendly logout iframe loaded');
-          setTimeout(() => {
-            document.body.removeChild(iframe);
-            resolve();
-          }, 1000); // Wait 1 second for logout to complete
-        };
-        iframe.onerror = () => {
-          console.warn('⚠️ Calendly logout iframe failed (CORS expected)');
-          document.body.removeChild(iframe);
-          resolve(); // Continue anyway
-        };
-        document.body.appendChild(iframe);
-        // Timeout fallback in case onload doesn't fire
-        setTimeout(() => {
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-          }
-          resolve();
-        }, 2000);
-      });
-
-      // ✅ STEP 2: Get OAuth URL with fresh nonce
-      console.log('🔓 Step 2: Getting Calendly OAuth URL...');
+      // ✅ STEP 2: Get OAuth URL
+      console.log('🔓 Getting Calendly OAuth URL...');
       const response = await axios.get(
         `${API_BASE_URL}/api/calendar-connections/calendly/auth-url`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
       if (response.data.url) {
-        // Get current user ID from token to pass in state parameter
         const userIdFromToken = await getUserIdFromToken();
-        // Add max_age=0 to force re-authentication and unique timestamp
-        const urlWithState = `${response.data.url}&state=${userIdFromToken}&max_age=0&t=${Date.now()}`;
+        // Add cache-busting timestamp to force fresh OAuth
+        const urlWithState = `${response.data.url}&state=${userIdFromToken}&t=${Date.now()}`;
 
-        // ✅ STEP 3: Open OAuth popup with unique name
-        // Use unique popup name with timestamp to force fresh window
-        const popupName = `CalendlyOAuth_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-
-        const width = 500;
-        const height = 700; // Taller to show full login form
-        const left = window.screenX + (window.outerWidth - width) / 2;
-        const top = window.screenY + (window.outerHeight - height) / 2;
-
-        console.log(`🔓 Step 3: Opening fresh Calendly OAuth popup: ${popupName}`);
-        const popup = window.open(
-          urlWithState,
-          popupName,
-          `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,noopener`
-        );
-
-        if (!popup) {
-          setError('Popup blocked. Please allow popups for this site and try again.');
-          setIsConnecting(false);
-          return;
-        }
+        // ✅ STEP 3: Navigate popup to OAuth URL
+        console.log('🔓 Navigating to Calendly OAuth...');
+        popup.location.href = urlWithState;
 
         // Poll for popup closure and reload connections
         const checkPopup = setInterval(() => {
@@ -327,9 +302,14 @@ export default function CalendarSettings() {
             setTimeout(() => loadConnections(), 500);
           }
         }, 500);
+      } else {
+        popup.close();
+        setError('Failed to get Calendly authorization URL');
+        setIsConnecting(false);
       }
     } catch (err) {
       console.error('Error connecting Calendly via OAuth:', err);
+      popup.close();
       setError(err.response?.data?.error || 'Failed to connect Calendly');
       setIsConnecting(false);
     }
