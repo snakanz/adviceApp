@@ -399,10 +399,23 @@ class CalendlyService {
               console.log(`✅ Created new meeting: ${meetingData.title}`);
               syncedCount++;
 
-              // Schedule Recall bot if transcription is enabled
+              // Schedule Recall bot if transcription is enabled AND meeting is happening now / very soon
               if (transcriptionEnabled && newMeeting) {
                 try {
-                  await this.scheduleRecallBotForCalendlyEvent(event, newMeeting.id, userId);
+                  const now = new Date();
+                  const start = new Date(event.start_time);
+                  const end = new Date(event.end_time);
+
+                  const alreadyOver = end <= now;
+                  const startsTooFarInFuture = start.getTime() - now.getTime() > 15 * 60 * 1000; // more than 15 minutes ahead
+
+                  if (!alreadyOver && !startsTooFarInFuture) {
+                    await this.scheduleRecallBotForCalendlyEvent(event, newMeeting.id, userId);
+                  } else {
+                    console.log(
+                      `⏭️  Skipping Recall bot for Calendly event "${event.name}" (start=${start.toISOString()}, end=${end.toISOString()})`
+                    );
+                  }
                 } catch (recallError) {
                   console.warn(`⚠️  Failed to schedule Recall bot for meeting ${newMeeting.id}:`, recallError.message);
                   // Don't fail the sync if Recall scheduling fails
@@ -507,6 +520,23 @@ class CalendlyService {
    */
   async scheduleRecallBotForCalendlyEvent(event, meetingId, userId) {
     try {
+      const now = new Date();
+      const start = new Date(event.start_time);
+      const end = new Date(event.end_time);
+
+      // Only create a bot if the meeting is in progress or starting very soon
+      const graceMs = 5 * 60 * 1000; // 5-minute grace period before start
+      const inProgressOrJustStarting =
+        start.getTime() - graceMs <= now.getTime() &&
+        now.getTime() <= end.getTime();
+
+      if (!inProgressOrJustStarting) {
+        console.log(
+          `⏭️  Not creating Recall bot for Calendly event outside live window: "${event.name}" (start=${start.toISOString()}, end=${end.toISOString()})`
+        );
+        return;
+      }
+
       // Extract meeting URL from Calendly event
       let meetingUrl = null;
 

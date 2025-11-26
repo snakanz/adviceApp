@@ -451,7 +451,7 @@ class CalendarSyncService {
           return; // Skip this meeting
         }
 
-        // Schedule Recall bot if transcription is enabled AND meeting is in the future AND user has access
+        // Schedule Recall bot if transcription is enabled AND meeting is happening now / very soon AND user has access
         try {
           const { data: connections } = await getSupabase()
             .from('calendar_connections')
@@ -464,21 +464,18 @@ class CalendarSyncService {
 
           if (connection?.transcription_enabled) {
             const now = new Date();
-            const meetingStart = new Date(calendarEvent.start.dateTime || calendarEvent.start.date);
+            const start = new Date(calendarEvent.start.dateTime || calendarEvent.start.date);
+            const end = new Date(calendarEvent.end?.dateTime || calendarEvent.end?.date || start);
 
-            if (meetingStart > now) {
+            const alreadyOver = end <= now;
+            const startsTooFarInFuture = start.getTime() - now.getTime() > 15 * 60 * 1000; // more than 15 minutes ahead
+
+            if (!alreadyOver && !startsTooFarInFuture) {
               // Check if user has transcription access (5 free meetings or paid subscription)
               const hasAccess = await this.checkUserHasTranscriptionAccess(userId);
 
               if (hasAccess) {
-                // Check if meeting is within 30 days (don't schedule bots too far in advance)
-                const daysUntilMeeting = (meetingStart - now) / (1000 * 60 * 60 * 24);
-
-                if (daysUntilMeeting <= 30) {
-                  await this.scheduleRecallBotForMeeting(calendarEvent, newMeeting.id, userId);
-                } else {
-                  console.log(`⏭️  Skipping Recall bot for meeting too far in future: ${calendarEvent.summary} (${Math.round(daysUntilMeeting)} days away)`);
-                }
+                await this.scheduleRecallBotForMeeting(calendarEvent, newMeeting.id, userId);
               } else {
                 console.log(`⏭️  User ${userId} has exceeded free meeting limit. Skipping bot for: ${calendarEvent.summary}`);
 
@@ -492,7 +489,9 @@ class CalendarSyncService {
                   .eq('id', newMeeting.id);
               }
             } else {
-              console.log(`⏭️  Skipping Recall bot for past meeting: ${calendarEvent.summary} (${meetingStart.toISOString()})`);
+              console.log(
+                `⏭️  Skipping Recall bot for meeting outside live window: ${calendarEvent.summary} (start=${start.toISOString()}, end=${end.toISOString()})`
+              );
             }
           }
         } catch (recallError) {
@@ -637,10 +636,27 @@ class CalendarSyncService {
   }
 
   /**
-   * Schedule Recall bot for a meeting (only for future meetings)
+   * Schedule Recall bot for a meeting (only when live / starting very soon)
    */
   async scheduleRecallBotForMeeting(event, meetingId, userId) {
     try {
+      const now = new Date();
+      const start = new Date(event.start?.dateTime || event.start?.date || new Date());
+      const end = new Date(event.end?.dateTime || event.end?.date || start);
+
+      // Only create a bot if the meeting is in progress or starting very soon
+      const graceMs = 5 * 60 * 1000; // 5-minute grace period before start
+      const inProgressOrJustStarting =
+        start.getTime() - graceMs <= now.getTime() &&
+        now.getTime() <= end.getTime();
+
+      if (!inProgressOrJustStarting) {
+        console.log(
+          `⏭️  Not creating Recall bot for event outside live window: "${event.summary || event.id}" (start=${start.toISOString()}, end=${end.toISOString()})`
+        );
+        return;
+      }
+
       // Extract meeting URL from event
       let meetingUrl = null;
 
