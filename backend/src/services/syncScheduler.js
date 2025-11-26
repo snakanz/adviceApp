@@ -2,6 +2,7 @@ const cron = require('node-cron');
 const CalendlyService = require('./calendlyService');
 const GoogleCalendarWebhook = require('./googleCalendarWebhook');
 const MicrosoftCalendarService = require('./microsoftCalendar');
+const WebhookHealthService = require('./webhookHealthService');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 
 /**
@@ -42,6 +43,18 @@ class SyncScheduler {
       schedule: 'Every 15 minutes'
     });
 
+    // Schedule Calendly webhook health check every day at 1 AM
+    // 0 1 * * * = every day at 1:00 AM
+    const calendlyWebhookHealthTask = cron.schedule('0 1 * * *', async () => {
+      await this.renewCalendlyWebhooksForAllUsers();
+    });
+
+    this.scheduledTasks.push({
+      name: 'Calendly Webhook Health Check',
+      task: calendlyWebhookHealthTask,
+      schedule: 'Every day at 1:00 AM'
+    });
+
     // Schedule Google Calendar webhook renewal every day at 2 AM
     // 0 2 * * * = every day at 2:00 AM
     const googleWebhookRenewalTask = cron.schedule('0 2 * * *', async () => {
@@ -69,6 +82,7 @@ class SyncScheduler {
     this.isRunning = true;
     console.log('✅ Sync scheduler started successfully');
     console.log('📅 Calendly sync will run every 15 minutes');
+    console.log('📡 Calendly webhooks will be checked daily at 1:00 AM');
     console.log('📡 Google Calendar webhooks will renew daily at 2:00 AM');
     console.log('📡 Microsoft Calendar webhooks will renew daily at 3:00 AM');
   }
@@ -107,47 +121,54 @@ class SyncScheduler {
         return;
       }
 
-      if (!this.calendlyService.isConfigured()) {
-        console.log('⚠️  [Scheduled Sync] Calendly not configured, skipping sync');
-        return;
-      }
-
-      // Get all active users
-      const { data: users, error } = await getSupabase()
-        .from('users')
-        .select('id, email, name')
-        .order('id');
+      // Get all users with active Calendly connections
+      const { data: connections, error } = await getSupabase()
+        .from('calendar_connections')
+        .select('user_id')
+        .eq('provider', 'calendly')
+        .eq('is_active', true);
 
       if (error) {
-        console.error('❌ [Scheduled Sync] Error fetching users:', error);
+        console.error('❌ [Scheduled Sync] Error fetching Calendly connections:', error);
         return;
       }
 
-      if (!users || users.length === 0) {
-        console.log('⚠️  [Scheduled Sync] No users found');
+      if (!connections || connections.length === 0) {
+        console.log('⚠️  [Scheduled Sync] No active Calendly connections found');
         return;
       }
 
-      console.log(`📊 [Scheduled Sync] Found ${users.length} user(s) to sync`);
+      console.log(`📊 [Scheduled Sync] Found ${connections.length} active Calendly connection(s)`);
 
-      // Sync for each user
       let totalSynced = 0;
       let totalUpdated = 0;
       let totalErrors = 0;
 
-      for (const user of users) {
+      for (const connection of connections) {
+        const userId = connection.user_id;
+
         try {
-          console.log(`  🔄 Syncing for user ${user.id} (${user.email})...`);
-          
-          const result = await this.calendlyService.syncMeetingsToDatabase(user.id);
-          
+          console.log(`  🔄 Syncing Calendly events for user ${userId}...`);
+
+          // Get a fresh access token for this user (auto-refreshes if needed)
+          const accessToken = await CalendlyService.getUserAccessToken(userId);
+
+          if (!accessToken) {
+            console.warn(`  ⚠️  Skipping user ${userId} - no valid Calendly access token`);
+            totalErrors++;
+            continue;
+          }
+
+          const calendlyService = new CalendlyService(accessToken);
+          const result = await calendlyService.syncMeetingsToDatabase(userId);
+
           totalSynced += result.synced || 0;
           totalUpdated += result.updated || 0;
           totalErrors += result.errors || 0;
 
-          console.log(`  ✅ User ${user.id}: ${result.synced} new, ${result.updated} updated`);
+          console.log(`  ✅ User ${userId}: ${result.synced} new, ${result.updated} updated`);
         } catch (userError) {
-          console.error(`  ❌ Error syncing for user ${user.id}:`, userError.message);
+          console.error(`  ❌ Error syncing Calendly for user ${userId}:`, userError.message);
           totalErrors++;
         }
       }
@@ -215,6 +236,59 @@ class SyncScheduler {
 
     } catch (error) {
       console.error('❌ [Webhook Renewal] Fatal error:', error);
+    }
+  }
+
+  /**
+   * Renew Calendly webhooks for all users (health check + recreation)
+   * Ensures Calendly webhooks stay active or are recreated when missing
+   */
+  async renewCalendlyWebhooksForAllUsers() {
+    try {
+      console.log('\n📡 [Webhook Renewal] Starting Calendly webhook renewal...');
+
+      if (!isSupabaseAvailable()) {
+        console.log('❌ [Webhook Renewal] Database unavailable, skipping Calendly renewal');
+        return;
+      }
+
+      // Get all users with active Calendly connections
+      const { data: connections, error } = await getSupabase()
+        .from('calendar_connections')
+        .select('user_id')
+        .eq('provider', 'calendly')
+        .eq('is_active', true);
+
+      if (error) {
+        console.error('❌ [Webhook Renewal] Error fetching Calendly connections:', error);
+        return;
+      }
+
+      if (!connections || connections.length === 0) {
+        console.log('⚠️  [Webhook Renewal] No active Calendly connections found');
+        return;
+      }
+
+      console.log(`📊 [Webhook Renewal] Found ${connections.length} active Calendly connection(s)`);
+
+      let checked = 0;
+      let failed = 0;
+
+      for (const connection of connections) {
+        try {
+          console.log(`  🔄 Checking Calendly webhook health for user ${connection.user_id}...`);
+          await WebhookHealthService.checkAndRepairWebhook(connection.user_id);
+          checked++;
+        } catch (userError) {
+          console.error(`  ❌ Error checking Calendly webhook for user ${connection.user_id}:`, userError.message);
+          failed++;
+        }
+      }
+
+      console.log(`\n✅ [Webhook Renewal] Completed: ${checked} checked, ${failed} failed`);
+      console.log(`⏰ Next Calendly webhook health check in 24 hours\n`);
+    } catch (error) {
+      console.error('❌ [Webhook Renewal] Fatal error (Calendly):', error);
     }
   }
 

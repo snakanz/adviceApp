@@ -22,7 +22,8 @@ class CalendlyWebhookService {
    * Check if webhook service is properly configured
    */
   isConfigured() {
-    return !!(this.accessToken && this.signingKey);
+    // Only require an access token; signing keys are managed per-webhook and stored in the database
+    return !!this.accessToken;
   }
 
   /**
@@ -122,7 +123,7 @@ class CalendlyWebhookService {
       console.log(`   Webhook URL: ${this.webhookUrl}`);
 
       if (!this.isConfigured()) {
-        throw new Error('Calendly webhook service not configured (missing access token or signing key)');
+        throw new Error('Calendly webhook service not configured (missing access token)');
       }
 
       // ✅ DIAGNOSTIC: Fetch organization details to check plan before creating webhook
