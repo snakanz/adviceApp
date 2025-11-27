@@ -584,7 +584,7 @@ router.get('/debug-api', authenticateSupabaseUser, async (req, res) => {
       max_start_time: timeMax.toISOString(),
       status: 'active',
       sort: 'start_time:asc',
-      page_size: '100',
+      count: '100', // Calendly API v2 uses 'count' parameter (max 100)
       user: userInfo.uri
     });
 

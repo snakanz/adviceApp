@@ -226,7 +226,7 @@ class CalendlyService {
       max_start_time: timeMax.toISOString(),
       status: status,
       sort: 'start_time:asc',
-      page_size: '100' // v2 uses page_size instead of count
+      count: '100' // Calendly API v2 uses 'count' parameter (max 100)
     });
 
     // Add either user or organization parameter (one is required)

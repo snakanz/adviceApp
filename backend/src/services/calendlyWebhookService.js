@@ -224,7 +224,7 @@ class CalendlyWebhookService {
       do {
         const params = new URLSearchParams({
           scope: scope,
-          page_size: '100', // v2 uses page_size
+          count: '100', // Calendly API v2 uses 'count' parameter (max 100)
           organization: organizationUri  // ✅ ALWAYS include organization
         });
 
