@@ -32,13 +32,17 @@ class CalendlyService {
 
   /**
    * Make authenticated request to Calendly API using user's access token
+   * @param {string} endpointOrFullUrl - Either an endpoint like '/users/me' or a full URL from Calendly's next_page
    */
-  async makeRequest(endpoint, options = {}) {
+  async makeRequest(endpointOrFullUrl, options = {}) {
     if (!this.accessToken) {
       throw new Error('Calendly access token not provided. Please connect your Calendly account.');
     }
 
-    const url = `${this.baseURL}${endpoint}`;
+    // Check if it's a full URL (from Calendly's pagination) or a relative endpoint
+    const url = endpointOrFullUrl.startsWith('https://')
+      ? endpointOrFullUrl
+      : `${this.baseURL}${endpointOrFullUrl}`;
 
     // 🔍 DEBUG: Log the token prefix to verify we're using the right token
     const tokenPrefix = this.accessToken.substring(0, 20);
@@ -247,14 +251,14 @@ class CalendlyService {
     console.log(`   Time Range: ${timeMin.toISOString()} to ${timeMax.toISOString()}`);
     console.log(`   Full URL: ${requestUrl}`);
 
+    // Use next_page URL directly from Calendly's response (more reliable than reconstructing)
+    let nextPageUrl = null;
+
     do {
       console.log(`📄 Fetching ${status} events page ${pageCount + 1}...`);
 
-      // Add cursor to URL if we have one (for pagination)
-      let urlToFetch = requestUrl;
-      if (cursor) {
-        urlToFetch += `&page_token=${encodeURIComponent(cursor)}`;
-      }
+      // For first page, use the constructed URL; for subsequent pages, use Calendly's next_page URL
+      const urlToFetch = nextPageUrl || requestUrl;
 
       const data = await this.makeRequest(urlToFetch);
 
@@ -272,25 +276,19 @@ class CalendlyService {
         console.log(`   Last event: ${lastEvent.name || 'Unnamed'} | ${new Date(lastEvent.start_time).toISOString()}`);
       }
 
-      // v2 API pagination - check for next_page_token in the pagination object
+      // v2 API pagination - use the next_page URL directly from Calendly's response
+      // This is more reliable than trying to reconstruct it with page_token
       const pagination = data.pagination || {};
 
-      // Calendly v2 uses 'next_page_token' for cursor-based pagination
-      // Also check for 'next_page' URL which some versions return
-      cursor = pagination.next_page_token || null;
+      // Use the full next_page URL directly - this is the recommended approach
+      nextPageUrl = pagination.next_page || null;
 
-      // If no token but we have a next_page URL, extract the token from it
-      if (!cursor && pagination.next_page) {
-        const nextPageUrl = new URL(pagination.next_page);
-        cursor = nextPageUrl.searchParams.get('page_token');
-      }
-
-      console.log(`📄 Pagination info: next_page_token=${cursor ? 'present' : 'none'}, next_page=${pagination.next_page ? 'present' : 'none'}`);
+      console.log(`📄 Pagination info: next_page=${nextPageUrl ? 'present' : 'none'}, next_page_token=${pagination.next_page_token ? 'present' : 'none'}`);
 
       // If we got fewer than 100 events, we're at the end
       if (events.length < 100) {
         console.log(`📄 Received ${events.length} ${status} events (less than 100), reached end of results`);
-        cursor = null;
+        nextPageUrl = null;
       }
 
       // Safety check to prevent infinite loops
@@ -299,7 +297,7 @@ class CalendlyService {
         break;
       }
 
-    } while (cursor);
+    } while (nextPageUrl);
 
     console.log(`✅ Fetched ${allEvents.length} ${status} events across ${pageCount} pages`);
 
