@@ -253,7 +253,7 @@ class CalendlyService {
       // Add cursor to URL if we have one (for pagination)
       let urlToFetch = requestUrl;
       if (cursor) {
-        urlToFetch += `&pagination_token=${encodeURIComponent(cursor)}`;
+        urlToFetch += `&page_token=${encodeURIComponent(cursor)}`;
       }
 
       const data = await this.makeRequest(urlToFetch);
@@ -264,25 +264,32 @@ class CalendlyService {
 
       console.log(`📊 Page ${pageCount}: Found ${events.length} ${status} events (Total: ${allEvents.length})`);
 
-      // 🔍 DEBUG: Log each event's key details
+      // 🔍 DEBUG: Log first and last event of each page
       if (events.length > 0) {
-        console.log(`🔍 DEBUG: Events on page ${pageCount}:`);
-        events.forEach((event, idx) => {
-          const startTime = new Date(event.start_time);
-          const eventName = event.name || 'Unnamed';
-          const eventUri = event.uri || 'No URI';
-          const eventType = event.event_type || 'Unknown type';
-          console.log(`   [${idx + 1}] ${eventName} | Start: ${startTime.toISOString()} | URI: ${eventUri.split('/').pop()}`);
-        });
+        const firstEvent = events[0];
+        const lastEvent = events[events.length - 1];
+        console.log(`   First event: ${firstEvent.name || 'Unnamed'} | ${new Date(firstEvent.start_time).toISOString()}`);
+        console.log(`   Last event: ${lastEvent.name || 'Unnamed'} | ${new Date(lastEvent.start_time).toISOString()}`);
       }
 
-      // v2 uses pagination_token instead of next_page
+      // v2 API pagination - check for next_page_token in the pagination object
       const pagination = data.pagination || {};
+
+      // Calendly v2 uses 'next_page_token' for cursor-based pagination
+      // Also check for 'next_page' URL which some versions return
       cursor = pagination.next_page_token || null;
+
+      // If no token but we have a next_page URL, extract the token from it
+      if (!cursor && pagination.next_page) {
+        const nextPageUrl = new URL(pagination.next_page);
+        cursor = nextPageUrl.searchParams.get('page_token');
+      }
+
+      console.log(`📄 Pagination info: next_page_token=${cursor ? 'present' : 'none'}, next_page=${pagination.next_page ? 'present' : 'none'}`);
 
       // If we got fewer than 100 events, we're at the end
       if (events.length < 100) {
-        console.log(`📄 Received fewer than 100 ${status} events, reached end of results`);
+        console.log(`📄 Received ${events.length} ${status} events (less than 100), reached end of results`);
         cursor = null;
       }
 
