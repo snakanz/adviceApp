@@ -71,8 +71,8 @@ class CalendlyService {
     const jsonData = await response.json();
 
     // 🔍 DEBUG: Log raw response for scheduled_events endpoint
-    if (endpoint.includes('scheduled_events') && !endpoint.includes('invitees')) {
-      console.log(`🔍 DEBUG RAW RESPONSE for ${endpoint.substring(0, 50)}...:`);
+    if (endpointOrFullUrl.includes('scheduled_events') && !endpointOrFullUrl.includes('invitees')) {
+      console.log(`🔍 DEBUG RAW RESPONSE for ${endpointOrFullUrl.substring(0, 50)}...:`);
       console.log(`   Total events in response: ${jsonData.collection?.length || 0}`);
       if (jsonData.collection && jsonData.collection.length > 0) {
         // Log the LAST event (most recent by start_time since we sort asc)
