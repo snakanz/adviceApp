@@ -46,7 +46,7 @@ class CalendlyService {
 
     // 🔍 DEBUG: Log the token prefix to verify we're using the right token
     const tokenPrefix = this.accessToken.substring(0, 20);
-    console.log(`🔍 DEBUG API Request: ${endpoint.substring(0, 100)}...`);
+    console.log(`🔍 DEBUG API Request: ${endpointOrFullUrl.substring(0, 100)}...`);
     console.log(`   Token prefix: ${tokenPrefix}...`);
 
     const response = await fetch(url, {
