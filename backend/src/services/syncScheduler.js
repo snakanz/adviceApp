@@ -110,21 +110,25 @@ class SyncScheduler {
   }
 
   /**
-   * Sync Calendly meetings for all users
+   * Sync Calendly meetings for all users (FREE PLAN USERS ONLY)
+   *
+   * Paid plan users have real-time webhooks, so they don't need polling.
+   * This scheduled sync only runs for users without active webhooks.
    */
   async syncCalendlyForAllUsers() {
     try {
-      console.log('\n🔄 [Scheduled Sync] Starting automatic Calendly sync...');
+      console.log('\n🔄 [Scheduled Sync] Starting automatic Calendly sync for FREE plan users...');
 
       if (!isSupabaseAvailable()) {
         console.log('❌ [Scheduled Sync] Database unavailable, skipping sync');
         return;
       }
 
-      // Get all users with active Calendly connections
+      // Get all users with active Calendly connections that DON'T have working webhooks
+      // Users with webhook_status = 'active' are on paid plans and get real-time sync
       const { data: connections, error } = await getSupabase()
         .from('calendar_connections')
-        .select('user_id')
+        .select('user_id, webhook_status, calendly_webhook_uri')
         .eq('provider', 'calendly')
         .eq('is_active', true);
 
@@ -138,13 +142,29 @@ class SyncScheduler {
         return;
       }
 
-      console.log(`📊 [Scheduled Sync] Found ${connections.length} active Calendly connection(s)`);
+      // Filter to only include users WITHOUT active webhooks (free plan users)
+      const freeplanUsers = connections.filter(conn =>
+        conn.webhook_status !== 'active' || !conn.calendly_webhook_uri
+      );
+
+      const paidPlanUsers = connections.length - freeplanUsers.length;
+
+      if (freeplanUsers.length === 0) {
+        console.log(`✅ [Scheduled Sync] All ${connections.length} user(s) have active webhooks - no polling needed`);
+        return;
+      }
+
+      console.log(`📊 [Scheduled Sync] Found ${freeplanUsers.length} FREE plan user(s) needing polling sync`);
+      console.log(`   (Skipping ${paidPlanUsers} user(s) with active webhooks)`);
+
+      // Replace connections with filtered list
+      const connectionsToSync = freeplanUsers;
 
       let totalSynced = 0;
       let totalUpdated = 0;
       let totalErrors = 0;
 
-      for (const connection of connections) {
+      for (const connection of connectionsToSync) {
         const userId = connection.user_id;
 
         try {

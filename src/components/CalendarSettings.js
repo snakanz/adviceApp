@@ -970,63 +970,87 @@ export default function CalendarSettings() {
           )}
         </div>
 
-        {/* Calendly Connection Form */}
-        {showCalendlyForm && (
-          <Card className="border-primary/50">
-            <CardHeader>
-              <CardTitle>Connect Calendly</CardTitle>
-              <CardDescription>
-                Choose how you'd like to connect your Calendly account
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <CalendlyPlanInfo variant="settings" hasWebhook={false} showSyncButton={true} />
+      </div>
 
-              {/* ✅ API Token Method - Now the only/recommended approach */}
-              <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="calendly-token">Calendly API Token</Label>
-                    <Input
-                      id="calendly-token"
-                      type="password"
-                      placeholder="Enter your Calendly API token"
-                      value={calendlyToken}
-                      onChange={(e) => setCalendlyToken(e.target.value)}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Get your API token from{' '}
-                      <a
-                        href="https://calendly.com/integrations/api_webhooks"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-primary hover:underline"
-                      >
-                        Calendly Settings → Integrations
-                      </a>
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleConnectCalendlyToken}
-                      disabled={isConnecting || !calendlyToken.trim()}
-                      className="flex-1"
-                    >
-                      {isConnecting ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Connecting...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="w-4 h-4 mr-2" />
-                          Connect with Token
-                        </>
-                      )}
-                    </Button>
-                  </div>
+      {/* Calendly Connection Modal */}
+      {showCalendlyForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            {/* Header - matches SyncProgressModal style */}
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                  <span className="text-2xl">📅</span>
                 </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Connect Calendly</h3>
+                  <p className="text-sm text-white/80">Sync your scheduling data</p>
+                </div>
+              </div>
+            </div>
 
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              {/* Token Input */}
+              <div className="space-y-2">
+                <Label htmlFor="calendly-token" className="text-foreground font-medium">
+                  Calendly API Token
+                </Label>
+                <Input
+                  id="calendly-token"
+                  type="password"
+                  placeholder="Enter your Calendly API token"
+                  value={calendlyToken}
+                  onChange={(e) => setCalendlyToken(e.target.value)}
+                  className="bg-background"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Get your API token from{' '}
+                  <a
+                    href="https://calendly.com/integrations/api_webhooks"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline font-medium"
+                  >
+                    Calendly Settings → Integrations
+                  </a>
+                </p>
+              </div>
+
+              {/* Info about sync methods */}
+              <div className="p-4 bg-muted/50 rounded-lg space-y-2">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-green-600" />
+                  <span className="text-sm font-medium text-foreground">Paid plans</span>
+                  <span className="text-xs text-muted-foreground">- Real-time sync via webhooks</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-amber-600" />
+                  <span className="text-sm font-medium text-foreground">Free plan</span>
+                  <span className="text-xs text-muted-foreground">- Auto-syncs every 15 min</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-6 space-y-3">
+              <Button
+                onClick={handleConnectCalendlyToken}
+                disabled={isConnecting || !calendlyToken.trim()}
+                className="w-full"
+              >
+                {isConnecting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="w-4 h-4 mr-2" />
+                    Connect Calendly
+                  </>
+                )}
+              </Button>
               <Button
                 variant="outline"
                 className="w-full"
@@ -1037,10 +1061,10 @@ export default function CalendarSettings() {
               >
                 Cancel
               </Button>
-            </CardContent>
-          </Card>
-        )} */}
-      </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sync Progress Modal */}
       <SyncProgressModal
