@@ -609,8 +609,7 @@ app.get('/api/dev/meetings', async (req, res) => {
       `)
       .eq('user_id', userId)
       .or('is_deleted.is.null,is_deleted.eq.false') // Show meetings where is_deleted is NULL or false
-      .order('starttime', { ascending: false })
-      .limit(100);
+      .order('starttime', { ascending: false });
 
     if (error) {
       console.error('❌ Database query error:', error);
