@@ -540,6 +540,64 @@ function generateSyncRecommendations(syncStatus) {
   return recommendations;
 }
 
+/**
+ * GET /api/calendly/sync-status
+ * Get current sync status for the frontend progress animation
+ */
+router.get('/sync-status', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const supabase = getSupabase();
+
+    // Get counts of synced data
+    const [meetingsResult, clientsResult, connectionResult] = await Promise.all([
+      supabase
+        .from('meetings')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('meeting_source', 'calendly'),
+      supabase
+        .from('clients')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId),
+      supabase
+        .from('calendar_connections')
+        .select('last_sync_at, created_at')
+        .eq('user_id', userId)
+        .eq('provider', 'calendly')
+        .eq('is_active', true)
+        .maybeSingle()
+    ]);
+
+    const meetingsCount = meetingsResult.count || 0;
+    const clientsCount = clientsResult.count || 0;
+    const connection = connectionResult.data;
+
+    // Determine if sync is still in progress
+    // Consider sync "in progress" if connection was created in the last 2 minutes and we have few meetings
+    const isSyncing = connection &&
+      new Date() - new Date(connection.created_at) < 120000 && // Within 2 minutes of creation
+      meetingsCount < 10; // Still loading (arbitrary threshold)
+
+    res.json({
+      success: true,
+      meetings_count: meetingsCount,
+      clients_count: clientsCount,
+      is_syncing: isSyncing,
+      last_sync_at: connection?.last_sync_at || null
+    });
+  } catch (error) {
+    console.error('Error getting sync status:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get sync status',
+      meetings_count: 0,
+      clients_count: 0,
+      is_syncing: false
+    });
+  }
+});
+
 // 🔍 DEBUG: Test Calendly API directly to see raw response
 router.get('/debug-api', authenticateSupabaseUser, async (req, res) => {
   try {

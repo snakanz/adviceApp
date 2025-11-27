@@ -241,14 +241,14 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
     // Get meetings from DATABASE (includes Google Calendar, Calendly, and manual meetings)
     // This ensures we respect deletion detection and other database state
     const now = new Date();
-    const timeMin = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000); // 3 months ago
+    // Get all meetings without time filter to show historical Calendly meetings
+    // Frontend will handle grouping/pagination as needed
 
     const { data: meetings, error } = await getSupabase()
       .from('meetings')
       .select('*')
       .eq('user_id', userId)
       .or('is_deleted.is.null,is_deleted.eq.false') // Show meetings where is_deleted is NULL or false
-      .gte('starttime', timeMin.toISOString())
       .order('starttime', { ascending: true });
 
     if (error) {
@@ -267,10 +267,15 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
       const eventEnd = meeting.endtime ? new Date(meeting.endtime) : null;
 
       const processedEvent = {
-        id: meeting.googleeventid,
+        // Use database id for all meetings, keep googleeventid for backwards compatibility
+        id: meeting.id,
+        googleEventId: meeting.googleeventid,
+        externalId: meeting.external_id,
+        meetingSource: meeting.meeting_source || 'google',
         summary: meeting.title || 'Untitled Meeting',
         start: { dateTime: meeting.starttime },
         end: meeting.endtime ? { dateTime: meeting.endtime } : null,
+        startTime: meeting.starttime, // Also include as startTime for Calendly compatibility
         description: meeting.summary || '',
         location: meeting.location || '',
         attendees: meeting.attendees ? JSON.parse(meeting.attendees) : [],
@@ -279,7 +284,8 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
         emailSummary: meeting.email_summary_draft,
         templateId: meeting.email_template_id,
         lastSummarizedAt: meeting.last_summarized_at,
-        meetingSummary: meeting.quick_summary // For compatibility with frontend
+        meetingSummary: meeting.quick_summary, // For compatibility with frontend
+        client_id: meeting.client_id
       };
 
       if (eventEnd && eventEnd < now) {

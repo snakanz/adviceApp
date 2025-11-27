@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -13,12 +13,148 @@ import {
   AlertCircle,
   Loader2,
   Zap,
-  Clock
+  Clock,
+  Users,
+  CalendarDays,
+  Sparkles
 } from 'lucide-react';
 import CalendlySyncButton from './CalendlySyncButton';
 import CalendlyPlanInfo from './CalendlyPlanInfo';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
+
+// Sync Progress Modal Component
+function SyncProgressModal({ isOpen, syncProgress, onClose }) {
+  if (!isOpen) return null;
+
+  const { phase, meetingsFound, clientsDiscovered, isComplete, error } = syncProgress;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in duration-200">
+      <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 p-6 text-white">
+          <div className="flex items-center gap-3">
+            {!isComplete && !error && (
+              <div className="relative">
+                <div className="w-12 h-12 rounded-full border-4 border-white/30 border-t-white animate-spin" />
+                <Sparkles className="w-5 h-5 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+              </div>
+            )}
+            {isComplete && !error && (
+              <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center animate-in zoom-in duration-300">
+                <CheckCircle className="w-7 h-7 text-white" />
+              </div>
+            )}
+            {error && (
+              <div className="w-12 h-12 rounded-full bg-red-500 flex items-center justify-center">
+                <AlertCircle className="w-7 h-7 text-white" />
+              </div>
+            )}
+            <div>
+              <h3 className="text-lg font-semibold">
+                {error ? 'Sync Error' : isComplete ? 'Sync Complete!' : 'Syncing Calendly...'}
+              </h3>
+              <p className="text-sm text-white/80">
+                {error ? 'Something went wrong' : isComplete ? 'Your data is ready' : phase}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-4">
+          {error ? (
+            <div className="text-center py-4">
+              <p className="text-red-500">{error}</p>
+            </div>
+          ) : (
+            <>
+              {/* Meetings Counter */}
+              <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <CalendarDays className="w-5 h-5 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">Meetings Found</p>
+                  <p className="text-2xl font-bold text-foreground tabular-nums">
+                    {meetingsFound > 0 ? (
+                      <span className="animate-in slide-in-from-bottom-2 duration-300">
+                        {meetingsFound}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </p>
+                </div>
+                {meetingsFound > 0 && !isComplete && (
+                  <div className="flex gap-1">
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className="w-2 h-2 rounded-full bg-blue-500 animate-bounce"
+                        style={{ animationDelay: `${i * 0.15}s` }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Clients Counter */}
+              <div className="flex items-center gap-4 p-4 bg-muted/50 rounded-lg">
+                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-purple-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground">Clients Discovered</p>
+                  <p className="text-2xl font-bold text-foreground tabular-nums">
+                    {clientsDiscovered > 0 ? (
+                      <span className="animate-in slide-in-from-bottom-2 duration-300">
+                        {clientsDiscovered}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </p>
+                </div>
+                {clientsDiscovered > 0 && !isComplete && (
+                  <div className="flex gap-1">
+                    {[0, 1, 2].map((i) => (
+                      <div
+                        key={i}
+                        className="w-2 h-2 rounded-full bg-purple-500 animate-bounce"
+                        style={{ animationDelay: `${i * 0.15}s` }}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Progress message */}
+              {!isComplete && (
+                <p className="text-center text-sm text-muted-foreground animate-pulse">
+                  {phase === 'Connecting to Calendly...' && 'Establishing connection...'}
+                  {phase === 'Fetching meetings...' && 'Retrieving your meeting history...'}
+                  {phase === 'Processing meetings...' && 'Extracting client information...'}
+                  {phase === 'Finalizing...' && 'Almost done...'}
+                </p>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        {(isComplete || error) && (
+          <div className="px-6 pb-6">
+            <Button onClick={onClose} className="w-full">
+              {error ? 'Close' : 'Done'}
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function CalendarSettings() {
   const { getAccessToken } = useAuth();
@@ -32,6 +168,16 @@ export default function CalendarSettings() {
   const [isConnecting, setIsConnecting] = useState(false);
   // calendlyAuthMethod removed - now using API token only
   const [webhookStatus, setWebhookStatus] = useState({});
+
+  // Sync progress state
+  const [showSyncProgress, setShowSyncProgress] = useState(false);
+  const [syncProgress, setSyncProgress] = useState({
+    phase: 'Connecting to Calendly...',
+    meetingsFound: 0,
+    clientsDiscovered: 0,
+    isComplete: false,
+    error: null
+  });
 
   useEffect(() => {
     loadConnections();
@@ -264,8 +410,62 @@ export default function CalendarSettings() {
     }
   };
 
-  // TEMPORARILY DISABLED: Calendly token handler
-  // eslint-disable-next-line no-unused-vars
+  // Poll for sync progress
+  const pollSyncProgress = useCallback(async (token) => {
+    let attempts = 0;
+    const maxAttempts = 60; // 60 seconds max
+
+    const poll = async () => {
+      try {
+        const response = await axios.get(
+          `${API_BASE_URL}/api/calendly/sync-status`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        const { meetings_count, clients_count, is_syncing, last_sync_at } = response.data;
+
+        setSyncProgress(prev => ({
+          ...prev,
+          phase: is_syncing ? 'Processing meetings...' : 'Finalizing...',
+          meetingsFound: meetings_count || prev.meetingsFound,
+          clientsDiscovered: clients_count || prev.clientsDiscovered,
+        }));
+
+        // Check if sync is complete
+        if (!is_syncing && (meetings_count > 0 || attempts > 10)) {
+          setSyncProgress(prev => ({
+            ...prev,
+            isComplete: true,
+            phase: 'Complete!'
+          }));
+          return; // Stop polling
+        }
+
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 1000);
+        } else {
+          // Timeout - consider it complete
+          setSyncProgress(prev => ({
+            ...prev,
+            isComplete: true,
+            phase: 'Complete!'
+          }));
+        }
+      } catch (err) {
+        console.warn('Error polling sync status:', err);
+        attempts++;
+        if (attempts < maxAttempts) {
+          setTimeout(poll, 2000); // Retry with longer delay on error
+        }
+      }
+    };
+
+    // Start polling after a short delay to let backend start syncing
+    setTimeout(poll, 1500);
+  }, []);
+
+  // Calendly token handler with sync animation
   const handleConnectCalendlyToken = async () => {
     if (!calendlyToken.trim()) {
       setError('Please enter your Calendly API token');
@@ -276,23 +476,66 @@ export default function CalendarSettings() {
       setIsConnecting(true);
       setError('');
       setSuccess('');
+
+      // Show sync progress modal
+      setShowSyncProgress(true);
+      setSyncProgress({
+        phase: 'Connecting to Calendly...',
+        meetingsFound: 0,
+        clientsDiscovered: 0,
+        isComplete: false,
+        error: null
+      });
+
       const token = await getAccessToken();
 
-      await axios.post(
+      // Update phase
+      setSyncProgress(prev => ({ ...prev, phase: 'Validating token...' }));
+
+      const response = await axios.post(
         `${API_BASE_URL}/api/calendar-connections/calendly`,
         { api_token: calendlyToken },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      setSuccess('Calendly connected successfully!');
+      // Update phase to fetching
+      setSyncProgress(prev => ({ ...prev, phase: 'Fetching meetings...' }));
+
+      // If response includes sync stats, update immediately
+      if (response.data.sync_stats) {
+        setSyncProgress(prev => ({
+          ...prev,
+          meetingsFound: response.data.sync_stats.meetings_synced || 0,
+          clientsDiscovered: response.data.sync_stats.clients_created || 0,
+        }));
+      }
+
+      // Start polling for sync progress
+      pollSyncProgress(token);
+
       setCalendlyToken('');
       setShowCalendlyForm(false);
-      loadConnections();
+
+      // Don't show success message - the modal handles it
+      // loadConnections will be called when modal closes
     } catch (err) {
       console.error('Error connecting Calendly:', err);
-      setError(err.response?.data?.error || 'Failed to connect Calendly');
+      setSyncProgress(prev => ({
+        ...prev,
+        error: err.response?.data?.error || 'Failed to connect Calendly',
+        isComplete: true
+      }));
     } finally {
       setIsConnecting(false);
+    }
+  };
+
+  // Handle sync modal close
+  const handleSyncModalClose = () => {
+    setShowSyncProgress(false);
+    loadConnections(); // Refresh connections after sync
+    if (!syncProgress.error) {
+      setSuccess('Calendly connected and synced successfully!');
     }
   };
 
@@ -798,6 +1041,13 @@ export default function CalendarSettings() {
           </Card>
         )} */}
       </div>
+
+      {/* Sync Progress Modal */}
+      <SyncProgressModal
+        isOpen={showSyncProgress}
+        syncProgress={syncProgress}
+        onClose={handleSyncModalClose}
+      />
     </div>
   );
 }
