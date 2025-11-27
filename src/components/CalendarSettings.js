@@ -422,7 +422,7 @@ export default function CalendarSettings() {
           { headers: { Authorization: `Bearer ${token}` } }
         );
 
-        const { meetings_count, clients_count, is_syncing, last_sync_at } = response.data;
+        const { meetings_count, clients_count, is_syncing } = response.data;
 
         setSyncProgress(prev => ({
           ...prev,
