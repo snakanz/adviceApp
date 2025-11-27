@@ -27,7 +27,7 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:300
 function SyncProgressModal({ isOpen, syncProgress, onClose }) {
   if (!isOpen) return null;
 
-  const { phase, meetingsFound, clientsDiscovered, isComplete, error, webhookStatus, syncMethod, webhookMessage } = syncProgress;
+  const { phase, meetingsFound, clientsDiscovered, isComplete, error, syncMethod, webhookMessage } = syncProgress;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in duration-200">
