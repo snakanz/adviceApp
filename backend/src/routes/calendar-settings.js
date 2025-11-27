@@ -627,14 +627,14 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
 
     // ✅ Connection data with all required fields for sync to work
     // Note: Column is provider_account_email, not account_email
-    // webhook_status must be one of: 'active', 'missing', 'error', 'unknown'
+    // webhook_status will be updated after webhook creation attempt
     const connectionData = {
       access_token: api_token.trim(),
       is_active: true,
       calendly_user_uri: calendlyUserUri,
       calendly_organization_uri: calendlyOrganizationUri,
       provider_account_email: calendlyEmail,
-      webhook_status: 'missing', // Free plan uses polling instead of webhooks
+      webhook_status: 'unknown', // Will be updated after webhook creation attempt
       updated_at: new Date().toISOString()
     };
 
@@ -708,6 +708,77 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
       console.warn('⚠️ Failed to start initial Calendly sync:', syncErr.message);
     }
 
+    // ✅ NEW: Attempt to create webhook subscription for real-time sync
+    // This works for paid Calendly plans; free plans will gracefully fall back to polling
+    let webhookStatus = 'missing';
+    let webhookError = null;
+    let webhookCreated = false;
+
+    try {
+      console.log('📡 Attempting to create Calendly webhook for real-time sync...');
+      const CalendlyWebhookService = require('../services/calendlyWebhookService');
+      const webhookService = new CalendlyWebhookService(api_token.trim());
+
+      if (webhookService.isConfigured()) {
+        const webhookResult = await webhookService.ensureWebhookSubscription(
+          calendlyOrganizationUri,
+          calendlyUserUri,
+          userId
+        );
+
+        if (webhookResult.created || webhookResult.existing) {
+          console.log('✅ Calendly webhook created/verified:', webhookResult.webhook_uri);
+          webhookCreated = true;
+          webhookStatus = 'active';
+
+          // Store webhook info in database
+          await req.supabase
+            .from('calendar_connections')
+            .update({
+              calendly_webhook_id: webhookResult.webhook_uri,
+              calendly_webhook_signing_key: webhookResult.webhook_signing_key,
+              webhook_status: 'active',
+              webhook_last_verified_at: new Date().toISOString(),
+              webhook_last_error: null
+            })
+            .eq('id', connectionResult.id);
+
+          console.log('✅ Real-time sync enabled via webhook');
+        }
+      } else {
+        console.warn('⚠️ Webhook service not configured (missing CALENDLY_WEBHOOK_URL or CALENDLY_WEBHOOK_SIGNING_KEY)');
+        webhookStatus = 'missing';
+        webhookError = 'Webhook service not configured on server';
+      }
+    } catch (webhookErr) {
+      console.warn('⚠️ Failed to create webhook:', webhookErr.message);
+
+      // Detect if this is a free plan limitation
+      const isFreePlanError = webhookErr.message.includes('upgrade your Calendly account') ||
+                              webhookErr.message.includes('Permission Denied') ||
+                              webhookErr.message.includes('403') ||
+                              webhookErr.message.includes('Forbidden');
+
+      if (isFreePlanError) {
+        console.log('📊 Calendly free plan detected - webhooks not supported');
+        webhookStatus = 'error';
+        webhookError = 'Calendly free plan - webhooks not supported. Using 15-minute polling sync.';
+      } else {
+        webhookStatus = 'error';
+        webhookError = webhookErr.message;
+      }
+
+      // Update connection with error status
+      await req.supabase
+        .from('calendar_connections')
+        .update({
+          webhook_status: webhookStatus,
+          webhook_last_error: webhookError,
+          webhook_verification_attempts: 0
+        })
+        .eq('id', connectionResult.id);
+    }
+
     res.json({
       success: true,
       message: 'Calendly connected successfully',
@@ -715,12 +786,154 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
       calendly_user: {
         name: calendlyName,
         email: calendlyEmail
+      },
+      webhook: {
+        created: webhookCreated,
+        status: webhookStatus,
+        error: webhookError,
+        sync_method: webhookCreated ? 'realtime' : 'polling'
       }
     });
 
   } catch (error) {
     console.error('Error in POST /calendar-connections/calendly:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/calendar-connections/calendly/test-webhook
+ * Test if a Calendly API token supports webhook creation (paid plan check)
+ * Use this to verify webhook capability before or after connecting
+ */
+router.post('/calendly/test-webhook', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { api_token } = req.body;
+
+    // If no token provided, try to get from existing connection
+    let tokenToTest = api_token?.trim();
+
+    if (!tokenToTest) {
+      const { data: connection } = await req.supabase
+        .from('calendar_connections')
+        .select('access_token')
+        .eq('user_id', userId)
+        .eq('provider', 'calendly')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (!connection?.access_token) {
+        return res.status(400).json({
+          error: 'No API token provided and no active Calendly connection found'
+        });
+      }
+      tokenToTest = connection.access_token;
+    }
+
+    console.log(`🧪 Testing webhook capability for user ${userId}...`);
+
+    // Step 1: Validate token and get user info
+    const CalendlyService = require('../services/calendlyService');
+    const calendlyService = new CalendlyService(tokenToTest);
+
+    let calendlyUser;
+    try {
+      calendlyUser = await calendlyService.getCurrentUser();
+      console.log(`✅ Token valid for: ${calendlyUser.name} (${calendlyUser.email})`);
+    } catch (tokenError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid API token',
+        details: tokenError.message,
+        supports_webhooks: false,
+        plan_type: 'unknown'
+      });
+    }
+
+    // Step 2: Try to list existing webhooks (this will fail for free plans)
+    const CalendlyWebhookService = require('../services/calendlyWebhookService');
+    const webhookService = new CalendlyWebhookService(tokenToTest);
+
+    if (!webhookService.isConfigured()) {
+      return res.json({
+        success: true,
+        error: 'Webhook service not configured on server',
+        supports_webhooks: null,
+        plan_type: 'unknown',
+        message: 'Server webhook URL not configured. Contact administrator.',
+        calendly_user: {
+          name: calendlyUser.name,
+          email: calendlyUser.email
+        }
+      });
+    }
+
+    try {
+      // Try to list webhooks - this will fail with 403 for free plans
+      await webhookService.listWebhookSubscriptions(
+        calendlyUser.current_organization,
+        calendlyUser.uri,
+        'user'
+      );
+
+      console.log('✅ Webhook API accessible - paid plan detected');
+
+      res.json({
+        success: true,
+        supports_webhooks: true,
+        plan_type: 'paid',
+        sync_method: 'realtime',
+        message: '✅ Your Calendly account supports real-time webhooks! Events will sync instantly.',
+        calendly_user: {
+          name: calendlyUser.name,
+          email: calendlyUser.email,
+          organization: calendlyUser.current_organization
+        }
+      });
+    } catch (webhookError) {
+      const errorMessage = webhookError.message || '';
+      const isFreePlan = errorMessage.includes('403') ||
+                         errorMessage.includes('Permission Denied') ||
+                         errorMessage.includes('Forbidden') ||
+                         errorMessage.includes('upgrade your Calendly account');
+
+      if (isFreePlan) {
+        console.log('📊 Free plan detected - webhooks not supported');
+        res.json({
+          success: true,
+          supports_webhooks: false,
+          plan_type: 'free',
+          sync_method: 'polling',
+          message: '⚠️ Your Calendly account is on a free plan. Events will sync every 15 minutes via polling.',
+          calendly_user: {
+            name: calendlyUser.name,
+            email: calendlyUser.email
+          }
+        });
+      } else {
+        console.error('❌ Unexpected webhook error:', webhookError.message);
+        res.json({
+          success: true,
+          supports_webhooks: false,
+          plan_type: 'unknown',
+          sync_method: 'polling',
+          error: webhookError.message,
+          message: '⚠️ Could not verify webhook support. Falling back to polling sync.',
+          calendly_user: {
+            name: calendlyUser.name,
+            email: calendlyUser.email
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error in POST /calendar-connections/calendly/test-webhook:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      details: error.message
+    });
   }
 });
 

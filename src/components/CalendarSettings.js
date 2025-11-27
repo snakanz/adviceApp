@@ -27,7 +27,7 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:300
 function SyncProgressModal({ isOpen, syncProgress, onClose }) {
   if (!isOpen) return null;
 
-  const { phase, meetingsFound, clientsDiscovered, isComplete, error } = syncProgress;
+  const { phase, meetingsFound, clientsDiscovered, isComplete, error, webhookStatus, syncMethod, webhookMessage } = syncProgress;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in duration-200">
@@ -130,6 +130,35 @@ function SyncProgressModal({ isOpen, syncProgress, onClose }) {
                 )}
               </div>
 
+              {/* Sync Method Status */}
+              {(syncMethod || webhookMessage) && (
+                <div className={`flex items-center gap-3 p-3 rounded-lg ${
+                  syncMethod === 'realtime'
+                    ? 'bg-green-50 border border-green-200'
+                    : 'bg-yellow-50 border border-yellow-200'
+                }`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                    syncMethod === 'realtime' ? 'bg-green-100' : 'bg-yellow-100'
+                  }`}>
+                    {syncMethod === 'realtime' ? '⚡' : '⏱️'}
+                  </div>
+                  <div className="flex-1">
+                    <p className={`text-sm font-medium ${
+                      syncMethod === 'realtime' ? 'text-green-700' : 'text-yellow-700'
+                    }`}>
+                      {syncMethod === 'realtime' ? 'Real-time Sync' : 'Polling Sync'}
+                    </p>
+                    <p className={`text-xs ${
+                      syncMethod === 'realtime' ? 'text-green-600' : 'text-yellow-600'
+                    }`}>
+                      {webhookMessage || (syncMethod === 'realtime'
+                        ? 'Events sync instantly via webhooks'
+                        : 'Events sync every 15 minutes')}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Progress message */}
               {!isComplete && (
                 <p className="text-center text-sm text-muted-foreground animate-pulse">
@@ -198,15 +227,8 @@ export default function CalendarSettings() {
         return;
       }
 
-      if (event.data.type === 'CALENDLY_OAUTH_SUCCESS') {
-        console.log('✅ Received CALENDLY_OAUTH_SUCCESS from popup');
-        setSuccess('Calendly connected successfully!');
-        // Reload connections to show updated status
-        setTimeout(() => loadConnections(), 500);
-      } else if (event.data.type === 'CALENDLY_OAUTH_ERROR') {
-        console.error('❌ Received CALENDLY_OAUTH_ERROR from popup:', event.data.error);
-        setError(`Calendly connection failed: ${event.data.error}`);
-      } else if (event.data.type === 'GOOGLE_OAUTH_SUCCESS') {
+      // Note: Calendly uses API token connection (no OAuth popup needed)
+      if (event.data.type === 'GOOGLE_OAUTH_SUCCESS') {
         console.log('✅ Received GOOGLE_OAUTH_SUCCESS from popup');
         setSuccess('Google Calendar connected successfully!');
         // Reload connections to show updated status
@@ -498,8 +520,25 @@ export default function CalendarSettings() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // Update phase to fetching
-      setSyncProgress(prev => ({ ...prev, phase: 'Fetching meetings...' }));
+      // Update phase to show webhook status
+      const webhookData = response.data.webhook;
+      if (webhookData) {
+        const webhookMessage = webhookData.created
+          ? '✅ Real-time sync enabled! Events sync instantly.'
+          : webhookData.sync_method === 'polling'
+            ? '⏱️ Polling sync enabled. Events sync every 15 minutes.'
+            : 'Checking sync method...';
+
+        setSyncProgress(prev => ({
+          ...prev,
+          phase: 'Fetching meetings...',
+          webhookStatus: webhookData.status,
+          syncMethod: webhookData.sync_method,
+          webhookMessage
+        }));
+      } else {
+        setSyncProgress(prev => ({ ...prev, phase: 'Fetching meetings...' }));
+      }
 
       // If response includes sync stats, update immediately
       if (response.data.sync_stats) {
