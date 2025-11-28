@@ -737,7 +737,7 @@ router.get('/verify', authenticateSupabaseUser, async (req, res) => {
         const userId = req.user.id;
         const { data: user } = await req.supabase
             .from('users')
-            .select('id, email, name, profilepicture')
+            .select('id, email, name, profilepicture, business_name')
             .eq('id', userId)
             .single();
 

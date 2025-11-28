@@ -266,16 +266,20 @@ export default function Pipeline() {
 
   const handleClientClick = async (client) => {
     // Normalize client data for the detail panel
+    // The client object comes from pipeline row data which already has nextMeetingDate and pastMeetingCount
     const normalizedClient = {
       ...client,
       // Map business_types to businessTypes for consistency
-      businessTypes: client.business_types || [],
-      businessTypesData: client.business_types_data || [],
-      totalBusinessAmount: client.business_amount || 0,
-      totalIafExpected: client.iaf_expected || 0,
-      pipelineNotes: client.notes || null,
+      businessTypes: client.business_types || client.allBusinessTypes || [],
+      businessTypesData: client.business_types_data || client.businessTypesData || [],
+      totalBusinessAmount: client.business_amount || client.investmentAmount || 0,
+      totalIafExpected: client.iaf_expected || client.expectedFees || 0,
+      pipelineNotes: client.notes || client.pipelineNotes || null,
+      // Preserve meeting stats from pipeline row data
+      nextMeetingDate: client.nextMeetingDate || null,
+      pastMeetingCount: typeof client.pastMeetingCount === 'number' ? client.pastMeetingCount : (client.meeting_count || 0),
       // Include stage info from the business types
-      allBusinessTypesWithStage: (client.business_types_data || []).map(bt => ({
+      allBusinessTypesWithStage: (client.business_types_data || client.businessTypesData || client.allBusinessTypes || []).map(bt => ({
         ...bt,
         stage: bt.stage || 'Not Written'
       }))

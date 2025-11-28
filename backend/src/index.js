@@ -1038,6 +1038,10 @@ console.log('🔄 Mounting admin-tools routes...');
 app.use('/api/admin-tools', require('./routes/admin-tools'));
 console.log('✅ Admin-tools routes mounted');
 
+console.log('🔄 Mounting templates routes...');
+app.use('/api/templates', require('./routes/templates'));
+console.log('✅ Templates routes mounted');
+
 console.log('✅ All API routes mounted');
 
 // DISABLED: Routes are already mounted directly above

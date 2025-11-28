@@ -1,21 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { cn } from '../lib/utils';
-import { 
-  Sparkles, 
-  Info, 
+import {
+  Sparkles,
+  Info,
   Save,
   Mail,
-  MessageSquare
+  MessageSquare,
+  Plus,
+  Trash2,
+  Bot,
+  Loader2,
+  Send,
+  X
 } from 'lucide-react';
+import api from '../lib/api';
 
-const defaultTemplates = [
+// Fallback templates (only used if API fails)
+const fallbackTemplates = [
   {
     id: 'auto-template',
     title: 'Advicly Summary',
     description: 'AI prompt for generating professional auto email summaries from meeting transcripts',
-    content: `Role: You are a professional, helpful, and concise financial advisor's assistant (Nelson Greenwood) tasked with creating a follow-up email summary for a client based on a meeting transcript.
+    prompt_content: `Role: You are a professional, helpful, and concise financial advisor's assistant ({advisorName}) tasked with creating a follow-up email summary for a client based on a meeting transcript.
 
 Goal: Generate a clear, well-structured email that summarizes the key financial advice, confirms the numerical details, and outlines the immediate and future next steps.
 
@@ -58,8 +66,8 @@ It was great speaking with you this morning and catching up on your weekend. Bel
 Please review the documents once they arrive. If you have any immediate questions in the meantime, please don't hesitate to let me know.
 
 Best regards,
-Nelson Greenwood
-Financial Advisor
+{advisorName}
+{businessName}
 
 Transcript:
 {transcript}
@@ -190,146 +198,244 @@ Do NOT include:
 - Any placeholders or instructions to the adviser.
 
 The email you output must be ready to send to the client exactly as written.
+
+Sign off as {advisorName} from {businessName}.
 `,
     type: 'review-summary'
   }
 ];
 
-const LOCAL_STORAGE_KEY = 'advicly_templates';
-
-function loadTemplates() {
-  const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
-  if (saved) {
-    try {
-      const parsedTemplates = JSON.parse(saved);
-      
-      // Check if we have both templates
-      const hasAutoTemplate = parsedTemplates.some(t => 
-        t.id === 'auto-template' || 
-        t.title === 'Advicly Summary'
-      );
-      const hasReviewTemplate = parsedTemplates.some(t => 
-        t.id === 'review-template' || 
-        t.id === 'review-email-summary' || 
-        t.title.toLowerCase().includes('review')
-      );
-      
-      const templates = [];
-      
-      // Add Auto template
-      if (hasAutoTemplate) {
-        const autoTemplate = parsedTemplates.find(t => 
-          t.id === 'auto-template' || 
-          t.title === 'Advicly Summary'
-        );
-        templates.push({
-          ...autoTemplate,
-          id: 'auto-template',
-          title: 'Advicly Summary',
-          type: 'auto-summary',
-          content: defaultTemplates[0].content // Force the new comprehensive content
-        });
-      } else {
-        templates.push(defaultTemplates[0]);
-      }
-      
-      // Add Review template
-      if (hasReviewTemplate) {
-        const reviewTemplate = parsedTemplates.find(t => 
-          t.id === 'review-template' || 
-          t.id === 'review-email-summary' || 
-          t.title.toLowerCase().includes('review')
-        );
-        templates.push({
-          ...reviewTemplate,
-          id: 'review-template',
-          title: 'Review',
-          type: 'review-summary',
-          content: defaultTemplates[1].content // Force the new comprehensive content
-        });
-      } else {
-        templates.push(defaultTemplates[1]);
-      }
-      
-      return templates;
-    } catch {
-      return defaultTemplates;
-    }
-  }
-  return defaultTemplates;
-}
-
-function saveTemplates(templates) {
-  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(templates));
-}
-
 export default function Templates() {
-  const [templates, setTemplates] = useState(loadTemplates());
-  const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
-  const [editedContent, setEditedContent] = useState(selectedTemplate.content);
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [editedContent, setEditedContent] = useState('');
   const [showSnackbar, setShowSnackbar] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [userProfile, setUserProfile] = useState({ advisorName: '', businessName: '' });
 
-  // Force update to new template content on component mount
+  // New template modal state
+  const [showNewTemplateModal, setShowNewTemplateModal] = useState(false);
+  const [newTemplateTitle, setNewTemplateTitle] = useState('');
+  const [newTemplateDescription, setNewTemplateDescription] = useState('');
+  const [newTemplateType, setNewTemplateType] = useState('custom');
+
+  // AI Builder state
+  const [showAIBuilder, setShowAIBuilder] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [generatedContent, setGeneratedContent] = useState('');
+
+  // Fetch templates and user profile on mount
   useEffect(() => {
-    const currentTemplates = loadTemplates();
-    let needsUpdate = false;
-    
-    // Check if any templates need updating
-    const updatedTemplates = currentTemplates.map((template, index) => {
-      const defaultTemplate = defaultTemplates[index];
-      if (template.content !== defaultTemplate.content) {
-        needsUpdate = true;
-        return {
-          ...template,
-          content: defaultTemplate.content
-        };
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+
+        // Fetch user profile for personalization
+        try {
+          const profileRes = await api.get('/templates/user-profile');
+          setUserProfile(profileRes.data);
+        } catch (err) {
+          console.warn('Could not fetch user profile:', err);
+        }
+
+        // Fetch templates from API
+        const templatesRes = await api.get('/templates');
+        const fetchedTemplates = templatesRes.data;
+
+        if (fetchedTemplates && fetchedTemplates.length > 0) {
+          setTemplates(fetchedTemplates);
+          setSelectedTemplate(fetchedTemplates[0]);
+          setEditedContent(fetchedTemplates[0].prompt_content || fetchedTemplates[0].content || '');
+        } else {
+          // Use fallback templates
+          setTemplates(fallbackTemplates);
+          setSelectedTemplate(fallbackTemplates[0]);
+          setEditedContent(fallbackTemplates[0].prompt_content || '');
+        }
+      } catch (error) {
+        console.error('Error fetching templates:', error);
+        // Use fallback templates
+        setTemplates(fallbackTemplates);
+        setSelectedTemplate(fallbackTemplates[0]);
+        setEditedContent(fallbackTemplates[0].prompt_content || '');
+        showNotification('Failed to load templates from server', 'error');
+      } finally {
+        setLoading(false);
       }
-      return template;
-    });
-    
-    if (needsUpdate) {
-      setTemplates(updatedTemplates);
-      setSelectedTemplate(updatedTemplates[0]);
-      setEditedContent(updatedTemplates[0].content);
-      saveTemplates(updatedTemplates);
-    }
-  }, []);
+    };
 
-  // Save templates to localStorage whenever they change
-  useEffect(() => {
-    saveTemplates(templates);
-  }, [templates]);
+    fetchData();
+  }, []);
 
   // Update edited content when selected template changes
   useEffect(() => {
-    setEditedContent(selectedTemplate.content);
+    if (selectedTemplate) {
+      setEditedContent(selectedTemplate.prompt_content || selectedTemplate.content || '');
+    }
   }, [selectedTemplate]);
 
-  const handleContentChange = (newContent) => {
-    setEditedContent(newContent);
+  const showNotification = (message, severity = 'success') => {
+    setSnackbarMessage(message);
+    setSnackbarSeverity(severity);
+    setShowSnackbar(true);
+    setTimeout(() => setShowSnackbar(false), 3000);
   };
 
-  const handleSave = () => {
-    const updatedTemplates = templates.map(t => 
-      t.id === selectedTemplate.id 
-        ? { ...t, content: editedContent }
-        : t
-    );
-    setTemplates(updatedTemplates);
-    setSelectedTemplate(prev => ({ ...prev, content: editedContent }));
-    setShowSnackbar(true);
-    setSnackbarMessage('Template saved successfully!');
-    setSnackbarSeverity('success');
-    
-    // Auto-hide snackbar after 3 seconds
-    setTimeout(() => setShowSnackbar(false), 3000);
+  const handleSave = async () => {
+    if (!selectedTemplate) return;
+
+    try {
+      setSaving(true);
+
+      // If it's a fallback template (no real ID), we need to create it first
+      if (selectedTemplate.id === 'auto-template' || selectedTemplate.id === 'review-template') {
+        const res = await api.post('/templates', {
+          title: selectedTemplate.title,
+          description: selectedTemplate.description,
+          prompt_content: editedContent,
+          type: selectedTemplate.type
+        });
+
+        const newTemplate = res.data;
+        setTemplates(prev => prev.map(t =>
+          t.id === selectedTemplate.id ? newTemplate : t
+        ));
+        setSelectedTemplate(newTemplate);
+      } else {
+        // Update existing template
+        const res = await api.put(`/templates/${selectedTemplate.id}`, {
+          title: selectedTemplate.title,
+          description: selectedTemplate.description,
+          prompt_content: editedContent,
+          type: selectedTemplate.type
+        });
+
+        const updatedTemplate = res.data;
+        setTemplates(prev => prev.map(t =>
+          t.id === selectedTemplate.id ? updatedTemplate : t
+        ));
+        setSelectedTemplate(updatedTemplate);
+      }
+
+      showNotification('Template saved successfully!');
+    } catch (error) {
+      console.error('Error saving template:', error);
+      showNotification('Failed to save template', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCreateTemplate = async () => {
+    if (!newTemplateTitle.trim()) {
+      showNotification('Please enter a template title', 'error');
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const initialContent = generatedContent || `# ${newTemplateTitle}
+
+Write your template prompt here. Use placeholders like:
+- {clientName} - Client's name
+- {advisorName} - Your name (${userProfile.advisorName})
+- {businessName} - Your business (${userProfile.businessName})
+- {transcript} - Meeting transcript
+
+Best regards,
+${userProfile.advisorName}
+${userProfile.businessName}`;
+
+      const res = await api.post('/templates', {
+        title: newTemplateTitle,
+        description: newTemplateDescription || `Custom template: ${newTemplateTitle}`,
+        prompt_content: initialContent,
+        type: newTemplateType
+      });
+
+      const newTemplate = res.data;
+      setTemplates(prev => [...prev, newTemplate]);
+      setSelectedTemplate(newTemplate);
+      setEditedContent(newTemplate.prompt_content);
+
+      // Reset modal state
+      setShowNewTemplateModal(false);
+      setNewTemplateTitle('');
+      setNewTemplateDescription('');
+      setNewTemplateType('custom');
+      setGeneratedContent('');
+      setShowAIBuilder(false);
+
+      showNotification('Template created successfully!');
+    } catch (error) {
+      console.error('Error creating template:', error);
+      showNotification('Failed to create template', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId) => {
+    if (!window.confirm('Are you sure you want to delete this template?')) return;
+
+    try {
+      await api.delete(`/templates/${templateId}`);
+
+      setTemplates(prev => prev.filter(t => t.id !== templateId));
+
+      // Select first remaining template
+      if (selectedTemplate?.id === templateId) {
+        const remaining = templates.filter(t => t.id !== templateId);
+        if (remaining.length > 0) {
+          setSelectedTemplate(remaining[0]);
+        } else {
+          setSelectedTemplate(null);
+        }
+      }
+
+      showNotification('Template deleted');
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      showNotification('Failed to delete template', 'error');
+    }
+  };
+
+  const handleGenerateWithAI = async () => {
+    if (!aiPrompt.trim()) {
+      showNotification('Please describe what kind of template you want', 'error');
+      return;
+    }
+
+    try {
+      setAiGenerating(true);
+
+      const res = await api.post('/templates/generate', {
+        description: aiPrompt,
+        templateType: newTemplateType
+      });
+
+      setGeneratedContent(res.data.generatedContent);
+      if (res.data.suggestedTitle && !newTemplateTitle) {
+        setNewTemplateTitle(res.data.suggestedTitle);
+      }
+
+      showNotification('Template generated! Review and save when ready.');
+    } catch (error) {
+      console.error('Error generating template:', error);
+      showNotification('Failed to generate template', 'error');
+    } finally {
+      setAiGenerating(false);
+    }
   };
 
   const getTemplateIcon = (type) => {
     switch (type) {
-      case 'ai-summary':
+      case 'auto-summary':
         return <Sparkles className="w-4 h-4 text-primary" />;
       case 'review-summary':
         return <MessageSquare className="w-4 h-4 text-primary" />;
@@ -338,6 +444,22 @@ export default function Templates() {
     }
   };
 
+  // Replace placeholders with actual user data for preview
+  const getPreviewContent = useCallback((content) => {
+    if (!content) return '';
+    return content
+      .replace(/\{advisorName\}/g, userProfile.advisorName || 'Your Name')
+      .replace(/\{businessName\}/g, userProfile.businessName || 'Your Business');
+  }, [userProfile]);
+
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex bg-background">
       {/* Left Sidebar */}
@@ -345,11 +467,19 @@ export default function Templates() {
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-semibold text-foreground">Email Templates</h2>
+            <Button
+              size="sm"
+              onClick={() => setShowNewTemplateModal(true)}
+              className="flex items-center gap-1"
+            >
+              <Plus className="w-4 h-4" />
+              New
+            </Button>
           </div>
-          
+
           <div className="space-y-3">
             {templates.map((template) => {
-              const isSelected = template.id === selectedTemplate.id;
+              const isSelected = template.id === selectedTemplate?.id;
               return (
                 <Card
                   key={template.id}
@@ -357,9 +487,7 @@ export default function Templates() {
                     "cursor-pointer card-hover border-border/50",
                     isSelected && "ring-2 ring-primary/20 bg-primary/5 border-primary/30"
                   )}
-                  onClick={() => {
-                    setSelectedTemplate(template);
-                  }}
+                  onClick={() => setSelectedTemplate(template)}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center gap-3">
@@ -374,7 +502,17 @@ export default function Templates() {
                           {template.description}
                         </p>
                       </div>
-                      <Info className="w-4 h-4 text-muted-foreground" />
+                      {!template.is_default && template.type === 'custom' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTemplate(template.id);
+                          }}
+                          className="p-1 hover:bg-destructive/10 rounded text-muted-foreground hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -386,56 +524,213 @@ export default function Templates() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col bg-background">
-        {/* Header */}
-        <div className="border-b border-border/50 p-6 bg-card/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-foreground">
-                {selectedTemplate.title}
-              </h1>
-              <div className="group relative">
-                <Info className="w-5 h-5 text-muted-foreground cursor-help" />
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-card border border-border rounded-lg shadow-large text-sm text-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                  {selectedTemplate.description}
-                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-card"></div>
+        {selectedTemplate ? (
+          <>
+            {/* Header */}
+            <div className="border-b border-border/50 p-6 bg-card/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold text-foreground">
+                    {selectedTemplate.title}
+                  </h1>
+                  <div className="group relative">
+                    <Info className="w-5 h-5 text-muted-foreground cursor-help" />
+                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-card border border-border rounded-lg shadow-large text-sm text-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                      {selectedTemplate.description}
+                    </div>
+                  </div>
                 </div>
+                <Button
+                  onClick={handleSave}
+                  disabled={saving || editedContent === (selectedTemplate.prompt_content || selectedTemplate.content)}
+                  className="flex items-center gap-2"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save Changes
+                </Button>
               </div>
+              {userProfile.advisorName && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Templates will use: <span className="font-medium">{userProfile.advisorName}</span> from <span className="font-medium">{userProfile.businessName}</span>
+                </p>
+              )}
             </div>
-            <Button
-              onClick={handleSave}
-              disabled={editedContent === selectedTemplate.content}
-              className="flex items-center gap-2"
-            >
-              <Save className="w-4 h-4" />
-              Save Changes
-            </Button>
-          </div>
-        </div>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <Card className="border-border/50 h-full">
-            <CardContent className="p-6 h-full">
-              <div className="flex flex-col h-full">
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-foreground mb-2">AI Prompt Template</h3>
-                  <p className="text-sm text-muted-foreground">
-                    This prompt controls how AI generates email summaries. Use {'{transcript}'} as a placeholder for the meeting transcript.
-                  </p>
-                </div>
-                <div className="flex-1">
-                  <textarea
-                    value={editedContent}
-                    onChange={(e) => handleContentChange(e.target.value)}
-                    className="w-full h-full min-h-[400px] p-4 bg-background text-foreground border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent font-mono text-sm leading-relaxed"
-                    placeholder="Edit your AI prompt template here..."
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <Card className="border-border/50 h-full">
+                <CardContent className="p-6 h-full">
+                  <div className="flex flex-col h-full">
+                    <div className="mb-4">
+                      <h3 className="text-lg font-semibold text-foreground mb-2">AI Prompt Template</h3>
+                      <p className="text-sm text-muted-foreground">
+                        Use {'{transcript}'}, {'{clientName}'}, {'{advisorName}'}, {'{businessName}'} as placeholders.
+                      </p>
+                    </div>
+                    <div className="flex-1">
+                      <textarea
+                        value={editedContent}
+                        onChange={(e) => setEditedContent(e.target.value)}
+                        className="w-full h-full min-h-[400px] p-4 bg-background text-foreground border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent font-mono text-sm leading-relaxed"
+                        placeholder="Edit your AI prompt template here..."
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        ) : (
+          <div className="flex-1 flex items-center justify-center text-muted-foreground">
+            Select a template to edit
+          </div>
+        )}
+      </div>
+
+      {/* New Template Modal */}
+      {showNewTemplateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+            <div className="p-6 border-b border-border flex items-center justify-between">
+              <h2 className="text-xl font-semibold">Create New Template</h2>
+              <button
+                onClick={() => {
+                  setShowNewTemplateModal(false);
+                  setShowAIBuilder(false);
+                  setGeneratedContent('');
+                  setAiPrompt('');
+                }}
+                className="p-2 hover:bg-muted rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+              {/* Template Details */}
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Template Title</label>
+                  <input
+                    type="text"
+                    value={newTemplateTitle}
+                    onChange={(e) => setNewTemplateTitle(e.target.value)}
+                    className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="e.g., Annual Review Follow-up"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Description</label>
+                  <input
+                    type="text"
+                    value={newTemplateDescription}
+                    onChange={(e) => setNewTemplateDescription(e.target.value)}
+                    className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="Brief description of this template"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Template Type</label>
+                  <select
+                    value={newTemplateType}
+                    onChange={(e) => setNewTemplateType(e.target.value)}
+                    className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="custom">Custom Email</option>
+                    <option value="auto-summary">Meeting Summary</option>
+                    <option value="review-summary">Review Summary</option>
+                    <option value="follow-up">Follow-up Email</option>
+                    <option value="reminder">Reminder Email</option>
+                  </select>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+
+              {/* AI Builder Toggle */}
+              <div className="mb-6">
+                <Button
+                  variant={showAIBuilder ? "default" : "outline"}
+                  onClick={() => setShowAIBuilder(!showAIBuilder)}
+                  className="flex items-center gap-2"
+                >
+                  <Bot className="w-4 h-4" />
+                  {showAIBuilder ? 'Hide AI Builder' : 'Use AI to Generate Template'}
+                </Button>
+              </div>
+
+              {/* AI Builder */}
+              {showAIBuilder && (
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-6">
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <Bot className="w-5 h-5 text-primary" />
+                    AI Template Builder
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Describe what kind of email template you want, and AI will generate it for you.
+                  </p>
+
+                  <div className="flex gap-2 mb-4">
+                    <textarea
+                      value={aiPrompt}
+                      onChange={(e) => setAiPrompt(e.target.value)}
+                      className="flex-1 px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                      rows={3}
+                      placeholder="e.g., Create a template for following up after a pension review meeting. It should summarize the key recommendations, list action items, and remind the client about next steps..."
+                    />
+                  </div>
+
+                  <Button
+                    onClick={handleGenerateWithAI}
+                    disabled={aiGenerating || !aiPrompt.trim()}
+                    className="flex items-center gap-2"
+                  >
+                    {aiGenerating ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    Generate Template
+                  </Button>
+
+                  {generatedContent && (
+                    <div className="mt-4">
+                      <label className="block text-sm font-medium mb-2">Generated Template (you can edit this)</label>
+                      <textarea
+                        value={generatedContent}
+                        onChange={(e) => setGeneratedContent(e.target.value)}
+                        className="w-full px-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
+                        rows={10}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="p-6 border-t border-border flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowNewTemplateModal(false);
+                  setShowAIBuilder(false);
+                  setGeneratedContent('');
+                  setAiPrompt('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateTemplate}
+                disabled={saving || !newTemplateTitle.trim()}
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Create Template
+              </Button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Snackbar */}
       {showSnackbar && (
@@ -452,4 +747,4 @@ export default function Templates() {
       )}
     </div>
   );
-} 
+}
