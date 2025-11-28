@@ -58,13 +58,13 @@ CREATE VIEW public.client_business_summary AS
 SELECT
     c.id as client_id,
     c.name as client_name,
-    c.advisor_id,
+    c.user_id,
     COALESCE(SUM(cbt.business_amount), 0) as total_business,
     COALESCE(SUM(cbt.iaf_expected), 0) as total_iaf,
     COUNT(DISTINCT cbt.id) as business_type_count
 FROM clients c
 LEFT JOIN client_business_types cbt ON c.id = cbt.client_id
-GROUP BY c.id, c.name, c.advisor_id;
+GROUP BY c.id, c.name, c.user_id;
 
 -- Grant appropriate permissions
 GRANT SELECT ON public.client_business_summary TO authenticated;
