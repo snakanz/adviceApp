@@ -15,7 +15,7 @@ import {
   Send,
   X
 } from 'lucide-react';
-import api from '../lib/api';
+import api from '../services/api';
 
 // Fallback templates (only used if API fails)
 const fallbackTemplates = [
@@ -236,15 +236,14 @@ export default function Templates() {
 
         // Fetch user profile for personalization
         try {
-          const profileRes = await api.get('/templates/user-profile');
-          setUserProfile(profileRes.data);
+          const profile = await api.get('/templates/user-profile');
+          setUserProfile(profile);
         } catch (err) {
           console.warn('Could not fetch user profile:', err);
         }
 
         // Fetch templates from API
-        const templatesRes = await api.get('/templates');
-        const fetchedTemplates = templatesRes.data;
+        const fetchedTemplates = await api.get('/templates');
 
         if (fetchedTemplates && fetchedTemplates.length > 0) {
           setTemplates(fetchedTemplates);
@@ -293,28 +292,26 @@ export default function Templates() {
 
       // If it's a fallback template (no real ID), we need to create it first
       if (selectedTemplate.id === 'auto-template' || selectedTemplate.id === 'review-template') {
-        const res = await api.post('/templates', {
+        const newTemplate = await api.post('/templates', {
           title: selectedTemplate.title,
           description: selectedTemplate.description,
           prompt_content: editedContent,
           type: selectedTemplate.type
         });
 
-        const newTemplate = res.data;
         setTemplates(prev => prev.map(t =>
           t.id === selectedTemplate.id ? newTemplate : t
         ));
         setSelectedTemplate(newTemplate);
       } else {
         // Update existing template
-        const res = await api.put(`/templates/${selectedTemplate.id}`, {
+        const updatedTemplate = await api.put(`/templates/${selectedTemplate.id}`, {
           title: selectedTemplate.title,
           description: selectedTemplate.description,
           prompt_content: editedContent,
           type: selectedTemplate.type
         });
 
-        const updatedTemplate = res.data;
         setTemplates(prev => prev.map(t =>
           t.id === selectedTemplate.id ? updatedTemplate : t
         ));
@@ -351,14 +348,13 @@ Best regards,
 ${userProfile.advisorName}
 ${userProfile.businessName}`;
 
-      const res = await api.post('/templates', {
+      const newTemplate = await api.post('/templates', {
         title: newTemplateTitle,
         description: newTemplateDescription || `Custom template: ${newTemplateTitle}`,
         prompt_content: initialContent,
         type: newTemplateType
       });
 
-      const newTemplate = res.data;
       setTemplates(prev => [...prev, newTemplate]);
       setSelectedTemplate(newTemplate);
       setEditedContent(newTemplate.prompt_content);
@@ -414,14 +410,14 @@ ${userProfile.businessName}`;
     try {
       setAiGenerating(true);
 
-      const res = await api.post('/templates/generate', {
+      const result = await api.post('/templates/generate', {
         description: aiPrompt,
         templateType: newTemplateType
       });
 
-      setGeneratedContent(res.data.generatedContent);
-      if (res.data.suggestedTitle && !newTemplateTitle) {
-        setNewTemplateTitle(res.data.suggestedTitle);
+      setGeneratedContent(result.generatedContent);
+      if (result.suggestedTitle && !newTemplateTitle) {
+        setNewTemplateTitle(result.suggestedTitle);
       }
 
       showNotification('Template generated! Review and save when ready.');
