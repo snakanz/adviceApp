@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { cn } from '../lib/utils';
@@ -439,14 +439,6 @@ ${userProfile.businessName}`;
         return <Mail className="w-4 h-4 text-primary" />;
     }
   };
-
-  // Replace placeholders with actual user data for preview
-  const getPreviewContent = useCallback((content) => {
-    if (!content) return '';
-    return content
-      .replace(/\{advisorName\}/g, userProfile.advisorName || 'Your Name')
-      .replace(/\{businessName\}/g, userProfile.businessName || 'Your Business');
-  }, [userProfile]);
 
   if (loading) {
     return (
