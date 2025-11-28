@@ -884,7 +884,7 @@ export default function Pipeline() {
               {filteredClients.map((client) => (
                 <div
                   key={client.id}
-                  onClick={() => handleClientClick(client.fullClient || client)}
+                  onClick={() => handleClientClick({ ...client.fullClient, ...client, fullClient: client.fullClient })}
                   className="grid grid-cols-12 gap-3 lg:gap-4 py-4 border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-all duration-200 group rounded-lg hover:shadow-sm"
                 >
                   {/* Client Information & Business Type */}
