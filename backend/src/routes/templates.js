@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { authenticateSupabaseUser, getSupabase, isSupabaseAvailable } = require('../middleware/auth');
+const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
+const { isSupabaseAvailable } = require('../lib/supabase');
 
 // Default templates to seed the database
 const defaultTemplates = [
