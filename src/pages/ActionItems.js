@@ -206,7 +206,8 @@ export default function ActionItems() {
     }
 
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/transcript-action-items/approve`, {
         method: 'POST',
         headers: {
@@ -237,7 +238,8 @@ export default function ActionItems() {
 
   const updatePendingItemPriority = async (itemId, priority) => {
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/transcript-action-items/pending/${itemId}/priority`, {
         method: 'PATCH',
         headers: {
@@ -283,7 +285,8 @@ export default function ActionItems() {
 
     try {
       setSavingPendingEdit(true);
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/transcript-action-items/pending/${itemId}/text`, {
         method: 'PATCH',
         headers: {
@@ -337,7 +340,8 @@ export default function ActionItems() {
 
     try {
       setSavingNewPendingItem(true);
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/transcript-action-items/pending`, {
         method: 'POST',
         headers: {
@@ -381,7 +385,8 @@ export default function ActionItems() {
     }
 
     try {
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/transcript-action-items/pending`, {
         method: 'DELETE',
         headers: {
@@ -512,7 +517,8 @@ export default function ActionItems() {
 
     try {
       setSavingEdit(true);
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
       const response = await fetch(`${API_URL}/api/transcript-action-items/action-items/${actionItemId}/text`, {
         method: 'PATCH',
         headers: {
@@ -562,7 +568,8 @@ export default function ActionItems() {
     try {
       setAssigningPriorities(true);
       setError('');
-      const token = localStorage.getItem('jwt');
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
 
       const response = await fetch(`${API_URL}/api/transcript-action-items/action-items/assign-priorities`, {
         method: 'POST',
