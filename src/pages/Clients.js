@@ -61,6 +61,9 @@ export default function Clients() {
   const [successMessage, setSuccessMessage] = useState('');
   const [generatingSummary, setGeneratingSummary] = useState(false);
   const [clientActionItems, setClientActionItems] = useState([]);
+  const [clientTodos, setClientTodos] = useState([]);
+  const [newActionItemText, setNewActionItemText] = useState('');
+  const [addingActionItem, setAddingActionItem] = useState(false);
   const [meetingHistoryCollapsed, setMeetingHistoryCollapsed] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -168,6 +171,64 @@ export default function Clients() {
     }
   };
 
+  // Fetch client todos (standalone action items)
+  const fetchClientTodos = async (clientId) => {
+    if (!clientId) return;
+
+    try {
+      const todos = await api.request(`/pipeline/client/${clientId}/todos`);
+      setClientTodos(todos || []);
+    } catch (error) {
+      console.error('Error fetching client todos:', error);
+      setClientTodos([]);
+    }
+  };
+
+  // Create a new action item (todo) for a client
+  const handleAddActionItem = async () => {
+    if (!selectedClient?.id || !newActionItemText.trim()) return;
+
+    setAddingActionItem(true);
+    try {
+      await api.request(`/pipeline/client/${selectedClient.id}/todos`, {
+        method: 'POST',
+        body: JSON.stringify({
+          title: newActionItemText.trim(),
+          category: 'action_item'
+        })
+      });
+
+      // Clear input and refresh todos
+      setNewActionItemText('');
+      await fetchClientTodos(selectedClient.id);
+      showSuccess('Action item added!');
+    } catch (error) {
+      console.error('Error adding action item:', error);
+      showSuccess('Failed to add action item');
+    } finally {
+      setAddingActionItem(false);
+    }
+  };
+
+  // Toggle todo completion
+  const toggleTodoCompletion = async (todoId, currentStatus) => {
+    try {
+      await api.request(`/pipeline/todos/${todoId}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          status: currentStatus === 'completed' ? 'pending' : 'completed'
+        })
+      });
+
+      // Refresh todos after toggle
+      if (selectedClient?.id) {
+        await fetchClientTodos(selectedClient.id);
+      }
+    } catch (error) {
+      console.error('Error toggling todo:', error);
+    }
+  };
+
   // Extract clients from meeting attendees
   const handleExtractClients = async () => {
     setExtracting(true);
@@ -241,12 +302,14 @@ export default function Clients() {
     };
   }, [fetchClients, clientFilter]);
 
-  // Fetch action items when client is selected
+  // Fetch action items and todos when client is selected
   useEffect(() => {
     if (selectedClient?.id) {
       fetchClientActionItems(selectedClient.id);
+      fetchClientTodos(selectedClient.id);
     } else {
       setClientActionItems([]);
+      setClientTodos([]);
     }
   }, [selectedClient?.id]);
 
@@ -285,6 +348,15 @@ export default function Clients() {
         return client.last_meeting_date ? new Date(client.last_meeting_date).getTime() : 0;
       case 'meeting_count':
         return parseInt(client.meeting_count || 0);
+      case 'next_meeting': {
+        // Get next meeting date for sorting
+        if (!client.meetings || client.meetings.length === 0) return Infinity; // No meetings = sort to end
+        const now = new Date();
+        const upcomingMeetings = client.meetings
+          .filter(meeting => new Date(meeting.starttime) > now)
+          .sort((a, b) => new Date(a.starttime) - new Date(b.starttime));
+        return upcomingMeetings.length > 0 ? new Date(upcomingMeetings[0].starttime).getTime() : Infinity;
+      }
       default:
         return '';
     }
@@ -658,8 +730,18 @@ export default function Clients() {
                   )}
                 </div>
 
-                {/* Non-sortable: Next Meeting */}
-                <div className="col-span-2">Next Meeting</div>
+                {/* Sortable: Next Meeting */}
+                <div
+                  className="col-span-2 flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
+                  onClick={() => handleSort('next_meeting')}
+                >
+                  Next Meeting
+                  {sortConfig.key === 'next_meeting' ? (
+                    sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 opacity-40" />
+                  )}
+                </div>
 
                 {/* Sortable: Business Types */}
                 <div
@@ -932,7 +1014,11 @@ export default function Clients() {
                         <CardContent className="p-4">
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                              <span
+                                className="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors"
+                                onClick={() => navigate(`/pipeline?businessType=${encodeURIComponent(bt.business_type)}`)}
+                                title={`View ${bt.business_type} in Pipeline`}
+                              >
                                 {bt.business_type}
                               </span>
                               {bt.not_proceeding && (
@@ -1001,6 +1087,73 @@ export default function Clients() {
               {/* Action Items Section */}
               <div>
                 <h3 className="text-lg font-semibold text-foreground mb-3">Action Items</h3>
+
+                {/* Add New Action Item Form */}
+                <div className="mb-4">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Add new action item..."
+                      value={newActionItemText}
+                      onChange={(e) => setNewActionItemText(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && handleAddActionItem()}
+                      className="flex-1"
+                    />
+                    <Button
+                      onClick={handleAddActionItem}
+                      disabled={!newActionItemText.trim() || addingActionItem}
+                      size="sm"
+                    >
+                      {addingActionItem ? (
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <Plus className="w-4 h-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Manual Todos (standalone action items) */}
+                {clientTodos && clientTodos.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    <p className="text-xs font-medium text-muted-foreground">Manual Action Items</p>
+                    {clientTodos.filter(t => t.status !== 'completed').map((todo) => (
+                      <Card key={todo.id} className="border-border/50">
+                        <CardContent className="p-3">
+                          <div className="flex items-start gap-3">
+                            <input
+                              type="checkbox"
+                              checked={false}
+                              onChange={() => toggleTodoCompletion(todo.id, todo.status)}
+                              className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
+                            />
+                            <div className="flex-1">
+                              <p className="text-sm text-foreground">{todo.title}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                    {clientTodos.filter(t => t.status === 'completed').map((todo) => (
+                      <Card key={todo.id} className="border-border/50 bg-muted/30">
+                        <CardContent className="p-3">
+                          <div className="flex items-start gap-3">
+                            <input
+                              type="checkbox"
+                              checked={true}
+                              onChange={() => toggleTodoCompletion(todo.id, todo.status)}
+                              className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
+                            />
+                            <div className="flex-1">
+                              <p className="text-sm line-through text-muted-foreground">{todo.title}</p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+
+                {/* Meeting-extracted Action Items */}
                 {clientActionItems && clientActionItems.length > 0 && clientActionItems.some(m => m.actionItems.length > 0) ? (
                   <div className="space-y-3">
                     {clientActionItems.map(meeting => {
@@ -1013,7 +1166,7 @@ export default function Clients() {
                         <div key={meeting.meetingId} className="space-y-2">
                           <div className="flex items-center justify-between">
                             <p className="text-xs font-medium text-muted-foreground">
-                              {meeting.meetingTitle}
+                              From: {meeting.meetingTitle}
                             </p>
                             {pendingItems.length > 0 && (
                               <span className="text-xs text-orange-600">
@@ -1067,12 +1220,12 @@ export default function Clients() {
                       );
                     })}
                   </div>
-                ) : (
+                ) : clientTodos.length === 0 && (
                   <Card className="border-border/50">
                     <CardContent className="p-6 text-center">
                       <CheckCircle2 className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">
-                        No action items - they'll appear here when extracted from meeting transcripts
+                        No action items yet - add one above or they'll appear when extracted from meeting transcripts
                       </p>
                     </CardContent>
                   </Card>

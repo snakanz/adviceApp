@@ -566,6 +566,52 @@ router.get('/:clientId', authenticateSupabaseUser, async (req, res) => {
   }
 });
 
+// Update client notes
+router.put('/:clientId/notes', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { clientId } = req.params;
+    const { notes } = req.body;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    // Verify client belongs to user
+    const { data: client, error: clientError } = await req.supabase
+      .from('clients')
+      .select('id')
+      .eq('id', clientId)
+      .eq('user_id', userId)
+      .single();
+
+    if (clientError || !client) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+
+    // Update client notes
+    const { data: updatedClient, error: updateError } = await req.supabase
+      .from('clients')
+      .update({ notes: notes || null, updated_at: new Date().toISOString() })
+      .eq('id', clientId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating client notes:', updateError);
+      return res.status(500).json({ error: 'Failed to update notes' });
+    }
+
+    res.json({ success: true, notes: updatedClient.notes });
+  } catch (error) {
+    console.error('Error updating client notes:', error);
+    res.status(500).json({ error: 'Failed to update notes', details: error.message });
+  }
+});
+
 // Get meetings for a specific client
 router.get('/:clientId/meetings', authenticateSupabaseUser, async (req, res) => {
   try {
@@ -1507,18 +1553,32 @@ router.post('/:clientId/generate-summary', authenticateSupabaseUser, async (req,
       m.transcript || m.detailed_summary || m.quick_summary
     ) || [];
 
-    if (meetingsWithContent.length === 0) {
-      return res.json({
-        summary: null,
-        message: 'No meeting content available to generate summary'
-      });
-    }
-
     // Get business types
     const { data: businessTypes } = await req.supabase
       .from('client_business_types')
       .select('*')
       .eq('client_id', clientId);
+
+    // Get action items for this client
+    const { data: actionItems } = await req.supabase
+      .from('transcript_action_items')
+      .select('*, meetings!inner(client_id)')
+      .eq('meetings.client_id', clientId)
+      .eq('completed', false);
+
+    // Get client todos (standalone action items)
+    const { data: clientTodos } = await req.supabase
+      .from('client_todos')
+      .select('*')
+      .eq('client_id', clientId)
+      .eq('status', 'pending');
+
+    // Calculate meeting stats
+    const now = new Date();
+    const totalMeetings = meetings?.length || 0;
+    const upcomingMeetings = meetings?.filter(m => new Date(m.starttime) > now) || [];
+    const hasUpcomingMeeting = upcomingMeetings.length > 0;
+    const nextMeetingDate = hasUpcomingMeeting ? upcomingMeetings.sort((a, b) => new Date(a.starttime) - new Date(b.starttime))[0].starttime : null;
 
     // Prepare context for OpenAI
     const meetingContext = meetingsWithContent.map(m => ({
@@ -1535,6 +1595,12 @@ router.post('/:clientId/generate-summary', authenticateSupabaseUser, async (req,
       method: bt.contribution_method
     })) || [];
 
+    // Combine action items
+    const pendingActionItems = [
+      ...(actionItems || []).map(ai => ai.action_text),
+      ...(clientTodos || []).map(t => t.title)
+    ];
+
     // Generate summary using OpenAI
     const OpenAI = require('openai');
     const openai = new OpenAI({
@@ -1545,16 +1611,26 @@ router.post('/:clientId/generate-summary', authenticateSupabaseUser, async (req,
 
 Client: ${client.name}
 
+Meeting Stats:
+- Total meetings: ${totalMeetings}
+- Has upcoming meeting: ${hasUpcomingMeeting ? `Yes (${new Date(nextMeetingDate).toLocaleDateString()})` : 'No - CONSIDER BOOKING A MEETING'}
+
 Recent Meetings:
-${meetingContext.map(m => `- ${new Date(m.date).toLocaleDateString()}: ${m.title}\n  ${m.summary}`).join('\n')}
+${meetingContext.length > 0 ? meetingContext.map(m => `- ${new Date(m.date).toLocaleDateString()}: ${m.title}\n  ${m.summary}`).join('\n') : 'No recent meetings with content'}
 
 Business Types:
-${businessContext.map(bt => `- ${bt.type}: £${bt.amount?.toLocaleString() || 0} (IAF: £${bt.iaf?.toLocaleString() || 0})`).join('\n')}
+${businessContext.length > 0 ? businessContext.map(bt => `- ${bt.type}: £${bt.amount?.toLocaleString() || 0} (IAF: £${bt.iaf?.toLocaleString() || 0})`).join('\n') : 'No business types set'}
+
+Pending Action Items (${pendingActionItems.length}):
+${pendingActionItems.length > 0 ? pendingActionItems.slice(0, 5).map(ai => `- ${ai}`).join('\n') : 'None'}
 
 Generate a concise summary that captures:
-1. Current relationship status
+1. Current relationship status and engagement level
 2. Key business opportunities or progress
-3. Next steps or what we're waiting for
+3. Immediate next steps (prioritize pending action items and meeting scheduling if needed)
+
+${!hasUpcomingMeeting ? 'IMPORTANT: Suggest booking a meeting since there is no upcoming meeting scheduled.' : ''}
+${pendingActionItems.length > 0 ? 'IMPORTANT: Mention the pending action items that need attention.' : ''}
 
 Keep it professional, factual, and under 100 words.`;
 

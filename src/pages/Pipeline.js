@@ -14,7 +14,7 @@ import {
   AlertCircle,
   Sparkles
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { cn } from '../lib/utils';
 import { api } from '../services/api';
@@ -38,11 +38,14 @@ export default function Pipeline() {
   const [savingBusinessTypes, setSavingBusinessTypes] = useState(false); // Saving state for business types
   const [generatingPipelineSummary, setGeneratingPipelineSummary] = useState(false); // AI summary generation state
   const [nextStepsSummary, setNextStepsSummary] = useState(null); // AI-generated next steps summary
-
-
+  const [editingNotes, setEditingNotes] = useState(false); // Notes editing state
+  const [pipelineNotes, setPipelineNotes] = useState(''); // Notes text
+  const [savingNotes, setSavingNotes] = useState(false); // Saving notes state
 
   const { isAuthenticated} = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const businessTypeFilter = searchParams.get('businessType') || '';
 
   // Generate months for tabs (current month + next 11 months)
   const generateMonths = () => {
@@ -107,7 +110,8 @@ export default function Pipeline() {
               last_contact_date: client.last_contact_date,
               next_follow_up_date: client.next_follow_up_date,
               pipeline_next_steps: client.pipeline_next_steps || null,
-              pipeline_next_steps_generated_at: client.pipeline_next_steps_generated_at || null
+              pipeline_next_steps_generated_at: client.pipeline_next_steps_generated_at || null,
+              pipelineNotes: client.notes || bt.notes || null
             };
           });
         }
@@ -131,7 +135,8 @@ export default function Pipeline() {
           last_contact_date: client.last_contact_date,
           next_follow_up_date: client.next_follow_up_date,
           pipeline_next_steps: client.pipeline_next_steps || null,
-          pipeline_next_steps_generated_at: client.pipeline_next_steps_generated_at || null
+          pipeline_next_steps_generated_at: client.pipeline_next_steps_generated_at || null,
+          pipelineNotes: client.notes || null
         }];
       });
 
@@ -245,8 +250,20 @@ export default function Pipeline() {
   }, [clients, loading]); // Only recalculate when clients or loading state changes
 
   const handleClientClick = async (client) => {
-    setSelectedClient(client);
+    // Normalize client data for the detail panel
+    const normalizedClient = {
+      ...client,
+      // Map business_types to businessTypes for consistency
+      businessTypes: client.business_types || [],
+      businessTypesData: client.business_types_data || [],
+      totalBusinessAmount: client.business_amount || 0,
+      totalIafExpected: client.iaf_expected || 0,
+      pipelineNotes: client.notes || null
+    };
+
+    setSelectedClient(normalizedClient);
     setShowDetailPanel(true);
+    setEditingNotes(false); // Reset notes editing state
     setNextStepsSummary(null); // Reset summary when switching clients
 
     // Auto-generate pipeline summary if not already generated or if stale (older than 1 hour)
@@ -288,6 +305,39 @@ export default function Pipeline() {
     } finally {
       setGeneratingPipelineSummary(false);
     }
+  };
+
+  // Save pipeline notes
+  const handleSaveNotes = async () => {
+    if (!selectedClient) return;
+
+    setSavingNotes(true);
+    try {
+      await api.request(`/clients/${selectedClient.id}/notes`, {
+        method: 'PUT',
+        body: JSON.stringify({ notes: pipelineNotes })
+      });
+
+      // Update selected client with new notes
+      setSelectedClient(prev => ({ ...prev, pipelineNotes: pipelineNotes }));
+
+      // Update clients list
+      setClients(prev => prev.map(c =>
+        c.id === selectedClient.id ? { ...c, pipelineNotes: pipelineNotes } : c
+      ));
+
+      setEditingNotes(false);
+    } catch (error) {
+      console.error('Error saving notes:', error);
+    } finally {
+      setSavingNotes(false);
+    }
+  };
+
+  // Start editing notes
+  const handleStartEditNotes = () => {
+    setPipelineNotes(selectedClient?.pipelineNotes || '');
+    setEditingNotes(true);
   };
 
   const handleEditPipeline = async () => {
@@ -465,11 +515,19 @@ export default function Pipeline() {
     return monthClients.reduce((total, client) => total + (client.expectedFees || 0), 0);
   };
 
-  const filteredClients = getCurrentMonthClients().filter(client =>
-    client.name.toLowerCase().includes(search.toLowerCase()) ||
-    client.email.toLowerCase().includes(search.toLowerCase()) ||
-    client.businessType.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredClients = getCurrentMonthClients().filter(client => {
+    // First apply search filter
+    const matchesSearch =
+      client.name.toLowerCase().includes(search.toLowerCase()) ||
+      client.email.toLowerCase().includes(search.toLowerCase()) ||
+      client.businessType.toLowerCase().includes(search.toLowerCase());
+
+    // Then apply business type filter from URL if present
+    const matchesBusinessType = !businessTypeFilter ||
+      client.businessType.toLowerCase() === businessTypeFilter.toLowerCase();
+
+    return matchesSearch && matchesBusinessType;
+  });
 
   if (loading) {
     return (
@@ -737,6 +795,21 @@ export default function Pipeline() {
                 className="pl-10"
               />
             </div>
+            {/* Business Type Filter Badge */}
+            {businessTypeFilter && (
+              <div className="flex items-center gap-2 bg-blue-100 text-blue-800 px-3 py-2 rounded-lg">
+                <span className="text-sm font-medium">
+                  Filtered by: {businessTypeFilter}
+                </span>
+                <button
+                  onClick={() => setSearchParams({})}
+                  className="hover:bg-blue-200 rounded-full p-0.5 transition-colors"
+                  title="Clear filter"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1041,12 +1114,57 @@ export default function Pipeline() {
 
                 {/* Pipeline Notes */}
                 <div>
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pipeline Notes</label>
-                  <div className="mt-2 p-3 bg-muted/30 border border-border rounded-lg min-h-[80px]">
-                    <p className={cn("text-sm whitespace-pre-wrap", selectedClient.pipelineNotes ? "text-foreground" : "text-muted-foreground italic")}>
-                      {selectedClient.pipelineNotes || 'No notes added yet'}
-                    </p>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pipeline Notes</label>
+                    {!editingNotes && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleStartEditNotes}
+                        className="h-6 px-2 text-xs"
+                      >
+                        <Edit3 className="w-3 h-3 mr-1" />
+                        Edit
+                      </Button>
+                    )}
                   </div>
+                  {editingNotes ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={pipelineNotes}
+                        onChange={(e) => setPipelineNotes(e.target.value)}
+                        className="w-full p-3 bg-background border border-border rounded-lg min-h-[100px] text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                        placeholder="Add notes about this pipeline opportunity..."
+                      />
+                      <div className="flex gap-2 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setEditingNotes(false)}
+                          disabled={savingNotes}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleSaveNotes}
+                          disabled={savingNotes}
+                        >
+                          {savingNotes ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            'Save'
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-muted/30 border border-border rounded-lg min-h-[80px]">
+                      <p className={cn("text-sm whitespace-pre-wrap", selectedClient.pipelineNotes ? "text-foreground" : "text-muted-foreground italic")}>
+                        {selectedClient.pipelineNotes || 'No notes added yet. Click Edit to add notes.'}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div>
