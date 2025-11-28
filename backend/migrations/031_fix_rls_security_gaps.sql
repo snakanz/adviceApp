@@ -14,7 +14,7 @@ DROP POLICY IF EXISTS "Users can view own recall webhook events" ON public.recal
 CREATE POLICY "Users can view own recall webhook events" ON public.recall_webhook_events
     FOR ALL USING (
         meeting_id IN (
-            SELECT id FROM meetings WHERE userid = auth.uid()::text
+            SELECT id FROM meetings WHERE user_id = auth.uid()::text
         )
     );
 
