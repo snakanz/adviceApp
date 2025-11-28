@@ -3,56 +3,59 @@
 -- Run this in Supabase SQL Editor
 -- =====================================================
 
--- 1. Enable RLS on calendly_webhook_subscriptions (has policies but RLS not enabled)
+-- 1. Enable RLS on calendly_webhook_subscriptions
+-- (Already has policies, just need to enable RLS)
+-- Policies already compare user_id (uuid) = auth.uid() (uuid) ✅
 ALTER TABLE public.calendly_webhook_subscriptions ENABLE ROW LEVEL SECURITY;
 
 -- 2. Enable RLS on recall_webhook_events
+-- This table stores raw webhook data with bot_id (text)
+-- Link to user via meetings table using recall_bot_id
 ALTER TABLE public.recall_webhook_events ENABLE ROW LEVEL SECURITY;
 
--- Create policy: Only allow access to webhook events for the user's own meetings
 DROP POLICY IF EXISTS "Users can view own recall webhook events" ON public.recall_webhook_events;
 CREATE POLICY "Users can view own recall webhook events" ON public.recall_webhook_events
     FOR ALL USING (
-        meeting_id IN (
-            SELECT id FROM meetings WHERE user_id = auth.uid()::text
+        bot_id IN (
+            SELECT recall_bot_id FROM meetings WHERE user_id = auth.uid()
         )
     );
 
--- 3. Enable RLS on calendly_webhook_events  
+-- 3. Enable RLS on calendly_webhook_events
+-- This table has no user_id column - it stores raw webhook payloads
+-- For security, restrict to service role only (webhooks come from backend)
 ALTER TABLE public.calendly_webhook_events ENABLE ROW LEVEL SECURITY;
 
--- Create policy: Only allow access to webhook events for the user's own data
-DROP POLICY IF EXISTS "Users can view own calendly webhook events" ON public.calendly_webhook_events;
-CREATE POLICY "Users can view own calendly webhook events" ON public.calendly_webhook_events
+DROP POLICY IF EXISTS "Service role only for calendly webhook events" ON public.calendly_webhook_events;
+CREATE POLICY "Service role only for calendly webhook events" ON public.calendly_webhook_events
     FOR ALL USING (
-        user_id = auth.uid()::text
-        OR user_id IS NULL -- Allow webhook processing before user association
+        auth.role() = 'service_role'
     );
 
 -- 4. Enable RLS on email_templates
+-- user_id is uuid type, auth.uid() returns uuid - direct comparison ✅
 ALTER TABLE public.email_templates ENABLE ROW LEVEL SECURITY;
 
--- Create policies for email_templates
 DROP POLICY IF EXISTS "Users can view own email templates" ON public.email_templates;
 CREATE POLICY "Users can view own email templates" ON public.email_templates
     FOR SELECT USING (user_id = auth.uid()::text OR is_default = true);
 
 DROP POLICY IF EXISTS "Users can create own email templates" ON public.email_templates;
 CREATE POLICY "Users can create own email templates" ON public.email_templates
-    FOR INSERT WITH CHECK (user_id = auth.uid()::text);
+    FOR INSERT WITH CHECK (user_id = auth.uid());
 
 DROP POLICY IF EXISTS "Users can update own email templates" ON public.email_templates;
 CREATE POLICY "Users can update own email templates" ON public.email_templates
-    FOR UPDATE USING (user_id = auth.uid()::text);
+    FOR UPDATE USING (user_id = auth.uid());
 
 DROP POLICY IF EXISTS "Users can delete own email templates" ON public.email_templates;
 CREATE POLICY "Users can delete own email templates" ON public.email_templates
-    FOR DELETE USING (user_id = auth.uid()::text);
+    FOR DELETE USING (user_id = auth.uid());
 
 -- 5. Fix the security definer view - recreate without SECURITY DEFINER
 DROP VIEW IF EXISTS public.client_business_summary;
 CREATE VIEW public.client_business_summary AS
-SELECT 
+SELECT
     c.id as client_id,
     c.name as client_name,
     c.advisor_id,
