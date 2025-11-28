@@ -1234,7 +1234,8 @@ router.put('/:clientId/business-types', authenticateSupabaseUser, async (req, re
         business_amount: bt.business_amount ? parseFloat(bt.business_amount) : null,
         iaf_expected: bt.iaf_expected ? parseFloat(bt.iaf_expected) : null,
         expected_close_date: bt.expected_close_date || null,
-        notes: bt.notes || null
+        notes: bt.notes || null,
+        stage: bt.stage || 'Not Written'
       }));
 
       const { data: newBusinessTypes, error: insertError } = await req.supabase
@@ -1253,6 +1254,81 @@ router.put('/:clientId/business-types', authenticateSupabaseUser, async (req, re
     }
   } catch (error) {
     console.error('Error in update client business types:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Update business type stage
+router.patch('/business-types/:businessTypeId/stage', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const businessTypeId = req.params.businessTypeId;
+    const { stage } = req.body;
+
+    console.log('🔄 Updating business type stage:', { businessTypeId, stage });
+
+    // Validate stage value
+    const validStages = ['Not Written', 'In Progress', 'Signed', 'Completed'];
+    if (!validStages.includes(stage)) {
+      return res.status(400).json({
+        error: 'Invalid stage value',
+        validStages
+      });
+    }
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    // Verify business type exists and belongs to user's client
+    const { data: businessType, error: fetchError } = await req.supabase
+      .from('client_business_types')
+      .select(`
+        *,
+        client:clients!inner(
+          id,
+          user_id
+        )
+      `)
+      .eq('id', businessTypeId)
+      .single();
+
+    if (fetchError || !businessType) {
+      console.error('❌ Business type not found:', fetchError);
+      return res.status(404).json({ error: 'Business type not found' });
+    }
+
+    if (businessType.client.user_id !== userId) {
+      console.error('❌ Unauthorized access attempt');
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // Update stage
+    const { data: updatedBusinessType, error: updateError } = await req.supabase
+      .from('client_business_types')
+      .update({
+        stage,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', businessTypeId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('❌ Error updating business type stage:', updateError);
+      return res.status(500).json({ error: 'Failed to update business type stage' });
+    }
+
+    console.log('✅ Business type stage updated successfully:', updatedBusinessType.id);
+
+    res.json({
+      message: `Business type stage updated to ${stage}`,
+      businessType: updatedBusinessType
+    });
+  } catch (error) {
+    console.error('Error in update business type stage:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

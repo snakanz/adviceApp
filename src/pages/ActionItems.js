@@ -436,7 +436,7 @@ export default function ActionItems() {
     }
   };
 
-  const toggleActionItem = async (actionItemId) => {
+  const toggleActionItem = async (actionItemId, source = 'meeting') => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
@@ -445,7 +445,8 @@ export default function ActionItems() {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify({ source }) // Pass source to handle manual vs meeting items
       });
 
       if (!response.ok) {
@@ -459,7 +460,7 @@ export default function ActionItems() {
         prevClients.map(client => ({
           ...client,
           actionItems: client.actionItems.map(item =>
-            item.id === actionItemId ? { ...item, ...data.actionItem } : item
+            item.id === actionItemId ? { ...item, completed: data.completed, completedAt: data.completedAt } : item
           )
         }))
       );
@@ -467,11 +468,11 @@ export default function ActionItems() {
       // Update local state for all-items view (fixes white screen in all-items mode)
       setAllActionItems(prevItems =>
         prevItems.map(item =>
-          item.id === actionItemId ? { ...item, ...data.actionItem } : item
+          item.id === actionItemId ? { ...item, completed: data.completed, completedAt: data.completedAt } : item
         )
       );
 
-      setSuccess(data.actionItem.completed ? 'Action item completed!' : 'Action item reopened');
+      setSuccess(data.completed ? 'Action item completed!' : 'Action item reopened');
       setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
       console.error('Error toggling action item:', error);
@@ -1240,7 +1241,7 @@ export default function ActionItems() {
                               <input
                                 type="checkbox"
                                 checked={item.completed || false}
-                                onChange={() => toggleActionItem(item.id)}
+                                onChange={() => toggleActionItem(item.id, item.source || 'meeting')}
                                 className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
                               />
                               <div className="flex-1">
@@ -1305,17 +1306,27 @@ export default function ActionItems() {
                                   {/* Priority Badge */}
                                   {item.priority && <PriorityBadge priority={item.priority} />}
 
-                                  <div className="flex items-center gap-1">
-                                    <Calendar className="w-3 h-3" />
-                                    <span
-                                      className="cursor-pointer hover:text-primary hover:underline"
-                                      onClick={() => navigate(`/meetings?selected=${item.meeting.googleEventId || item.meeting.id}`)}
-                                    >
-                                      {item.meeting.title}
-                                    </span>
-                                  </div>
-                                  <span>•</span>
-                                  <span>{formatDate(item.meeting.startTime)}</span>
+                                  {/* Source Badge */}
+                                  {item.source === 'manual' ? (
+                                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                                      <Plus className="w-2.5 h-2.5 mr-1" />
+                                      Manual
+                                    </Badge>
+                                  ) : item.meeting ? (
+                                    <>
+                                      <div className="flex items-center gap-1">
+                                        <Calendar className="w-3 h-3" />
+                                        <span
+                                          className="cursor-pointer hover:text-primary hover:underline"
+                                          onClick={() => navigate(`/meetings?selected=${item.meeting.googleEventId || item.meeting.id}`)}
+                                        >
+                                          {item.meeting.title}
+                                        </span>
+                                      </div>
+                                      <span>•</span>
+                                      <span>{formatDate(item.meeting.startTime)}</span>
+                                    </>
+                                  ) : null}
                                   {item.completedAt && (
                                     <>
                                       <span>•</span>
@@ -1369,7 +1380,7 @@ export default function ActionItems() {
                               <input
                                 type="checkbox"
                                 checked={item.completed || false}
-                                onChange={() => toggleActionItem(item.id)}
+                                onChange={() => toggleActionItem(item.id, item.source || 'meeting')}
                                 className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
                               />
                               <div className="flex-1">
@@ -1434,6 +1445,14 @@ export default function ActionItems() {
                                   {/* Priority Badge */}
                                   {item.priority && <PriorityBadge priority={item.priority} />}
 
+                                  {/* Source Badge */}
+                                  {item.source === 'manual' ? (
+                                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                                      <Plus className="w-2.5 h-2.5 mr-1" />
+                                      Manual
+                                    </Badge>
+                                  ) : null}
+
                                   {/* Client Info */}
                                   {item.client && (
                                     <>
@@ -1450,17 +1469,21 @@ export default function ActionItems() {
                                     </>
                                   )}
 
-                                  <div className="flex items-center gap-1">
-                                    <Calendar className="w-3 h-3" />
-                                    <span
-                                      className="cursor-pointer hover:text-primary hover:underline"
-                                      onClick={() => navigate(`/meetings?selected=${item.meeting.googleEventId || item.meeting.id}`)}
-                                    >
-                                      {item.meeting.title}
-                                    </span>
-                                  </div>
-                                  <span>•</span>
-                                  <span>{formatDate(item.meeting.startTime)}</span>
+                                  {item.meeting ? (
+                                    <>
+                                      <div className="flex items-center gap-1">
+                                        <Calendar className="w-3 h-3" />
+                                        <span
+                                          className="cursor-pointer hover:text-primary hover:underline"
+                                          onClick={() => navigate(`/meetings?selected=${item.meeting.googleEventId || item.meeting.id}`)}
+                                        >
+                                          {item.meeting.title}
+                                        </span>
+                                      </div>
+                                      <span>•</span>
+                                      <span>{formatDate(item.meeting.startTime)}</span>
+                                    </>
+                                  ) : null}
                                   {item.completedAt && (
                                     <>
                                       <span>•</span>

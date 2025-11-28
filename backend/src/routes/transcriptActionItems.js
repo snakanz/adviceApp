@@ -33,12 +33,13 @@ router.get('/meetings/:meetingId/action-items', authenticateSupabaseUser, async 
   }
 });
 
-// Toggle action item completion
+// Toggle action item completion (supports both meeting-extracted and manual items)
 router.patch('/action-items/:actionItemId/toggle', authenticateSupabaseUser, async (req, res) => {
   const { actionItemId } = req.params;
+  const { source } = req.body; // 'meeting' or 'manual'
   const userId = req.user.id;
 
-  console.log(`🔄 Toggle action item ${actionItemId} for user ${userId}`);
+  console.log(`🔄 Toggle action item ${actionItemId} for user ${userId}, source: ${source || 'meeting'}`);
 
   try {
     if (!isSupabaseAvailable()) {
@@ -46,6 +47,48 @@ router.patch('/action-items/:actionItemId/toggle', authenticateSupabaseUser, asy
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
+    // Handle manual action items (client_todos)
+    if (source === 'manual') {
+      const { data: todo, error: todoFetchError } = await req.supabase
+        .from('client_todos')
+        .select('*')
+        .eq('id', actionItemId)
+        .eq('user_id', userId)
+        .single();
+
+      if (todoFetchError || !todo) {
+        console.error('❌ Todo not found:', todoFetchError);
+        return res.status(404).json({ error: 'Action item not found' });
+      }
+
+      const newCompleted = todo.status !== 'completed';
+      const { data: updatedTodo, error: todoUpdateError } = await req.supabase
+        .from('client_todos')
+        .update({
+          status: newCompleted ? 'completed' : 'pending',
+          completed_at: newCompleted ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', actionItemId)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (todoUpdateError) {
+        console.error('❌ Error updating todo:', todoUpdateError);
+        return res.status(500).json({ error: 'Failed to update action item' });
+      }
+
+      return res.json({
+        id: updatedTodo.id,
+        actionText: updatedTodo.title,
+        completed: updatedTodo.status === 'completed',
+        completedAt: updatedTodo.completed_at,
+        source: 'manual'
+      });
+    }
+
+    // Handle meeting-extracted action items (transcript_action_items)
     // First, get the current state
     console.log(`📋 Fetching current state for item ${actionItemId}...`);
     const { data: currentItem, error: fetchError } = await req.supabase
@@ -450,6 +493,7 @@ router.get('/action-items/by-client', authenticateSupabaseUser, async (req, res)
         displayOrder: item.display_order,
         priority: item.priority || 3, // Default to medium priority
         createdAt: item.created_at,
+        source: 'meeting', // Mark as meeting-extracted
         meeting: {
           id: item.meeting_id,
           title: meeting?.title || 'Unknown Meeting',
@@ -458,6 +502,58 @@ router.get('/action-items/by-client', authenticateSupabaseUser, async (req, res)
         }
       });
     });
+
+    // Fetch client_todos (manual action items) and merge them in
+    const { data: clientTodos, error: todosError } = await req.supabase
+      .from('client_todos')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (!todosError && clientTodos) {
+      // Get client info for todos
+      const todoClientIds = [...new Set(clientTodos.map(t => t.client_id).filter(Boolean))];
+      let todoClientsMap = {};
+
+      if (todoClientIds.length > 0) {
+        const { data: todoClients } = await req.supabase
+          .from('clients')
+          .select('id, name, email')
+          .in('id', todoClientIds);
+
+        if (todoClients) {
+          todoClientsMap = Object.fromEntries(todoClients.map(c => [c.id, c]));
+        }
+      }
+
+      // Add todos to the grouped structure
+      clientTodos.forEach(todo => {
+        const clientId = todo.client_id || 'no-client';
+        const client = todoClientsMap[clientId];
+        const clientName = client?.name || 'No Client Linked';
+        const clientEmail = client?.email || '';
+
+        if (!groupedByClient[clientId]) {
+          groupedByClient[clientId] = {
+            clientId,
+            clientName,
+            clientEmail,
+            actionItems: []
+          };
+        }
+
+        groupedByClient[clientId].actionItems.push({
+          id: todo.id,
+          actionText: todo.title,
+          completed: todo.status === 'completed',
+          completedAt: todo.completed_at,
+          displayOrder: 999, // Manual items go after meeting items
+          priority: todo.priority || 3,
+          createdAt: todo.created_at,
+          source: 'manual', // Mark as manually created
+          meeting: null // No meeting associated
+        });
+      });
+    }
 
     // Convert to array and sort by client name
     const clientsArray = Object.values(groupedByClient).sort((a, b) =>
@@ -570,6 +666,7 @@ router.get('/action-items/all', authenticateSupabaseUser, async (req, res) => {
         displayOrder: item.display_order,
         priority: item.priority || 3,
         createdAt: item.created_at,
+        source: 'meeting', // Mark as meeting-extracted
         meeting: {
           id: item.meeting_id,
           title: meeting?.title || 'Unknown Meeting',
@@ -583,6 +680,73 @@ router.get('/action-items/all', authenticateSupabaseUser, async (req, res) => {
         } : null
       };
     });
+
+    // Fetch client_todos (manual action items) and merge them in
+    let todosQuery = req.supabase
+      .from('client_todos')
+      .select('*')
+      .eq('user_id', userId);
+
+    // Apply priority filter if specified
+    if (priorityFilter && priorityFilter !== 'all') {
+      todosQuery = todosQuery.eq('priority', parseInt(priorityFilter));
+    }
+
+    const { data: clientTodos, error: todosError } = await todosQuery;
+
+    if (!todosError && clientTodos) {
+      // Get client info for todos
+      const todoClientIds = [...new Set(clientTodos.map(t => t.client_id).filter(Boolean))];
+
+      if (todoClientIds.length > 0) {
+        const { data: todoClients } = await req.supabase
+          .from('clients')
+          .select('id, name, email')
+          .in('id', todoClientIds);
+
+        if (todoClients) {
+          todoClients.forEach(c => {
+            clientsMap[c.id] = c;
+          });
+        }
+      }
+
+      // Add todos to the formatted items
+      clientTodos.forEach(todo => {
+        const client = clientsMap[todo.client_id];
+
+        formattedItems.push({
+          id: todo.id,
+          actionText: todo.title,
+          completed: todo.status === 'completed',
+          completedAt: todo.completed_at,
+          displayOrder: 999,
+          priority: todo.priority || 3,
+          createdAt: todo.created_at,
+          source: 'manual', // Mark as manually created
+          meeting: null, // No meeting associated
+          client: client ? {
+            id: client.id,
+            name: client.name,
+            email: client.email
+          } : null
+        });
+      });
+    }
+
+    // Sort the combined list
+    if (sortBy === 'priority') {
+      formattedItems.sort((a, b) => {
+        if (a.priority !== b.priority) return a.priority - b.priority;
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+    } else {
+      formattedItems.sort((a, b) => {
+        if (a.completed !== b.completed) return a.completed ? 1 : -1;
+        return new Date(b.createdAt) - new Date(a.createdAt);
+      });
+    }
 
     res.json({ actionItems: formattedItems });
   } catch (error) {

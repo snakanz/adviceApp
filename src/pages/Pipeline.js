@@ -3,6 +3,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { Badge } from '../components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import {
   User,
   Search,
@@ -20,6 +21,14 @@ import { cn } from '../lib/utils';
 import { api } from '../services/api';
 import CreateClientForm from '../components/CreateClientForm';
 import BusinessTypeManager from '../components/BusinessTypeManager';
+
+// Stage options for business types
+const STAGE_OPTIONS = [
+  { value: 'Not Written', label: 'Not Written', color: 'bg-gray-100 text-gray-700' },
+  { value: 'In Progress', label: 'In Progress', color: 'bg-blue-100 text-blue-700' },
+  { value: 'Signed', label: 'Signed', color: 'bg-yellow-100 text-yellow-700' },
+  { value: 'Completed', label: 'Completed', color: 'bg-green-100 text-green-700' }
+];
 
 
 
@@ -95,9 +104,11 @@ export default function Pipeline() {
             return {
               id: `${client.id}-bt-${btIndex}`,
               clientId: client.id,
+              businessTypeId: bt.id, // ID for updating the stage
               name: client.name || client.email,
               email: client.email,
               businessType: bt.business_type,
+              stage: bt.stage || 'Not Written',
               expectedFees: parseFloat(bt.iaf_expected || 0),
               investmentAmount: parseFloat(bt.business_amount || 0),
               expectedCloseDate: bt.expected_close_date,
@@ -106,6 +117,7 @@ export default function Pipeline() {
               pastMeetingCount: client.meeting_count || 0,
               fullClient: client,
               businessTypesData: [bt], // Single business type for this row
+              allBusinessTypes: businessTypesData, // All business types for display
               priority_level: client.priority_level || 3,
               last_contact_date: client.last_contact_date,
               next_follow_up_date: client.next_follow_up_date,
@@ -120,9 +132,11 @@ export default function Pipeline() {
         return [{
           id: client.id,
           clientId: client.id,
+          businessTypeId: null,
           name: client.name || client.email,
           email: client.email,
           businessType: 'Not Set',
+          stage: 'Not Written',
           expectedFees: 0,
           investmentAmount: 0,
           expectedCloseDate: null,
@@ -131,6 +145,7 @@ export default function Pipeline() {
           pastMeetingCount: client.meeting_count || 0,
           fullClient: client,
           businessTypesData: [],
+          allBusinessTypes: [],
           priority_level: client.priority_level || 3,
           last_contact_date: client.last_contact_date,
           next_follow_up_date: client.next_follow_up_date,
@@ -258,7 +273,12 @@ export default function Pipeline() {
       businessTypesData: client.business_types_data || [],
       totalBusinessAmount: client.business_amount || 0,
       totalIafExpected: client.iaf_expected || 0,
-      pipelineNotes: client.notes || null
+      pipelineNotes: client.notes || null,
+      // Include stage info from the business types
+      allBusinessTypesWithStage: (client.business_types_data || []).map(bt => ({
+        ...bt,
+        stage: bt.stage || 'Not Written'
+      }))
     };
 
     setSelectedClient(normalizedClient);
@@ -338,6 +358,33 @@ export default function Pipeline() {
   const handleStartEditNotes = () => {
     setPipelineNotes(selectedClient?.pipelineNotes || '');
     setEditingNotes(true);
+  };
+
+  // Update business type stage
+  const handleStageChange = async (businessTypeId, newStage, e) => {
+    if (e) {
+      e.stopPropagation(); // Prevent row click
+    }
+    if (!businessTypeId) return;
+
+    try {
+      await api.request(`/clients/business-types/${businessTypeId}/stage`, {
+        method: 'PATCH',
+        body: JSON.stringify({ stage: newStage })
+      });
+
+      // Update clients list
+      setClients(prev => prev.map(c =>
+        c.businessTypeId === businessTypeId ? { ...c, stage: newStage } : c
+      ));
+
+      // Update selected client if applicable
+      if (selectedClient && selectedClient.businessTypeId === businessTypeId) {
+        setSelectedClient(prev => ({ ...prev, stage: newStage }));
+      }
+    } catch (error) {
+      console.error('Error updating stage:', error);
+    }
   };
 
   const handleEditPipeline = async () => {
@@ -820,8 +867,9 @@ export default function Pipeline() {
             <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-4">
               <div className="grid grid-cols-12 gap-3 lg:gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 <div className="col-span-3">Client & Business Type</div>
+                <div className="col-span-1">Stage</div>
                 <div className="col-span-2">Next Meeting</div>
-                <div className="col-span-2">Expected Fees</div>
+                <div className="col-span-1">Expected Fees</div>
                 <div className="col-span-2">Investment</div>
                 <div className="col-span-3">AI Next Steps</div>
               </div>
@@ -846,18 +894,51 @@ export default function Pipeline() {
                       <div className="font-semibold text-sm text-foreground truncate mb-1">
                         {client.name || client.email}
                       </div>
-                      {/* Business Type Badge with Close Date */}
-                      <div className="flex items-center gap-2">
-                        <Badge className={cn("text-xs px-2 py-0.5", getBusinessTypeColor(client.businessType))}>
-                          {client.businessType}
-                        </Badge>
+                      {/* Business Type Badges - Show all business types */}
+                      <div className="flex flex-wrap gap-1">
+                        {client.allBusinessTypes && client.allBusinessTypes.length > 0 ? (
+                          client.allBusinessTypes.map((bt, index) => (
+                            <Badge key={index} className={cn("text-xs px-2 py-0.5", getBusinessTypeColor(bt.business_type))}>
+                              {bt.business_type}
+                            </Badge>
+                          ))
+                        ) : (
+                          <Badge className={cn("text-xs px-2 py-0.5", getBusinessTypeColor(client.businessType))}>
+                            {client.businessType}
+                          </Badge>
+                        )}
                         {client.expectedCloseDate && (
-                          <span className="text-xs text-muted-foreground">
+                          <span className="text-xs text-muted-foreground ml-1">
                             Close: {formatDate(client.expectedCloseDate)}
                           </span>
                         )}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Stage Dropdown */}
+                  <div className="col-span-1 flex items-center" onClick={(e) => e.stopPropagation()}>
+                    {client.businessTypeId ? (
+                      <Select
+                        value={client.stage || 'Not Written'}
+                        onValueChange={(value) => handleStageChange(client.businessTypeId, value)}
+                      >
+                        <SelectTrigger className="h-8 text-xs w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {STAGE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              <span className={cn("px-2 py-0.5 rounded text-xs", option.color)}>
+                                {option.label}
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
                   </div>
 
                   {/* Next Meeting */}
@@ -893,7 +974,7 @@ export default function Pipeline() {
                   </div>
 
                   {/* Expected Fees */}
-                  <div className="col-span-2 flex items-center">
+                  <div className="col-span-1 flex items-center">
                     <div className="text-sm font-semibold text-foreground">
                       {formatCurrency(client.expectedFees)}
                     </div>
@@ -1168,19 +1249,36 @@ export default function Pipeline() {
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">Business Types</label>
+                  <label className="text-sm font-medium text-muted-foreground">Business Types & Stages</label>
                   <div className="mt-1 p-3 bg-background border border-border rounded-md text-sm">
-                    {selectedClient.businessTypes && selectedClient.businessTypes.length > 0 ? (
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap gap-1">
-                          {selectedClient.businessTypes.map((type, index) => (
-                            <Badge key={index} className={getBusinessTypeColor(type)}>
-                              {type}
+                    {selectedClient.allBusinessTypesWithStage && selectedClient.allBusinessTypesWithStage.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedClient.allBusinessTypesWithStage.map((bt, index) => (
+                          <div key={bt.id || index} className="flex items-center justify-between gap-2 p-2 bg-muted/30 rounded-lg">
+                            <Badge className={getBusinessTypeColor(bt.business_type)}>
+                              {bt.business_type}
                             </Badge>
-                          ))}
-                        </div>
+                            <Select
+                              value={bt.stage || 'Not Written'}
+                              onValueChange={(value) => handleStageChange(bt.id, value)}
+                            >
+                              <SelectTrigger className="h-7 text-xs w-32">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {STAGE_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    <span className={cn("px-2 py-0.5 rounded text-xs", option.color)}>
+                                      {option.label}
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ))}
                         {selectedClient.totalBusinessAmount > 0 && (
-                          <div className="text-xs text-muted-foreground">
+                          <div className="text-xs text-muted-foreground pt-2 border-t border-border/50">
                             Total Amount: {formatCurrency(selectedClient.totalBusinessAmount)}
                           </div>
                         )}
@@ -1195,6 +1293,7 @@ export default function Pipeline() {
                         <Badge className={getBusinessTypeColor(selectedClient.businessType)}>
                           {selectedClient.businessType}
                         </Badge>
+                        <span className="text-xs text-muted-foreground">No stage set</span>
                       </div>
                     )}
                   </div>
