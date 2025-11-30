@@ -92,7 +92,7 @@ const PricingPage = () => {
                             }`}
                         >
                             Annual Billing
-                            <Badge className="ml-2 bg-yellow-400 text-black border-0 text-xs">
+                            <Badge className="ml-2 bg-accent text-accent-foreground border-0 text-xs">
                                 Save 20%
                             </Badge>
                         </button>
@@ -155,7 +155,7 @@ const PricingPage = () => {
                     <Card className="shadow-large border-2 border-primary hover:shadow-xl transition-shadow relative">
                         {/* Most Popular Badge */}
                         <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
-                            <Badge className="bg-yellow-400 text-black border-0 px-4 py-1 text-sm font-bold">
+                            <Badge className="bg-accent text-accent-foreground border-0 px-4 py-1 text-sm font-bold">
                                 MOST POPULAR
                             </Badge>
                         </div>

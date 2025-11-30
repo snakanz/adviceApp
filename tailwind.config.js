@@ -7,40 +7,67 @@ module.exports = {
         sans: ["Inter", "sans-serif"]
       },
       colors: {
-        background: "#f8f9fb", // Light gray background
-        card: "#ffffff",
-        border: "#e5e7eb",
-        muted: "#9ca3af",
-        'muted-foreground': "#6b7280", // slightly darker muted for text
+        // Deep Dark Mode Palette
+        background: "#0A0B10",        // Deep Obsidian
+        card: "#181923",              // Frosted Black
+        border: "#292A34",            // Dark border
+        muted: "#181923",
+        'muted-foreground': "#8F90A6", // Muted Gray
+
         primary: {
-          DEFAULT: "#3B82F6", // Light blue accent like Concentro
-          dark: "#1e3a8a",
-          foreground: "#fff", // For text-primary-foreground
+          DEFAULT: "#337AFF",         // Vibrant Blue
+          dark: "#1e40af",
+          foreground: "#E0E0E0",      // Soft White
         },
         secondary: {
-          DEFAULT: "#f3f4f6",
-          foreground: "#1e293b", // For text-secondary-foreground
+          DEFAULT: "#181923",
+          foreground: "#E0E0E0",
         },
         accent: {
-          DEFAULT: "#e5e7eb",
-          foreground: "#1e293b", // For text-accent-foreground
+          DEFAULT: "#00C49F",         // Modern Emerald
+          foreground: "#E0E0E0",
         },
         brand: {
-          green: "#4ade80",
-          navy: "#1e293b",
+          emerald: "#00C49F",
+          blue: "#337AFF",
+          green: "#00C49F",           // Keep for compatibility
+          navy: "#0A0B10",
         },
-        foreground: "#1e293b", // Navy for text-foreground
-        'card-foreground': "#1e293b", // Navy for card text
-        ring: "#3B82F6", // Blue for ring-ring utility
+        foreground: "#E0E0E0",        // Soft White
+        'card-foreground': "#E0E0E0",
+        ring: "#337AFF",              // Vibrant Blue
       },
       borderRadius: {
         xl: "20px"
       },
       boxShadow: {
-        card: "0 4px 24px rgba(0, 0, 0, 0.05)"
+        'card': '0 4px 24px rgba(0, 0, 0, 0.3)',
+        'soft': '0 2px 8px rgba(0, 0, 0, 0.2)',
+        'medium': '0 4px 12px rgba(0, 0, 0, 0.25)',
+        'large': '0 8px 32px rgba(0, 0, 0, 0.35)',
+        'glow-emerald': '0 0 20px rgba(0, 196, 159, 0.25)',
+        'glow-blue': '0 0 20px rgba(51, 122, 255, 0.25)',
+      },
+      backdropBlur: {
+        'glass': '10px',
       }
     }
   },
-  plugins: []
+  plugins: [
+    function ({ addUtilities }) {
+      addUtilities({
+        '.glass': {
+          'backdrop-filter': 'blur(10px)',
+          '-webkit-backdrop-filter': 'blur(10px)',
+        },
+        '.glass-card': {
+          'background': 'rgba(24, 25, 35, 0.75)',
+          'backdrop-filter': 'blur(10px)',
+          '-webkit-backdrop-filter': 'blur(10px)',
+          'border': '1px solid rgba(41, 42, 52, 0.5)',
+        },
+      });
+    },
+  ]
 }
 

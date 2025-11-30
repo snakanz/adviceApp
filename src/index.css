@@ -6,53 +6,62 @@
 
 @layer base {
   :root {
-    --background: 220 20% 99%;      /* #fafbfc - very light grey */
-    --foreground: 222.2 84% 4.9%;   /* #22223b - dark, not black */
-    --card: 0 0% 100%;              /* #fff - white cards */
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 218 69% 29%;         /* #15397a - custom blue */
-    --primary-foreground: 0 0% 100%; /* white text on blue */
-    --secondary: 220 20% 97%;       /* #f3f4f6 - sidebar/secondary bg, very light grey */
-    --secondary-foreground: 222.2 84% 4.9%;
-    --muted: 220 14% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 218 69% 29%;          /* same as primary for now */
-    --accent-foreground: 0 0% 100%;
+    /* BACKGROUNDS (Deep Dark Mode) */
+    --background: 240 12% 6%;       /* #0A0B10 Deep Obsidian */
+    --card: 240 10% 11%;            /* #181923 Frosted Black (Glass-Morphism base) */
+    --popover: 240 10% 11%;         /* Match card background */
+    --secondary: 240 10% 11%;       /* Match card background */
+    --muted: 240 10% 11%;           /* Match card background */
+
+    /* FOREGROUNDS / TEXTS (Soft White & Muted Gray) */
+    --foreground: 240 14% 88%;      /* #E0E0E0 Soft White */
+    --card-foreground: 240 14% 88%;
+    --popover-foreground: 240 14% 88%;
+    --muted-foreground: 234 11% 61%; /* #8F90A6 Muted Gray */
+    --primary-foreground: 240 14% 88%; /* Text on Primary/Accent buttons */
+    --secondary-foreground: 240 14% 88%;
+
+    /* ACCENTS & ACTIONS */
+    --primary: 219 100% 59%;        /* #337AFF Vibrant Blue (Primary CTA) */
+    --accent: 168 100% 38%;         /* #00C49F Modern Emerald (Brand Highlight) */
+    --accent-foreground: 240 14% 88%;
+
+    /* BORDER & RING */
+    --border: 240 10% 18%;          /* #292A34 Darker border for contrast */
+    --input: 240 10% 11%;           /* Input background matches card */
+    --ring: 219 100% 59%;           /* Ring matches Primary Blue */
+
+    /* OTHER */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 220 20% 93%;          /* #e5e7eb - light grey border */
-    --input: 220 20% 93%;
-    --ring: 218 69% 29%;
-    --radius: 0.375rem; /* 6px, for a modern, slightly squary look */
+    --radius: 0.375rem; /* 6px - Keep consistent */
   }
 
   .layout-bg {
-    background: #f5f6fa; /* very slight grey for layout depth */
+    background: hsl(240 12% 6%); /* Match --background Deep Obsidian */
   }
 
   /* Light mode - kept for potential future toggle */
   .light {
-    --background: 0 0% 100%;
+    --background: 220 20% 99%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 142 76% 36%;
+    --primary: 218 69% 29%;
     --primary-foreground: 0 0% 100%;
     --secondary: 210 40% 96%;
     --secondary-foreground: 222.2 84% 4.9%;
     --muted: 210 40% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96%;
+    --accent: 168 100% 38%;
     --accent-foreground: 222.2 84% 4.9%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 142 76% 36%;
+    --ring: 218 69% 29%;
   }
 }
 
@@ -137,23 +146,32 @@ button, a, [role="button"] {
   @apply transition-all duration-150;
 }
 
-/* Card hover effects */
+/* Card hover effects - Emerald glow on hover */
 .card-hover {
-  @apply transition-all duration-150 hover:shadow-lg hover:scale-[1.02];
+  @apply transition-all duration-200 hover:scale-[1.02];
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+.card-hover:hover {
+  box-shadow: 0 0 20px rgba(0, 196, 159, 0.15); /* Modern Emerald glow */
 }
 
 /* Button hover animations */
 .btn-primary {
-  @apply bg-primary text-primary-foreground hover:bg-primary/20 hover:text-foreground shadow-md hover:shadow-lg transition-all duration-150;
+  @apply bg-primary text-primary-foreground hover:bg-primary/90 shadow-md transition-all duration-150;
+}
+.btn-primary:hover {
+  box-shadow: 0 0 15px rgba(51, 122, 255, 0.3); /* Blue glow */
 }
 
-/* Sidebar styling */
+/* Sidebar styling - Left border indicator */
 .sidebar-item {
-  @apply flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:text-foreground hover:bg-primary/20 transition-all duration-150;
+  @apply flex items-center gap-3 px-4 py-3 rounded-none text-muted-foreground
+         hover:text-foreground hover:bg-accent/10 transition-all duration-150
+         border-l-4 border-transparent;
 }
 
 .sidebar-item.active {
-  @apply bg-primary/10 text-primary font-semibold border border-primary/20 pointer-events-auto;
+  @apply bg-transparent text-foreground font-semibold border-l-4 border-accent;
 }
 
 /* Custom scrollbar styling */
@@ -218,16 +236,16 @@ button, a, [role="button"] {
   border-radius: var(--radius) !important;
 }
 
-/* Tab buttons (Summary, Transcript, etc.) */
+/* Tab buttons (Summary, Transcript, etc.) - Accent color */
 .tab-btn {
-  @apply bg-transparent text-muted-foreground font-medium px-4 py-2 transition-all duration-150;
+  @apply bg-transparent text-muted-foreground font-medium px-4 py-2 transition-all duration-150 border-b-2 border-transparent;
   border-radius: var(--radius);
 }
 .tab-btn.active {
-  @apply bg-primary/10 text-foreground;
+  @apply bg-accent/15 text-foreground border-b-2 border-accent;
 }
 .tab-btn:hover {
-  @apply bg-primary/20 text-foreground;
+  @apply bg-accent/10 text-foreground;
 }
 
 /* Client table specific styles */

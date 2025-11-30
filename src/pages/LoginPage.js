@@ -122,7 +122,7 @@ const LoginPage = () => {
                         <div className="space-y-3">
                             <Button
                                 onClick={handleGoogleLogin}
-                                className="w-full h-12 text-base font-medium bg-white hover:bg-gray-50 text-gray-900 border border-border shadow-soft hover:shadow-medium transition-all duration-150"
+                                className="w-full h-12 text-base font-medium bg-card hover:bg-card/80 text-foreground border border-border/30 shadow-soft hover:shadow-medium transition-all duration-150"
                                 disabled={isLoading}
                             >
                                 <GoogleIcon size={20} className="mr-3" />
@@ -131,7 +131,7 @@ const LoginPage = () => {
 
                             <Button
                                 onClick={handleMicrosoftLogin}
-                                className="w-full h-12 text-base font-medium bg-white hover:bg-gray-50 text-gray-900 border border-border shadow-soft hover:shadow-medium transition-all duration-150"
+                                className="w-full h-12 text-base font-medium bg-card hover:bg-card/80 text-foreground border border-border/30 shadow-soft hover:shadow-medium transition-all duration-150"
                                 disabled={isLoading}
                             >
                                 <OutlookIcon size={20} className="mr-3" />

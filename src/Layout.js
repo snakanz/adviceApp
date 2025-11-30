@@ -131,8 +131,8 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen font-sans layout-bg">
-      {/* AppBar */}
-      <header className="fixed top-0 left-0 sm:left-64 right-0 z-50 bg-card/80 border-b border-border/50 shadow-soft">
+      {/* AppBar - Glass-Morphism */}
+      <header className="fixed top-0 left-0 sm:left-64 right-0 z-50 bg-card/90 border-b border-border/20 backdrop-blur-lg shadow-card">
         <div className="flex items-center justify-between px-6 py-4 h-18">
           {/* Hamburger for mobile */}
           <div className="block sm:hidden">
@@ -148,16 +148,16 @@ export default function Layout() {
 
           <div className="flex-1" />
 
-          {/* Transcription Status Indicator */}
+          {/* Transcription Status Indicator - Dark Mode */}
           {calendarConnection && (
-            <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200 mr-4">
+            <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/10 border border-accent/20 mr-4">
               <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${calendarConnection.transcription_enabled ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                <div className={`w-2 h-2 rounded-full ${calendarConnection.transcription_enabled ? 'bg-accent' : 'bg-destructive'}`}></div>
                 <div className="flex flex-col items-start">
-                  <span className="text-xs font-medium text-blue-900">
+                  <span className="text-xs font-medium text-foreground">
                     {calendarConnection.transcription_enabled ? '🟢 Transcription ON' : '🔴 Transcription OFF'}
                   </span>
-                  <span className="text-xs text-blue-700">
+                  <span className="text-xs text-muted-foreground">
                     {calendarConnection.provider_account_email}
                   </span>
                 </div>
@@ -205,8 +205,8 @@ export default function Layout() {
         </div>
       </header>
 
-      {/* Sidebar Drawer */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-card/80 border-r border-border/50 shadow-soft z-40 pt-20 hidden sm:block">
+      {/* Sidebar Drawer - Glass-Morphism */}
+      <aside className="fixed left-0 top-0 h-full w-64 bg-card/90 border-r border-border/20 backdrop-blur-lg shadow-card z-40 pt-20 hidden sm:block">
         <div className="flex flex-col h-full">
           {/* Logo */}
           
@@ -298,8 +298,8 @@ export default function Layout() {
       {/* Mobile Menu Dialog */}
       {open && (
         <div className="fixed inset-0 z-50 sm:hidden">
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <div className="fixed left-0 top-0 h-full w-64 bg-card/95 backdrop-blur-sm shadow-large">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
+          <div className="fixed left-0 top-0 h-full w-64 bg-card/95 backdrop-blur-lg shadow-large">
             <div className="flex items-center justify-between p-4 border-b border-border/50">
               <img 
                 src={process.env.PUBLIC_URL + '/logo-advicly.png'} 
