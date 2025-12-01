@@ -148,23 +148,6 @@ export default function Layout() {
 
           <div className="flex-1" />
 
-          {/* Transcription Status Indicator - Dark Mode */}
-          {calendarConnection && (
-            <div className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-accent/10 border border-accent/20 mr-4">
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${calendarConnection.transcription_enabled ? 'bg-accent' : 'bg-destructive'}`}></div>
-                <div className="flex flex-col items-start">
-                  <span className="text-xs font-medium text-foreground">
-                    {calendarConnection.transcription_enabled ? '🟢 Transcription ON' : '🔴 Transcription OFF'}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {calendarConnection.provider_account_email}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* User Profile Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -277,11 +260,9 @@ export default function Layout() {
             {/* Advicly Logo */}
             <div className="p-4">
               <div className="flex items-center justify-center">
-                <img
-                  src={process.env.PUBLIC_URL + '/logo-advicly.png'}
-                  alt="Advicly Logo"
-                  className="h-8 w-auto mx-auto"
-                />
+                <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                  Advicly
+                </span>
               </div>
             </div>
           </div>
@@ -301,11 +282,9 @@ export default function Layout() {
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
           <div className="fixed left-0 top-0 h-full w-64 bg-card/95 backdrop-blur-lg shadow-large">
             <div className="flex items-center justify-between p-4 border-b border-border/50">
-              <img 
-                src={process.env.PUBLIC_URL + '/logo-advicly.png'} 
-                alt="Advicly Logo" 
-                className="h-8 w-auto" 
-              />
+              <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                Advicly
+              </span>
               <Button
                 variant="ghost"
                 size="icon"

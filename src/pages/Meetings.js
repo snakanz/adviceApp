@@ -2304,15 +2304,6 @@ export default function Meetings() {
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-2xl font-bold text-foreground">Meetings</h1>
             <div className="flex items-center gap-2">
-              <CreateMeetingDialog
-                onMeetingCreated={(meeting) => {
-                  // Refresh meetings after creation
-                  fetchMeetings();
-                  // Auto-select the new meeting
-                  setSelectedMeetingId(meeting.id);
-                }}
-              />
-
               {/* View Mode Toggle */}
               <div className="flex items-center gap-1 border border-border rounded-lg p-1 bg-background">
                 <Button
