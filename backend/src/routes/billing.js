@@ -242,15 +242,35 @@ router.get('/meeting-stats', authenticateSupabaseUser, async (req, res) => {
       });
     }
 
-    // Count meetings with successful Recall bot transcription
-    const { count } = await getSupabase()
+    // Count meetings with SUCCESSFUL Recall bot transcription (fair counting)
+    // Only count meetings where user got actual value:
+    // 1. Has recall_bot_id and completed status
+    // 2. Has meaningful transcript content (100+ chars)
+    // 3. Was NOT a waiting room timeout or no-participant failure
+    const { data: transcribedMeetings } = await getSupabase()
       .from('meetings')
-      .select('id', { count: 'exact' })
+      .select('id, transcript, recall_error')
       .eq('user_id', userId)
       .not('recall_bot_id', 'is', null)
       .in('recall_status', ['completed', 'done']);
 
-    const transcribed = count || 0;
+    // Filter to only count meetings with meaningful transcripts
+    const fairCount = (transcribedMeetings || []).filter(meeting => {
+      const transcriptLength = meeting.transcript?.length || 0;
+      const recallError = meeting.recall_error?.toLowerCase() || '';
+
+      // Must have meaningful transcript (100+ chars)
+      if (transcriptLength < 100) return false;
+
+      // Exclude waiting room timeouts and no-participant failures
+      if (recallError.includes('waiting_room')) return false;
+      if (recallError.includes('no_participant')) return false;
+      if (recallError.includes('empty_call')) return false;
+
+      return true;
+    }).length;
+
+    const transcribed = fairCount;
     const freeLimit = subscription?.free_meetings_limit || 5;
     const remaining = Math.max(0, freeLimit - transcribed);
     const hasAccess = transcribed < freeLimit;
