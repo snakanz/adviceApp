@@ -431,6 +431,54 @@ class CalendarSyncService {
             })
             .eq('external_id', calendarEvent.id)
             .eq('user_id', userId);
+
+          // Schedule Recall bot for UPDATED meetings if:
+          // - Meeting doesn't already have a bot scheduled
+          // - Transcription is enabled
+          // - Meeting is happening now / very soon
+          // - User has access
+          const existingMeeting = existingMeetingsMap.get(calendarEvent.id);
+          if (existingMeeting && !existingMeeting.recall_bot_id && !existingMeeting.skip_transcription_for_meeting) {
+            try {
+              const { data: connections } = await getSupabase()
+                .from('calendar_connections')
+                .select('transcription_enabled, provider')
+                .eq('user_id', userId)
+                .eq('is_active', true)
+                .in('provider', ['google', 'microsoft']);
+
+              const connection = connections?.[0];
+
+              if (connection?.transcription_enabled) {
+                const now = new Date();
+                const start = new Date(calendarEvent.start.dateTime || calendarEvent.start.date);
+                const end = new Date(calendarEvent.end?.dateTime || calendarEvent.end?.date || start);
+
+                const alreadyOver = end <= now;
+                const startsTooFarInFuture = start.getTime() - now.getTime() > 15 * 60 * 1000;
+
+                if (!alreadyOver && !startsTooFarInFuture) {
+                  const hasAccess = await this.checkUserHasTranscriptionAccess(userId);
+
+                  if (hasAccess) {
+                    console.log(`🤖 Scheduling Recall bot for updated meeting: ${calendarEvent.summary} (start=${start.toISOString()})`);
+                    await this.scheduleRecallBotForMeeting(calendarEvent, existingMeeting.id, userId);
+                  } else {
+                    console.log(`⏭️  User ${userId} has exceeded free meeting limit. Skipping bot for: ${calendarEvent.summary}`);
+                    await getSupabase()
+                      .from('meetings')
+                      .update({
+                        recall_status: 'upgrade_required',
+                        updated_at: new Date().toISOString()
+                      })
+                      .eq('id', existingMeeting.id);
+                  }
+                }
+              }
+            } catch (recallError) {
+              console.warn(`⚠️  Failed to schedule Recall bot for updated meeting ${existingMeeting?.id}:`, recallError.message);
+            }
+          }
         }
 
         results.updated++;
@@ -643,6 +691,7 @@ class CalendarSyncService {
       const urls = calendarEvent.location.match(urlRegex) || [];
       for (const url of urls) {
         if (url.includes('zoom.us') || url.includes('teams.microsoft.com') ||
+            url.includes('teams.live.com') || // Personal Teams format
             url.includes('webex.com') || url.includes('meet.google.com') ||
             url.includes('gotomeeting.com')) {
           meetingUrl = url;
@@ -657,6 +706,7 @@ class CalendarSyncService {
       const urls = calendarEvent.description.match(urlRegex) || [];
       for (const url of urls) {
         if (url.includes('zoom.us') || url.includes('teams.microsoft.com') ||
+            url.includes('teams.live.com') || // Personal Teams format
             url.includes('webex.com') || url.includes('meet.google.com') ||
             url.includes('gotomeeting.com')) {
           meetingUrl = url;
@@ -702,13 +752,14 @@ class CalendarSyncService {
       const start = new Date(event.start?.dateTime || event.start?.date || new Date());
       const end = new Date(event.end?.dateTime || event.end?.date || start);
 
-      // Only create a bot if the meeting is in progress or starting very soon
-      const graceMs = 5 * 60 * 1000; // 5-minute grace period before start
-      const inProgressOrJustStarting =
+      // Only create a bot if the meeting is in progress or starting within 15 minutes
+      // This matches the 15-minute window check in the sync logic
+      const graceMs = 15 * 60 * 1000; // 15-minute grace period before start
+      const inProgressOrStartingSoon =
         start.getTime() - graceMs <= now.getTime() &&
         now.getTime() <= end.getTime();
 
-      if (!inProgressOrJustStarting) {
+      if (!inProgressOrStartingSoon) {
         console.log(
           `⏭️  Not creating Recall bot for event outside live window: "${event.summary || event.id}" (start=${start.toISOString()}, end=${end.toISOString()})`
         );
