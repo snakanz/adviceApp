@@ -49,6 +49,7 @@ import {
 } from '../components/ui/tooltip';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Switch } from '../components/ui/switch';
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
@@ -149,28 +150,28 @@ function isMeetingComplete(meeting) {
          meeting.email_summary_draft;
 }
 
-// Helper function to get meeting card ring style based on bot status
-function getMeetingCardRingStyle(meeting) {
+// Helper function to get meeting card glow style based on bot status
+function getMeetingCardGlowStyle(meeting) {
   // Check if meeting is in the past
   const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
   const isMeetingPast = endTime && endTime < new Date();
 
   if (!isMeetingPast) {
-    // Future meeting - no ring
+    // Future meeting - no glow
     return '';
   }
 
-  // Past meeting with successful bot join and transcript
+  // Past meeting with successful bot join and transcript - GREEN GLOW
   if (meeting?.recall_bot_id && meeting?.transcript) {
-    return 'ring-2 ring-green-500/50 ring-offset-1';
+    return 'shadow-[0_0_15px_3px_rgba(34,197,94,0.5)] border-green-500/60';
   }
 
-  // Past meeting where bot was scheduled but failed (has recall_bot_id but no transcript)
+  // Past meeting where bot was scheduled but failed (has recall_bot_id but no transcript) - YELLOW GLOW
   if (meeting?.recall_bot_id && !meeting?.transcript) {
-    return 'ring-2 ring-yellow-500/50 ring-offset-1';
+    return 'shadow-[0_0_15px_3px_rgba(234,179,8,0.5)] border-yellow-500/60';
   }
 
-  // No ring for other cases
+  // No glow for other cases
   return '';
 }
 
@@ -1430,6 +1431,57 @@ export default function Meetings() {
     }
   };
 
+  // Toggle bot for any meeting (used in meeting cards)
+  const handleToggleBotForAnyMeeting = async (meeting, e) => {
+    if (e) {
+      e.stopPropagation(); // Prevent card click
+    }
+    if (!meeting?.id) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const newSkipValue = !meeting.skip_transcription_for_meeting;
+
+      const response = await fetch(`${API_URL}/api/calendar/meetings/${meeting.id}/toggle-bot`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ skip_transcription_for_meeting: newSkipValue })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle bot');
+      }
+
+      // Update local state
+      const updatedMeeting = { ...meeting, skip_transcription_for_meeting: newSkipValue };
+      setMeetings(prev => ({
+        ...prev,
+        past: prev.past.map(m => m.id === meeting.id ? updatedMeeting : m),
+        future: prev.future.map(m => m.id === meeting.id ? updatedMeeting : m)
+      }));
+
+      // Update bot status if this is the selected meeting
+      if (selectedMeetingId === meeting.id) {
+        const newStatus = getRecallBotStatus(updatedMeeting, calendarConnection);
+        setBotStatus(newStatus);
+      }
+
+      setShowSnackbar(true);
+      setSnackbarMessage(newSkipValue ? 'Bot disabled for this meeting' : 'Bot enabled for this meeting');
+      setSnackbarSeverity('success');
+    } catch (error) {
+      console.error('Error toggling bot:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to toggle bot');
+      setSnackbarSeverity('error');
+    }
+  };
+
   const saveNewPendingItem = async () => {
     if (!newPendingItemText.trim()) {
       setShowSnackbar(true);
@@ -1712,7 +1764,7 @@ export default function Meetings() {
                     onClick={() => handleMeetingSelect(meeting)}
                     className={cn(
                       "cursor-pointer hover:bg-muted/30 transition-colors border-b border-border/50 last:border-b-0",
-                      selectedMeetingId === meeting.id && "bg-muted/50"
+                      selectedMeetingId === meeting.id && "bg-primary/10 ring-2 ring-inset ring-primary"
                     )}
                   >
                     <td className="p-3">
@@ -1758,7 +1810,36 @@ export default function Meetings() {
                       </div>
                     </td>
                     <td className="p-3">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-2">
+                        {/* Bot Toggle - Only show for future meetings with valid meeting URL */}
+                        {(() => {
+                          const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
+                          const isFutureMeeting = endTime && endTime > new Date();
+                          const hasMeetingUrl = hasValidMeetingUrl(meeting);
+
+                          if (isFutureMeeting && hasMeetingUrl) {
+                            const isBotEnabled = !meeting.skip_transcription_for_meeting;
+                            return (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div onClick={(e) => e.stopPropagation()}>
+                                      <Switch
+                                        checked={isBotEnabled}
+                                        onCheckedChange={() => handleToggleBotForAnyMeeting(meeting)}
+                                        className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-400 h-5 w-9"
+                                      />
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p>{isBotEnabled ? 'Bot will join - Click to disable' : 'Bot disabled - Click to enable'}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            );
+                          }
+                          return null;
+                        })()}
                         {hasValidMeetingUrl(meeting) && (
                           <TooltipProvider>
                             <Tooltip>
@@ -1856,14 +1937,17 @@ export default function Meetings() {
             onClick={() => handleMeetingSelect(meeting)}
             className={cn(
               "cursor-pointer hover:bg-muted/50 transition-colors relative border-l-4",
-              // Selected state styling
-              selectedMeetingId === meeting.id && "bg-muted/30 ring-1 ring-primary/30",
-              // Status-based left border colors for quick visual identification
-              isComplete ? "border-l-green-500 bg-green-50/30 dark:bg-green-950/20" :
-              hasPartialData ? "border-l-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/20" :
-              "border-l-gray-300 dark:border-l-gray-600",
-              // Bot status ring indicator
-              getMeetingCardRingStyle(meeting)
+              // Prominent selection indicator - takes priority over status colors
+              selectedMeetingId === meeting.id
+                ? "ring-2 ring-primary !border-l-primary bg-primary/10 shadow-lg shadow-primary/20"
+                : (
+                  // Status-based left border colors for quick visual identification (only when not selected)
+                  isComplete ? "border-l-green-500 bg-green-50/30 dark:bg-green-950/20" :
+                  hasPartialData ? "border-l-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/20" :
+                  "border-l-gray-300 dark:border-l-gray-600"
+                ),
+              // Bot status glow indicator
+              getMeetingCardGlowStyle(meeting)
             )}
           >
           <CardContent className="p-3">
@@ -1978,6 +2062,33 @@ export default function Meetings() {
                     })()}
                   </div>
                 </div>
+
+                {/* Bot Toggle - Only show for future meetings with valid meeting URL */}
+                {(() => {
+                  const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
+                  const isFutureMeeting = endTime && endTime > new Date();
+                  const hasMeetingUrl = hasValidMeetingUrl(meeting);
+
+                  if (isFutureMeeting && hasMeetingUrl) {
+                    const isBotEnabled = !meeting.skip_transcription_for_meeting;
+                    return (
+                      <div
+                        className="flex items-center justify-between py-1.5 px-2 rounded-md bg-muted/40 mb-2"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span className="text-xs text-muted-foreground">
+                          {isBotEnabled ? '🤖 Bot will join' : '🚫 Bot disabled'}
+                        </span>
+                        <Switch
+                          checked={isBotEnabled}
+                          onCheckedChange={() => handleToggleBotForAnyMeeting(meeting)}
+                          className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-400 h-5 w-9"
+                        />
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
 
                 {/* Bottom Row: Status Indicators and Actions */}
                 <div className="flex items-center justify-between">
@@ -2315,7 +2426,9 @@ export default function Meetings() {
                                 key={meeting.id}
                                 className={cn(
                                   "border-border/50 hover:border-primary/50 cursor-pointer transition-all hover:shadow-md",
-                                  getMeetingCardRingStyle(meeting)
+                                  // Prominent selection indicator
+                                  selectedMeetingId === meeting.id && "ring-2 ring-primary border-primary shadow-lg shadow-primary/20 bg-primary/5",
+                                  getMeetingCardGlowStyle(meeting)
                                 )}
                                 onClick={() => setSelectedMeetingId(meeting.id)}
                               >
@@ -2357,6 +2470,33 @@ export default function Meetings() {
                                       <OutlookIcon size={14} />
                                     )}
                                   </div>
+
+                                  {/* Bot Toggle - Only show for future meetings with valid meeting URL */}
+                                  {(() => {
+                                    const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
+                                    const isFutureMeeting = endTime && endTime > new Date();
+                                    const hasMeetingUrl = hasValidMeetingUrl(meeting);
+
+                                    if (isFutureMeeting && hasMeetingUrl) {
+                                      const isBotEnabled = !meeting.skip_transcription_for_meeting;
+                                      return (
+                                        <div
+                                          className="flex items-center justify-between py-1.5 px-2 -mx-2 rounded-md bg-muted/30"
+                                          onClick={(e) => e.stopPropagation()}
+                                        >
+                                          <span className="text-xs text-muted-foreground">
+                                            {isBotEnabled ? '🤖 Bot will join' : '🚫 Bot disabled'}
+                                          </span>
+                                          <Switch
+                                            checked={isBotEnabled}
+                                            onCheckedChange={() => handleToggleBotForAnyMeeting(meeting)}
+                                            className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-400 h-5 w-9"
+                                          />
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
 
                                   {/* Completion Status Indicators */}
                                   <div className="flex items-center gap-2 flex-wrap">
