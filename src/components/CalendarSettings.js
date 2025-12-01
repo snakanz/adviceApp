@@ -20,6 +20,9 @@ import {
 } from 'lucide-react';
 import CalendlySyncButton from './CalendlySyncButton';
 import CalendlyPlanInfo from './CalendlyPlanInfo';
+import GoogleIcon from './GoogleIcon';
+import CalendlyIcon from './CalendlyIcon';
+import OutlookIcon from './OutlookIcon';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
@@ -674,14 +677,14 @@ export default function CalendarSettings() {
   const getProviderIcon = (provider) => {
     switch (provider) {
       case 'google':
-        return '🗓️';
+        return <GoogleIcon size={32} />;
       case 'calendly':
-        return '📅';
+        return <CalendlyIcon size={32} />;
       case 'outlook':
       case 'microsoft':
-        return '📧';
+        return <OutlookIcon size={32} />;
       default:
-        return '📆';
+        return <Calendar className="w-8 h-8 text-muted-foreground" />;
     }
   };
 
@@ -911,7 +914,7 @@ export default function CalendarSettings() {
             >
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
-                  <div className="text-4xl">🗓️</div>
+                  <GoogleIcon size={40} />
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground mb-1">Google Calendar</h4>
                     <p className="text-sm text-muted-foreground">
@@ -926,7 +929,7 @@ export default function CalendarSettings() {
             <Card className="border-border/50 bg-muted/20">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
-                  <div className="text-4xl">🗓️</div>
+                  <GoogleIcon size={40} />
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground mb-1">Google Calendar</h4>
                     <p className="text-sm text-green-600">
@@ -946,7 +949,7 @@ export default function CalendarSettings() {
             >
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
-                  <div className="text-4xl">📅</div>
+                  <CalendlyIcon size={40} />
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground mb-1">Calendly</h4>
                     <p className="text-sm text-muted-foreground">
@@ -961,7 +964,7 @@ export default function CalendarSettings() {
             <Card className="border-border/50 bg-muted/20">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
-                  <div className="text-4xl">📅</div>
+                  <CalendlyIcon size={40} />
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground mb-1">Calendly</h4>
                     <p className="text-sm text-green-600">
@@ -981,7 +984,7 @@ export default function CalendarSettings() {
             >
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
-                  <div className="text-4xl">📧</div>
+                  <OutlookIcon size={40} />
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground mb-1">Microsoft Calendar</h4>
                     <p className="text-sm text-muted-foreground">
@@ -996,7 +999,7 @@ export default function CalendarSettings() {
             <Card className="border-border/50 bg-muted/20">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
-                  <div className="text-4xl">📧</div>
+                  <OutlookIcon size={40} />
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground mb-1">Microsoft Calendar</h4>
                     <p className="text-sm text-green-600">

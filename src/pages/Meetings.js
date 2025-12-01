@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
@@ -28,13 +28,15 @@ import {
   X,
   Edit2,
   Plus,
-  Save
+  Save,
+  Sparkles
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
+import CalendlyIcon from '../components/CalendlyIcon';
 import DocumentsTab from '../components/DocumentsTab';
 import { getRecallBotStatus, getStatusColor, getStatusIcon } from '../utils/recallBotStatus';
 import CreateMeetingDialog from '../components/CreateMeetingDialog';
@@ -1716,19 +1718,13 @@ export default function Meetings() {
                       </div>
                     </td>
                     <td className="p-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-center">
                         {getMeetingSource(meeting) === 'Google Calendar' ?
-                          <GoogleIcon className="w-4 h-4" /> :
+                          <GoogleIcon size={20} /> :
                           getMeetingSource(meeting) === 'Calendly' ?
-                          <div className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">C</span>
-                          </div> :
-                          <OutlookIcon className="w-4 h-4" />
+                          <CalendlyIcon size={20} /> :
+                          <OutlookIcon size={20} />
                         }
-                        <span className="text-xs text-muted-foreground">
-                          {getMeetingSource(meeting) === 'Google Calendar' ? 'Google' :
-                           getMeetingSource(meeting) === 'Calendly' ? 'Calendly' : 'Manual'}
-                        </span>
                       </div>
                     </td>
                     <td className="p-3">
@@ -1825,12 +1821,10 @@ export default function Meetings() {
               {/* Source Icon */}
               <div className="flex-shrink-0 mt-0.5">
                 {getMeetingSource(meeting) === 'Google Calendar' ?
-                  <GoogleIcon className="w-4 h-4" /> :
+                  <GoogleIcon size={16} /> :
                   getMeetingSource(meeting) === 'Calendly' ?
-                  <div className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">C</span>
-                  </div> :
-                  <OutlookIcon className="w-4 h-4" />
+                  <CalendlyIcon size={16} /> :
+                  <OutlookIcon size={16} />
                 }
               </div>
 
@@ -1863,21 +1857,6 @@ export default function Meetings() {
                     </div>
                   </div>
 
-                  {/* Source Badge and Annual Review */}
-                  <div className="flex items-center gap-1">
-                    <div className={cn(
-                      "px-1.5 py-0.5 rounded text-xs font-medium",
-                      getMeetingSource(meeting) === 'Google Calendar'
-                        ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                        : getMeetingSource(meeting) === 'Calendly'
-                        ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300'
-                        : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
-                    )}>
-                      {getMeetingSource(meeting) === 'Google Calendar' ? 'Google' :
-                       getMeetingSource(meeting) === 'Calendly' ? 'Calendly' : 'Manual'}
-                    </div>
-
-                  </div>
                 </div>
 
                 {/* Client Information - Enhanced to show linked client or attendee */}
@@ -2291,27 +2270,15 @@ export default function Meetings() {
                                     </div>
                                   )}
 
-                                  {/* Meeting Source Badge and Annual Review */}
-                                  <div className="flex items-center gap-1 flex-wrap">
+                                  {/* Meeting Source Icon */}
+                                  <div className="flex items-center">
                                     {source === 'Google Calendar' ? (
-                                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs">
-                                        <GoogleIcon className="w-3 h-3" />
-                                        <span>Google</span>
-                                      </div>
+                                      <GoogleIcon size={14} />
                                     ) : source === 'Calendly' ? (
-                                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 text-orange-700 text-xs">
-                                        <div className="w-3 h-3 bg-orange-500 rounded-sm flex items-center justify-center">
-                                          <span className="text-white text-[8px] font-bold">C</span>
-                                        </div>
-                                        <span>Calendly</span>
-                                      </div>
+                                      <CalendlyIcon size={14} />
                                     ) : (
-                                      <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-50 text-gray-700 text-xs">
-                                        <OutlookIcon className="w-3 h-3" />
-                                        <span>Manual</span>
-                                      </div>
+                                      <OutlookIcon size={14} />
                                     )}
-
                                   </div>
 
                                   {/* Completion Status Indicators */}
@@ -2385,26 +2352,14 @@ export default function Meetings() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
                   {getMeetingSource(selectedMeeting) === 'Google Calendar' ?
-                    <GoogleIcon className="w-4 h-4 flex-shrink-0" /> :
+                    <GoogleIcon size={18} className="flex-shrink-0" /> :
                     getMeetingSource(selectedMeeting) === 'Calendly' ?
-                    <div className="w-4 h-4 bg-orange-500 rounded-sm flex items-center justify-center flex-shrink-0">
-                      <span className="text-white text-xs font-bold">C</span>
-                    </div> :
-                    <OutlookIcon className="w-4 h-4 flex-shrink-0" />
+                    <CalendlyIcon size={18} className="flex-shrink-0" /> :
+                    <OutlookIcon size={18} className="flex-shrink-0" />
                   }
                   <h1 className="text-base lg:text-lg font-bold text-foreground line-clamp-2 break-words">
                     {selectedMeeting.summary || selectedMeeting.title || 'Untitled Meeting'}
                   </h1>
-                  {/* Meeting source badge */}
-                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                    getMeetingSource(selectedMeeting) === 'Google Calendar'
-                      ? 'bg-blue-100 text-blue-800'
-                      : getMeetingSource(selectedMeeting) === 'Calendly'
-                      ? 'bg-orange-100 text-orange-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {getMeetingSource(selectedMeeting)}
-                  </div>
                 </div>
 
                 {/* Client info display - Enhanced to show linked client or attendee with navigation */}
@@ -2512,10 +2467,19 @@ export default function Meetings() {
                       <div className="flex items-center gap-2 mb-2">
                         <span className="text-lg">{getStatusIcon(botStatus.willJoin)}</span>
                         <h3 className="font-semibold text-sm">
-                          {botStatus.reason}
+                          {botStatus.linkToSettings ? (
+                            <Link
+                              to="/settings/calendar"
+                              className="underline hover:text-primary transition-colors"
+                            >
+                              {botStatus.reason}
+                            </Link>
+                          ) : (
+                            botStatus.reason
+                          )}
                         </h3>
                       </div>
-                      {!botStatus.willJoin && botStatus.status === 'error' && (
+                      {!botStatus.willJoin && botStatus.status === 'error' && !botStatus.linkToSettings && (
                         <p className="text-xs opacity-90">
                           💡 Hint: {botStatus.reason}
                         </p>
@@ -2538,81 +2502,26 @@ export default function Meetings() {
                 </div>
               )}
 
-              {/* Prominent Action Buttons - Always Visible */}
-              {selectedMeeting?.transcript && (
-                <div className="grid grid-cols-2 gap-3 mb-6">
-                  {/* Generate Email Button */}
-                  <Button
-                    onClick={() => setShowTemplateModal(true)}
-                    disabled={generatingSummary}
-                    size="lg"
-                    className="h-12 text-base font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all"
-                  >
-                    <Mail className="w-5 h-5 mr-2" />
-                    {generatingSummary ? 'Generating...' : 'Generate Email'}
-                  </Button>
-
-                  {/* Ask About This Meeting Button */}
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={() => {
-                      // Extract comprehensive meeting context
-                      let clientInfo = null;
-                      if (selectedMeeting.attendees) {
-                        try {
-                          const attendees = typeof selectedMeeting.attendees === 'string'
-                            ? JSON.parse(selectedMeeting.attendees)
-                            : selectedMeeting.attendees;
-
-                          // Find first attendee that's not the current user
-                          const currentUserEmail = user?.email || '';
-                          const clientAttendee = attendees.find(a => a.email !== currentUserEmail);
-                          if (clientAttendee) {
-                            clientInfo = {
-                              name: clientAttendee.name || clientAttendee.email,
-                              email: clientAttendee.email
-                            };
-                          }
-                        } catch (e) {
-                          console.log('Could not parse attendees');
-                        }
-                      }
-
-                      const meetingTitle = selectedMeeting.summary || selectedMeeting.title || 'Meeting';
-                      const meetingDate = selectedMeeting.startTime || selectedMeeting.start || selectedMeeting.date;
-
-                      // Build enhanced URL parameters for meeting context
-                      const params = new URLSearchParams({
-                        contextType: 'meeting',
-                        meetingId: selectedMeeting.id,
-                        meetingTitle: meetingTitle,
-                        meetingDate: meetingDate,
-                        hasTranscript: (!!selectedMeeting.transcript).toString(),
-                        hasSummary: (!!selectedMeeting.quick_summary).toString(),
-                        autoStart: 'true'
-                      });
-
-                      if (clientInfo) {
-                        params.set('clientName', clientInfo.name);
-                        params.set('clientEmail', clientInfo.email);
-                      }
-
-                      navigate(`/ask-advicly?${params.toString()}`);
-                    }}
-                    className="h-12 text-base font-semibold border-2 shadow-md hover:shadow-lg transition-all"
-                  >
-                    <MessageSquare className="w-5 h-5 mr-2" />
-                    Ask About This Meeting
-                  </Button>
-                </div>
-              )}
-
-              {/* Tabs */}
-              <div className="flex border-b border-border/50 mb-4">
+              {/* Tabs - New Order: Ask Advicely, Summary, Generate Email, Transcript, Documents */}
+              <div className="flex border-b border-border/50 mb-4 overflow-x-auto">
+                {/* Ask Advicely Tab */}
                 <button
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                    activeTab === 'ask'
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => setActiveTab('ask')}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Ask Advicely
+                </button>
+
+                {/* Summary Tab */}
+                <button
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
                     activeTab === 'summary'
                       ? "border-primary text-primary"
                       : "border-transparent text-muted-foreground hover:text-foreground"
@@ -2625,9 +2534,28 @@ export default function Meetings() {
                     <div className="w-2 h-2 bg-green-500 rounded-full ml-1"></div>
                   )}
                 </button>
+
+                {/* Generate Email Tab */}
                 <button
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                    activeTab === 'email'
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => setActiveTab('email')}
+                >
+                  <Mail className="w-4 h-4" />
+                  Generate Email
+                  {selectedMeeting?.email_summary_draft && (
+                    <div className="w-2 h-2 bg-purple-500 rounded-full ml-1"></div>
+                  )}
+                </button>
+
+                {/* Transcript Tab */}
+                <button
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
                     activeTab === 'transcript'
                       ? "border-primary text-primary"
                       : "border-transparent text-muted-foreground hover:text-foreground"
@@ -2640,9 +2568,11 @@ export default function Meetings() {
                     <div className="w-2 h-2 bg-blue-500 rounded-full ml-1"></div>
                   )}
                 </button>
+
+                {/* Documents Tab */}
                 <button
                   className={cn(
-                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors",
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
                     activeTab === 'documents'
                       ? "border-primary text-primary"
                       : "border-transparent text-muted-foreground hover:text-foreground"
@@ -2656,6 +2586,116 @@ export default function Meetings() {
 
               {/* Content */}
               <div className="space-y-4">
+                {/* Ask Advicely Tab Content */}
+                {activeTab === 'ask' && (
+                  <div className="space-y-4">
+                    <Card className="border-border/50 bg-gradient-to-br from-primary/5 to-primary/10">
+                      <CardContent className="p-6 text-center">
+                        <Sparkles className="w-12 h-12 mx-auto mb-4 text-primary" />
+                        <h3 className="text-lg font-semibold text-foreground mb-2">Ask Advicely About This Meeting</h3>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Get insights, draft follow-ups, or ask questions about this meeting with AI assistance.
+                        </p>
+                        <Button
+                          size="lg"
+                          className="bg-primary hover:bg-primary/90"
+                          onClick={() => {
+                            // Extract comprehensive meeting context
+                            let clientInfo = null;
+                            if (selectedMeeting?.attendees) {
+                              try {
+                                const attendees = typeof selectedMeeting.attendees === 'string'
+                                  ? JSON.parse(selectedMeeting.attendees)
+                                  : selectedMeeting.attendees;
+                                const currentUserEmail = user?.email || '';
+                                const clientAttendee = attendees.find(a => a.email !== currentUserEmail);
+                                if (clientAttendee) {
+                                  clientInfo = {
+                                    name: clientAttendee.name || clientAttendee.email,
+                                    email: clientAttendee.email
+                                  };
+                                }
+                              } catch (e) {
+                                console.log('Could not parse attendees');
+                              }
+                            }
+
+                            const meetingTitle = selectedMeeting?.summary || selectedMeeting?.title || 'Meeting';
+                            const meetingDate = selectedMeeting?.startTime || selectedMeeting?.start || selectedMeeting?.date;
+
+                            const params = new URLSearchParams({
+                              contextType: 'meeting',
+                              meetingId: selectedMeeting?.id,
+                              meetingTitle: meetingTitle,
+                              meetingDate: meetingDate,
+                              hasTranscript: (!!selectedMeeting?.transcript).toString(),
+                              hasSummary: (!!selectedMeeting?.quick_summary).toString(),
+                              autoStart: 'true'
+                            });
+
+                            if (clientInfo) {
+                              params.set('clientName', clientInfo.name);
+                              params.set('clientEmail', clientInfo.email);
+                            }
+
+                            navigate(`/ask-advicly?${params.toString()}`);
+                          }}
+                        >
+                          <Sparkles className="w-5 h-5 mr-2" />
+                          Start AI Conversation
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+
+                {/* Generate Email Tab Content */}
+                {activeTab === 'email' && (
+                  <div className="space-y-4">
+                    {selectedMeeting?.transcript ? (
+                      <Card className="border-border/50 bg-gradient-to-br from-blue-500/5 to-blue-500/10">
+                        <CardContent className="p-6 text-center">
+                          <Mail className="w-12 h-12 mx-auto mb-4 text-blue-500" />
+                          <h3 className="text-lg font-semibold text-foreground mb-2">Generate Meeting Email</h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            Create a professional email summary of this meeting using your templates.
+                          </p>
+                          <Button
+                            size="lg"
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={() => setShowTemplateModal(true)}
+                            disabled={generatingSummary}
+                          >
+                            <Mail className="w-5 h-5 mr-2" />
+                            {generatingSummary ? 'Generating...' : 'Choose Template & Generate'}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      <Card className="border-border/50">
+                        <CardContent className="p-6 text-center text-muted-foreground">
+                          <Mail className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                          <p>No transcript available. Email generation requires a meeting transcript.</p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Show existing email draft if available */}
+                    {selectedMeeting?.email_summary_draft && (
+                      <div className="space-y-2">
+                        <h3 className="text-sm font-semibold text-foreground">Previous Email Draft</h3>
+                        <Card className="border-border/50">
+                          <CardContent className="p-4">
+                            <div className="text-sm text-foreground whitespace-pre-line">
+                              {selectedMeeting.email_summary_draft}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {activeTab === 'summary' && (
                   <div className="space-y-4">
                     {selectedMeeting?.transcript ? (

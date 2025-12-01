@@ -14,7 +14,8 @@ export const getRecallBotStatus = (meeting, calendarConnection) => {
     return {
       willJoin: false,
       reason: 'Transcription disabled for your calendar',
-      status: 'error'
+      status: 'error',
+      linkToSettings: true
     };
   }
 

@@ -219,11 +219,8 @@ export default function Templates() {
   // New template modal state
   const [showNewTemplateModal, setShowNewTemplateModal] = useState(false);
   const [newTemplateTitle, setNewTemplateTitle] = useState('');
-  const [newTemplateDescription, setNewTemplateDescription] = useState('');
-  const [newTemplateType, setNewTemplateType] = useState('custom');
 
   // AI Builder state
-  const [showAIBuilder, setShowAIBuilder] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiGenerating, setAiGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState('');
@@ -350,9 +347,9 @@ ${userProfile.businessName}`;
 
       const newTemplate = await api.post('/templates', {
         title: newTemplateTitle,
-        description: newTemplateDescription || `Custom template: ${newTemplateTitle}`,
+        description: `Custom template: ${newTemplateTitle}`,
         prompt_content: initialContent,
-        type: newTemplateType
+        type: 'custom'
       });
 
       setTemplates(prev => [...prev, newTemplate]);
@@ -362,10 +359,8 @@ ${userProfile.businessName}`;
       // Reset modal state
       setShowNewTemplateModal(false);
       setNewTemplateTitle('');
-      setNewTemplateDescription('');
-      setNewTemplateType('custom');
       setGeneratedContent('');
-      setShowAIBuilder(false);
+      setAiPrompt('');
 
       showNotification('Template created successfully!');
     } catch (error) {
@@ -412,7 +407,7 @@ ${userProfile.businessName}`;
 
       const result = await api.post('/templates/generate', {
         description: aiPrompt,
-        templateType: newTemplateType
+        templateType: 'custom'
       });
 
       setGeneratedContent(result.generatedContent);
@@ -584,7 +579,6 @@ ${userProfile.businessName}`;
               <button
                 onClick={() => {
                   setShowNewTemplateModal(false);
-                  setShowAIBuilder(false);
                   setGeneratedContent('');
                   setAiPrompt('');
                 }}
@@ -595,105 +589,63 @@ ${userProfile.businessName}`;
             </div>
 
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
-              {/* Template Details */}
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Template Title</label>
-                  <input
-                    type="text"
-                    value={newTemplateTitle}
-                    onChange={(e) => setNewTemplateTitle(e.target.value)}
-                    className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="e.g., Annual Review Follow-up"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Description</label>
-                  <input
-                    type="text"
-                    value={newTemplateDescription}
-                    onChange={(e) => setNewTemplateDescription(e.target.value)}
-                    className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="Brief description of this template"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Template Type</label>
-                  <select
-                    value={newTemplateType}
-                    onChange={(e) => setNewTemplateType(e.target.value)}
-                    className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="custom">Custom Email</option>
-                    <option value="auto-summary">Meeting Summary</option>
-                    <option value="review-summary">Review Summary</option>
-                    <option value="follow-up">Follow-up Email</option>
-                    <option value="reminder">Reminder Email</option>
-                  </select>
-                </div>
+              {/* Template Title */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-2">Template Title</label>
+                <input
+                  type="text"
+                  value={newTemplateTitle}
+                  onChange={(e) => setNewTemplateTitle(e.target.value)}
+                  className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="e.g., Annual Review Follow-up"
+                />
               </div>
 
-              {/* AI Builder Toggle */}
-              <div className="mb-6">
+              {/* AI Builder - Always Visible */}
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+                <h3 className="font-semibold mb-3 flex items-center gap-2">
+                  <Bot className="w-5 h-5 text-primary" />
+                  AI Template Builder
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Describe what kind of email template you want, and AI will generate it for you.
+                </p>
+
+                <div className="mb-4">
+                  <textarea
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    className="w-full px-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                    rows={4}
+                    placeholder="e.g., Create a template for following up after a pension review meeting. It should summarize the key recommendations, list action items, and remind the client about next steps..."
+                  />
+                </div>
+
                 <Button
-                  variant={showAIBuilder ? "default" : "outline"}
-                  onClick={() => setShowAIBuilder(!showAIBuilder)}
+                  onClick={handleGenerateWithAI}
+                  disabled={aiGenerating || !aiPrompt.trim()}
                   className="flex items-center gap-2"
                 >
-                  <Bot className="w-4 h-4" />
-                  {showAIBuilder ? 'Hide AI Builder' : 'Use AI to Generate Template'}
+                  {aiGenerating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Send className="w-4 h-4" />
+                  )}
+                  Generate
                 </Button>
-              </div>
 
-              {/* AI Builder */}
-              {showAIBuilder && (
-                <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-6">
-                  <h3 className="font-semibold mb-3 flex items-center gap-2">
-                    <Bot className="w-5 h-5 text-primary" />
-                    AI Template Builder
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Describe what kind of email template you want, and AI will generate it for you.
-                  </p>
-
-                  <div className="flex gap-2 mb-4">
+                {generatedContent && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium mb-2">Generated Template (you can edit this)</label>
                     <textarea
-                      value={aiPrompt}
-                      onChange={(e) => setAiPrompt(e.target.value)}
-                      className="flex-1 px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-                      rows={3}
-                      placeholder="e.g., Create a template for following up after a pension review meeting. It should summarize the key recommendations, list action items, and remind the client about next steps..."
+                      value={generatedContent}
+                      onChange={(e) => setGeneratedContent(e.target.value)}
+                      className="w-full px-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
+                      rows={10}
                     />
                   </div>
-
-                  <Button
-                    onClick={handleGenerateWithAI}
-                    disabled={aiGenerating || !aiPrompt.trim()}
-                    className="flex items-center gap-2"
-                  >
-                    {aiGenerating ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Send className="w-4 h-4" />
-                    )}
-                    Generate Template
-                  </Button>
-
-                  {generatedContent && (
-                    <div className="mt-4">
-                      <label className="block text-sm font-medium mb-2">Generated Template (you can edit this)</label>
-                      <textarea
-                        value={generatedContent}
-                        onChange={(e) => setGeneratedContent(e.target.value)}
-                        className="w-full px-4 py-3 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
-                        rows={10}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             <div className="p-6 border-t border-border flex justify-end gap-3">
@@ -701,7 +653,6 @@ ${userProfile.businessName}`;
                 variant="outline"
                 onClick={() => {
                   setShowNewTemplateModal(false);
-                  setShowAIBuilder(false);
                   setGeneratedContent('');
                   setAiPrompt('');
                 }}
@@ -713,7 +664,7 @@ ${userProfile.businessName}`;
                 disabled={saving || !newTemplateTitle.trim()}
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Create Template
+                Submit
               </Button>
             </div>
           </div>
