@@ -327,7 +327,7 @@ router.get('/google/callback', async (req, res) => {
         console.error('Error updating calendar connection:', updateError);
       } else {
         console.log('✅ Google Calendar connection updated successfully');
-        // Trigger initial sync in background (non-blocking)
+        // Trigger sync and webhook setup in background (non-blocking)
         try {
           console.log('🔄 Triggering Google Calendar sync in background...');
           const calendarSyncService = require('../services/calendarSync');
@@ -338,6 +338,19 @@ router.get('/google/callback', async (req, res) => {
           });
         } catch (syncError) {
           console.warn('⚠️  Failed to start background sync:', syncError.message);
+        }
+        // Set up webhook for real-time updates (non-blocking)
+        try {
+          console.log('📡 Setting up Google Calendar webhook in background...');
+          const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
+          const webhookService = new GoogleCalendarWebhookService();
+          webhookService.setupCalendarWatch(user.id).then(watchData => {
+            console.log('✅ Google Calendar webhook established:', watchData?.id);
+          }).catch(webhookError => {
+            console.warn('⚠️  Webhook setup failed (non-fatal):', webhookError.message);
+          });
+        } catch (webhookError) {
+          console.warn('⚠️  Failed to start webhook setup:', webhookError.message);
         }
       }
     } else {
@@ -392,6 +405,19 @@ router.get('/google/callback', async (req, res) => {
           });
         } catch (syncError) {
           console.warn('⚠️  Failed to start background sync:', syncError.message);
+        }
+        // Set up webhook for real-time updates (non-blocking)
+        try {
+          console.log('📡 Setting up Google Calendar webhook in background...');
+          const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
+          const webhookService = new GoogleCalendarWebhookService();
+          webhookService.setupCalendarWatch(user.id).then(watchData => {
+            console.log('✅ Google Calendar webhook established:', watchData?.id);
+          }).catch(webhookError => {
+            console.warn('⚠️  Webhook setup failed (non-fatal):', webhookError.message);
+          });
+        } catch (webhookError) {
+          console.warn('⚠️  Failed to start webhook setup:', webhookError.message);
         }
       }
     }
