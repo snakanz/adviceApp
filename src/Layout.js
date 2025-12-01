@@ -207,12 +207,12 @@ export default function Layout() {
             </div>
 
             {/* Advicly Logo */}
-            <div className="p-4">
-              <div className="flex items-center justify-center">
+            <div className="px-4 py-6">
+              <div className="flex items-center justify-start">
                 <img
                   src="https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Copy%20of%20Advicly%20Logo%20(1).svg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvQ29weSBvZiBBZHZpY2x5IExvZ28gKDEpLnN2ZyIsImlhdCI6MTc2NDYyNDkwNiwiZXhwIjoxNzk2MTYwOTA2fQ.2TJpq03slY84UMumrWHtkRh0li6FeiuPJmyN6YzT63M"
                   alt="Advicly"
-                  className="h-8 w-auto"
+                  className="w-32"
                 />
               </div>
             </div>
