@@ -19,8 +19,6 @@ import {
   Check
 } from 'lucide-react';
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
-
 // Menu items for sidebar
 const menuItems = [
   { id: 'personal', label: 'Personal', icon: User, description: 'Account settings' },
@@ -32,9 +30,8 @@ const menuItems = [
 ];
 
 export default function Settings() {
-  const { user, logout, getAccessToken } = useAuth();
+  const { user, logout } = useAuth();
   const [activeSection, setActiveSection] = useState('personal');
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -51,6 +48,24 @@ export default function Settings() {
 
   // Load user data on mount
   useEffect(() => {
+    const loadCompanyData = async () => {
+      try {
+        const { data: userData, error } = await supabase
+          .from('users')
+          .select('business_name')
+          .eq('id', user.id)
+          .single();
+
+        if (!error && userData) {
+          setCompanyData({
+            companyName: userData.business_name || ''
+          });
+        }
+      } catch (err) {
+        console.error('Error loading company data:', err);
+      }
+    };
+
     if (user) {
       // Split name into first and last
       const nameParts = (user.name || '').split(' ');
@@ -67,24 +82,6 @@ export default function Settings() {
       loadCompanyData();
     }
   }, [user]);
-
-  const loadCompanyData = async () => {
-    try {
-      const { data: userData, error } = await supabase
-        .from('users')
-        .select('business_name')
-        .eq('id', user.id)
-        .single();
-
-      if (!error && userData) {
-        setCompanyData({
-          companyName: userData.business_name || ''
-        });
-      }
-    } catch (err) {
-      console.error('Error loading company data:', err);
-    }
-  };
 
   const handleSavePersonal = async () => {
     setSaving(true);

@@ -46,7 +46,6 @@ const analyticsNav = [
 
 export default function Layout() {
   const [open, setOpen] = useState(false);
-  const [calendarConnection, setCalendarConnection] = useState(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeSuccessMessage, setUpgradeSuccessMessage] = useState('');
   const [searchParams, setSearchParams] = useSearchParams();
