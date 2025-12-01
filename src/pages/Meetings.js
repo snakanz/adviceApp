@@ -25,7 +25,9 @@ import {
   Save,
   Sparkles,
   Video,
-  ExternalLink
+  ExternalLink,
+  Bot,
+  AlertCircle
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -143,36 +145,136 @@ function getInitials(nameOrEmail) {
   return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
 }
 
-// Helper function to check if meeting is complete (has transcript + summaries)
-function isMeetingComplete(meeting) {
-  return meeting.transcript &&
-         meeting.quick_summary &&
-         meeting.email_summary_draft;
+// Helper function to get meeting card glow style - NO GLOW anymore
+function getMeetingCardGlowStyle(meeting) {
+  // Removed all glow effects per user request
+  return '';
 }
 
-// Helper function to get meeting card glow style based on bot status
-function getMeetingCardGlowStyle(meeting) {
-  // Check if meeting is in the past
+// Helper function to get bot status badge for past meetings
+// Returns: { label, color, bgColor, icon } or null for future meetings
+function getBotStatusBadge(meeting, calendarConnection) {
   const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
   const isMeetingPast = endTime && endTime < new Date();
 
+  // Only show badges for past meetings
   if (!isMeetingPast) {
-    // Future meeting - no glow
-    return '';
+    return null;
   }
 
-  // Past meeting with successful bot join and transcript - GREEN GLOW
-  if (meeting?.recall_bot_id && meeting?.transcript) {
-    return 'shadow-[0_0_15px_3px_rgba(34,197,94,0.5)] border-green-500/60';
+  // Check for manual transcript upload (has transcript but no recall_bot_id OR transcript_source is 'manual')
+  if (meeting?.transcript && (!meeting?.recall_bot_id || meeting?.transcript_source === 'manual')) {
+    return {
+      label: 'Manual Upload',
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-50 dark:bg-blue-950/30',
+      status: 'manual'
+    };
   }
 
-  // Past meeting where bot was scheduled but failed (has recall_bot_id but no transcript) - YELLOW GLOW
-  if (meeting?.recall_bot_id && !meeting?.transcript) {
-    return 'shadow-[0_0_15px_3px_rgba(234,179,8,0.5)] border-yellow-500/60';
+  // Check if transcription was enabled for this calendar connection
+  const transcriptionEnabled = calendarConnection?.transcription_enabled !== false;
+
+  // If bot wasn't connected/enabled for this meeting
+  if (!meeting?.recall_bot_id && !transcriptionEnabled) {
+    return {
+      label: 'Bot Not Connected',
+      color: 'text-gray-500',
+      bgColor: 'bg-gray-100 dark:bg-gray-800/30',
+      status: 'not_connected'
+    };
   }
 
-  // No glow for other cases
-  return '';
+  // If meeting has no recall_bot_id but transcription is enabled, bot wasn't scheduled
+  if (!meeting?.recall_bot_id) {
+    return {
+      label: 'Bot Not Connected',
+      color: 'text-gray-500',
+      bgColor: 'bg-gray-100 dark:bg-gray-800/30',
+      status: 'not_connected'
+    };
+  }
+
+  // Bot was scheduled - check recall_status for outcome
+  const recallStatus = meeting?.recall_status?.toLowerCase() || '';
+
+  // Successful completion with transcript
+  if (meeting?.transcript && (recallStatus === 'completed' || recallStatus === 'done')) {
+    return {
+      label: 'Complete',
+      color: 'text-green-600',
+      bgColor: 'bg-green-50 dark:bg-green-950/30',
+      status: 'complete'
+    };
+  }
+
+  // Bot joined but no participants
+  if (recallStatus.includes('no_participant') || recallStatus === 'waiting_room_timeout' || recallStatus === 'empty_call') {
+    return {
+      label: 'No Participants',
+      color: 'text-yellow-600',
+      bgColor: 'bg-yellow-50 dark:bg-yellow-950/30',
+      status: 'no_participants'
+    };
+  }
+
+  // No recording captured
+  if (recallStatus.includes('no_recording') || recallStatus === 'recording_failed' || recallStatus === 'no_audio') {
+    return {
+      label: 'No Recording',
+      color: 'text-red-600',
+      bgColor: 'bg-red-50 dark:bg-red-950/30',
+      status: 'no_recording'
+    };
+  }
+
+  // Bot was scheduled but failed (has recall_bot_id but no transcript and not successful status)
+  if (!meeting?.transcript) {
+    // Check for specific failure statuses
+    if (recallStatus === 'failed' || recallStatus === 'error' || recallStatus === 'timeout') {
+      return {
+        label: 'Bot Failed',
+        color: 'text-red-600',
+        bgColor: 'bg-red-50 dark:bg-red-950/30',
+        status: 'failed'
+      };
+    }
+    // Generic no transcript case
+    return {
+      label: 'No Transcript',
+      color: 'text-gray-500',
+      bgColor: 'bg-gray-100 dark:bg-gray-800/30',
+      status: 'no_transcript'
+    };
+  }
+
+  // Fallback - has transcript from Recall
+  return {
+    label: 'Complete',
+    color: 'text-green-600',
+    bgColor: 'bg-green-50 dark:bg-green-950/30',
+    status: 'complete'
+  };
+}
+
+// Helper function to determine if bot toggle should be shown
+// Hide toggle if meeting is completed with transcript, or if meeting is in the past
+function shouldShowBotToggle(meeting) {
+  const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
+  const isFutureMeeting = endTime && endTime > new Date();
+
+  // Only show toggle for future meetings
+  if (!isFutureMeeting) {
+    return false;
+  }
+
+  // Don't show toggle if meeting already has a transcript (completed with Recall)
+  if (meeting?.transcript) {
+    return false;
+  }
+
+  // Must have a valid meeting URL
+  return hasValidMeetingUrl(meeting);
 }
 
 // AttendeeAvatars component to display meeting attendees
@@ -1803,42 +1905,53 @@ export default function Meetings() {
                       </div>
                     </td>
                     <td className="p-3">
-                      <div className="flex items-center gap-1">
-                        <div className={cn("w-3 h-3 rounded-full", meeting.transcript ? "bg-blue-500" : "bg-gray-300")} title={meeting.transcript ? "Transcript available" : "No transcript"}></div>
-                        <div className={cn("w-3 h-3 rounded-full", (meeting.quick_summary || meeting.brief_summary) ? "bg-green-500" : "bg-gray-300")} title={(meeting.quick_summary || meeting.brief_summary) ? "AI summary available" : "No AI summary"}></div>
-                        <div className={cn("w-3 h-3 rounded-full", meeting.email_summary_draft ? "bg-purple-500" : "bg-gray-300")} title={meeting.email_summary_draft ? "Email draft available" : "No email draft"}></div>
-                      </div>
+                      {/* Smart Bot Status Badge */}
+                      {(() => {
+                        const badge = getBotStatusBadge(meeting, calendarConnection);
+                        if (!badge) {
+                          return <span className="text-xs text-muted-foreground">Upcoming</span>;
+                        }
+                        return (
+                          <div className={cn(
+                            "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium",
+                            badge.color,
+                            badge.bgColor
+                          )}>
+                            {badge.status === 'complete' && <CheckCircle2 className="w-3 h-3" />}
+                            {badge.status === 'manual' && <FileText className="w-3 h-3" />}
+                            {badge.status === 'no_participants' && <AlertCircle className="w-3 h-3" />}
+                            {badge.status === 'no_recording' && <AlertCircle className="w-3 h-3" />}
+                            {badge.status === 'failed' && <AlertCircle className="w-3 h-3" />}
+                            {badge.status === 'no_transcript' && <FileText className="w-3 h-3" />}
+                            {badge.status === 'not_connected' && <Bot className="w-3 h-3" />}
+                            <span>{badge.label}</span>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="p-3">
                       <div className="flex items-center gap-2">
-                        {/* Bot Toggle - Only show for future meetings with valid meeting URL */}
-                        {(() => {
-                          const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
-                          const isFutureMeeting = endTime && endTime > new Date();
-                          const hasMeetingUrl = hasValidMeetingUrl(meeting);
-
-                          if (isFutureMeeting && hasMeetingUrl) {
-                            const isBotEnabled = !meeting.skip_transcription_for_meeting;
-                            return (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <div onClick={(e) => e.stopPropagation()}>
-                                      <Switch
-                                        checked={isBotEnabled}
-                                        onCheckedChange={() => handleToggleBotForAnyMeeting(meeting)}
-                                        className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-400 h-5 w-9"
-                                      />
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p>{isBotEnabled ? 'Bot will join - Click to disable' : 'Bot disabled - Click to enable'}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            );
-                          }
-                          return null;
+                        {/* Bot Toggle - Only show for future meetings without transcript */}
+                        {shouldShowBotToggle(meeting) && (() => {
+                          const isBotEnabled = !meeting.skip_transcription_for_meeting;
+                          return (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div onClick={(e) => e.stopPropagation()}>
+                                    <Switch
+                                      checked={isBotEnabled}
+                                      onCheckedChange={() => handleToggleBotForAnyMeeting(meeting)}
+                                      className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-400 h-5 w-9"
+                                    />
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{isBotEnabled ? 'Bot will join - Click to disable' : 'Bot disabled - Click to enable'}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
                         })()}
                         {hasValidMeetingUrl(meeting) && (
                           <TooltipProvider>
@@ -1928,8 +2041,15 @@ export default function Meetings() {
             </h3>
             <div className="space-y-3">
               {monthMeetings.map((meeting) => {
-        const isComplete = meeting.transcript && meeting.quick_summary && meeting.email_summary_draft;
-        const hasPartialData = meeting.transcript || meeting.quick_summary || meeting.email_summary_draft;
+        // Get bot status badge for smart left border coloring
+        const badge = getBotStatusBadge(meeting, calendarConnection);
+        const getBorderColor = () => {
+          if (!badge) return "border-l-gray-300 dark:border-l-gray-600"; // future meeting
+          if (badge.status === 'complete') return "border-l-green-500";
+          if (badge.status === 'manual') return "border-l-blue-500";
+          if (badge.status === 'no_participants' || badge.status === 'no_recording' || badge.status === 'failed') return "border-l-red-500";
+          return "border-l-gray-300 dark:border-l-gray-600";
+        };
 
         return (
           <Card
@@ -1940,14 +2060,7 @@ export default function Meetings() {
               // Prominent selection indicator - takes priority over status colors
               selectedMeetingId === meeting.id
                 ? "ring-2 ring-primary !border-l-primary bg-primary/10 shadow-lg shadow-primary/20"
-                : (
-                  // Status-based left border colors for quick visual identification (only when not selected)
-                  isComplete ? "border-l-green-500 bg-green-50/30 dark:bg-green-950/20" :
-                  hasPartialData ? "border-l-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/20" :
-                  "border-l-gray-300 dark:border-l-gray-600"
-                ),
-              // Bot status glow indicator
-              getMeetingCardGlowStyle(meeting)
+                : getBorderColor()
             )}
           >
           <CardContent className="p-3">
@@ -1968,14 +2081,6 @@ export default function Meetings() {
                   <h3 className="text-sm font-medium text-foreground line-clamp-1 break-words flex-1 min-w-0">
                     {meeting.quick_summary || meeting.detailed_summary || meeting.title || 'Untitled Meeting'}
                   </h3>
-
-                  {/* Status Indicator */}
-                  <div className={cn(
-                    "w-2 h-2 rounded-full flex-shrink-0 mt-1",
-                    isComplete ? "bg-green-500" :
-                    hasPartialData ? "bg-yellow-500" :
-                    "bg-gray-400"
-                  )}></div>
                 </div>
 
                 {/* Meeting Details Row */}
@@ -2063,77 +2168,50 @@ export default function Meetings() {
                   </div>
                 </div>
 
-                {/* Bot Toggle - Only show for future meetings with valid meeting URL */}
-                {(() => {
-                  const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
-                  const isFutureMeeting = endTime && endTime > new Date();
-                  const hasMeetingUrl = hasValidMeetingUrl(meeting);
-
-                  if (isFutureMeeting && hasMeetingUrl) {
-                    const isBotEnabled = !meeting.skip_transcription_for_meeting;
-                    return (
-                      <div
-                        className="flex items-center justify-between py-1.5 px-2 rounded-md bg-muted/40 mb-2"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <span className="text-xs text-muted-foreground">
-                          {isBotEnabled ? '🤖 Bot will join' : '🚫 Bot disabled'}
-                        </span>
-                        <Switch
-                          checked={isBotEnabled}
-                          onCheckedChange={() => handleToggleBotForAnyMeeting(meeting)}
-                          className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-400 h-5 w-9"
-                        />
-                      </div>
-                    );
-                  }
-                  return null;
+                {/* Bot Toggle - Only show for future meetings without transcript */}
+                {shouldShowBotToggle(meeting) && (() => {
+                  const isBotEnabled = !meeting.skip_transcription_for_meeting;
+                  return (
+                    <div
+                      className="flex items-center justify-between py-1.5 px-2 rounded-md bg-muted/40 mb-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <span className="text-xs text-muted-foreground">
+                        {isBotEnabled ? '🤖 Bot will join' : '🚫 Bot disabled'}
+                      </span>
+                      <Switch
+                        checked={isBotEnabled}
+                        onCheckedChange={() => handleToggleBotForAnyMeeting(meeting)}
+                        className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-400 h-5 w-9"
+                      />
+                    </div>
+                  );
                 })()}
 
-                {/* Bottom Row: Status Indicators and Actions */}
+                {/* Bottom Row: Status Badge and Actions */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    {/* Compact Status Indicators */}
-                    <div className="flex items-center gap-1">
-                      {/* Transcript Status */}
-                      <div
-                        className={cn(
-                          "w-3 h-3 rounded-full flex items-center justify-center",
-                          meeting.transcript
-                            ? "bg-blue-500"
-                            : "bg-gray-300 dark:bg-gray-600"
-                        )}
-                        title={meeting.transcript ? "Transcript available" : "No transcript"}
-                      >
-                        {meeting.transcript && <Check className="w-2 h-2 text-white" />}
-                      </div>
-
-                      {/* AI Summary Status */}
-                      <div
-                        className={cn(
-                          "w-3 h-3 rounded-full flex items-center justify-center",
-                          (meeting.quick_summary || meeting.brief_summary)
-                            ? "bg-green-500"
-                            : "bg-gray-300 dark:bg-gray-600"
-                        )}
-                        title={(meeting.quick_summary || meeting.brief_summary) ? "AI summary available" : "No AI summary"}
-                      >
-                        {(meeting.quick_summary || meeting.brief_summary) && <Check className="w-2 h-2 text-white" />}
-                      </div>
-
-                      {/* Email Draft Status */}
-                      <div
-                        className={cn(
-                          "w-3 h-3 rounded-full flex items-center justify-center",
-                          meeting.email_summary_draft
-                            ? "bg-purple-500"
-                            : "bg-gray-300 dark:bg-gray-600"
-                        )}
-                        title={meeting.email_summary_draft ? "Email draft available" : "No email draft"}
-                      >
-                        {meeting.email_summary_draft && <Check className="w-2 h-2 text-white" />}
-                      </div>
-                    </div>
+                    {/* Smart Bot Status Badge for Past Meetings */}
+                    {(() => {
+                      const badge = getBotStatusBadge(meeting, calendarConnection);
+                      if (!badge) return null;
+                      return (
+                        <div className={cn(
+                          "flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium",
+                          badge.color,
+                          badge.bgColor
+                        )}>
+                          {badge.status === 'complete' && <CheckCircle2 className="w-3 h-3" />}
+                          {badge.status === 'manual' && <FileText className="w-3 h-3" />}
+                          {badge.status === 'no_participants' && <AlertCircle className="w-3 h-3" />}
+                          {badge.status === 'no_recording' && <AlertCircle className="w-3 h-3" />}
+                          {badge.status === 'failed' && <AlertCircle className="w-3 h-3" />}
+                          {badge.status === 'no_transcript' && <FileText className="w-3 h-3" />}
+                          {badge.status === 'not_connected' && <Bot className="w-3 h-3" />}
+                          <span>{badge.label}</span>
+                        </div>
+                      );
+                    })()}
 
                     {/* Attendee Avatars */}
                     <AttendeeAvatars
@@ -2471,68 +2549,47 @@ export default function Meetings() {
                                     )}
                                   </div>
 
-                                  {/* Bot Toggle - Only show for future meetings with valid meeting URL */}
-                                  {(() => {
-                                    const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
-                                    const isFutureMeeting = endTime && endTime > new Date();
-                                    const hasMeetingUrl = hasValidMeetingUrl(meeting);
-
-                                    if (isFutureMeeting && hasMeetingUrl) {
-                                      const isBotEnabled = !meeting.skip_transcription_for_meeting;
-                                      return (
-                                        <div
-                                          className="flex items-center justify-between py-1.5 px-2 -mx-2 rounded-md bg-muted/30"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <span className="text-xs text-muted-foreground">
-                                            {isBotEnabled ? '🤖 Bot will join' : '🚫 Bot disabled'}
-                                          </span>
-                                          <Switch
-                                            checked={isBotEnabled}
-                                            onCheckedChange={() => handleToggleBotForAnyMeeting(meeting)}
-                                            className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-400 h-5 w-9"
-                                          />
-                                        </div>
-                                      );
-                                    }
-                                    return null;
+                                  {/* Bot Toggle - Only show for future meetings without transcript */}
+                                  {shouldShowBotToggle(meeting) && (() => {
+                                    const isBotEnabled = !meeting.skip_transcription_for_meeting;
+                                    return (
+                                      <div
+                                        className="flex items-center justify-between py-1.5 px-2 -mx-2 rounded-md bg-muted/30"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <span className="text-xs text-muted-foreground">
+                                          {isBotEnabled ? '🤖 Bot will join' : '🚫 Bot disabled'}
+                                        </span>
+                                        <Switch
+                                          checked={isBotEnabled}
+                                          onCheckedChange={() => handleToggleBotForAnyMeeting(meeting)}
+                                          className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-400 h-5 w-9"
+                                        />
+                                      </div>
+                                    );
                                   })()}
 
-                                  {/* Completion Status Indicators */}
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    {meeting.transcript && (
-                                      <div className="flex items-center gap-1 text-green-600">
-                                        <FileText className="w-3 h-3" />
-                                        <span className="text-xs">Transcript</span>
+                                  {/* Smart Bot Status Badge for Past Meetings */}
+                                  {(() => {
+                                    const badge = getBotStatusBadge(meeting, calendarConnection);
+                                    if (!badge) return null;
+                                    return (
+                                      <div className={cn(
+                                        "flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium",
+                                        badge.color,
+                                        badge.bgColor
+                                      )}>
+                                        {badge.status === 'complete' && <CheckCircle2 className="w-3 h-3" />}
+                                        {badge.status === 'manual' && <FileText className="w-3 h-3" />}
+                                        {badge.status === 'no_participants' && <AlertCircle className="w-3 h-3" />}
+                                        {badge.status === 'no_recording' && <AlertCircle className="w-3 h-3" />}
+                                        {badge.status === 'failed' && <AlertCircle className="w-3 h-3" />}
+                                        {badge.status === 'no_transcript' && <FileText className="w-3 h-3" />}
+                                        {badge.status === 'not_connected' && <Bot className="w-3 h-3" />}
+                                        <span>{badge.label}</span>
                                       </div>
-                                    )}
-                                    {meeting.quick_summary && (
-                                      <div className="flex items-center gap-1 text-blue-600">
-                                        <MessageSquare className="w-3 h-3" />
-                                        <span className="text-xs">Summary</span>
-                                      </div>
-                                    )}
-                                    {meeting.email_summary_draft && (
-                                      <div className="flex items-center gap-1 text-purple-600">
-                                        <Mail className="w-3 h-3" />
-                                        <span className="text-xs">Email</span>
-                                      </div>
-                                    )}
-                                    {meeting.action_points && (
-                                      <div className="flex items-center gap-1 text-orange-600">
-                                        <CheckCircle2 className="w-3 h-3" />
-                                        <span className="text-xs">Actions</span>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Overall Complete Badge */}
-                                  {isMeetingComplete(meeting) && (
-                                    <div className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded-md">
-                                      <CheckCircle2 className="w-3 h-3" />
-                                      <span className="text-xs font-medium">Complete</span>
-                                    </div>
-                                  )}
+                                    );
+                                  })()}
                                 </CardContent>
                               </Card>
                             );
