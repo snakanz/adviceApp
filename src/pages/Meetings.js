@@ -155,6 +155,31 @@ function isMeetingComplete(meeting) {
          meeting.email_summary_draft;
 }
 
+// Helper function to get meeting card ring style based on bot status
+function getMeetingCardRingStyle(meeting) {
+  // Check if meeting is in the past
+  const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
+  const isMeetingPast = endTime && endTime < new Date();
+
+  if (!isMeetingPast) {
+    // Future meeting - no ring
+    return '';
+  }
+
+  // Past meeting with successful bot join and transcript
+  if (meeting?.recall_bot_id && meeting?.transcript) {
+    return 'ring-2 ring-green-500/50 ring-offset-1';
+  }
+
+  // Past meeting where bot was scheduled but failed (has recall_bot_id but no transcript)
+  if (meeting?.recall_bot_id && !meeting?.transcript) {
+    return 'ring-2 ring-yellow-500/50 ring-offset-1';
+  }
+
+  // No ring for other cases
+  return '';
+}
+
 // AttendeeAvatars component to display meeting attendees
 function AttendeeAvatars({ meeting, currentUserEmail, maxVisible = 3 }) {
   const attendees = extractAttendees(meeting, currentUserEmail);
@@ -1840,7 +1865,9 @@ export default function Meetings() {
               // Status-based left border colors for quick visual identification
               isComplete ? "border-l-green-500 bg-green-50/30 dark:bg-green-950/20" :
               hasPartialData ? "border-l-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/20" :
-              "border-l-gray-300 dark:border-l-gray-600"
+              "border-l-gray-300 dark:border-l-gray-600",
+              // Bot status ring indicator
+              getMeetingCardRingStyle(meeting)
             )}
           >
           <CardContent className="p-3">
@@ -2290,7 +2317,10 @@ export default function Meetings() {
                             return (
                               <Card
                                 key={meeting.id}
-                                className="border-border/50 hover:border-primary/50 cursor-pointer transition-all hover:shadow-md"
+                                className={cn(
+                                  "border-border/50 hover:border-primary/50 cursor-pointer transition-all hover:shadow-md",
+                                  getMeetingCardRingStyle(meeting)
+                                )}
                                 onClick={() => setSelectedMeetingId(meeting.id)}
                               >
                                 <CardContent className="p-3 space-y-2">
@@ -3114,183 +3144,6 @@ export default function Meetings() {
                               </CardContent>
                             </Card>
                           )}
-                        </div>
-
-                        {/* Email Summary Section */}
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <h3 className="text-sm font-semibold text-foreground">
-                              {currentSummaryTemplate ? currentSummaryTemplate.title : 'Email Summary'}
-                            </h3>
-                          </div>
-
-                          {/* Template Selection - only show when email summary exists */}
-                          {(generatingSummary || selectedMeeting?.email_summary_draft) && templates.length > 0 && (
-                            <div className="space-y-2 p-3 bg-muted/20 rounded-lg border border-border/40">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-1.5">
-                                  <Mail className="w-3 h-3 text-blue-600" />
-                                  <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Template</span>
-                                </div>
-                                {generatingSummary && (
-                                  <div className="flex items-center gap-1.5 text-[10px] text-blue-600">
-                                    <div className="animate-spin rounded-full h-2.5 w-2.5 border-2 border-blue-600 border-t-transparent"></div>
-                                    <span>Generating...</span>
-                                  </div>
-                                )}
-                              </div>
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full h-8 text-xs justify-between hover:bg-background hover:border-blue-400 transition-all"
-                                    disabled={generatingSummary}
-                                  >
-                                    <span className="font-medium truncate">{currentSummaryTemplate?.title || selectedTemplate?.title || 'Advicly Summary'}</span>
-                                    <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0 ml-2" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent className="w-64" align="start">
-                                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground border-b border-border/50">
-                                    Select Template
-                                  </div>
-                                  {templates.map((template) => (
-                                    <DropdownMenuItem
-                                      key={template.id}
-                                      onClick={() => {
-                                        // Auto-apply template immediately when selected
-                                        if (template.id !== currentSummaryTemplate?.id && selectedMeeting?.transcript) {
-                                          setSelectedTemplate(template);
-                                          // Trigger regeneration with new template
-                                          setTimeout(() => handleGenerateAISummary(), 100);
-                                        }
-                                      }}
-                                      className={`cursor-pointer py-2.5 ${
-                                        currentSummaryTemplate?.id === template.id
-                                          ? 'bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300'
-                                          : 'hover:bg-accent'
-                                      }`}
-                                    >
-                                      <div className="flex items-center justify-between w-full">
-                                        <div className="flex items-center gap-2">
-                                          <Mail className={`w-3.5 h-3.5 ${
-                                            currentSummaryTemplate?.id === template.id
-                                              ? 'text-blue-600'
-                                              : 'text-muted-foreground'
-                                          }`} />
-                                          <span className="font-medium">{template.title}</span>
-                                        </div>
-                                        {currentSummaryTemplate?.id === template.id && (
-                                          <div className="flex items-center gap-1 text-blue-600">
-                                            <span className="text-xs font-semibold">Active</span>
-                                            <span className="text-sm">✓</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </DropdownMenuItem>
-                                  ))}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          )}
-
-                          {/* Email Summary Content */}
-                          {generatingSummary ? (
-                            <Card className="border-border/50 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20">
-                              <CardContent className="p-8 text-center">
-                                <div className="flex flex-col items-center justify-center gap-4">
-                                  {/* Animated Mail Icon */}
-                                  <div className="relative">
-                                    <div className="absolute inset-0 animate-ping">
-                                      <Mail className="w-12 h-12 text-blue-400 opacity-75" />
-                                    </div>
-                                    <Mail className="w-12 h-12 text-blue-600 relative z-10" />
-                                  </div>
-
-                                  {/* Loading Text */}
-                                  <div className="space-y-2">
-                                    <div className="flex items-center justify-center gap-2">
-                                      <div className="animate-spin rounded-full h-5 w-5 border-3 border-blue-600 border-t-transparent"></div>
-                                      <p className="text-base font-semibold text-foreground">
-                                        Generating Email Summary...
-                                      </p>
-                                    </div>
-                                    <p className="text-sm text-muted-foreground">
-                                      Using {selectedTemplate?.title || 'Advicly Summary'} template
-                                    </p>
-                                  </div>
-
-                                  {/* Progress Dots */}
-                                  <div className="flex gap-2">
-                                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                                    <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ) : (emailSummary || selectedMeeting?.email_summary_draft) ? (
-                            <Card className="border-border/50">
-                              <CardContent className="p-4">
-                                {/* Client Information Header */}
-                                {(() => {
-                                  // Get client info from linked client or attendees
-                                  let clientInfo = null;
-
-                                  if (selectedMeeting.client) {
-                                    clientInfo = {
-                                      name: selectedMeeting.client.name || selectedMeeting.client.email.split('@')[0],
-                                      email: selectedMeeting.client.email
-                                    };
-                                  } else if (selectedMeeting.attendees) {
-                                    try {
-                                      const attendees = JSON.parse(selectedMeeting.attendees);
-                                      const clientAttendee = attendees.find(a => a.email && a.email !== user?.email);
-                                      if (clientAttendee) {
-                                        clientInfo = {
-                                          name: clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0],
-                                          email: clientAttendee.email
-                                        };
-                                      }
-                                    } catch (e) {
-                                      // Ignore parsing errors
-                                    }
-                                  }
-
-                                  if (clientInfo) {
-                                    return (
-                                      <div className="mb-4 pb-4 border-b border-border/50">
-                                        <div className="text-xs text-muted-foreground mb-1">To:</div>
-                                        <div className="flex items-center gap-2">
-                                          <Mail className="w-4 h-4 text-primary/60" />
-                                          <div>
-                                            <div className="font-medium text-sm text-foreground">{clientInfo.name}</div>
-                                            <div className="text-xs text-muted-foreground">{clientInfo.email}</div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    );
-                                  }
-                                  return null;
-                                })()}
-
-                                {/* Email Body */}
-                                <div className="prose prose-sm max-w-none text-foreground">
-                                  <div className="whitespace-pre-line text-sm">{emailSummary || selectedMeeting?.email_summary_draft}</div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ) : autoGenerating ? (
-                            <Card className="border-border/50">
-                              <CardContent className="p-4 text-center">
-                                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
-                                  Generating email summary...
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ) : null}
                         </div>
                       </div>
                     ) : (

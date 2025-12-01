@@ -73,7 +73,7 @@ export const getRecallBotStatus = (meeting, calendarConnection) => {
       reason: 'Bot disabled for this meeting',
       status: 'warning',
       isMeetingPast: false,
-      showToggleButton: false
+      showToggleButton: true  // Allow user to re-enable the bot
     };
   }
 
