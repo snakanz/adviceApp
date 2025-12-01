@@ -713,7 +713,6 @@ router.get('/microsoft/callback', async (req, res) => {
         console.error('Error updating calendar connection:', updateError);
       } else {
         console.log('✅ Microsoft Calendar connection updated successfully');
-        console.log('⏭️  Skipping webhook setup during OAuth - will be set up after onboarding completion');
       }
     } else {
       console.log('✅ Creating new Microsoft Calendar connection...');
@@ -748,8 +747,36 @@ router.get('/microsoft/callback', async (req, res) => {
         console.error('Error creating calendar connection:', createError);
       } else {
         console.log('✅ Microsoft Calendar connection created successfully');
-        console.log('⏭️  Skipping webhook setup during OAuth - will be set up after onboarding completion');
       }
+    }
+
+    // Set up Microsoft Calendar webhook (for live updates)
+    // This is done immediately after connection is created/updated
+    try {
+      console.log('📡 Setting up Microsoft Calendar webhook...');
+      const MicrosoftCalendarService = require('../services/microsoftCalendar');
+      const microsoftService = new MicrosoftCalendarService();
+      await microsoftService.setupCalendarWatch(user.id);
+      console.log('✅ Microsoft Calendar webhook set up successfully');
+    } catch (webhookError) {
+      console.error('❌ Failed to set up Microsoft Calendar webhook:', webhookError.message);
+      // Don't fail the OAuth flow, but log the error
+      // The webhook can be set up later via the verify-webhooks endpoint
+    }
+
+    // Trigger initial Microsoft Calendar sync (in background)
+    try {
+      console.log('🔄 Triggering initial Microsoft Calendar sync in background...');
+      const calendarSyncService = require('../services/calendarSync');
+      // Don't await - let it run in background
+      calendarSyncService.syncUserCalendar(user.id, { timeRange: 'extended', includeDeleted: true }).then(syncResult => {
+        console.log('✅ Initial Microsoft Calendar sync completed:', syncResult);
+      }).catch(syncError => {
+        console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
+      });
+    } catch (syncError) {
+      console.warn('⚠️  Failed to start background sync:', syncError.message);
+      // Don't fail the connection if sync fails
     }
 
     // Generate JWT and redirect to frontend

@@ -129,6 +129,20 @@ router.delete('/:id', authenticateSupabaseUser, async (req, res) => {
       }
     }
 
+    // Stop webhook if this is a Microsoft Calendar connection
+    if (connection.provider === 'microsoft') {
+      try {
+        console.log('🛑 Stopping Microsoft Calendar webhook...');
+        const MicrosoftCalendarService = require('../services/microsoftCalendar');
+        const microsoftService = new MicrosoftCalendarService();
+        await microsoftService.stopCalendarWatch(userId);
+        console.log('✅ Microsoft Calendar webhook stopped');
+      } catch (webhookError) {
+        console.warn('⚠️  Microsoft webhook cleanup failed (non-fatal):', webhookError.message);
+        // Don't fail the disconnect if webhook cleanup fails
+      }
+    }
+
     // Clean up Calendly webhook if this is a Calendly connection
     if (connection.provider === 'calendly') {
       try {
