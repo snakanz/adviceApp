@@ -155,9 +155,17 @@ function getMeetingCardGlowStyle(meeting) {
 // Returns: { label, color, bgColor, icon } or null for future meetings
 function getBotStatusBadge(meeting, calendarConnection) {
   const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
-  const isMeetingPast = endTime && endTime < new Date();
+  const calendarEndTimePassed = endTime && endTime < new Date();
 
-  // Only show badges for past meetings
+  // For Recall meetings, check if the call has actually completed
+  // (has recall_bot_id AND either status is 'completed' or has transcript)
+  const hasRecallCompleted = meeting?.recall_bot_id &&
+    (meeting?.recall_status === 'completed' || !!meeting?.transcript);
+
+  // Meeting is "past" if calendar end time passed OR Recall has completed
+  const isMeetingPast = calendarEndTimePassed || hasRecallCompleted;
+
+  // Only show badges for past/completed meetings
   if (!isMeetingPast) {
     return null;
   }
