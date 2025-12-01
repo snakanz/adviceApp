@@ -220,7 +220,7 @@ router.get('/auth/google/callback', async (req, res) => {
           console.log('🔄 Triggering initial Google Calendar sync in background...');
           const calendarSyncService = require('../services/calendarSync');
           // Don't await - let it run in background
-          calendarSyncService.syncGoogleCalendar(state).then(syncResult => {
+          calendarSyncService.syncUserCalendar(state, { timeRange: 'extended', includeDeleted: true }).then(syncResult => {
             console.log('✅ Initial Google Calendar sync completed:', syncResult);
           }).catch(syncError => {
             console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
@@ -274,7 +274,7 @@ router.get('/auth/google/callback', async (req, res) => {
           console.log('🔄 Triggering initial Google Calendar sync in background...');
           const calendarSyncService = require('../services/calendarSync');
           // Don't await - let it run in background
-          calendarSyncService.syncGoogleCalendar(state).then(syncResult => {
+          calendarSyncService.syncUserCalendar(state, { timeRange: 'extended', includeDeleted: true }).then(syncResult => {
             console.log('✅ Initial Google Calendar sync completed:', syncResult);
           }).catch(syncError => {
             console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
@@ -397,7 +397,7 @@ router.get('/auth/google/callback', async (req, res) => {
       console.log('🔄 Triggering initial Google Calendar sync in background...');
       const calendarSyncService = require('../services/calendarSync');
       // Don't await - let it run in background
-      calendarSyncService.syncGoogleCalendar(user.id).then(syncResult => {
+      calendarSyncService.syncUserCalendar(user.id, { timeRange: 'extended', includeDeleted: true }).then(syncResult => {
         console.log('✅ Initial Google Calendar sync completed:', syncResult);
       }).catch(syncError => {
         console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
