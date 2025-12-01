@@ -70,55 +70,6 @@ export default function Layout() {
     }
   }, [searchParams, setSearchParams]);
 
-  // Fetch active calendar connection for transcription status with real-time updates
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const fetchCalendarConnection = async () => {
-      try {
-        const { data } = await supabase
-          .from('calendar_connections')
-          .select('id, provider, provider_account_email, transcription_enabled, is_active')
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .single();
-
-        if (data) {
-          setCalendarConnection(data);
-        }
-      } catch (err) {
-        console.error('Error fetching calendar connection:', err);
-      }
-    };
-
-    // Initial fetch
-    fetchCalendarConnection();
-
-    // Subscribe to real-time updates on calendar_connections table
-    const subscription = supabase
-      .channel(`calendar_connections:user_id=eq.${user.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'calendar_connections',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          // Update on ANY change to the connection (transcription_enabled, is_active, etc.)
-          if (payload.new) {
-            setCalendarConnection(payload.new);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [user?.id]);
-
   const handleLogout = () => {
     logout();
   };
