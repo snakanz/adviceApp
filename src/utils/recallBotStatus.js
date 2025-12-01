@@ -122,7 +122,12 @@ export const getRecallBotStatus = (meeting, calendarConnection) => {
 export const hasValidMeetingUrl = (meeting) => {
   if (!meeting) return false;
 
-  // Check for Google Meet in conferenceData (primary method)
+  // Check for meeting_url field (primary method - stored in database)
+  if (meeting.meeting_url) {
+    return true;
+  }
+
+  // Fallback: Check for Google Meet in conferenceData (legacy support)
   if (meeting.conferenceData?.entryPoints) {
     const videoEntry = meeting.conferenceData.entryPoints.find(
       ep => ep.entryPointType === 'video'
@@ -130,7 +135,7 @@ export const hasValidMeetingUrl = (meeting) => {
     if (videoEntry?.uri) return true;
   }
 
-  // Check for URL in location field
+  // Fallback: Check for URL in location field
   if (meeting.location) {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const urls = meeting.location.match(urlRegex) || [];
@@ -139,14 +144,15 @@ export const hasValidMeetingUrl = (meeting) => {
         url.includes('zoom.us') ||
         url.includes('teams.microsoft.com') ||
         url.includes('webex.com') ||
-        url.includes('meet.google.com')
+        url.includes('meet.google.com') ||
+        url.includes('gotomeeting.com')
       ) {
         return true;
       }
     }
   }
 
-  // Check for URL in description field
+  // Fallback: Check for URL in description field
   if (meeting.description) {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
     const urls = meeting.description.match(urlRegex) || [];
@@ -155,7 +161,8 @@ export const hasValidMeetingUrl = (meeting) => {
         url.includes('zoom.us') ||
         url.includes('teams.microsoft.com') ||
         url.includes('webex.com') ||
-        url.includes('meet.google.com')
+        url.includes('meet.google.com') ||
+        url.includes('gotomeeting.com')
       ) {
         return true;
       }
@@ -163,6 +170,64 @@ export const hasValidMeetingUrl = (meeting) => {
   }
 
   return false;
+};
+
+/**
+ * Get the meeting URL from a meeting object
+ * @param {Object} meeting - Meeting object
+ * @returns {string|null} The meeting URL or null if not found
+ */
+export const getMeetingUrl = (meeting) => {
+  if (!meeting) return null;
+
+  // Check for meeting_url field (primary method - stored in database)
+  if (meeting.meeting_url) {
+    return meeting.meeting_url;
+  }
+
+  // Fallback: Check for Google Meet in conferenceData
+  if (meeting.conferenceData?.entryPoints) {
+    const videoEntry = meeting.conferenceData.entryPoints.find(
+      ep => ep.entryPointType === 'video'
+    );
+    if (videoEntry?.uri) return videoEntry.uri;
+  }
+
+  // Fallback: Check for URL in location field
+  if (meeting.location) {
+    const urlRegex = /(https?:\/\/[^\s<>"]+)/g;
+    const urls = meeting.location.match(urlRegex) || [];
+    for (const url of urls) {
+      if (
+        url.includes('zoom.us') ||
+        url.includes('teams.microsoft.com') ||
+        url.includes('webex.com') ||
+        url.includes('meet.google.com') ||
+        url.includes('gotomeeting.com')
+      ) {
+        return url;
+      }
+    }
+  }
+
+  // Fallback: Check for URL in description field
+  if (meeting.description) {
+    const urlRegex = /(https?:\/\/[^\s<>"]+)/g;
+    const urls = meeting.description.match(urlRegex) || [];
+    for (const url of urls) {
+      if (
+        url.includes('zoom.us') ||
+        url.includes('teams.microsoft.com') ||
+        url.includes('webex.com') ||
+        url.includes('meet.google.com') ||
+        url.includes('gotomeeting.com')
+      ) {
+        return url;
+      }
+    }
+  }
+
+  return null;
 };
 
 /**

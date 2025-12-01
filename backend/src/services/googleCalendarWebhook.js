@@ -469,11 +469,60 @@ class GoogleCalendarWebhookService {
   }
 
   /**
+   * Extract meeting URL from calendar event (Google Meet, Zoom, Teams, Webex)
+   */
+  extractMeetingUrl(event) {
+    let meetingUrl = null;
+
+    // 1. Check Google Meet conferenceData
+    if (event.conferenceData?.entryPoints) {
+      const videoEntry = event.conferenceData.entryPoints
+        .find(ep => ep.entryPointType === 'video');
+      if (videoEntry?.uri) {
+        meetingUrl = videoEntry.uri;
+      }
+    }
+
+    // 2. Check for URLs in location field
+    if (!meetingUrl && event.location) {
+      const urlRegex = /(https?:\/\/[^\s<>"]+)/g;
+      const urls = event.location.match(urlRegex) || [];
+      for (const url of urls) {
+        if (url.includes('zoom.us') || url.includes('teams.microsoft.com') ||
+            url.includes('webex.com') || url.includes('meet.google.com') ||
+            url.includes('gotomeeting.com')) {
+          meetingUrl = url;
+          break;
+        }
+      }
+    }
+
+    // 3. Check for URLs in description field
+    if (!meetingUrl && event.description) {
+      const urlRegex = /(https?:\/\/[^\s<>"]+)/g;
+      const urls = event.description.match(urlRegex) || [];
+      for (const url of urls) {
+        if (url.includes('zoom.us') || url.includes('teams.microsoft.com') ||
+            url.includes('webex.com') || url.includes('meet.google.com') ||
+            url.includes('gotomeeting.com')) {
+          meetingUrl = url;
+          break;
+        }
+      }
+    }
+
+    return meetingUrl;
+  }
+
+  /**
    * Transform Google Calendar event to meeting database format
    */
   transformEventToMeeting(event, userId) {
     const startTime = event.start?.dateTime || event.start?.date;
     const endTime = event.end?.dateTime || event.end?.date;
+
+    // Extract meeting URL from conferenceData, location, or description
+    const meetingUrl = this.extractMeetingUrl(event);
 
     return {
       user_id: userId,
@@ -484,6 +533,7 @@ class GoogleCalendarWebhookService {
       location: event.location || null,
       description: event.description || null,
       attendees: JSON.stringify(event.attendees || []),
+      meeting_url: meetingUrl, // Store the extracted meeting URL
       meeting_source: 'google',
       is_deleted: false,
       created_at: new Date().toISOString(),

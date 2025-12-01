@@ -29,7 +29,9 @@ import {
   Edit2,
   Plus,
   Save,
-  Sparkles
+  Sparkles,
+  Video,
+  ExternalLink
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -38,7 +40,7 @@ import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
 import CalendlyIcon from '../components/CalendlyIcon';
 import DocumentsTab from '../components/DocumentsTab';
-import { getRecallBotStatus, getStatusColor, getStatusIcon } from '../utils/recallBotStatus';
+import { getRecallBotStatus, getStatusColor, getStatusIcon, getMeetingUrl, hasValidMeetingUrl } from '../utils/recallBotStatus';
 import CreateMeetingDialog from '../components/CreateMeetingDialog';
 import EditMeetingDialog from '../components/EditMeetingDialog';
 import LinkClientDialog from '../components/LinkClientDialog';
@@ -1735,14 +1737,39 @@ export default function Meetings() {
                       </div>
                     </td>
                     <td className="p-3">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => handleEditMeeting(meeting, e)}
-                        className="h-8 px-2 text-xs"
-                      >
-                        <Edit className="w-3 h-3" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        {hasValidMeetingUrl(meeting) && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const url = getMeetingUrl(meeting);
+                                    if (url) window.open(url, '_blank', 'noopener,noreferrer');
+                                  }}
+                                  className="h-8 px-2 text-xs text-primary hover:text-primary"
+                                >
+                                  <Video className="w-3 h-3" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>Join Meeting</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => handleEditMeeting(meeting, e)}
+                          className="h-8 px-2 text-xs"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -1984,6 +2011,30 @@ export default function Meetings() {
 
                   {/* Action Buttons */}
                   <div className="flex items-center gap-1">
+                    {hasValidMeetingUrl(meeting) && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const url = getMeetingUrl(meeting);
+                                if (url) window.open(url, '_blank', 'noopener,noreferrer');
+                              }}
+                              className="h-6 px-2 text-xs text-primary hover:text-primary"
+                              title="Join meeting"
+                            >
+                              <Video className="w-3 h-3" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>Join Meeting</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -2499,6 +2550,32 @@ export default function Meetings() {
                       </div>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* Join Meeting Button - Show for future meetings with valid URL */}
+              {selectedMeeting && hasValidMeetingUrl(selectedMeeting) && (
+                <div className="flex items-center gap-3 p-4 rounded-lg border border-border/50 bg-card">
+                  <div className="flex items-center gap-2 flex-1">
+                    <Video className="w-5 h-5 text-primary" />
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Video Meeting</p>
+                      <p className="text-xs text-muted-foreground truncate max-w-[200px] lg:max-w-[300px]">
+                        {getMeetingUrl(selectedMeeting)}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const url = getMeetingUrl(selectedMeeting);
+                      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Join Meeting
+                  </Button>
                 </div>
               )}
 

@@ -364,9 +364,10 @@ class CalendlyService {
       // Generate unique event ID for Calendly meetings
       const calendlyEventId = `calendly_${calendlyEvent.uri.split('/').pop()}`;
 
-      // Enhanced location parsing
+      // Enhanced location parsing and meeting URL extraction
       let locationDetails = null;
       let locationType = 'unknown';
+      let meetingUrl = null; // Store the actual meeting URL separately
 
       if (calendlyEvent.location) {
         if (calendlyEvent.location.type === 'physical') {
@@ -377,19 +378,24 @@ class CalendlyService {
           locationDetails = calendlyEvent.location.location;
         } else if (calendlyEvent.location.type === 'zoom') {
           locationType = 'zoom';
-          locationDetails = calendlyEvent.location.join_url || 'Zoom meeting (details in Calendly)';
+          meetingUrl = calendlyEvent.location.join_url || null;
+          locationDetails = meetingUrl || 'Zoom meeting (details in Calendly)';
         } else if (calendlyEvent.location.type === 'google_meet') {
           locationType = 'google_meet';
-          locationDetails = calendlyEvent.location.join_url || 'Google Meet (details in Calendly)';
+          meetingUrl = calendlyEvent.location.join_url || null;
+          locationDetails = meetingUrl || 'Google Meet (details in Calendly)';
         } else if (calendlyEvent.location.type === 'microsoft_teams') {
           locationType = 'microsoft_teams';
-          locationDetails = calendlyEvent.location.join_url || 'Microsoft Teams (details in Calendly)';
+          meetingUrl = calendlyEvent.location.join_url || null;
+          locationDetails = meetingUrl || 'Microsoft Teams (details in Calendly)';
         } else if (calendlyEvent.location.type === 'gotomeeting') {
           locationType = 'gotomeeting';
-          locationDetails = calendlyEvent.location.join_url || 'GoToMeeting (details in Calendly)';
+          meetingUrl = calendlyEvent.location.join_url || null;
+          locationDetails = meetingUrl || 'GoToMeeting (details in Calendly)';
         } else if (calendlyEvent.location.type === 'webex') {
           locationType = 'webex';
-          locationDetails = calendlyEvent.location.join_url || 'Webex (details in Calendly)';
+          meetingUrl = calendlyEvent.location.join_url || null;
+          locationDetails = meetingUrl || 'Webex (details in Calendly)';
         } else if (calendlyEvent.location.type === 'phone_call') {
           locationType = 'phone';
           locationDetails = 'Phone call (details in Calendly)';
@@ -406,6 +412,7 @@ class CalendlyService {
         attendees: JSON.stringify(attendees),
         meeting_source: 'calendly',
         location: locationDetails,
+        meeting_url: meetingUrl, // Store the extracted meeting URL
         is_deleted: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()

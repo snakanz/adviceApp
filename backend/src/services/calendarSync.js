@@ -615,9 +615,59 @@ class CalendarSyncService {
   }
 
   /**
+   * Extract meeting URL from calendar event (Google Meet, Zoom, Teams, Webex)
+   * Works for both Google Calendar and Microsoft/Outlook events
+   */
+  extractMeetingUrl(calendarEvent) {
+    let meetingUrl = null;
+
+    // 1. Check Google Meet / Microsoft Teams conferenceData
+    if (calendarEvent.conferenceData?.entryPoints) {
+      const videoEntry = calendarEvent.conferenceData.entryPoints
+        .find(ep => ep.entryPointType === 'video');
+      if (videoEntry?.uri) {
+        meetingUrl = videoEntry.uri;
+      }
+    }
+
+    // 2. Check for URLs in location field
+    if (!meetingUrl && calendarEvent.location) {
+      const urlRegex = /(https?:\/\/[^\s<>"]+)/g;
+      const urls = calendarEvent.location.match(urlRegex) || [];
+      for (const url of urls) {
+        if (url.includes('zoom.us') || url.includes('teams.microsoft.com') ||
+            url.includes('webex.com') || url.includes('meet.google.com') ||
+            url.includes('gotomeeting.com')) {
+          meetingUrl = url;
+          break;
+        }
+      }
+    }
+
+    // 3. Check for URLs in description field
+    if (!meetingUrl && calendarEvent.description) {
+      const urlRegex = /(https?:\/\/[^\s<>"]+)/g;
+      const urls = calendarEvent.description.match(urlRegex) || [];
+      for (const url of urls) {
+        if (url.includes('zoom.us') || url.includes('teams.microsoft.com') ||
+            url.includes('webex.com') || url.includes('meet.google.com') ||
+            url.includes('gotomeeting.com')) {
+          meetingUrl = url;
+          break;
+        }
+      }
+    }
+
+    return meetingUrl;
+  }
+
+  /**
    * Extract meeting data from calendar event (Google or Microsoft)
    */
   extractMeetingData(userId, calendarEvent, provider = 'google') {
+    // Extract meeting URL from conferenceData, location, or description
+    const meetingUrl = this.extractMeetingUrl(calendarEvent);
+
     return {
       external_id: calendarEvent.id,
       user_id: userId,
@@ -627,6 +677,7 @@ class CalendarSyncService {
       description: calendarEvent.description || '',
       location: calendarEvent.location || null,
       attendees: JSON.stringify(calendarEvent.attendees || []),
+      meeting_url: meetingUrl, // Store the extracted meeting URL
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       is_deleted: false,
@@ -657,29 +708,8 @@ class CalendarSyncService {
         return;
       }
 
-      // Extract meeting URL from event
-      let meetingUrl = null;
-
-      // Google Meet
-      if (event.conferenceData?.entryPoints) {
-        const videoEntry = event.conferenceData.entryPoints
-          .find(ep => ep.entryPointType === 'video');
-        if (videoEntry) meetingUrl = videoEntry.uri;
-      }
-
-      // Zoom/Teams/Webex in location or description
-      if (!meetingUrl) {
-        const urlRegex = /(https?:\/\/[^\s]+)/g;
-        const urls = (event.location || event.description || '').match(urlRegex) || [];
-
-        for (const url of urls) {
-          if (url.includes('zoom.us') || url.includes('teams.microsoft.com') ||
-              url.includes('webex.com') || url.includes('meet.google.com')) {
-            meetingUrl = url;
-            break;
-          }
-        }
-      }
+      // Extract meeting URL using shared helper function
+      const meetingUrl = this.extractMeetingUrl(event);
 
       if (!meetingUrl) {
         console.log(`⚠️  No meeting URL found for event ${event.id}`);
