@@ -356,19 +356,29 @@ class CalendarSyncService {
    */
   async handleDeletedEvent(userId, calendarEvent, existingMeetingsMap, results, dryRun) {
     const existingMeeting = existingMeetingsMap.get(calendarEvent.id);
-    
+
     if (existingMeeting && !existingMeeting.is_deleted) {
       // Mark as deleted in database
       if (!dryRun) {
-        await getSupabase()
+        const { error: updateError } = await getSupabase()
           .from('meetings')
           .update({
             is_deleted: true,
-            deleted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
             last_calendar_sync: new Date().toISOString()
           })
           .eq('external_id', calendarEvent.id)
           .eq('user_id', userId);
+
+        if (updateError) {
+          console.error(`❌ Failed to mark event ${calendarEvent.id} as deleted:`, updateError);
+          results.errors++;
+          results.details.errors.push({
+            eventId: calendarEvent.id,
+            error: updateError.message
+          });
+          return;
+        }
 
         // Cancel any associated Recall bots
         await this.cancelRecallBot(existingMeeting);
@@ -589,14 +599,24 @@ class CalendarSyncService {
     if (isMicrosoftMeeting) {
       // Microsoft: Trust the sync - mark as deleted directly
       if (!dryRun) {
-        await getSupabase()
+        const { error: updateError } = await getSupabase()
           .from('meetings')
           .update({
             is_deleted: true,
-            deleted_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
             last_calendar_sync: new Date().toISOString()
           })
           .eq('id', meeting.id);
+
+        if (updateError) {
+          console.error(`❌ Failed to mark meeting ${meeting.id} as deleted:`, updateError);
+          results.errors++;
+          results.details.errors.push({
+            eventId: meeting.external_id,
+            error: updateError.message
+          });
+          return;
+        }
 
         // Cancel any associated Recall bots
         await this.cancelRecallBot(meeting);
@@ -627,14 +647,24 @@ class CalendarSyncService {
       if (error.code === 404) {
         // Event definitely doesn't exist, mark as deleted
         if (!dryRun) {
-          await getSupabase()
+          const { error: updateError } = await getSupabase()
             .from('meetings')
             .update({
               is_deleted: true,
-              deleted_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
               last_calendar_sync: new Date().toISOString()
             })
             .eq('id', meeting.id);
+
+          if (updateError) {
+            console.error(`❌ Failed to mark Google meeting ${meeting.id} as deleted:`, updateError);
+            results.errors++;
+            results.details.errors.push({
+              eventId: meeting.googleeventid || meeting.external_id,
+              error: updateError.message
+            });
+            return;
+          }
 
           // Cancel any associated Recall bots
           await this.cancelRecallBot(meeting);
