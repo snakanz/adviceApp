@@ -457,6 +457,7 @@ async function handleBotStatusChange(botId, data, userId) {
 
     const supabase = getSupabase();
     const webhookStatus = data.code || 'unknown';
+    const webhookSubCode = data.sub_code || null;
     const dbStatus = mapRecallStatusToDatabase(webhookStatus);
 
     // Find meeting by recall_bot_id AND user_id (prevents duplicate meeting issues)
@@ -472,13 +473,23 @@ async function handleBotStatusChange(botId, data, userId) {
       return;
     }
 
-    // Update recall_status with mapped value
+    // Build update object - always update status, optionally add sub_code to recall_error
+    const updateData = {
+      recall_status: dbStatus,
+      updated_at: new Date().toISOString()
+    };
+
+    // Store sub_code in recall_error field for important status codes
+    // This helps identify waiting room timeouts, no participants, etc.
+    if (webhookSubCode) {
+      updateData.recall_error = webhookSubCode;
+      console.log(`📝 Storing sub_code "${webhookSubCode}" in recall_error`);
+    }
+
+    // Update recall_status with mapped value and optionally recall_error
     const { error: updateError } = await supabase
       .from('meetings')
-      .update({
-        recall_status: dbStatus,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', meeting.id);
 
     if (updateError) {
@@ -486,7 +497,7 @@ async function handleBotStatusChange(botId, data, userId) {
       return;
     }
 
-    console.log(`✅ Bot status updated to "${dbStatus}" (webhook: "${webhookStatus}") for meeting ${meeting.id}`);
+    console.log(`✅ Bot status updated to "${dbStatus}" (webhook: "${webhookStatus}"${webhookSubCode ? `, sub_code: "${webhookSubCode}"` : ''}) for meeting ${meeting.id}`);
 
   } catch (error) {
     console.error('Error handling bot status change:', error);

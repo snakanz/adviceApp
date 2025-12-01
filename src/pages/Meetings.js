@@ -195,8 +195,23 @@ function getBotStatusBadge(meeting, calendarConnection) {
     };
   }
 
-  // Bot was scheduled - check recall_status for outcome
+  // Bot was scheduled - check recall_status and recall_error for outcome
   const recallStatus = meeting?.recall_status?.toLowerCase() || '';
+  const recallError = meeting?.recall_error?.toLowerCase() || '';
+
+  // Check for waiting room timeout or no participants first (before checking transcript)
+  // This catches cases where bot was stuck in waiting room and never admitted
+  const isWaitingRoomTimeout = recallError.includes('waiting_room') || recallStatus === 'waiting_room_timeout';
+  const isNoParticipants = recallStatus.includes('no_participant') || recallStatus === 'empty_call' || recallError.includes('no_participant');
+
+  if (isWaitingRoomTimeout || isNoParticipants) {
+    return {
+      label: 'No Participants',
+      color: 'text-yellow-600',
+      bgColor: 'bg-yellow-50 dark:bg-yellow-950/30',
+      status: 'no_participants'
+    };
+  }
 
   // Successful completion with transcript
   if (meeting?.transcript && (recallStatus === 'completed' || recallStatus === 'done')) {
@@ -205,16 +220,6 @@ function getBotStatusBadge(meeting, calendarConnection) {
       color: 'text-green-600',
       bgColor: 'bg-green-50 dark:bg-green-950/30',
       status: 'complete'
-    };
-  }
-
-  // Bot joined but no participants
-  if (recallStatus.includes('no_participant') || recallStatus === 'waiting_room_timeout' || recallStatus === 'empty_call') {
-    return {
-      label: 'No Participants',
-      color: 'text-yellow-600',
-      bgColor: 'bg-yellow-50 dark:bg-yellow-950/30',
-      status: 'no_participants'
     };
   }
 
@@ -2733,8 +2738,9 @@ export default function Meetings() {
           {/* Meeting Content - Scrollable */}
           <div className="flex-1 overflow-y-auto">
             <div className="p-6 space-y-6">
-              {/* Recall Bot Status Indicator */}
-              {botStatus && (
+              {/* Recall Bot Status Indicator - Only show for FUTURE meetings
+                  Past meeting status is already shown in the card badge */}
+              {botStatus && !botStatus.isMeetingPast && (
                 <div className={`p-4 rounded-lg border-2 ${getStatusColor(botStatus.status)}`}>
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
