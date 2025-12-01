@@ -210,7 +210,7 @@ export default function Layout() {
             <div className="p-4">
               <div className="flex items-center justify-center">
                 <img
-                  src={process.env.PUBLIC_URL + '/logo-advicly.svg'}
+                  src="https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Copy%20of%20Advicly%20Logo%20(1).svg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvQ29weSBvZiBBZHZpY2x5IExvZ28gKDEpLnN2ZyIsImlhdCI6MTc2NDYyNDkwNiwiZXhwIjoxNzk2MTYwOTA2fQ.2TJpq03slY84UMumrWHtkRh0li6FeiuPJmyN6YzT63M"
                   alt="Advicly"
                   className="h-8 w-auto"
                 />
@@ -234,7 +234,7 @@ export default function Layout() {
           <div className="fixed left-0 top-0 h-full w-64 bg-card/95 backdrop-blur-lg shadow-large">
             <div className="flex items-center justify-between p-4 border-b border-border/50">
               <img
-                src={process.env.PUBLIC_URL + '/logo-advicly.svg'}
+                src="https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Copy%20of%20Advicly%20Logo%20(1).svg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvQ29weSBvZiBBZHZpY2x5IExvZ28gKDEpLnN2ZyIsImlhdCI6MTc2NDYyNDkwNiwiZXhwIjoxNzk2MTYwOTA2fQ.2TJpq03slY84UMumrWHtkRh0li6FeiuPJmyN6YzT63M"
                 alt="Advicly"
                 className="h-7 w-auto"
               />
