@@ -605,6 +605,7 @@ app.get('/api/dev/meetings', async (req, res) => {
         recall_status,
         recall_recording_id,
         skip_transcription_for_meeting,
+        meeting_url,
         clients(id, name, email)
       `)
       .eq('user_id', userId)
