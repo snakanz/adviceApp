@@ -327,7 +327,18 @@ router.get('/google/callback', async (req, res) => {
         console.error('Error updating calendar connection:', updateError);
       } else {
         console.log('✅ Google Calendar connection updated successfully');
-        console.log('⏭️  Skipping webhook setup during OAuth - will be set up after onboarding completion');
+        // Trigger initial sync in background (non-blocking)
+        try {
+          console.log('🔄 Triggering Google Calendar sync in background...');
+          const calendarSyncService = require('../services/calendarSync');
+          calendarSyncService.syncUserCalendar(user.id, { timeRange: 'extended', includeDeleted: true }).then(syncResult => {
+            console.log('✅ Google Calendar sync completed:', syncResult);
+          }).catch(syncError => {
+            console.warn('⚠️  Google Calendar sync failed (non-fatal):', syncError.message);
+          });
+        } catch (syncError) {
+          console.warn('⚠️  Failed to start background sync:', syncError.message);
+        }
       }
     } else {
       console.log('✅ Creating new Google Calendar connection...');
@@ -370,7 +381,18 @@ router.get('/google/callback', async (req, res) => {
         console.error('Error creating calendar connection:', createError);
       } else {
         console.log('✅ Google Calendar connection created successfully');
-        console.log('⏭️  Skipping webhook setup during OAuth - will be set up after onboarding completion');
+        // Trigger initial sync in background (non-blocking)
+        try {
+          console.log('🔄 Triggering initial Google Calendar sync in background...');
+          const calendarSyncService = require('../services/calendarSync');
+          calendarSyncService.syncUserCalendar(user.id, { timeRange: 'extended', includeDeleted: true }).then(syncResult => {
+            console.log('✅ Initial Google Calendar sync completed:', syncResult);
+          }).catch(syncError => {
+            console.warn('⚠️  Initial sync failed (non-fatal):', syncError.message);
+          });
+        } catch (syncError) {
+          console.warn('⚠️  Failed to start background sync:', syncError.message);
+        }
       }
     }
 
