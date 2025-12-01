@@ -1876,7 +1876,7 @@ export default function Meetings() {
                   >
                     <td className="p-3">
                       <div className="font-medium text-sm text-foreground line-clamp-2">
-                        {meeting.quick_summary || meeting.detailed_summary || meeting.title || 'Untitled Meeting'}
+                        {meeting.title || 'Untitled Meeting'}
                       </div>
                     </td>
                     <td className="p-3">
@@ -2084,7 +2084,7 @@ export default function Meetings() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <h3 className="text-sm font-medium text-foreground line-clamp-1 break-words flex-1 min-w-0">
-                    {meeting.quick_summary || meeting.detailed_summary || meeting.title || 'Untitled Meeting'}
+                    {meeting.title || 'Untitled Meeting'}
                   </h3>
                 </div>
 
@@ -2526,7 +2526,7 @@ export default function Meetings() {
 
                                   {/* Title */}
                                   <div className="font-semibold text-sm text-foreground line-clamp-2">
-                                    {meeting.quick_summary || meeting.detailed_summary || meeting.title || 'Untitled Meeting'}
+                                    {meeting.title || 'Untitled Meeting'}
                                   </div>
 
                                   {/* Client Name with Avatar */}

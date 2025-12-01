@@ -28,18 +28,23 @@ export const getRecallBotStatus = (meeting, calendarConnection) => {
     };
   }
 
-  // Check 3: Did the bot already join this meeting? (for past meetings)
+  // Check 3: Did the bot already complete this meeting?
+  // A meeting is considered "complete" if it has a transcript OR if it's past end time
   if (meeting?.recall_bot_id) {
     const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
     const isMeetingPast = endTime && endTime < new Date();
+    const hasTranscript = !!meeting?.transcript;
 
-    if (isMeetingPast) {
-      // Past meeting - bot already joined
+    // Meeting is complete if it has transcript OR end time has passed
+    const isMeetingComplete = hasTranscript || isMeetingPast;
+
+    if (isMeetingComplete) {
+      // Past/completed meeting - don't show status banner (info is in card badge)
       return {
         willJoin: true,
         reason: 'Bot successfully joined this call',
         status: 'success',
-        isMeetingPast: true,
+        isMeetingPast: true, // Treat as past so banner is hidden
         showToggleButton: false
       };
     } else {
