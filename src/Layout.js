@@ -260,9 +260,11 @@ export default function Layout() {
             {/* Advicly Logo */}
             <div className="p-4">
               <div className="flex items-center justify-center">
-                <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                  Advicly
-                </span>
+                <img
+                  src={process.env.PUBLIC_URL + '/logo-advicly.svg'}
+                  alt="Advicly"
+                  className="h-8 w-auto"
+                />
               </div>
             </div>
           </div>
@@ -282,9 +284,11 @@ export default function Layout() {
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setOpen(false)} />
           <div className="fixed left-0 top-0 h-full w-64 bg-card/95 backdrop-blur-lg shadow-large">
             <div className="flex items-center justify-between p-4 border-b border-border/50">
-              <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                Advicly
-              </span>
+              <img
+                src={process.env.PUBLIC_URL + '/logo-advicly.svg'}
+                alt="Advicly"
+                className="h-7 w-auto"
+              />
               <Button
                 variant="ghost"
                 size="icon"
