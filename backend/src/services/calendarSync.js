@@ -237,39 +237,46 @@ class CalendarSyncService {
       .query({
         startDateTime: timeMin.toISOString(),
         endDateTime: endDateTime,
-        $select: 'id,subject,start,end,location,attendees,body,isOnlineMeeting,onlineMeetingUrl,isCancelled',
+        // IMPORTANT: Use 'onlineMeeting' NOT 'onlineMeetingUrl' - Microsoft deprecated onlineMeetingUrl
+        // The actual Teams join URL is in onlineMeeting.joinUrl
+        $select: 'id,subject,start,end,location,attendees,body,isOnlineMeeting,onlineMeeting,isCancelled',
         $orderby: 'start/dateTime',
         $top: 2500
       })
       .get();
 
     // Transform Microsoft events to match Google Calendar format
-    const events = (response.value || []).map(event => ({
-      id: event.id,
-      summary: event.subject,
-      start: {
-        dateTime: event.start?.dateTime,
-        timeZone: event.start?.timeZone
-      },
-      end: {
-        dateTime: event.end?.dateTime,
-        timeZone: event.end?.timeZone
-      },
-      location: event.location?.displayName || '',
-      description: event.body?.content || '',
-      attendees: event.attendees?.map(a => ({
-        email: a.emailAddress?.address,
-        displayName: a.emailAddress?.name,
-        responseStatus: a.status?.response
-      })) || [],
-      status: event.isCancelled ? 'cancelled' : 'confirmed',
-      conferenceData: event.isOnlineMeeting ? {
-        entryPoints: [{
-          entryPointType: 'video',
-          uri: event.onlineMeetingUrl
-        }]
-      } : null
-    }));
+    const events = (response.value || []).map(event => {
+      // Extract Teams meeting URL from onlineMeeting.joinUrl (NOT onlineMeetingUrl which is deprecated/null)
+      const teamsJoinUrl = event.onlineMeeting?.joinUrl || null;
+
+      return {
+        id: event.id,
+        summary: event.subject,
+        start: {
+          dateTime: event.start?.dateTime,
+          timeZone: event.start?.timeZone
+        },
+        end: {
+          dateTime: event.end?.dateTime,
+          timeZone: event.end?.timeZone
+        },
+        location: event.location?.displayName || '',
+        description: event.body?.content || '',
+        attendees: event.attendees?.map(a => ({
+          email: a.emailAddress?.address,
+          displayName: a.emailAddress?.name,
+          responseStatus: a.status?.response
+        })) || [],
+        status: event.isCancelled ? 'cancelled' : 'confirmed',
+        conferenceData: (event.isOnlineMeeting && teamsJoinUrl) ? {
+          entryPoints: [{
+            entryPointType: 'video',
+            uri: teamsJoinUrl
+          }]
+        } : null
+      };
+    });
 
     return events;
   }

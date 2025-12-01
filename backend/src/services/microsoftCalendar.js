@@ -397,7 +397,9 @@ class MicrosoftCalendarService {
         .query({
           startDateTime: startDateTime,
           endDateTime: endDateTime,
-          $select: 'subject,start,end,location,attendees,body,isOnlineMeeting,onlineMeetingUrl,id',
+          // IMPORTANT: Use 'onlineMeeting' NOT 'onlineMeetingUrl' - Microsoft deprecated onlineMeetingUrl
+          // The actual Teams join URL is in onlineMeeting.joinUrl
+          $select: 'subject,start,end,location,attendees,body,isOnlineMeeting,onlineMeeting,id',
           $orderby: 'start/dateTime'
         })
         .get();
