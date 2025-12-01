@@ -438,40 +438,53 @@ class CalendarSyncService {
           // - Meeting is happening now / very soon
           // - User has access
           const existingMeeting = existingMeetingsMap.get(calendarEvent.id);
-          if (existingMeeting && !existingMeeting.recall_bot_id && !existingMeeting.skip_transcription_for_meeting) {
+          if (existingMeeting && !existingMeeting.skip_transcription_for_meeting) {
             try {
-              const { data: connections } = await getSupabase()
-                .from('calendar_connections')
-                .select('transcription_enabled, provider')
-                .eq('user_id', userId)
-                .eq('is_active', true)
-                .in('provider', ['google', 'microsoft']);
+              // IMPORTANT: Re-fetch meeting from DB to prevent race condition
+              // Multiple webhooks can trigger simultaneously, so we need fresh data
+              const { data: freshMeeting } = await getSupabase()
+                .from('meetings')
+                .select('id, recall_bot_id, recall_status')
+                .eq('id', existingMeeting.id)
+                .single();
 
-              const connection = connections?.[0];
+              // Skip if bot already scheduled (race condition check)
+              if (freshMeeting?.recall_bot_id) {
+                console.log(`⏭️  Recall bot already scheduled for meeting ${existingMeeting.id}, skipping duplicate`);
+              } else {
+                const { data: connections } = await getSupabase()
+                  .from('calendar_connections')
+                  .select('transcription_enabled, provider')
+                  .eq('user_id', userId)
+                  .eq('is_active', true)
+                  .in('provider', ['google', 'microsoft']);
 
-              if (connection?.transcription_enabled) {
-                const now = new Date();
-                const start = new Date(calendarEvent.start.dateTime || calendarEvent.start.date);
-                const end = new Date(calendarEvent.end?.dateTime || calendarEvent.end?.date || start);
+                const connection = connections?.[0];
 
-                const alreadyOver = end <= now;
-                const startsTooFarInFuture = start.getTime() - now.getTime() > 15 * 60 * 1000;
+                if (connection?.transcription_enabled) {
+                  const now = new Date();
+                  const start = new Date(calendarEvent.start.dateTime || calendarEvent.start.date);
+                  const end = new Date(calendarEvent.end?.dateTime || calendarEvent.end?.date || start);
 
-                if (!alreadyOver && !startsTooFarInFuture) {
-                  const hasAccess = await this.checkUserHasTranscriptionAccess(userId);
+                  const alreadyOver = end <= now;
+                  const startsTooFarInFuture = start.getTime() - now.getTime() > 15 * 60 * 1000;
 
-                  if (hasAccess) {
-                    console.log(`🤖 Scheduling Recall bot for updated meeting: ${calendarEvent.summary} (start=${start.toISOString()})`);
-                    await this.scheduleRecallBotForMeeting(calendarEvent, existingMeeting.id, userId);
-                  } else {
-                    console.log(`⏭️  User ${userId} has exceeded free meeting limit. Skipping bot for: ${calendarEvent.summary}`);
-                    await getSupabase()
-                      .from('meetings')
-                      .update({
-                        recall_status: 'upgrade_required',
-                        updated_at: new Date().toISOString()
-                      })
-                      .eq('id', existingMeeting.id);
+                  if (!alreadyOver && !startsTooFarInFuture) {
+                    const hasAccess = await this.checkUserHasTranscriptionAccess(userId);
+
+                    if (hasAccess) {
+                      console.log(`🤖 Scheduling Recall bot for updated meeting: ${calendarEvent.summary} (start=${start.toISOString()})`);
+                      await this.scheduleRecallBotForMeeting(calendarEvent, existingMeeting.id, userId);
+                    } else {
+                      console.log(`⏭️  User ${userId} has exceeded free meeting limit. Skipping bot for: ${calendarEvent.summary}`);
+                      await getSupabase()
+                        .from('meetings')
+                        .update({
+                          recall_status: 'upgrade_required',
+                          updated_at: new Date().toISOString()
+                        })
+                        .eq('id', existingMeeting.id);
+                    }
                   }
                 }
               }
@@ -569,14 +582,45 @@ class CalendarSyncService {
    * Handle meetings that exist in database but not in calendar
    */
   async handleMissingEvent(userId, meeting, results, dryRun) {
-    // Double-check by trying to fetch the specific event
+    // For Microsoft meetings, we trust the calendar sync - if it's not in the calendar response,
+    // it's been deleted. Microsoft doesn't return deleted events in calendarView.
+    const isMicrosoftMeeting = meeting.meeting_source === 'microsoft';
+
+    if (isMicrosoftMeeting) {
+      // Microsoft: Trust the sync - mark as deleted directly
+      if (!dryRun) {
+        await getSupabase()
+          .from('meetings')
+          .update({
+            is_deleted: true,
+            deleted_at: new Date().toISOString(),
+            last_calendar_sync: new Date().toISOString()
+          })
+          .eq('id', meeting.id);
+
+        // Cancel any associated Recall bots
+        await this.cancelRecallBot(meeting);
+      }
+
+      results.deleted++;
+      results.details.deletedEvents.push({
+        id: meeting.external_id,
+        title: meeting.title,
+        startTime: meeting.starttime
+      });
+
+      console.log(`🗑️  Marked missing Microsoft event as deleted: ${meeting.title}`);
+      return;
+    }
+
+    // For Google, double-check by trying to fetch the specific event
     try {
       const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
       await calendar.events.get({
         calendarId: 'primary',
-        eventId: meeting.googleeventid
+        eventId: meeting.googleeventid || meeting.external_id
       });
-      
+
       // Event still exists, no action needed
       return;
     } catch (error) {
@@ -598,12 +642,12 @@ class CalendarSyncService {
 
         results.deleted++;
         results.details.deletedEvents.push({
-          id: meeting.googleeventid,
+          id: meeting.googleeventid || meeting.external_id,
           title: meeting.title,
           startTime: meeting.starttime
         });
 
-        console.log(`🗑️  Marked missing event as deleted: ${meeting.title}`);
+        console.log(`🗑️  Marked missing Google event as deleted: ${meeting.title}`);
       }
     }
   }
