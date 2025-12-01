@@ -3,19 +3,13 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger
-} from '../components/ui/dropdown-menu';
+
 import { cn } from '../lib/utils';
 import {
   Calendar,
   Clock,
   FileText,
   MessageSquare,
-  ChevronDown,
   Upload,
   Check,
   Mail,
@@ -336,10 +330,12 @@ export default function Meetings() {
   // Add template selection state
   const [templates, setTemplates] = useState(loadTemplates());
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  // eslint-disable-next-line no-unused-vars
   const [currentSummaryTemplate, setCurrentSummaryTemplate] = useState(null);
 
   // Add new state for auto-generated summaries
   const [quickSummary, setQuickSummary] = useState('');
+  // eslint-disable-next-line no-unused-vars
   const [emailSummary, setEmailSummary] = useState('');
   const [autoGenerating, setAutoGenerating] = useState(false);
 
