@@ -16,8 +16,14 @@ import {
   Gift,
   ChevronRight,
   Loader2,
-  Check
+  Check,
+  X,
+  Sparkles
 } from 'lucide-react';
+import { Badge } from '../components/ui/badge';
+import axios from 'axios';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
 // Menu items for sidebar
 const menuItems = [
@@ -25,17 +31,44 @@ const menuItems = [
   { id: 'company', label: 'Company', icon: Building2, description: 'Company settings' },
   { id: 'team', label: 'Team', icon: Users, description: 'Coming soon', comingSoon: true },
   { id: 'meetings', label: 'Meetings', icon: Calendar, description: 'Recording settings' },
-  { id: 'billing', label: 'Billing', icon: CreditCard, description: 'Coming soon', comingSoon: true },
+  { id: 'billing', label: 'Billing', icon: CreditCard, description: 'Subscription & plans' },
   { id: 'referral', label: 'Referral Program', icon: Gift, description: 'Coming soon', comingSoon: true },
 ];
 
+// Plan features for billing section
+const freePlanFeatures = [
+  { text: '5 AI-transcribed meetings', included: true },
+  { text: 'Meeting summaries', included: true },
+  { text: 'Client management', included: true },
+  { text: 'Basic pipeline tracking', included: true },
+  { text: 'Unlimited AI meetings', included: false },
+  { text: 'Advanced AI assistant', included: false },
+  { text: 'Document uploads', included: false },
+  { text: 'Email templates', included: false }
+];
+
+const proPlanFeatures = [
+  'Unlimited AI-transcribed meetings',
+  'Advanced AI meeting summaries',
+  'Full client pipeline management',
+  'Action items & follow-ups',
+  'Ask Advicly AI assistant',
+  'Document uploads',
+  'Email templates',
+  'Priority support'
+];
+
 export default function Settings() {
-  const { user } = useAuth();
+  const { user, getAccessToken } = useAuth();
   const [searchParams] = useSearchParams();
   const sectionParam = searchParams.get('section');
   const [activeSection, setActiveSection] = useState(sectionParam || 'personal');
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Billing states
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState('');
 
   // Form states
   const [personalData, setPersonalData] = useState({
@@ -132,6 +165,39 @@ export default function Settings() {
       alert('Failed to save changes');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleUpgrade = async () => {
+    setBillingLoading(true);
+    setBillingError('');
+
+    try {
+      const token = await getAccessToken();
+      const priceId = process.env.REACT_APP_STRIPE_PRICE_ID;
+
+      if (!priceId) {
+        setBillingError('Payment system is not configured. Please contact support.');
+        setBillingLoading(false);
+        return;
+      }
+
+      const response = await axios.post(
+        `${API_BASE_URL}/api/billing/checkout`,
+        { priceId, successUrl: '/settings?section=billing' },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.url) {
+        window.location.href = response.data.url;
+      } else {
+        throw new Error('No checkout URL received');
+      }
+    } catch (err) {
+      console.error('Error creating checkout session:', err);
+      setBillingError(err.response?.data?.error || 'Failed to start checkout. Please try again.');
+    } finally {
+      setBillingLoading(false);
     }
   };
 
@@ -238,8 +304,108 @@ export default function Settings() {
           </div>
         );
 
-      case 'team':
       case 'billing':
+        return (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-xl font-semibold text-foreground mb-1">Billing</h2>
+              <p className="text-sm text-muted-foreground">Manage your subscription and billing</p>
+            </div>
+
+            {/* Plan Comparison */}
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Free Plan */}
+              <Card className="border-border/50">
+                <CardContent className="p-6 space-y-4">
+                  <div>
+                    <h3 className="text-xl font-bold mb-1">Free Plan</h3>
+                    <p className="text-sm text-muted-foreground">Your current plan</p>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-4xl font-bold">£0</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      5 free AI-transcribed meetings
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {freePlanFeatures.map((feature, index) => (
+                      <div key={index} className="flex items-start gap-2">
+                        {feature.included ? (
+                          <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                        ) : (
+                          <X className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
+                        )}
+                        <span className={`text-sm ${!feature.included ? 'text-muted-foreground line-through' : ''}`}>
+                          {feature.text}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Pro Plan */}
+              <Card className="border-2 border-primary bg-primary/5 relative">
+                <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                  <Badge className="bg-yellow-400 text-black border-0 px-3 py-1 text-xs font-bold">
+                    RECOMMENDED
+                  </Badge>
+                </div>
+                <CardContent className="p-6 space-y-4">
+                  <div>
+                    <h3 className="text-xl font-bold mb-1">Professional</h3>
+                    <p className="text-sm text-muted-foreground">Unlimited everything</p>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-4xl font-bold">£70</span>
+                      <span className="text-muted-foreground">/month</span>
+                    </div>
+                    <p className="text-sm text-green-600 font-medium">
+                      Billed monthly
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {proPlanFeatures.map((feature, index) => (
+                      <div key={index} className="flex items-start gap-2">
+                        <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                        <span className="text-sm font-medium">{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    onClick={handleUpgrade}
+                    disabled={billingLoading}
+                    className="w-full mt-4 bg-primary hover:bg-primary/90"
+                  >
+                    {billingLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Upgrade to Professional
+                      </>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Error Message */}
+            {billingError && (
+              <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                {billingError}
+              </div>
+            )}
+          </div>
+        );
+
+      case 'team':
       case 'referral':
         const item = menuItems.find(m => m.id === activeSection);
         return (

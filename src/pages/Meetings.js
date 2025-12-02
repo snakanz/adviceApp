@@ -2113,9 +2113,10 @@ export default function Meetings() {
             )}
           >
           <CardContent className="p-3">
-            <div className="flex items-start gap-3">
+            {/* Top Row: Calendar Icon, Title, and Bot Toggle */}
+            <div className="flex items-center gap-2 mb-2">
               {/* Source Icon */}
-              <div className="flex-shrink-0 mt-0.5">
+              <div className="flex-shrink-0">
                 {getMeetingSource(meeting) === 'Google Calendar' ?
                   <GoogleIcon size={16} /> :
                   getMeetingSource(meeting) === 'Calendly' ?
@@ -2124,13 +2125,31 @@ export default function Meetings() {
                 }
               </div>
 
-              {/* Main Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="text-sm font-medium text-foreground line-clamp-1 break-words flex-1 min-w-0">
-                    {meeting.title || 'Untitled Meeting'}
-                  </h3>
-                </div>
+              {/* Title */}
+              <h3 className="text-sm font-medium text-foreground line-clamp-1 break-words flex-1 min-w-0">
+                {meeting.title || 'Untitled Meeting'}
+              </h3>
+
+              {/* Bot Toggle - Inline with title for future meetings */}
+              {shouldShowBotToggle(meeting) && (() => {
+                const isBotEnabled = !meeting.skip_transcription_for_meeting;
+                return (
+                  <div
+                    className="flex-shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <Switch
+                      checked={isBotEnabled}
+                      onCheckedChange={() => handleToggleBotForAnyMeeting(meeting)}
+                      className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-400 h-5 w-9"
+                    />
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Main Content */}
+            <div className="flex-1 min-w-0">
 
                 {/* Meeting Details Row */}
                 <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
@@ -2216,30 +2235,6 @@ export default function Meetings() {
                     })()}
                   </div>
                 </div>
-
-                {/* Bot Toggle - Only show for future meetings without transcript */}
-                {shouldShowBotToggle(meeting) && (() => {
-                  const isBotEnabled = !meeting.skip_transcription_for_meeting;
-                  const platform = getMeetingPlatform(meeting);
-                  const platformLogo = platform ? VIDEO_PLATFORM_LOGOS[platform] : null;
-                  return (
-                    <div
-                      className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/40 mb-2 border border-border/30"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <div className="flex items-center gap-2">
-                        {platformLogo && (
-                          <img src={platformLogo} alt={getPlatformDisplayName(platform)} className="w-6 h-6 object-contain" />
-                        )}
-                      </div>
-                      <Switch
-                        checked={isBotEnabled}
-                        onCheckedChange={() => handleToggleBotForAnyMeeting(meeting)}
-                        className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-400 h-5 w-9"
-                      />
-                    </div>
-                  );
-                })()}
 
                 {/* Bottom Row: Status Badge and Actions */}
                 <div className="flex items-center justify-between">

@@ -21,9 +21,7 @@ import {
 } from 'lucide-react';
 import CalendlySyncButton from './CalendlySyncButton';
 import CalendlyPlanInfo from './CalendlyPlanInfo';
-import GoogleIcon from './GoogleIcon';
-import CalendlyIcon from './CalendlyIcon';
-import OutlookIcon from './OutlookIcon';
+import { CALENDAR_PROVIDER_LOGOS } from '../utils/recallBotStatus';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
@@ -676,17 +674,11 @@ export default function CalendarSettings() {
   };
 
   const getProviderIcon = (provider) => {
-    switch (provider) {
-      case 'google':
-        return <GoogleIcon size={32} />;
-      case 'calendly':
-        return <CalendlyIcon size={32} />;
-      case 'outlook':
-      case 'microsoft':
-        return <OutlookIcon size={32} />;
-      default:
-        return <Calendar className="w-8 h-8 text-muted-foreground" />;
+    const logoUrl = CALENDAR_PROVIDER_LOGOS[provider] || CALENDAR_PROVIDER_LOGOS[provider === 'microsoft' ? 'outlook' : provider];
+    if (logoUrl) {
+      return <img src={logoUrl} alt={provider} className="w-8 h-8 object-contain" />;
     }
+    return <Calendar className="w-8 h-8 text-muted-foreground" />;
   };
 
   const getProviderName = (provider) => {
@@ -928,7 +920,7 @@ export default function CalendarSettings() {
             >
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
-                  <GoogleIcon size={40} />
+                  <img src={CALENDAR_PROVIDER_LOGOS.google} alt="Google Calendar" className="w-10 h-10 object-contain" />
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground mb-1">Google Calendar</h4>
                     <p className="text-sm text-muted-foreground">
@@ -943,7 +935,7 @@ export default function CalendarSettings() {
             <Card className="border-border/50 bg-muted/20">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
-                  <GoogleIcon size={40} />
+                  <img src={CALENDAR_PROVIDER_LOGOS.google} alt="Google Calendar" className="w-10 h-10 object-contain" />
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground mb-1">Google Calendar</h4>
                     <p className="text-sm text-green-600">
@@ -963,7 +955,7 @@ export default function CalendarSettings() {
             >
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
-                  <CalendlyIcon size={40} />
+                  <img src={CALENDAR_PROVIDER_LOGOS.calendly} alt="Calendly" className="w-10 h-10 object-contain" />
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground mb-1">Calendly</h4>
                     <p className="text-sm text-muted-foreground">
@@ -978,7 +970,7 @@ export default function CalendarSettings() {
             <Card className="border-border/50 bg-muted/20">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
-                  <CalendlyIcon size={40} />
+                  <img src={CALENDAR_PROVIDER_LOGOS.calendly} alt="Calendly" className="w-10 h-10 object-contain" />
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground mb-1">Calendly</h4>
                     <p className="text-sm text-green-600">
@@ -998,7 +990,7 @@ export default function CalendarSettings() {
             >
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
-                  <OutlookIcon size={40} />
+                  <img src={CALENDAR_PROVIDER_LOGOS.outlook} alt="Microsoft Calendar" className="w-10 h-10 object-contain" />
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground mb-1">Microsoft Calendar</h4>
                     <p className="text-sm text-muted-foreground">
@@ -1013,7 +1005,7 @@ export default function CalendarSettings() {
             <Card className="border-border/50 bg-muted/20">
               <CardContent className="p-6">
                 <div className="flex items-center gap-4">
-                  <OutlookIcon size={40} />
+                  <img src={CALENDAR_PROVIDER_LOGOS.outlook} alt="Microsoft Calendar" className="w-10 h-10 object-contain" />
                   <div className="flex-1">
                     <h4 className="font-semibold text-foreground mb-1">Microsoft Calendar</h4>
                     <p className="text-sm text-green-600">
