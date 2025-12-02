@@ -2113,7 +2113,7 @@ export default function Meetings() {
             )}
           >
             <CardContent className="p-3">
-            {/* Top Row: Calendar Icon, Title, and Bot Toggle */}
+              {/* Top Row: Calendar Icon, Title, and Bot Toggle */}
             <div className="flex items-center gap-2 mb-2">
               {/* Source Icon */}
               <div className="flex-shrink-0">
@@ -2307,7 +2307,6 @@ export default function Meetings() {
                   </div>
                 </div>
               </div>
-            </div>
             </CardContent>
           </Card>
         );
