@@ -23,6 +23,32 @@ const isOpenAIAvailable = () => {
   return openai !== null;
 };
 
+// Helper function to strip markdown formatting from text
+function stripMarkdown(text) {
+  if (!text) return text;
+
+  return text
+    // Remove markdown headers (## Header, ### Header, etc.)
+    .replace(/^#{1,6}\s+/gm, '')
+    // Remove bold **text** or __text__
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    // Remove italic *text* or _text_ (but not asterisks at start of lines for bullets)
+    .replace(/(?<!\n)\*([^*\n]+)\*/g, '$1')
+    .replace(/(?<!\n)_([^_\n]+)_/g, '$1')
+    // Convert markdown bullet points (* item) to plain text (- item or just the text)
+    .replace(/^\*\s+/gm, '- ')
+    // Remove inline code `code`
+    .replace(/`([^`]+)`/g, '$1')
+    // Remove links [text](url) -> text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Clean up any double spaces
+    .replace(/  +/g, ' ')
+    // Clean up multiple newlines (more than 2)
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 async function generateMeetingSummary(content, template = 'standard', metadata = null) {
   try {
     if (!isOpenAIAvailable()) {
@@ -53,6 +79,10 @@ async function generateMeetingSummary(content, template = 'standard', metadata =
       model: "gpt-4o-mini",
       messages: [
         {
+          role: "system",
+          content: "You are a professional email writer. IMPORTANT: Never use markdown formatting. No ## headers, no **bold**, no * bullets, no ` backticks. Write in plain text only with natural paragraphs and numbered lists (1. 2. 3.) where needed."
+        },
+        {
           role: "user",
           content: prompt
         }
@@ -72,7 +102,9 @@ async function generateMeetingSummary(content, template = 'standard', metadata =
       return response; // Return the stream directly for streaming responses
     }
 
-    return response.choices[0].message.content;
+    // Strip any remaining markdown from the response
+    const rawContent = response.choices[0].message.content;
+    return stripMarkdown(rawContent);
   } catch (error) {
     console.error('Error generating meeting summary:', error);
     throw error;
