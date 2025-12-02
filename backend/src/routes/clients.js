@@ -53,7 +53,8 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
           transcript,
           quick_summary,
           email_summary_draft,
-          action_points
+          action_points,
+          is_deleted
         )
       `)
       .eq('user_id', userId)
@@ -88,7 +89,10 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
     // Format the response and apply filtering based on upcoming meetings
     const now = new Date();
     const formattedClients = (clients || []).map(client => {
-      const meetings = (client.meetings || []).map(meeting => ({
+      // Filter out deleted meetings first
+      const activeMeetings = (client.meetings || []).filter(m => !m.is_deleted);
+
+      const meetings = activeMeetings.map(meeting => ({
         id: meeting.id,
         title: meeting.title,
         starttime: meeting.starttime,
@@ -649,12 +653,13 @@ router.get('/:clientId/meetings', authenticateSupabaseUser, async (req, res) => 
       return res.status(500).json({ error: 'Failed to fetch client' });
     }
 
-    // Get meetings for this client
+    // Get meetings for this client (excluding deleted meetings)
     const { data: meetings, error: meetingsError } = await req.supabase
       .from('meetings')
       .select('*')
       .eq('user_id', userId)
       .eq('client_id', client.id)
+      .or('is_deleted.is.null,is_deleted.eq.false')
       .order('starttime', { ascending: false });
 
     if (meetingsError) {

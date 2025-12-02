@@ -1,4 +1,5 @@
 const { getSupabase } = require('../lib/supabase');
+const axios = require('axios');
 const clientExtractionService = require('./clientExtraction');
 
 /**
@@ -470,9 +471,10 @@ class CalendlyService {
       console.log(`📅 Found ${activeEvents.length} active and ${canceledEvents.length} canceled Calendly events`);
 
       // Get existing Calendly meetings from database
+      // Include id and recall_bot_id so we can cancel bots for deleted meetings
       const { data: existingMeetings } = await getSupabase()
         .from('meetings')
-        .select('external_id, is_deleted')
+        .select('id, external_id, is_deleted, recall_bot_id')
         .eq('user_id', userId)
         .eq('meeting_source', 'calendly');
 
@@ -600,6 +602,11 @@ class CalendlyService {
               } else {
                 console.log(`🗑️  Marked as canceled: ${event.name} (UUID: ${eventUuid})`);
                 deletedCount++;
+
+                // Cancel any scheduled Recall bot for this meeting
+                if (existingMeeting.recall_bot_id) {
+                  await this.cancelRecallBot(existingMeeting.recall_bot_id, existingMeeting.id);
+                }
               }
             } else {
               console.log(`⏭️  Already deleted: ${event.name}`);
@@ -843,6 +850,48 @@ class CalendlyService {
     } catch (error) {
       console.error('Error fetching Calendly access token:', error);
       return null;
+    }
+  }
+
+  /**
+   * Cancel a Recall bot when meeting is canceled
+   * This prevents bots from joining meetings that no longer exist
+   */
+  async cancelRecallBot(recallBotId, meetingId) {
+    try {
+      const apiKey = process.env.RECALL_API_KEY;
+      if (!apiKey) {
+        console.warn('⚠️  RECALL_API_KEY not configured, cannot cancel bot');
+        return;
+      }
+
+      console.log(`🤖 Canceling Recall bot ${recallBotId} for canceled Calendly meeting ${meetingId}...`);
+
+      // Call Recall API to delete/stop the bot
+      await axios.delete(`https://us-west-2.recall.ai/api/v1/bot/${recallBotId}/`, {
+        headers: {
+          'Authorization': `Token ${apiKey}`
+        }
+      });
+
+      console.log(`✅ Recall bot ${recallBotId} canceled successfully`);
+
+      // Update meeting to clear the bot reference
+      await getSupabase()
+        .from('meetings')
+        .update({
+          recall_status: 'canceled',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', meetingId);
+
+    } catch (error) {
+      // Bot may already be recording or finished - that's okay
+      if (error.response?.status === 404) {
+        console.log(`⚠️  Recall bot ${recallBotId} not found (may have already finished or been deleted)`);
+      } else {
+        console.error(`❌ Error canceling Recall bot ${recallBotId}:`, error.response?.data || error.message);
+      }
     }
   }
 }
