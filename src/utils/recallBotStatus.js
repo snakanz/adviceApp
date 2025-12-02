@@ -148,6 +148,7 @@ export const hasValidMeetingUrl = (meeting) => {
       if (
         url.includes('zoom.us') ||
         url.includes('teams.microsoft.com') ||
+        url.includes('teams.live.com') ||
         url.includes('webex.com') ||
         url.includes('meet.google.com') ||
         url.includes('gotomeeting.com')
@@ -165,6 +166,7 @@ export const hasValidMeetingUrl = (meeting) => {
       if (
         url.includes('zoom.us') ||
         url.includes('teams.microsoft.com') ||
+        url.includes('teams.live.com') ||
         url.includes('webex.com') ||
         url.includes('meet.google.com') ||
         url.includes('gotomeeting.com')
@@ -206,6 +208,7 @@ export const getMeetingUrl = (meeting) => {
       if (
         url.includes('zoom.us') ||
         url.includes('teams.microsoft.com') ||
+        url.includes('teams.live.com') ||
         url.includes('webex.com') ||
         url.includes('meet.google.com') ||
         url.includes('gotomeeting.com')
@@ -223,6 +226,7 @@ export const getMeetingUrl = (meeting) => {
       if (
         url.includes('zoom.us') ||
         url.includes('teams.microsoft.com') ||
+        url.includes('teams.live.com') ||
         url.includes('webex.com') ||
         url.includes('meet.google.com') ||
         url.includes('gotomeeting.com')

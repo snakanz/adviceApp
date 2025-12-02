@@ -590,6 +590,7 @@ app.get('/api/dev/meetings', async (req, res) => {
         starttime,
         endtime,
         description,
+        location,
         external_id,
         attendees,
         transcript,
