@@ -759,7 +759,6 @@ export default function Meetings() {
   // Auto-refresh when selected meeting is awaiting summary generation
   // Only triggers a single refresh after 5 seconds, not continuous polling
   const lastRefreshRef = useRef(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!isAuthenticated || !selectedMeeting) return;
 
@@ -790,6 +789,7 @@ export default function Meetings() {
     return () => {
       clearTimeout(timeoutId);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, selectedMeeting?.id, selectedMeeting?.quick_summary, selectedMeeting?.recall_status, fetchMeetings]);
 
   // Handle URL parameter to auto-select a meeting

@@ -79,9 +79,23 @@ class SyncScheduler {
       schedule: 'Every day at 3:00 AM'
     });
 
+    // Schedule upcoming meeting bot checker every 5 minutes
+    // This ensures Recall bots are scheduled for meetings that are about to start
+    // */5 * * * * = every 5 minutes
+    const upcomingMeetingBotTask = cron.schedule('*/5 * * * *', async () => {
+      await this.scheduleBotsForUpcomingMeetings();
+    });
+
+    this.scheduledTasks.push({
+      name: 'Upcoming Meeting Bot Scheduler',
+      task: upcomingMeetingBotTask,
+      schedule: 'Every 5 minutes'
+    });
+
     this.isRunning = true;
     console.log('✅ Sync scheduler started successfully');
     console.log('📅 Calendly sync will run every 15 minutes');
+    console.log('🤖 Upcoming meeting bot scheduler will run every 5 minutes');
     console.log('📡 Calendly webhooks will be checked daily at 1:00 AM');
     console.log('📡 Google Calendar webhooks will renew daily at 2:00 AM');
     console.log('📡 Microsoft Calendar webhooks will renew daily at 3:00 AM');
@@ -128,7 +142,7 @@ class SyncScheduler {
       // Users with webhook_status = 'active' are on paid plans and get real-time sync
       const { data: connections, error } = await getSupabase()
         .from('calendar_connections')
-        .select('user_id, webhook_status, calendly_webhook_uri')
+        .select('user_id, webhook_status, calendly_webhook_id')
         .eq('provider', 'calendly')
         .eq('is_active', true);
 
@@ -144,7 +158,7 @@ class SyncScheduler {
 
       // Filter to only include users WITHOUT active webhooks (free plan users)
       const freeplanUsers = connections.filter(conn =>
-        conn.webhook_status !== 'active' || !conn.calendly_webhook_uri
+        conn.webhook_status !== 'active' || !conn.calendly_webhook_id
       );
 
       const paidPlanUsers = connections.length - freeplanUsers.length;
@@ -401,6 +415,165 @@ class SyncScheduler {
   async triggerManualMicrosoftWebhookRenewal() {
     console.log('📡 Manual Microsoft webhook renewal triggered...');
     await this.renewMicrosoftCalendarWebhooksForAllUsers();
+  }
+
+  /**
+   * Schedule Recall bots for upcoming meetings that don't have one yet
+   * Runs every 5 minutes to catch meetings that are about to start
+   */
+  async scheduleBotsForUpcomingMeetings() {
+    try {
+      console.log('\n🤖 [Bot Scheduler] Checking for upcoming meetings needing Recall bots...');
+
+      if (!isSupabaseAvailable()) {
+        console.log('❌ [Bot Scheduler] Database unavailable, skipping');
+        return;
+      }
+
+      const supabase = getSupabase();
+      const now = new Date();
+      const fifteenMinutesFromNow = new Date(now.getTime() + 15 * 60 * 1000);
+
+      // Find meetings that:
+      // 1. Start within the next 15 minutes OR are currently in progress
+      // 2. Don't have a recall_bot_id yet
+      // 3. Have a meeting_url
+      // 4. Are not marked as skip_transcription_for_meeting
+      // 5. Are not deleted
+      const { data: upcomingMeetings, error: meetingsError } = await supabase
+        .from('meetings')
+        .select(`
+          id,
+          title,
+          starttime,
+          endtime,
+          meeting_url,
+          user_id,
+          recall_bot_id,
+          skip_transcription_for_meeting
+        `)
+        .is('recall_bot_id', null)
+        .not('meeting_url', 'is', null)
+        .or('skip_transcription_for_meeting.is.null,skip_transcription_for_meeting.eq.false')
+        .or('is_deleted.is.null,is_deleted.eq.false')
+        .lte('starttime', fifteenMinutesFromNow.toISOString())
+        .gte('endtime', now.toISOString());
+
+      if (meetingsError) {
+        console.error('❌ [Bot Scheduler] Error fetching meetings:', meetingsError);
+        return;
+      }
+
+      if (!upcomingMeetings || upcomingMeetings.length === 0) {
+        console.log('✅ [Bot Scheduler] No upcoming meetings need bots');
+        return;
+      }
+
+      console.log(`📊 [Bot Scheduler] Found ${upcomingMeetings.length} meeting(s) potentially needing bots`);
+
+      // Get users with transcription enabled
+      const userIds = [...new Set(upcomingMeetings.map(m => m.user_id))];
+      const { data: connections, error: connError } = await supabase
+        .from('calendar_connections')
+        .select('user_id, transcription_enabled')
+        .in('user_id', userIds)
+        .eq('is_active', true);
+
+      if (connError) {
+        console.error('❌ [Bot Scheduler] Error fetching connections:', connError);
+        return;
+      }
+
+      // Build a map of users with transcription enabled
+      const transcriptionEnabledUsers = new Set(
+        (connections || [])
+          .filter(c => c.transcription_enabled === true)
+          .map(c => c.user_id)
+      );
+
+      let scheduled = 0;
+      let skipped = 0;
+      let failed = 0;
+
+      for (const meeting of upcomingMeetings) {
+        try {
+          // Check if user has transcription enabled
+          if (!transcriptionEnabledUsers.has(meeting.user_id)) {
+            console.log(`  ⏭️  Skipping meeting ${meeting.id}: transcription not enabled for user`);
+            skipped++;
+            continue;
+          }
+
+          // Validate meeting URL
+          if (!meeting.meeting_url || meeting.meeting_url.trim() === '') {
+            console.log(`  ⏭️  Skipping meeting ${meeting.id}: no valid meeting URL`);
+            skipped++;
+            continue;
+          }
+
+          console.log(`  🤖 Scheduling bot for meeting ${meeting.id}: "${meeting.title}"`);
+
+          // Call the Recall API to create a bot
+          const axios = require('axios');
+          const apiKey = process.env.RECALL_API_KEY;
+          const baseUrl = 'https://us-west-2.recall.ai/api/v1';
+
+          if (!apiKey) {
+            console.warn('  ⚠️  RECALL_API_KEY not configured, cannot schedule bots');
+            return;
+          }
+
+          const response = await axios.post(`${baseUrl}/bot/`, {
+            meeting_url: meeting.meeting_url,
+            recording_config: {
+              transcript: {
+                provider: {
+                  meeting_captions: {} // FREE transcription
+                }
+              }
+            },
+            metadata: {
+              user_id: meeting.user_id,
+              meeting_id: meeting.id,
+              source: 'advicly'
+            }
+          }, {
+            headers: {
+              'Authorization': `Token ${apiKey}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          // Update meeting with bot ID
+          const { error: updateError } = await supabase
+            .from('meetings')
+            .update({
+              recall_bot_id: response.data.id,
+              recall_status: 'recording',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', meeting.id);
+
+          if (updateError) {
+            console.error(`  ❌ Error updating meeting ${meeting.id}:`, updateError);
+            failed++;
+          } else {
+            console.log(`  ✅ Bot scheduled for meeting ${meeting.id}: ${response.data.id}`);
+            scheduled++;
+          }
+
+        } catch (botError) {
+          console.error(`  ❌ Error scheduling bot for meeting ${meeting.id}:`, botError.response?.data || botError.message);
+          failed++;
+        }
+      }
+
+      console.log(`\n✅ [Bot Scheduler] Completed: ${scheduled} scheduled, ${skipped} skipped, ${failed} failed`);
+      console.log(`⏰ Next check in 5 minutes\n`);
+
+    } catch (error) {
+      console.error('❌ [Bot Scheduler] Fatal error:', error);
+    }
   }
 
   /**
