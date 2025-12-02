@@ -2687,16 +2687,24 @@ export default function Meetings() {
                     );
                   }
 
-                  // Fallback to attendees if no linked client
+                  // Fallback to attendees if no linked client - make clickable to navigate/create client
                   if (selectedMeeting.attendees) {
                     try {
                       const attendees = JSON.parse(selectedMeeting.attendees);
                       const clientAttendee = attendees.find(a => a.email && a.email !== user?.email);
                       if (clientAttendee) {
+                        const attendeeName = clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0];
                         return (
-                          <div className="flex items-center mb-2 text-sm">
-                            <Mail className="h-4 w-4 mr-2 text-muted-foreground/60" />
-                            <span className="font-medium text-muted-foreground">{clientAttendee.displayName || clientAttendee.email.split('@')[0]}</span>
+                          <div
+                            className="flex items-center mb-2 text-sm cursor-pointer hover:bg-primary/5 -mx-2 px-2 py-1 rounded transition-colors group"
+                            onClick={() => {
+                              // Navigate to Clients page with email to find or create this client
+                              window.location.href = `/clients?client=${encodeURIComponent(clientAttendee.email)}`;
+                            }}
+                            title="Click to view or create client profile"
+                          >
+                            <Mail className="h-4 w-4 mr-2 text-muted-foreground/60 group-hover:text-primary" />
+                            <span className="font-medium text-muted-foreground group-hover:text-primary group-hover:underline">{attendeeName}</span>
                             <span className="mx-2 text-muted-foreground/60">•</span>
                             <span className="text-muted-foreground/80">{clientAttendee.email}</span>
                           </div>

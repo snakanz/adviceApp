@@ -1451,6 +1451,27 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
           actionPointsArray = [];
         }
 
+        // SAVE SUMMARIES TO DATABASE - This was missing and caused quick_summary to not persist!
+        const { error: summaryUpdateError } = await req.supabase
+          .from('meetings')
+          .update({
+            quick_summary: quickSummary,
+            detailed_summary: detailedSummary || emailSummary,
+            email_summary_draft: emailSummary,
+            action_points: actionPoints,
+            email_template_id: 'auto-template',
+            last_summarized_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', fullMeeting.id);
+
+        if (summaryUpdateError) {
+          console.error('❌ Error saving summaries to database:', summaryUpdateError);
+          // Don't fail the request, just log the error
+        } else {
+          console.log(`✅ Saved quick_summary and email_summary_draft to database for meeting ${fullMeeting.id}`);
+        }
+
         // Save individual action items to PENDING table (awaiting approval)
         if (actionPointsArray.length > 0) {
           // First, delete existing pending action items for this meeting
