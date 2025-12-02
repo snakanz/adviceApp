@@ -756,40 +756,41 @@ export default function Meetings() {
     };
   }, [isAuthenticated, fetchMeetings]);
 
-  // Auto-refresh polling when waiting for summary generation
-  // Polls every 5 seconds if there are meetings with transcript but no quick_summary
+  // Auto-refresh when selected meeting is awaiting summary generation
+  // Only triggers a single refresh after 5 seconds, not continuous polling
+  const lastRefreshRef = useRef(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || !selectedMeeting) return;
 
-    // Check if any meetings have transcript but are missing summaries
-    const allMeetings = [...(meetings.past || []), ...(meetings.future || [])];
-    const meetingsAwaitingSummary = allMeetings.filter(m =>
-      m.transcript &&
-      m.transcript.trim() &&
-      (!m.quick_summary || !m.quick_summary.trim())
-    );
-
-    // Also check the currently selected meeting specifically
-    const selectedAwaitingSummary = selectedMeeting &&
-      selectedMeeting.transcript &&
+    // Only refresh if selected meeting has transcript but no summary
+    // AND recall_status is 'completed' (meaning bot just finished)
+    const needsSummary = selectedMeeting.transcript &&
       selectedMeeting.transcript.trim() &&
+      selectedMeeting.recall_status === 'completed' &&
       (!selectedMeeting.quick_summary || !selectedMeeting.quick_summary.trim());
 
-    const shouldPoll = meetingsAwaitingSummary.length > 0 || selectedAwaitingSummary;
+    if (!needsSummary) return;
 
-    if (!shouldPoll) return;
+    // Prevent duplicate refreshes for the same meeting
+    if (lastRefreshRef.current === selectedMeeting.id) return;
 
-    console.log(`🔄 ${meetingsAwaitingSummary.length} meeting(s) awaiting summary generation - starting poll`);
+    console.log(`🔄 Meeting ${selectedMeeting.id} has transcript but no summary - will refresh once in 5s`);
+    lastRefreshRef.current = selectedMeeting.id;
 
-    const pollInterval = setInterval(() => {
-      console.log('🔄 Polling for summary updates...');
+    const timeoutId = setTimeout(() => {
+      console.log('🔄 Refreshing to check for generated summary...');
       fetchMeetings();
-    }, 5000); // Poll every 5 seconds
+      // Reset after refresh so it can trigger again if still missing
+      setTimeout(() => {
+        lastRefreshRef.current = null;
+      }, 10000); // Wait 10s before allowing another refresh for same meeting
+    }, 5000);
 
     return () => {
-      clearInterval(pollInterval);
+      clearTimeout(timeoutId);
     };
-  }, [isAuthenticated, meetings.past, meetings.future, selectedMeeting, fetchMeetings]);
+  }, [isAuthenticated, selectedMeeting?.id, selectedMeeting?.quick_summary, selectedMeeting?.recall_status, fetchMeetings]);
 
   // Handle URL parameter to auto-select a meeting
   useEffect(() => {
