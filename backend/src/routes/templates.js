@@ -8,48 +8,41 @@ const defaultTemplates = [
   {
     id: 'auto-template',
     title: 'Advicly Summary',
-    description: 'AI prompt for generating professional auto email summaries from meeting transcripts',
-    content: `Role: You are a professional, helpful, and concise financial advisor's assistant ({advisorName}) tasked with creating a follow-up email summary for a client based on a meeting transcript.
+    description: 'AI prompt for generating professional plain-text email summaries from meeting transcripts',
+    content: `Role: You are a professional financial advisor's assistant helping {advisorName} write a follow-up email to a client after a meeting.
 
-Goal: Generate a clear, well-structured email that summarizes the key financial advice, confirms the numerical details, and outlines the immediate and future next steps.
+Goal: Generate a clear, professional, plain-text email that summarises the key discussion points and outlines next steps. This email should be ready to copy-paste and send with minimal editing.
 
-Constraints & Format:
-1. Opening: Start with a warm, conversational opening that confirms the pleasure of the meeting and sets the context.
-2. Sections: Use bolded headings for clarity (e.g., Pension Recommendation, Next Steps).
-3. Data Accuracy: Extract and use the exact numerical figures from the transcript.
-4. Tone: Professional, clear, and reassuring.
-5. Output: Provide only the final email text (do not include introductory/explanatory comments).
+CRITICAL FORMAT RULES:
+1. NO markdown symbols whatsoever - no **, ##, *, bullets, or formatting characters
+2. Use plain text only with natural paragraph breaks
+3. Use numbered lists (1. 2. 3.) for action items - no bullets
+4. Keep it concise - aim for 150-250 words maximum
+5. Do NOT include subject lines or headers
 
-Example Output Format:
+Structure:
+1. Warm opening - thank them for their time, reference the meeting naturally
+2. Key points - summarise 2-4 main discussion topics in flowing paragraphs, include specific numbers/figures from the transcript
+3. Next steps - list 3-5 clear action items with owners and timelines where mentioned
+4. Closing - offer to help with questions, professional sign-off
 
-Subject: Follow-up: Summary of our [Topic] Advice & Next Steps
+Tone: Professional but warm. Write as if you're the advisor speaking directly to the client. Avoid jargon. Be specific with numbers and dates mentioned in the transcript.
+
+Example format:
 
 Hi {clientName},
 
-It was great speaking with you this morning and catching up on your weekend. Below are the key points we discussed regarding [main topic].
+It was great speaking with you today about your financial planning. Thank you for taking the time to discuss your goals.
 
-## Key Discussion Points
+We covered several important areas during our conversation. Regarding your pension, we discussed contributing 35,000 pounds from your limited company this tax year, which would provide significant tax benefits. We also reviewed your current protection arrangements and identified a gap in your life cover.
 
-**1. [Main Topic]**
-* [Key point with specific numbers/details]
-* [Key point with specific numbers/details]
-* [Key point with specific numbers/details]
+Here are the next steps we agreed:
 
-**2. [Secondary Topic]**
-* [Key point with specific numbers/details]
-* [Key point with specific numbers/details]
+1. I will prepare the written advice document for your pension contribution - expect this within two to three weeks
+2. We will schedule a follow-up call to review the advice together
+3. You will gather your latest pension statements for our records
 
-**3. [Additional Topic if applicable]**
-* [Key point with specific numbers/details]
-
-## Next Steps
-1. **[Action Item 1]:** [Description with timeline]
-2. **[Action Item 2]:** [Description with timeline]
-3. **[Action Item 3]:** [Description with timeline]
-4. **[Action Item 4]:** [Description with timeline]
-5. **[Action Item 5]:** [Description with timeline]
-
-Please review the documents once they arrive. If you have any immediate questions in the meantime, please don't hesitate to let me know.
+Please let me know if you have any questions in the meantime. I look forward to our next conversation.
 
 Best regards,
 {advisorName}
@@ -58,7 +51,7 @@ Best regards,
 Transcript:
 {transcript}
 
-Respond with the **email body only** — no headers or subject lines.`,
+Generate the email body only. No subject line. No markdown. Plain text only.`,
     type: 'auto-summary',
     is_default: true
   },
@@ -100,6 +93,15 @@ The email you output must be ready to send to the client exactly as written.`,
   }
 ];
 
+// Helper function to check if a template has old markdown format
+function hasOldMarkdownFormat(promptContent) {
+  if (!promptContent) return false;
+  // Check for common markdown patterns from the old template
+  return promptContent.includes('## Key Discussion Points') ||
+         promptContent.includes('**1. [Main Topic]**') ||
+         promptContent.includes('Use bolded headings for clarity');
+}
+
 // GET /api/templates - Get all templates for the user
 router.get('/', authenticateSupabaseUser, async (req, res) => {
   try {
@@ -128,7 +130,40 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
       return res.json(seededTemplates);
     }
 
-    res.json(templates);
+    // Auto-update any "Advicly Summary" templates that still have old markdown format
+    const updatedTemplates = await Promise.all(templates.map(async (template) => {
+      if (template.title === 'Advicly Summary' &&
+          template.type === 'auto-summary' &&
+          hasOldMarkdownFormat(template.prompt_content)) {
+
+        console.log(`🔄 Auto-updating Advicly Summary template ${template.id} to plain-text format`);
+
+        // Get the new plain-text template content
+        const newContent = defaultTemplates.find(t => t.id === 'auto-template')?.content;
+
+        if (newContent) {
+          // Update in database
+          const { data: updated, error: updateError } = await req.supabase
+            .from('email_templates')
+            .update({
+              prompt_content: newContent,
+              description: 'AI prompt for generating professional plain-text email summaries from meeting transcripts',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', template.id)
+            .select()
+            .single();
+
+          if (!updateError && updated) {
+            console.log(`✅ Updated Advicly Summary template ${template.id} to plain-text format`);
+            return updated;
+          }
+        }
+      }
+      return template;
+    }));
+
+    res.json(updatedTemplates);
   } catch (error) {
     console.error('Error in GET /templates:', error);
     res.status(500).json({ error: 'Internal server error' });
