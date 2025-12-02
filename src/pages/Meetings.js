@@ -2192,11 +2192,8 @@ export default function Meetings() {
                     >
                       <div className="flex items-center gap-2">
                         {platformLogo && (
-                          <img src={platformLogo} alt={getPlatformDisplayName(platform)} className="w-5 h-5 object-contain" />
+                          <img src={platformLogo} alt={getPlatformDisplayName(platform)} className="w-6 h-6 object-contain" />
                         )}
-                        <span className="text-xs text-muted-foreground">
-                          {isBotEnabled ? 'Advicly Assistant will join' : 'Assistant disabled'}
-                        </span>
                       </div>
                       <Switch
                         checked={isBotEnabled}
@@ -2554,16 +2551,13 @@ export default function Meetings() {
                                     const platformLogo = platform ? VIDEO_PLATFORM_LOGOS[platform] : null;
                                     return (
                                       <div
-                                        className="flex items-center justify-between py-2 px-2 -mx-2 rounded-lg bg-muted/30 border border-border/30"
+                                        className="flex items-center justify-between py-1.5 px-2 -mx-2 rounded-lg bg-muted/30 border border-border/30"
                                         onClick={(e) => e.stopPropagation()}
                                       >
                                         <div className="flex items-center gap-2">
                                           {platformLogo && (
-                                            <img src={platformLogo} alt={getPlatformDisplayName(platform)} className="w-4 h-4 object-contain" />
+                                            <img src={platformLogo} alt={getPlatformDisplayName(platform)} className="w-5 h-5 object-contain" />
                                           )}
-                                          <span className="text-xs text-muted-foreground">
-                                            {isBotEnabled ? 'Advicly Assistant will join' : 'Assistant disabled'}
-                                          </span>
                                         </div>
                                         <Switch
                                           checked={isBotEnabled}
@@ -2749,7 +2743,7 @@ export default function Meetings() {
                         <h3 className="font-semibold text-sm">
                           {botStatus.linkToSettings ? (
                             <Link
-                              to="/settings/calendar"
+                              to="/settings?section=meetings"
                               className="underline hover:text-primary transition-colors"
                             >
                               {botStatus.reason}

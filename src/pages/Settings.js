@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -30,7 +31,9 @@ const menuItems = [
 
 export default function Settings() {
   const { user } = useAuth();
-  const [activeSection, setActiveSection] = useState('personal');
+  const [searchParams] = useSearchParams();
+  const sectionParam = searchParams.get('section');
+  const [activeSection, setActiveSection] = useState(sectionParam || 'personal');
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 

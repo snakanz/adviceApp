@@ -828,6 +828,7 @@ export default function CalendarSettings() {
                             <Switch
                               checked={connection.transcription_enabled || false}
                               onCheckedChange={(checked) => handleToggleTranscription(connection.id, checked)}
+                              className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-400"
                             />
                           </div>
 
