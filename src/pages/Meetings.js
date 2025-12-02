@@ -2507,7 +2507,6 @@ export default function Meetings() {
                           meetingsOnDay.map((meeting) => {
                             const attendees = extractAttendees(meeting, user?.email);
                             const clientName = attendees.length > 0 ? attendees[0].name : null;
-                            const source = getMeetingSource(meeting);
 
                             return (
                               <Card
