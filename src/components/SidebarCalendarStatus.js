@@ -2,25 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { CheckCircle2, Calendar as CalendarIcon } from 'lucide-react';
 import { cn } from '../lib/utils';
 import api from '../services/api';
-
-// Integration icons
-const GoogleCalendarIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-    <path d="M19 4H18V2H16V4H8V2H6V4H5C3.89 4 3 4.9 3 6V20C3 21.1 3.89 22 5 22H19C20.1 22 21 21.1 21 20V6C21 4.9 20.1 4 19 4ZM19 20H5V9H19V20Z" fill="#4285F4"/>
-    <path d="M12 11C10.34 11 9 12.34 9 14C9 15.66 10.34 17 12 17C13.66 17 15 15.66 15 14C15 12.34 13.66 11 12 11Z" fill="#EA4335"/>
-    <path d="M12 11V14L15 14C15 12.34 13.66 11 12 11Z" fill="#FBBC04"/>
-    <path d="M12 14V17C13.66 17 15 15.66 15 14H12Z" fill="#34A853"/>
-  </svg>
-);
-
-const MicrosoftCalendarIcon = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-    <rect x="3" y="3" width="18" height="18" rx="2" fill="#0078D4"/>
-    <path d="M8 7H16V9H8V7Z" fill="white"/>
-    <path d="M8 11H16V13H8V11Z" fill="white"/>
-    <path d="M8 15H13V17H8V15Z" fill="white"/>
-  </svg>
-);
+import { CALENDAR_PROVIDER_LOGOS } from '../utils/recallBotStatus';
 
 function SidebarCalendarStatus() {
   const [integrations, setIntegrations] = useState({
@@ -66,14 +48,11 @@ function SidebarCalendarStatus() {
   }, [checkIntegrationStatus]);
 
   const getIntegrationIcon = (provider) => {
-    switch (provider) {
-      case 'google':
-        return <GoogleCalendarIcon />;
-      case 'microsoft':
-        return <MicrosoftCalendarIcon />;
-      default:
-        return <CalendarIcon className="w-5 h-5" />;
+    const logoUrl = CALENDAR_PROVIDER_LOGOS[provider];
+    if (logoUrl) {
+      return <img src={logoUrl} alt={provider} className="w-5 h-5 object-contain" />;
     }
+    return <CalendarIcon className="w-5 h-5" />;
   };
 
   const getIntegrationName = (provider) => {

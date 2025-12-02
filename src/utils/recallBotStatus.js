@@ -262,3 +262,58 @@ export const getStatusIcon = (willJoin) => {
   return willJoin ? '✅' : '❌';
 };
 
+/**
+ * Detect the video conferencing platform from meeting URL
+ * @param {Object} meeting - Meeting object
+ * @returns {string|null} Platform identifier: 'google_meet', 'teams', 'zoom', 'webex', or null
+ */
+export const getMeetingPlatform = (meeting) => {
+  const url = getMeetingUrl(meeting);
+  if (!url) return null;
+
+  const lowerUrl = url.toLowerCase();
+
+  if (lowerUrl.includes('meet.google.com')) return 'google_meet';
+  if (lowerUrl.includes('teams.microsoft.com') || lowerUrl.includes('teams.live.com')) return 'teams';
+  if (lowerUrl.includes('zoom.us')) return 'zoom';
+  if (lowerUrl.includes('webex.com')) return 'webex';
+  if (lowerUrl.includes('gotomeeting.com')) return 'gotomeeting';
+
+  return null;
+};
+
+/**
+ * Get the display name for a video conferencing platform
+ * @param {string} platform - Platform identifier
+ * @returns {string} Human-readable platform name
+ */
+export const getPlatformDisplayName = (platform) => {
+  const names = {
+    'google_meet': 'Google Meet',
+    'teams': 'Microsoft Teams',
+    'zoom': 'Zoom',
+    'webex': 'Webex',
+    'gotomeeting': 'GoToMeeting'
+  };
+  return names[platform] || 'Video Meeting';
+};
+
+/**
+ * Video conference platform logo URLs from Supabase storage
+ */
+export const VIDEO_PLATFORM_LOGOS = {
+  google_meet: 'https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Google%20Meet%20Logo.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvR29vZ2xlIE1lZXQgTG9nby5wbmciLCJpYXQiOjE3NjQ2NjQyMjUsImV4cCI6MTc5NjIwMDIyNX0.cFTYB-YD33-VHMvR29vZ2xlIExvZ28ucG5nIiwiaWF0IjoxNzY0NjY0MjgwLCJleHAiOjE3OTYyMDAyODB9.-fTmWIyR8pIZG0ImUzGRObP_CVmsEGO-0vNs_zzb6jM',
+  teams: 'https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Teams%20Logo.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvVGVhbXMgTG9nby5wbmciLCJpYXQiOjE3NjQ2NjQyNDgsImV4cCI6MTc5NjIwMDI0OH0.rLDPT2RHQMDvR29vZ2xlIExvZ28ucG5nIiwiaWF0IjoxNzY0NjY0MjgwLCJleHAiOjE3OTYyMDAyODB9.-fTmWIyR8pIZG0ImUzGRObP_CVmsEGO-0vNs_zzb6jM',
+  zoom: 'https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Zoom%20Logo.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvWm9vbSBMb2dvLnBuZyIsImlhdCI6MTc2NDY2NDI2NCwiZXhwIjoxNzk2MjAwMjY0fQ.Wm3PDvR29vZ2xlIExvZ28ucG5nIiwiaWF0IjoxNzY0NjY0MjgwLCJleHAiOjE3OTYyMDAyODB9.-fTmWIyR8pIZG0ImUzGRObP_CVmsEGO-0vNs_zzb6jM'
+};
+
+/**
+ * Calendar provider logo URLs from Supabase storage
+ */
+export const CALENDAR_PROVIDER_LOGOS = {
+  google: 'https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Google%20Logo.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvR29vZ2xlIExvZ28ucG5nIiwiaWF0IjoxNzY0NjY0MjgwLCJleHAiOjE3OTYyMDAyODB9.-fTmWIyR8pIZG0ImUzGRObP_CVmsEGO-0vNs_zzb6jM',
+  outlook: 'https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Outlook%20Logo.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvT3V0bG9vayBMb2dvLnBuZyIsImlhdCI6MTc2NDY2NDI5NiwiZXhwIjoxNzk2MjAwMjk2fQ.DvR29vZ2xlIExvZ28ucG5nIiwiaWF0IjoxNzY0NjY0MjgwLCJleHAiOjE3OTYyMDAyODB9.-fTmWIyR8pIZG0ImUzGRObP_CVmsEGO-0vNs_zzb6jM',
+  microsoft: 'https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Outlook%20Logo.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvT3V0bG9vayBMb2dvLnBuZyIsImlhdCI6MTc2NDY2NDI5NiwiZXhwIjoxNzk2MjAwMjk2fQ.DvR29vZ2xlIExvZ28ucG5nIiwiaWF0IjoxNzY0NjY0MjgwLCJleHAiOjE3OTYyMDAyODB9.-fTmWIyR8pIZG0ImUzGRObP_CVmsEGO-0vNs_zzb6jM',
+  calendly: 'https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Calendly.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvQ2FsZW5kbHkucG5nIiwiaWF0IjoxNzY0NjY0MzEzLCJleHAiOjE3OTYyMDAzMTN9.51Wx51fwm6NJc8XP7iVlQIoGZQ4S-hlxhlR8d9dnFE4'
+};
+

@@ -21,7 +21,7 @@ const Step6_SubscriptionPlan = ({ data, onNext, onBack, selectedPlan = 'paid' })
 
     const features = [
         'Unlimited meetings',
-        'Automatic Recall.ai transcription',
+        'Automatic meeting transcription',
         'AI meeting summaries',
         'Client pipeline management',
         'Action items & follow-ups',

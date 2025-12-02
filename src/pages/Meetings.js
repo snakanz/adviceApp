@@ -36,7 +36,7 @@ import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
 import CalendlyIcon from '../components/CalendlyIcon';
 import DocumentsTab from '../components/DocumentsTab';
-import { getRecallBotStatus, getStatusColor, getStatusIcon, getMeetingUrl, hasValidMeetingUrl } from '../utils/recallBotStatus';
+import { getRecallBotStatus, getStatusColor, getStatusIcon, getMeetingUrl, hasValidMeetingUrl, getMeetingPlatform, getPlatformDisplayName, VIDEO_PLATFORM_LOGOS } from '../utils/recallBotStatus';
 import EditMeetingDialog from '../components/EditMeetingDialog';
 import LinkClientDialog from '../components/LinkClientDialog';
 import ReviewWizard from './ReviewWizard';
@@ -1533,12 +1533,12 @@ export default function Meetings() {
       setBotStatus(newStatus);
 
       setShowSnackbar(true);
-      setSnackbarMessage(newSkipValue ? 'Bot disabled for this meeting' : 'Bot enabled for this meeting');
+      setSnackbarMessage(newSkipValue ? 'Advicly Assistant disabled for this meeting' : 'Advicly Assistant enabled for this meeting');
       setSnackbarSeverity('success');
     } catch (error) {
       console.error('Error toggling bot:', error);
       setShowSnackbar(true);
-      setSnackbarMessage('Failed to toggle bot');
+      setSnackbarMessage('Failed to toggle Advicly Assistant');
       setSnackbarSeverity('error');
     } finally {
       setTogglingBot(false);
@@ -1586,12 +1586,12 @@ export default function Meetings() {
       }
 
       setShowSnackbar(true);
-      setSnackbarMessage(newSkipValue ? 'Bot disabled for this meeting' : 'Bot enabled for this meeting');
+      setSnackbarMessage(newSkipValue ? 'Advicly Assistant disabled for this meeting' : 'Advicly Assistant enabled for this meeting');
       setSnackbarSeverity('success');
     } catch (error) {
       console.error('Error toggling bot:', error);
       setShowSnackbar(true);
-      setSnackbarMessage('Failed to toggle bot');
+      setSnackbarMessage('Failed to toggle Advicly Assistant');
       setSnackbarSeverity('error');
     }
   };
@@ -1959,7 +1959,7 @@ export default function Meetings() {
                                   </div>
                                 </TooltipTrigger>
                                 <TooltipContent>
-                                  <p>{isBotEnabled ? 'Bot will join - Click to disable' : 'Bot disabled - Click to enable'}</p>
+                                  <p>{isBotEnabled ? 'Advicly Assistant will join - Click to disable' : 'Assistant disabled - Click to enable'}</p>
                                 </TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
@@ -2183,14 +2183,21 @@ export default function Meetings() {
                 {/* Bot Toggle - Only show for future meetings without transcript */}
                 {shouldShowBotToggle(meeting) && (() => {
                   const isBotEnabled = !meeting.skip_transcription_for_meeting;
+                  const platform = getMeetingPlatform(meeting);
+                  const platformLogo = platform ? VIDEO_PLATFORM_LOGOS[platform] : null;
                   return (
                     <div
-                      className="flex items-center justify-between py-1.5 px-2 rounded-md bg-muted/40 mb-2"
+                      className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/40 mb-2 border border-border/30"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <span className="text-xs text-muted-foreground">
-                        {isBotEnabled ? '🤖 Bot will join' : '🚫 Bot disabled'}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {platformLogo && (
+                          <img src={platformLogo} alt={getPlatformDisplayName(platform)} className="w-5 h-5 object-contain" />
+                        )}
+                        <span className="text-xs text-muted-foreground">
+                          {isBotEnabled ? 'Advicly Assistant will join' : 'Assistant disabled'}
+                        </span>
+                      </div>
                       <Switch
                         checked={isBotEnabled}
                         onCheckedChange={() => handleToggleBotForAnyMeeting(meeting)}
@@ -2555,14 +2562,21 @@ export default function Meetings() {
                                   {/* Bot Toggle - Only show for future meetings without transcript */}
                                   {shouldShowBotToggle(meeting) && (() => {
                                     const isBotEnabled = !meeting.skip_transcription_for_meeting;
+                                    const platform = getMeetingPlatform(meeting);
+                                    const platformLogo = platform ? VIDEO_PLATFORM_LOGOS[platform] : null;
                                     return (
                                       <div
-                                        className="flex items-center justify-between py-1.5 px-2 -mx-2 rounded-md bg-muted/30"
+                                        className="flex items-center justify-between py-2 px-2 -mx-2 rounded-lg bg-muted/30 border border-border/30"
                                         onClick={(e) => e.stopPropagation()}
                                       >
-                                        <span className="text-xs text-muted-foreground">
-                                          {isBotEnabled ? '🤖 Bot will join' : '🚫 Bot disabled'}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                          {platformLogo && (
+                                            <img src={platformLogo} alt={getPlatformDisplayName(platform)} className="w-4 h-4 object-contain" />
+                                          )}
+                                          <span className="text-xs text-muted-foreground">
+                                            {isBotEnabled ? 'Advicly Assistant will join' : 'Assistant disabled'}
+                                          </span>
+                                        </div>
                                         <Switch
                                           checked={isBotEnabled}
                                           onCheckedChange={() => handleToggleBotForAnyMeeting(meeting)}

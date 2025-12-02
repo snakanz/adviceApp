@@ -5,8 +5,7 @@ import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import GoogleIcon from '../components/GoogleIcon';
-import OutlookIcon from '../components/OutlookIcon';
+import { CALENDAR_PROVIDER_LOGOS } from '../utils/recallBotStatus';
 
 const RegisterPage = () => {
     const navigate = useNavigate();
@@ -208,7 +207,7 @@ const RegisterPage = () => {
                                 className="w-full h-12 text-base font-medium bg-card hover:bg-card/80 text-foreground border border-border/30 shadow-soft hover:shadow-medium transition-all duration-150"
                                 disabled={isLoading}
                             >
-                                <GoogleIcon size={20} className="mr-3" />
+                                <img src={CALENDAR_PROVIDER_LOGOS.google} alt="Google" className="w-5 h-5 mr-3 object-contain" />
                                 Sign up with Google
                             </Button>
 
@@ -217,7 +216,7 @@ const RegisterPage = () => {
                                 className="w-full h-12 text-base font-medium bg-card hover:bg-card/80 text-foreground border border-border/30 shadow-soft hover:shadow-medium transition-all duration-150"
                                 disabled={isLoading}
                             >
-                                <OutlookIcon size={20} className="mr-3" />
+                                <img src={CALENDAR_PROVIDER_LOGOS.outlook} alt="Microsoft" className="w-5 h-5 mr-3 object-contain" />
                                 Sign up with Microsoft
                             </Button>
                         </div>

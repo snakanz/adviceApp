@@ -14,7 +14,6 @@ import {
   CreditCard,
   Gift,
   ChevronRight,
-  LogOut,
   Loader2,
   Check
 } from 'lucide-react';
@@ -30,7 +29,7 @@ const menuItems = [
 ];
 
 export default function Settings() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [activeSection, setActiveSection] = useState('personal');
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -320,17 +319,6 @@ export default function Settings() {
             </button>
           ))}
         </nav>
-
-        {/* Sign Out Button */}
-        <div className="p-2 border-t border-border/50">
-          <button
-            onClick={logout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-          >
-            <LogOut className="w-5 h-5" />
-            <span className="text-sm font-medium">Sign out</span>
-          </button>
-        </div>
       </div>
 
       {/* Main Content */}

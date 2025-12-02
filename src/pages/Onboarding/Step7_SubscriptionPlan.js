@@ -16,7 +16,7 @@ const Step7_SubscriptionPlan = ({ data, onNext, onBack }) => {
 
     const features = [
         'Unlimited meetings',
-        'Automatic Recall.ai transcription',
+        'Automatic meeting transcription',
         'AI meeting summaries',
         'Client pipeline management',
         'Action items & follow-ups',

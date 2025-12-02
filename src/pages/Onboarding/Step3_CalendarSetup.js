@@ -5,6 +5,7 @@ import { Button } from '../../components/ui/button';
 // import { Input } from '../../components/ui/input';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import axios from 'axios';
+import { CALENDAR_PROVIDER_LOGOS } from '../../utils/recallBotStatus';
 // TEMPORARILY DISABLED: Calendly integration hidden from UI
 // import CalendlyPlanInfo from '../../components/CalendlyPlanInfo';
 
@@ -359,9 +360,11 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                             >
                                 <div className="flex items-center space-x-4">
                                     <div className="flex-shrink-0">
-                                        <svg className="w-12 h-12" viewBox="0 0 48 48">
-                                            <path fill="#1976D2" d="M24,9.604c-6.4,0-10.4,3.199-12,9.597c2.4-3.199,5.2-4.398,8.4-3.599 c1.826,0.456,3.131,1.781,4.576,3.247C27.328,21.236,30.051,24,36,24c6.4,0,10.4-3.199,12-9.598c-2.4,3.199-5.2,4.399-8.4,3.6 c-1.825-0.456-3.13-1.781-4.575-3.247C32.672,12.367,29.948,9.604,24,9.604L24,9.604z M12,24c-6.4,0-10.4,3.199-12,9.598 c2.4-3.199,5.2-4.399,8.4-3.599c1.825,0.457,3.13,1.781,4.575,3.246c2.353,2.388,5.077,5.152,11.025,5.152 c6.4,0,10.4-3.199,12-9.598c-2.4,3.199-5.2,4.399-8.4,3.6c-1.826-0.456-3.131-1.781-4.576-3.246C20.672,26.764,17.949,24,12,24 L12,24z"/>
-                                        </svg>
+                                        <img
+                                            src={CALENDAR_PROVIDER_LOGOS.google}
+                                            alt="Google Calendar"
+                                            className="w-12 h-12 object-contain"
+                                        />
                                     </div>
                                     <div className="flex-1">
                                         <h3 className="font-semibold text-foreground">Google Calendar</h3>
@@ -377,12 +380,11 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                             >
                                 <div className="flex items-center space-x-4">
                                     <div className="flex-shrink-0">
-                                        <svg className="w-12 h-12" viewBox="0 0 48 48">
-                                            <rect fill="#0078D4" width="48" height="48" rx="4"/>
-                                            <path fill="white" d="M12 14h24v20H12z" opacity="0.2"/>
-                                            <path fill="white" d="M14 16h20v16H14z"/>
-                                            <path fill="#0078D4" d="M16 18h16v12H16z"/>
-                                        </svg>
+                                        <img
+                                            src={CALENDAR_PROVIDER_LOGOS.outlook}
+                                            alt="Outlook Calendar"
+                                            className="w-12 h-12 object-contain"
+                                        />
                                     </div>
                                     <div className="flex-1">
                                         <h3 className="font-semibold text-foreground">Outlook Calendar</h3>

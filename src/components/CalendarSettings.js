@@ -3,6 +3,7 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { Switch } from './ui/switch';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 import {
@@ -404,7 +405,7 @@ export default function CalendarSettings() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      setSuccess(`✅ Transcription ${enabled ? 'enabled' : 'disabled'} - Recall.ai will ${enabled ? 'automatically record' : 'not record'} your meetings`);
+      setSuccess(`✅ Transcription ${enabled ? 'enabled' : 'disabled'} - Advicly Assistant will ${enabled ? 'automatically record' : 'not record'} your meetings`);
 
       // Reload connections to show updated status
       setTimeout(() => loadConnections(), 500);
@@ -819,20 +820,32 @@ export default function CalendarSettings() {
                         )}
 
                         {/* Transcription Toggle */}
-                        <div className="mt-3 flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            id={`transcription-${connection.id}`}
-                            checked={connection.transcription_enabled || false}
-                            onChange={(e) => handleToggleTranscription(connection.id, e.target.checked)}
-                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <label
-                            htmlFor={`transcription-${connection.id}`}
-                            className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1"
-                          >
-                            <span>🎙️ Auto-record with Recall.ai</span>
-                          </label>
+                        <div className="mt-3 space-y-3">
+                          <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/40">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-foreground">🎙️ Auto-record with Advicly Assistant</span>
+                            </div>
+                            <Switch
+                              checked={connection.transcription_enabled || false}
+                              onCheckedChange={(checked) => handleToggleTranscription(connection.id, checked)}
+                            />
+                          </div>
+
+                          {/* Bot Name Display (Read-only) */}
+                          {connection.transcription_enabled && (
+                            <div className="px-3 py-2 rounded-lg bg-muted/20 border border-border/50">
+                              <Label className="text-xs text-muted-foreground mb-1 block">
+                                Bot name (appears in your meeting)
+                              </Label>
+                              <Input
+                                type="text"
+                                value="Advicly Notetaker"
+                                readOnly
+                                disabled
+                                className="bg-muted/30 text-sm cursor-not-allowed border-none h-8"
+                              />
+                            </div>
+                          )}
                         </div>
 
                         {connection.is_active && connection.provider === 'calendly' && (
