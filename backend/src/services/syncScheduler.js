@@ -432,10 +432,10 @@ class SyncScheduler {
 
       const supabase = getSupabase();
       const now = new Date();
-      const fifteenMinutesFromNow = new Date(now.getTime() + 15 * 60 * 1000);
+      const oneMinuteFromNow = new Date(now.getTime() + 1 * 60 * 1000); // Per Recall recommendation: bot joins 1 minute before
 
       // Find meetings that:
-      // 1. Start within the next 15 minutes OR are currently in progress
+      // 1. Start within the next 1 minute OR are currently in progress
       // 2. Don't have a recall_bot_id yet
       // 3. Have a meeting_url
       // 4. Are not marked as skip_transcription_for_meeting
@@ -456,7 +456,7 @@ class SyncScheduler {
         .not('meeting_url', 'is', null)
         .or('skip_transcription_for_meeting.is.null,skip_transcription_for_meeting.eq.false')
         .or('is_deleted.is.null,is_deleted.eq.false')
-        .lte('starttime', fifteenMinutesFromNow.toISOString())
+        .lte('starttime', oneMinuteFromNow.toISOString())
         .gte('endtime', now.toISOString());
 
       if (meetingsError) {

@@ -477,7 +477,7 @@ class CalendarSyncService {
                   const end = new Date(calendarEvent.end?.dateTime || calendarEvent.end?.date || start);
 
                   const alreadyOver = end <= now;
-                  const startsTooFarInFuture = start.getTime() - now.getTime() > 15 * 60 * 1000;
+                  const startsTooFarInFuture = start.getTime() - now.getTime() > 1 * 60 * 1000; // more than 1 minute ahead (per Recall recommendation)
 
                   if (!alreadyOver && !startsTooFarInFuture) {
                     const hasAccess = await this.checkUserHasTranscriptionAccess(userId);
@@ -546,7 +546,7 @@ class CalendarSyncService {
             const end = new Date(calendarEvent.end?.dateTime || calendarEvent.end?.date || start);
 
             const alreadyOver = end <= now;
-            const startsTooFarInFuture = start.getTime() - now.getTime() > 15 * 60 * 1000; // more than 15 minutes ahead
+            const startsTooFarInFuture = start.getTime() - now.getTime() > 1 * 60 * 1000; // more than 1 minute ahead (per Recall recommendation)
 
             if (!alreadyOver && !startsTooFarInFuture) {
               // Check if user has transcription access (5 free meetings or paid subscription)
@@ -846,9 +846,9 @@ class CalendarSyncService {
       const start = new Date(event.start?.dateTime || event.start?.date || new Date());
       const end = new Date(event.end?.dateTime || event.end?.date || start);
 
-      // Only create a bot if the meeting is in progress or starting within 15 minutes
-      // This matches the 15-minute window check in the sync logic
-      const graceMs = 15 * 60 * 1000; // 15-minute grace period before start
+      // Only create a bot if the meeting is in progress or starting within 1 minute
+      // Per Recall recommendation: bot should join 1 minute before meeting starts
+      const graceMs = 1 * 60 * 1000; // 1-minute grace period before start
       const inProgressOrStartingSoon =
         start.getTime() - graceMs <= now.getTime() &&
         now.getTime() <= end.getTime();

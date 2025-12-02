@@ -316,7 +316,7 @@ class GoogleCalendarWebhookService {
                   const end = new Date(event.end?.dateTime || event.end?.date || start);
 
                   const alreadyOver = end <= now;
-                  const startsTooFarInFuture = start.getTime() - now.getTime() > 15 * 60 * 1000; // more than 15 minutes ahead
+                  const startsTooFarInFuture = start.getTime() - now.getTime() > 1 * 60 * 1000; // more than 1 minute ahead (per Recall recommendation)
 
                   if (!alreadyOver && !startsTooFarInFuture) {
                     await this.scheduleRecallBotForMeeting(event, newMeeting.id, userId);
@@ -378,7 +378,8 @@ class GoogleCalendarWebhookService {
       const end = new Date(event.end?.dateTime || event.end?.date || start);
 
       // Only create a bot if the meeting is in progress or starting very soon
-      const graceMs = 5 * 60 * 1000; // 5-minute grace period before start
+      // Per Recall recommendation: bot should join 1 minute before meeting starts
+      const graceMs = 1 * 60 * 1000; // 1-minute grace period before start
       const inProgressOrJustStarting =
         start.getTime() - graceMs <= now.getTime() &&
         now.getTime() <= end.getTime();
