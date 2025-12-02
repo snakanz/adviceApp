@@ -2548,17 +2548,6 @@ export default function Meetings() {
                                     </div>
                                   )}
 
-                                  {/* Meeting Source Icon */}
-                                  <div className="flex items-center">
-                                    {source === 'Google Calendar' ? (
-                                      <GoogleIcon size={14} />
-                                    ) : source === 'Calendly' ? (
-                                      <CalendlyIcon size={14} />
-                                    ) : (
-                                      <OutlookIcon size={14} />
-                                    )}
-                                  </div>
-
                                   {/* Bot Toggle - Only show for future meetings without transcript */}
                                   {shouldShowBotToggle(meeting) && (() => {
                                     const isBotEnabled = !meeting.skip_transcription_for_meeting;
@@ -2795,30 +2784,40 @@ export default function Meetings() {
               )}
 
               {/* Join Meeting Button - Show for future meetings with valid URL */}
-              {selectedMeeting && hasValidMeetingUrl(selectedMeeting) && (
-                <div className="flex items-center gap-3 p-4 rounded-lg border border-border/50 bg-card">
-                  <div className="flex items-center gap-2 flex-1">
-                    <Video className="w-5 h-5 text-primary" />
-                    <div>
-                      <p className="text-sm font-medium text-foreground">Video Meeting</p>
-                      <p className="text-xs text-muted-foreground truncate max-w-[200px] lg:max-w-[300px]">
-                        {getMeetingUrl(selectedMeeting)}
-                      </p>
+              {selectedMeeting && hasValidMeetingUrl(selectedMeeting) && (() => {
+                const platform = getMeetingPlatform(selectedMeeting);
+                const platformLogo = platform ? VIDEO_PLATFORM_LOGOS[platform] : null;
+                const platformName = platform ? getPlatformDisplayName(platform) : 'Video Meeting';
+
+                return (
+                  <div className="flex items-center gap-3 p-4 rounded-lg border border-border/50 bg-card">
+                    <div className="flex items-center gap-2 flex-1">
+                      {platformLogo ? (
+                        <img src={platformLogo} alt={platformName} className="w-6 h-6 object-contain" />
+                      ) : (
+                        <Video className="w-5 h-5 text-primary" />
+                      )}
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{platformName}</p>
+                        <p className="text-xs text-muted-foreground truncate max-w-[200px] lg:max-w-[300px]">
+                          {getMeetingUrl(selectedMeeting)}
+                        </p>
+                      </div>
                     </div>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const url = getMeetingUrl(selectedMeeting);
+                        if (url) window.open(url, '_blank', 'noopener,noreferrer');
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Join Meeting
+                    </Button>
                   </div>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      const url = getMeetingUrl(selectedMeeting);
-                      if (url) window.open(url, '_blank', 'noopener,noreferrer');
-                    }}
-                    className="flex items-center gap-2"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    Join Meeting
-                  </Button>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Tabs - New Order: Ask Advicely, Summary, Generate Email, Transcript, Documents */}
               <div className="flex border-b border-border/50 mb-4 overflow-x-auto">
