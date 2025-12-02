@@ -42,6 +42,7 @@ import LinkClientDialog from '../components/LinkClientDialog';
 import ReviewWizard from './ReviewWizard';
 
 import DataImport from '../components/DataImport';
+import InlineChatWidget from '../components/InlineChatWidget';
 import {
   Tooltip,
   TooltipContent,
@@ -754,6 +755,41 @@ export default function Meetings() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [isAuthenticated, fetchMeetings]);
+
+  // Auto-refresh polling when waiting for summary generation
+  // Polls every 5 seconds if there are meetings with transcript but no quick_summary
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // Check if any meetings have transcript but are missing summaries
+    const allMeetings = [...(meetings.past || []), ...(meetings.future || [])];
+    const meetingsAwaitingSummary = allMeetings.filter(m =>
+      m.transcript &&
+      m.transcript.trim() &&
+      (!m.quick_summary || !m.quick_summary.trim())
+    );
+
+    // Also check the currently selected meeting specifically
+    const selectedAwaitingSummary = selectedMeeting &&
+      selectedMeeting.transcript &&
+      selectedMeeting.transcript.trim() &&
+      (!selectedMeeting.quick_summary || !selectedMeeting.quick_summary.trim());
+
+    const shouldPoll = meetingsAwaitingSummary.length > 0 || selectedAwaitingSummary;
+
+    if (!shouldPoll) return;
+
+    console.log(`🔄 ${meetingsAwaitingSummary.length} meeting(s) awaiting summary generation - starting poll`);
+
+    const pollInterval = setInterval(() => {
+      console.log('🔄 Polling for summary updates...');
+      fetchMeetings();
+    }, 5000); // Poll every 5 seconds
+
+    return () => {
+      clearInterval(pollInterval);
+    };
+  }, [isAuthenticated, meetings.past, meetings.future, selectedMeeting, fetchMeetings]);
 
   // Handle URL parameter to auto-select a meeting
   useEffect(() => {
@@ -2896,66 +2932,48 @@ export default function Meetings() {
 
               {/* Content */}
               <div className="space-y-4">
-                {/* Ask Advicely Tab Content */}
+                {/* Ask Advicely Tab Content - Inline Chat */}
                 {activeTab === 'ask' && (
-                  <div className="space-y-4">
-                    <Card className="border-border/50 bg-gradient-to-br from-primary/5 to-primary/10">
-                      <CardContent className="p-6 text-center">
-                        <Sparkles className="w-12 h-12 mx-auto mb-4 text-primary" />
-                        <h3 className="text-lg font-semibold text-foreground mb-2">Ask Advicely About This Meeting</h3>
-                        <p className="text-sm text-muted-foreground mb-4">
-                          Get insights, draft follow-ups, or ask questions about this meeting with AI assistance.
-                        </p>
-                        <Button
-                          size="lg"
-                          className="bg-primary hover:bg-primary/90"
-                          onClick={() => {
-                            // Extract comprehensive meeting context
-                            let clientInfo = null;
-                            if (selectedMeeting?.attendees) {
-                              try {
-                                const attendees = typeof selectedMeeting.attendees === 'string'
-                                  ? JSON.parse(selectedMeeting.attendees)
-                                  : selectedMeeting.attendees;
-                                const currentUserEmail = user?.email || '';
-                                const clientAttendee = attendees.find(a => a.email !== currentUserEmail);
-                                if (clientAttendee) {
-                                  clientInfo = {
-                                    name: clientAttendee.name || clientAttendee.email,
-                                    email: clientAttendee.email
-                                  };
-                                }
-                              } catch (e) {
-                                console.log('Could not parse attendees');
-                              }
-                            }
-
-                            const meetingTitle = selectedMeeting?.summary || selectedMeeting?.title || 'Meeting';
-                            const meetingDate = selectedMeeting?.startTime || selectedMeeting?.start || selectedMeeting?.date;
-
-                            const params = new URLSearchParams({
-                              contextType: 'meeting',
-                              meetingId: selectedMeeting?.id,
-                              meetingTitle: meetingTitle,
-                              meetingDate: meetingDate,
-                              hasTranscript: (!!selectedMeeting?.transcript).toString(),
-                              hasSummary: (!!selectedMeeting?.quick_summary).toString(),
-                              autoStart: 'true'
-                            });
-
-                            if (clientInfo) {
-                              params.set('clientName', clientInfo.name);
-                              params.set('clientEmail', clientInfo.email);
-                            }
-
-                            navigate(`/ask-advicly?${params.toString()}`);
-                          }}
-                        >
-                          <Sparkles className="w-5 h-5 mr-2" />
-                          Start AI Conversation
-                        </Button>
-                      </CardContent>
-                    </Card>
+                  <div className="h-[calc(100vh-380px)] min-h-[400px]">
+                    <InlineChatWidget
+                      contextType="meeting"
+                      contextData={{
+                        meetingId: selectedMeeting?.id,
+                        meetingTitle: selectedMeeting?.summary || selectedMeeting?.title || 'Meeting',
+                        meetingDate: selectedMeeting?.startTime || selectedMeeting?.start || selectedMeeting?.date,
+                        clientName: (() => {
+                          if (selectedMeeting?.attendees) {
+                            try {
+                              const attendees = typeof selectedMeeting.attendees === 'string'
+                                ? JSON.parse(selectedMeeting.attendees)
+                                : selectedMeeting.attendees;
+                              const currentUserEmail = user?.email || '';
+                              const clientAttendee = attendees.find(a => a.email !== currentUserEmail);
+                              return clientAttendee?.name || clientAttendee?.email || null;
+                            } catch (e) { return null; }
+                          }
+                          return null;
+                        })(),
+                        hasTranscript: !!selectedMeeting?.transcript,
+                        hasSummary: !!selectedMeeting?.quick_summary
+                      }}
+                      meetingId={selectedMeeting?.id}
+                      meetingTitle={selectedMeeting?.summary || selectedMeeting?.title}
+                      clientName={(() => {
+                        if (selectedMeeting?.attendees) {
+                          try {
+                            const attendees = typeof selectedMeeting.attendees === 'string'
+                              ? JSON.parse(selectedMeeting.attendees)
+                              : selectedMeeting.attendees;
+                            const currentUserEmail = user?.email || '';
+                            const clientAttendee = attendees.find(a => a.email !== currentUserEmail);
+                            return clientAttendee?.name || clientAttendee?.email || null;
+                          } catch (e) { return null; }
+                        }
+                        return null;
+                      })()}
+                      className="rounded-lg border border-border/50"
+                    />
                   </div>
                 )}
 
@@ -3566,19 +3584,7 @@ Example:
                 {templates.map((template) => (
                   <button
                     key={template.id}
-                    onClick={() => {
-                      setSelectedTemplate(template);
-                      setShowTemplateModal(false);
-
-                      // If this is the smarter Review template, open the wizard
-                      if (template.type === 'review-summary' && selectedMeeting?.transcript) {
-                        setReviewWizardMeeting(selectedMeeting);
-                        setShowReviewWizard(true);
-                      } else {
-                        // Otherwise, use the standard generation flow
-                        handleGenerateAISummary();
-                      }
-                    }}
+                    onClick={() => setSelectedTemplate(template)}
                     className={cn(
                       "w-full text-left p-4 rounded-lg border-2 transition-all hover:shadow-md",
                       selectedTemplate?.id === template.id
@@ -3613,14 +3619,43 @@ Example:
             <div className="p-6 border-t border-border/50 bg-muted/30">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
-                  {templates.length} template{templates.length !== 1 ? 's' : ''} available
+                  {selectedTemplate ? `Selected: ${selectedTemplate.title}` : 'Select a template above'}
                 </p>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowTemplateModal(false)}
-                >
-                  Cancel
-                </Button>
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowTemplateModal(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setShowTemplateModal(false);
+                      // If this is the smarter Review template, open the wizard
+                      if (selectedTemplate?.type === 'review-summary' && selectedMeeting?.transcript) {
+                        setReviewWizardMeeting(selectedMeeting);
+                        setShowReviewWizard(true);
+                      } else {
+                        // Otherwise, use the standard generation flow
+                        handleGenerateAISummary();
+                      }
+                    }}
+                    disabled={!selectedTemplate || generatingSummary}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {generatingSummary ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="w-4 h-4 mr-2" />
+                        Generate Email
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

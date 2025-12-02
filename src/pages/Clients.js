@@ -27,6 +27,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import BusinessTypeManager from '../components/BusinessTypeManager';
 import CreateClientForm from '../components/CreateClientForm';
 import ClientDocumentsSection from '../components/ClientDocumentsSection';
+import InlineChatWidget from '../components/InlineChatWidget';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -1232,60 +1233,49 @@ export default function Clients() {
                 )}
               </div>
 
-              {/* Meetings Count & Ask Advicly Button - Side by Side */}
-              <div className="grid grid-cols-2 gap-3">
-                {/* Meetings Count Card */}
-                <Card className="border-border/50">
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-primary/10 rounded-lg">
-                        <Calendar className="w-5 h-5 text-primary" />
+              {/* Meetings Count Card */}
+              <Card className="border-border/50">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <Calendar className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-foreground">
+                        {selectedClient.meeting_count || 0}
                       </div>
-                      <div>
-                        <div className="text-2xl font-bold text-foreground">
-                          {selectedClient.meeting_count || 0}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {selectedClient.has_upcoming_meetings ?
-                            `${selectedClient.upcoming_meetings_count} upcoming` :
-                            'meetings'
-                          }
-                        </div>
+                      <div className="text-xs text-muted-foreground">
+                        {selectedClient.has_upcoming_meetings ?
+                          `${selectedClient.upcoming_meetings_count} upcoming` :
+                          'meetings'
+                        }
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </CardContent>
+              </Card>
 
-                {/* Ask Advicly Button */}
-                <Button
-                  className="h-full"
-                  onClick={() => {
-                    const clientMeetings = selectedClient.meetings || [];
-                    const params = new URLSearchParams({
-                      contextType: 'client',
-                      client: selectedClient.id,
+              {/* Ask Advicly Inline Chat */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-semibold text-foreground">Ask Advicly</h3>
+                </div>
+                <div className="h-[350px] rounded-lg border border-border/50 overflow-hidden">
+                  <InlineChatWidget
+                    contextType="client"
+                    contextData={{
+                      clientId: selectedClient.id,
                       clientName: selectedClient.name,
                       clientEmail: selectedClient.email,
-                      meetingCount: clientMeetings.length.toString(),
+                      meetingCount: selectedClient.meetings?.length || 0,
                       pipelineStatus: selectedClient.pipeline_stage || 'Unknown',
-                      likelyValue: selectedClient.likely_value?.toString() || '0',
-                      autoStart: 'true'
-                    });
-
-                    if (clientMeetings.length > 0) {
-                      const lastMeeting = clientMeetings.sort((a, b) =>
-                        new Date(b.starttime) - new Date(a.starttime)
-                      )[0];
-                      params.set('lastMeetingDate', lastMeeting.starttime);
-                      params.set('lastMeetingTitle', lastMeeting.title);
-                    }
-
-                    navigate(`/ask-advicly?${params.toString()}`);
-                  }}
-                >
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Ask Advicly
-                </Button>
+                      likelyValue: selectedClient.likely_value || 0
+                    }}
+                    clientId={selectedClient.id}
+                    clientName={selectedClient.name}
+                  />
+                </div>
               </div>
 
               {/* Meeting History - Collapsible */}
