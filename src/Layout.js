@@ -73,9 +73,23 @@ export default function Layout() {
     logout();
   };
 
+  // Get user's display name from Supabase Auth user_metadata
+  const getUserDisplayName = () => {
+    // Check user_metadata first (where updateUser stores it)
+    const metaName = user?.user_metadata?.full_name || user?.user_metadata?.name;
+    if (metaName) return metaName;
+
+    // Fallback to email username
+    if (user?.email) {
+      return user.email.split('@')[0];
+    }
+
+    return 'User';
+  };
+
   const getUserInitials = (name) => {
     if (!name) return 'U';
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   return (
@@ -106,12 +120,12 @@ export default function Layout() {
               >
                 <Avatar className="w-8 h-8 bg-primary text-primary-foreground text-sm font-semibold rounded-full">
                   <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold rounded-full">
-                    {getUserInitials(user?.name)}
+                    {getUserInitials(getUserDisplayName())}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex flex-col items-start">
                   <span className="text-sm font-semibold text-foreground">
-                    {user?.name || 'User'}
+                    {getUserDisplayName()}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {user?.email || 'user@example.com'}

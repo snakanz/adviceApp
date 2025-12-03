@@ -83,38 +83,39 @@ export default function Settings() {
 
   // Load user data on mount
   useEffect(() => {
-    const loadCompanyData = async () => {
+    const loadUserData = async () => {
       try {
+        // Load both name and company data from the users table
         const { data: userData, error } = await supabase
           .from('users')
-          .select('business_name')
+          .select('name, business_name')
           .eq('id', user.id)
           .single();
 
         if (!error && userData) {
+          // Set company data
           setCompanyData({
             companyName: userData.business_name || ''
           });
+
+          // Set personal data from DB (not from auth metadata)
+          const nameParts = (userData.name || '').split(' ');
+          const firstName = nameParts[0] || '';
+          const lastName = nameParts.slice(1).join(' ') || '';
+
+          setPersonalData({
+            firstName,
+            lastName,
+            email: user.email || ''
+          });
         }
       } catch (err) {
-        console.error('Error loading company data:', err);
+        console.error('Error loading user data:', err);
       }
     };
 
     if (user) {
-      // Split name into first and last
-      const nameParts = (user.name || '').split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
-
-      setPersonalData({
-        firstName,
-        lastName,
-        email: user.email || ''
-      });
-
-      // Load company data
-      loadCompanyData();
+      loadUserData();
     }
   }, [user]);
 
@@ -124,6 +125,7 @@ export default function Settings() {
     try {
       const fullName = `${personalData.firstName} ${personalData.lastName}`.trim();
 
+      // 1. Update the users table
       const { error } = await supabase
         .from('users')
         .update({
@@ -133,6 +135,19 @@ export default function Settings() {
         .eq('id', user.id);
 
       if (error) throw error;
+
+      // 2. Also update Supabase Auth user metadata so name shows in header/sidebar
+      const { error: authError } = await supabase.auth.updateUser({
+        data: {
+          full_name: fullName,
+          name: fullName
+        }
+      });
+
+      if (authError) {
+        console.warn('Warning: Could not update auth metadata:', authError);
+        // Don't throw - the main update succeeded
+      }
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);

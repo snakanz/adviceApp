@@ -185,7 +185,7 @@ const OnboardingFlow = () => {
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center space-x-2">
                             <img
-                                src={process.env.PUBLIC_URL + '/logo-advicly.png'}
+                                src="https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Advicly%20Logo.svg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvQWR2aWNseSBMb2dvLnN2ZyIsImlhdCI6MTc2NDc5MTAxMiwiZXhwIjoxNzk2MzI3MDEyfQ.KNKi1mLZLOsvWHC9WWlJqTKPtmvSG_kcHIqiSiqEL_A"
                                 alt="Advicly"
                                 className="h-8 w-auto"
                             />
