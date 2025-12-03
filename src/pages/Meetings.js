@@ -1284,14 +1284,22 @@ export default function Meetings() {
       // Always use template system - if no template selected, use Advicly Summary template
       let summary;
       if (selectedTemplate) {
-        // Use the selected template's prompt
-        const prompt = selectedTemplate.content.replace('{transcript}', selectedMeeting.transcript);
+        // Use the selected template's prompt (prompt_content from DB, content from fallback)
+        const templatePrompt = selectedTemplate.prompt_content || selectedTemplate.content;
+        if (!templatePrompt) {
+          throw new Error('Template has no prompt content');
+        }
+        const prompt = templatePrompt.replace('{transcript}', selectedMeeting.transcript);
         summary = await generateAISummaryWithTemplate(selectedMeeting.transcript, prompt);
         setCurrentSummaryTemplate(selectedTemplate);
       } else {
         // Use Advicly Summary template (auto template) as default
         const autoTemplate = templates.find(t => t.id === 'auto-template') || templates[0];
-        const prompt = autoTemplate.content.replace('{transcript}', selectedMeeting.transcript);
+        const templatePrompt = autoTemplate.prompt_content || autoTemplate.content;
+        if (!templatePrompt) {
+          throw new Error('Auto template has no prompt content');
+        }
+        const prompt = templatePrompt.replace('{transcript}', selectedMeeting.transcript);
         summary = await generateAISummaryWithTemplate(selectedMeeting.transcript, prompt);
         setCurrentSummaryTemplate(autoTemplate);
       }
@@ -2705,8 +2713,8 @@ export default function Meetings() {
                       <div
                         className="flex items-center mb-2 text-sm cursor-pointer hover:bg-primary/5 -mx-2 px-2 py-1 rounded transition-colors group"
                         onClick={() => {
-                          // Navigate to Clients page with client parameter
-                          window.location.href = `/clients?client=${encodeURIComponent(selectedMeeting.client.email)}`;
+                          // Navigate to Clients page with client parameter (using React Router for SPA navigation)
+                          navigate(`/clients?client=${encodeURIComponent(selectedMeeting.client.email)}`);
                         }}
                         title="Click to view client profile"
                       >
@@ -2729,8 +2737,8 @@ export default function Meetings() {
                           <div
                             className="flex items-center mb-2 text-sm cursor-pointer hover:bg-primary/5 -mx-2 px-2 py-1 rounded transition-colors group"
                             onClick={() => {
-                              // Navigate to Clients page with email to find or create this client
-                              window.location.href = `/clients?client=${encodeURIComponent(clientAttendee.email)}`;
+                              // Navigate to Clients page with email to find or create this client (using React Router for SPA navigation)
+                              navigate(`/clients?client=${encodeURIComponent(clientAttendee.email)}`);
                             }}
                             title="Click to view or create client profile"
                           >
