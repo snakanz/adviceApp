@@ -54,6 +54,8 @@ export const AuthProvider = ({ children }) => {
         switch (event) {
           case 'SIGNED_IN':
             console.log('✅ User signed in:', session?.user?.email);
+            // Ensure user exists in public.users (fallback for email/password signups)
+            await ensureUserExists(session);
             // Verify webhooks are active on login
             verifyWebhooksOnLogin(session);
             break;
@@ -68,8 +70,9 @@ export const AuthProvider = ({ children }) => {
             break;
           case 'INITIAL_SESSION':
             console.log('🎯 Initial session loaded:', session?.user?.email);
-            // Verify webhooks on initial session load
+            // Verify webhooks and ensure user exists on initial session load
             if (session) {
+              await ensureUserExists(session);
               verifyWebhooksOnLogin(session);
             }
             break;
@@ -113,6 +116,68 @@ export const AuthProvider = ({ children }) => {
 
     return () => clearInterval(checkTokenExpiration);
   }, [session]);
+
+  /**
+   * Ensure user exists in public.users table
+   * This is a fallback mechanism for email/password signups that bypass backend callbacks
+   * The database trigger should handle this automatically, but this ensures it works
+   * even if the trigger hasn't been deployed yet
+   */
+  const ensureUserExists = async (session) => {
+    try {
+      if (!session?.user?.id || !session?.access_token) {
+        console.log('⚠️ No session available for user check');
+        return;
+      }
+
+      const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
+
+      console.log('🔍 Ensuring user exists in database...');
+
+      // Call the /api/users/profile endpoint which will create the user if they don't exist
+      const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ User exists in database:', data.email);
+      } else if (response.status === 404) {
+        // User doesn't exist - this shouldn't happen if trigger is in place
+        // But we can handle it by calling POST to create
+        console.log('⚠️ User not found, attempting to create...');
+
+        const createResponse = await fetch(`${API_BASE_URL}/api/users/profile`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            email: session.user.email,
+            name: session.user.user_metadata?.full_name ||
+                  session.user.user_metadata?.name ||
+                  session.user.email?.split('@')[0]
+          })
+        });
+
+        if (createResponse.ok) {
+          console.log('✅ User created successfully');
+        } else {
+          console.warn('⚠️ Failed to create user:', createResponse.statusText);
+        }
+      } else {
+        console.warn('⚠️ Unexpected response checking user:', response.status);
+      }
+    } catch (error) {
+      console.warn('⚠️ Error ensuring user exists:', error.message);
+      // Don't fail auth if this fails - user might still be able to proceed
+    }
+  };
 
   /**
    * Verify calendar webhooks are active on user login
