@@ -848,6 +848,71 @@ router.post('/generate-summary', async (req, res) => {
   }
 });
 
+// Streaming AI summary endpoint - for typewriter effect
+router.post('/generate-summary-stream', async (req, res) => {
+  const { transcript, prompt } = req.body;
+  if (!transcript) return res.status(400).json({ error: 'Transcript is required' });
+  if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
+
+  try {
+    if (!openai.isOpenAIAvailable()) {
+      return res.status(503).json({
+        error: 'OpenAI service is not available. Please check your API key configuration.'
+      });
+    }
+
+    // Set headers for Server-Sent Events (SSE)
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.flushHeaders();
+
+    // Import OpenAI directly for streaming
+    const OpenAI = require('openai');
+    const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const stream = await openaiClient.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are a professional email writer. IMPORTANT: Never use markdown formatting. No ## headers, no **bold**, no * bullets, no ` backticks. Write in plain text only with natural paragraphs and numbered lists (1. 2. 3.) where needed."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 1000,
+      stream: true
+    });
+
+    // Stream the response chunks
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || '';
+      if (content) {
+        // Send the chunk as SSE data
+        res.write(`data: ${JSON.stringify({ content })}\n\n`);
+      }
+    }
+
+    // Send completion signal
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
+  } catch (err) {
+    console.error('Error streaming summary:', err);
+    // If headers haven't been sent, send error as JSON
+    if (!res.headersSent) {
+      return res.status(500).json({ error: 'Failed to generate summary' });
+    }
+    // Otherwise send error through SSE
+    res.write(`data: ${JSON.stringify({ error: 'Failed to generate summary' })}\n\n`);
+    res.end();
+  }
+});
+
 // Auto-generate summaries for a meeting
 router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, async (req, res) => {
   try {

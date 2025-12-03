@@ -475,6 +475,10 @@ export default function Meetings() {
   // Template selection modal state
   const [showTemplateModal, setShowTemplateModal] = useState(false);
 
+  // Streaming text state for typewriter effect
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
+
   // Review wizard state (for smarter review template)
   const [showReviewWizard, setShowReviewWizard] = useState(false);
   const [reviewWizardMeeting, setReviewWizardMeeting] = useState(null);
@@ -1280,38 +1284,92 @@ export default function Meetings() {
     if (!selectedMeeting?.transcript) return;
 
     setGeneratingSummary(true);
+    setIsStreaming(true);
+    setStreamingContent('');
+    setSummaryContent(''); // Clear existing content to show streaming
+
     try {
-      // Always use template system - if no template selected, use Advicly Summary template
-      let summary;
+      // Get the template prompt
+      let templatePrompt;
+      let templateToUse;
+
       if (selectedTemplate) {
-        // Use the selected template's prompt (prompt_content from DB, content from fallback)
-        const templatePrompt = selectedTemplate.prompt_content || selectedTemplate.content;
+        templatePrompt = selectedTemplate.prompt_content || selectedTemplate.content;
+        templateToUse = selectedTemplate;
         if (!templatePrompt) {
           throw new Error('Template has no prompt content');
         }
-        const prompt = templatePrompt.replace('{transcript}', selectedMeeting.transcript);
-        summary = await generateAISummaryWithTemplate(selectedMeeting.transcript, prompt);
-        setCurrentSummaryTemplate(selectedTemplate);
       } else {
-        // Use Advicly Summary template (auto template) as default
-        const autoTemplate = templates.find(t => t.id === 'auto-template') || templates[0];
-        const templatePrompt = autoTemplate.prompt_content || autoTemplate.content;
+        templateToUse = templates.find(t => t.id === 'auto-template') || templates[0];
+        templatePrompt = templateToUse.prompt_content || templateToUse.content;
         if (!templatePrompt) {
           throw new Error('Auto template has no prompt content');
         }
-        const prompt = templatePrompt.replace('{transcript}', selectedMeeting.transcript);
-        summary = await generateAISummaryWithTemplate(selectedMeeting.transcript, prompt);
-        setCurrentSummaryTemplate(autoTemplate);
       }
 
-      setSummaryContent(summary);
-      setEmailSummary(summary);
+      setCurrentSummaryTemplate(templateToUse);
+      const prompt = templatePrompt.replace('{transcript}', selectedMeeting.transcript);
 
-      // Save the new template version to database
+      // Use streaming endpoint for typewriter effect
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const response = await fetch(`${API_URL}/api/calendar/generate-summary-stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          transcript: selectedMeeting.transcript,
+          prompt
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate AI summary');
+      }
+
+      // Read the stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.content) {
+                fullContent += data.content;
+                setStreamingContent(fullContent);
+                setSummaryContent(fullContent);
+              }
+              if (data.done) {
+                setIsStreaming(false);
+              }
+              if (data.error) {
+                throw new Error(data.error);
+              }
+            } catch (e) {
+              // Ignore JSON parse errors for incomplete chunks
+            }
+          }
+        }
+      }
+
+      setEmailSummary(fullContent);
+      setIsStreaming(false);
+
+      // Save the generated summary to database
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        const templateId = selectedTemplate?.id || 'auto-template';
+        const templateId = templateToUse?.id || 'auto-template';
         await fetch(`${API_URL}/api/calendar/meetings/${selectedMeeting.id}/update-summary`, {
           method: 'POST',
           headers: {
@@ -1319,20 +1377,19 @@ export default function Meetings() {
             'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({
-            emailSummary: summary,
+            emailSummary: fullContent,
             templateId: templateId
           })
         });
 
         // Update the meetings state to persist the email summary
-        // selectedMeeting will automatically update via useMemo when meetings changes
         setMeetings(prevMeetings => ({
           ...prevMeetings,
           past: prevMeetings.past.map(meeting =>
             meeting.id === selectedMeeting.id
               ? {
                   ...meeting,
-                  email_summary_draft: summary,
+                  email_summary_draft: fullContent,
                   templateId: templateId
                 }
               : meeting
@@ -1341,7 +1398,7 @@ export default function Meetings() {
             meeting.id === selectedMeeting.id
               ? {
                   ...meeting,
-                  email_summary_draft: summary,
+                  email_summary_draft: fullContent,
                   templateId: templateId
                 }
               : meeting
@@ -1350,7 +1407,6 @@ export default function Meetings() {
 
       } catch (saveError) {
         console.error('Error saving template summary:', saveError);
-        // Still show success for generation, but note save issue
         setShowSnackbar(true);
         setSnackbarMessage(`Email generated but failed to auto-save. Please try again.`);
         setSnackbarSeverity('warning');
@@ -1358,13 +1414,14 @@ export default function Meetings() {
       }
 
       setShowSnackbar(true);
-      setSnackbarMessage(`✓ Email generated and auto-saved using ${selectedTemplate?.title || 'Advicly Summary'}`);
+      setSnackbarMessage(`✓ Email generated and auto-saved using ${templateToUse?.title || 'Advicly Summary'}`);
       setSnackbarSeverity('success');
     } catch (error) {
       console.error('Error generating AI summary:', error);
       setShowSnackbar(true);
       setSnackbarMessage(error.message || 'Failed to generate AI summary');
       setSnackbarSeverity('error');
+      setIsStreaming(false);
     } finally {
       setGeneratingSummary(false);
     }
@@ -3022,7 +3079,24 @@ export default function Meetings() {
                 {/* Generate Email Tab Content */}
                 {activeTab === 'email' && (
                   <div className="space-y-4">
-                    {selectedMeeting?.transcript ? (
+                    {/* Show streaming content with typewriter effect */}
+                    {isStreaming && (
+                      <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
+                        <CardContent className="p-6">
+                          <div className="flex items-center gap-2 mb-4">
+                            <Sparkles className="w-5 h-5 text-primary animate-pulse" />
+                            <span className="text-sm font-medium text-primary">Generating email...</span>
+                          </div>
+                          <div className="text-sm text-foreground whitespace-pre-line leading-relaxed">
+                            {streamingContent}
+                            <span className="inline-block w-2 h-4 bg-primary ml-0.5 animate-pulse" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Show generate button when not streaming */}
+                    {!isStreaming && selectedMeeting?.transcript && (
                       <Card className="border-border/50 bg-gradient-to-br from-blue-500/5 to-blue-500/10">
                         <CardContent className="p-6 text-center">
                           <Mail className="w-12 h-12 mx-auto mb-4 text-blue-500" />
@@ -3041,7 +3115,10 @@ export default function Meetings() {
                           </Button>
                         </CardContent>
                       </Card>
-                    ) : (
+                    )}
+
+                    {/* No transcript message */}
+                    {!isStreaming && !selectedMeeting?.transcript && (
                       <Card className="border-border/50">
                         <CardContent className="p-6 text-center text-muted-foreground">
                           <Mail className="w-12 h-12 mx-auto mb-4 opacity-50" />
@@ -3050,13 +3127,26 @@ export default function Meetings() {
                       </Card>
                     )}
 
-                    {/* Show existing email draft if available */}
-                    {selectedMeeting?.email_summary_draft && (
+                    {/* Show existing email draft if available and not streaming */}
+                    {!isStreaming && selectedMeeting?.email_summary_draft && (
                       <div className="space-y-2">
-                        <h3 className="text-sm font-semibold text-foreground">Previous Email Draft</h3>
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-sm font-semibold text-foreground">Email Draft</h3>
+                          {selectedMeeting?.transcript && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setShowTemplateModal(true)}
+                              className="text-xs text-muted-foreground hover:text-foreground"
+                            >
+                              <Sparkles className="w-3 h-3 mr-1" />
+                              Regenerate
+                            </Button>
+                          )}
+                        </div>
                         <Card className="border-border/50">
                           <CardContent className="p-4">
-                            <div className="text-sm text-foreground whitespace-pre-line">
+                            <div className="text-sm text-foreground whitespace-pre-line leading-relaxed">
                               {selectedMeeting.email_summary_draft}
                             </div>
                           </CardContent>
@@ -3600,10 +3690,10 @@ Example:
 
       {/* Template Selection Modal */}
       {showTemplateModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-background rounded-xl shadow-2xl max-w-2xl w-full border border-border/50">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
+          <div className="bg-card/95 backdrop-blur-xl rounded-2xl shadow-2xl max-w-2xl w-full border border-border/30 overflow-hidden">
             {/* Modal Header */}
-            <div className="p-6 border-b border-border/50">
+            <div className="p-6 border-b border-border/30">
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-2xl font-bold text-foreground">Select Email Template</h2>
@@ -3613,7 +3703,7 @@ Example:
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowTemplateModal(false)}
-                  className="h-8 w-8 p-0"
+                  className="h-8 w-8 p-0 hover:bg-white/10"
                 >
                   <X className="w-5 h-5" />
                 </Button>
@@ -3628,21 +3718,27 @@ Example:
                     key={template.id}
                     onClick={() => setSelectedTemplate(template)}
                     className={cn(
-                      "w-full text-left p-4 rounded-lg border-2 transition-all hover:shadow-md",
+                      "w-full text-left p-4 rounded-xl border transition-all duration-200",
                       selectedTemplate?.id === template.id
-                        ? "border-blue-500 bg-blue-50 dark:bg-blue-950/20"
-                        : "border-border/50 hover:border-blue-300 bg-card"
+                        ? "border-primary bg-primary/10 shadow-lg shadow-primary/10 ring-1 ring-primary/30"
+                        : "border-border/40 bg-card/50 backdrop-blur-sm hover:bg-card/80 hover:border-border/60"
                     )}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <Mail className="w-4 h-4 text-blue-600" />
-                          <h3 className="font-semibold text-foreground">{template.title}</h3>
+                          <Mail className={cn(
+                            "w-4 h-4",
+                            selectedTemplate?.id === template.id ? "text-primary" : "text-muted-foreground"
+                          )} />
+                          <h3 className={cn(
+                            "font-semibold",
+                            selectedTemplate?.id === template.id ? "text-primary" : "text-foreground"
+                          )}>{template.title}</h3>
                           {selectedTemplate?.id === template.id && (
                             <div className="ml-auto">
-                              <div className="w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center">
-                                <Check className="w-3 h-3 text-white" />
+                              <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center">
+                                <Check className="w-3 h-3 text-primary-foreground" />
                               </div>
                             </div>
                           )}
@@ -3658,7 +3754,7 @@ Example:
             </div>
 
             {/* Modal Footer */}
-            <div className="p-6 border-t border-border/50 bg-muted/30">
+            <div className="p-6 border-t border-border/30 bg-card/50">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
                   {selectedTemplate ? `Selected: ${selectedTemplate.title}` : 'Select a template above'}
@@ -3667,6 +3763,7 @@ Example:
                   <Button
                     variant="outline"
                     onClick={() => setShowTemplateModal(false)}
+                    className="border-border/50 hover:bg-card/80"
                   >
                     Cancel
                   </Button>
@@ -3683,11 +3780,11 @@ Example:
                       }
                     }}
                     disabled={!selectedTemplate || generatingSummary}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
                   >
                     {generatingSummary ? (
                       <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                        <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />
                         Generating...
                       </>
                     ) : (
