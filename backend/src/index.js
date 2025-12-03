@@ -43,21 +43,24 @@ console.log('Creating Express app...');
 const app = express();
 console.log('✅ Express app created');
 
-// CORS configuration - Allow Cloudflare Pages and localhost
+// CORS configuration - Allow Cloudflare Pages, custom domain, and localhost
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
 
     const allowedOrigins = [
+      process.env.FRONTEND_URL,  // Custom domain from env var
+      'https://app.advicly.co.uk',  // Production custom domain
+      'https://advicly.co.uk',  // Root domain
       'https://adviceapp.pages.dev',
-      'https://adviceapp-pages.dev',  // Current Cloudflare Pages URL
+      'https://adviceapp-pages.dev',  // Cloudflare Pages URL
       'http://localhost:3000',
       'http://localhost:3001'
-    ];
+    ].filter(Boolean);  // Remove undefined values
 
-    // Allow all Cloudflare Pages preview URLs (*.pages.dev)
-    if (origin.endsWith('.pages.dev') || allowedOrigins.includes(origin)) {
+    // Allow all Cloudflare Pages preview URLs (*.pages.dev) and advicly.co.uk subdomains
+    if (origin.endsWith('.pages.dev') || origin.endsWith('.advicly.co.uk') || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       console.warn(`⚠️  CORS blocked origin: ${origin}`);
@@ -459,17 +462,19 @@ app.get('/api/calendar/sync-status', async (req, res) => {
   }
 });
 
-// Test endpoint to debug issues (v4 - CORS fix)
+// Test endpoint to debug issues (v6 - Custom domain CORS fix)
 app.get('/api/dev/test', (req, res) => {
-  console.log('🧪 Test endpoint called v5');
+  console.log('🧪 Test endpoint called v6');
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    message: 'Backend is working v5 - JWT decode fix',
-    version: '5.0',
+    message: 'Backend is working v6 - Custom domain CORS fix',
+    version: '6.0',
     cors: {
       origin: req.headers.origin || 'none',
       allowedOrigins: [
+        'https://app.advicly.co.uk',
+        'https://advicly.co.uk',
         'https://adviceapp.pages.dev',
         'https://adviceapp-pages.dev',
         'http://localhost:3000',
