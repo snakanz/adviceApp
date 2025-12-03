@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
+import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
@@ -390,18 +391,34 @@ function groupMeetingsByDate(meetings, sortOrder = 'desc') {
   return sortedGroups;
 }
 
-// Load templates from localStorage
-function loadTemplates() {
-  const saved = localStorage.getItem('advicly_templates');
-  if (saved) {
-    try {
-      return JSON.parse(saved);
-    } catch {
-      return [];
-    }
+// Fallback templates (only used if API fails)
+const fallbackTemplates = [
+  {
+    id: 'auto-template',
+    title: 'Advicly Summary',
+    description: 'AI prompt for generating professional plain-text email summaries from meeting transcripts',
+    prompt_content: `Role: You are a professional financial advisor's assistant helping {advisorName} write a follow-up email to a client after a meeting.
+
+Goal: Generate a clear, professional plain-text email that summarises the key discussion points and next steps. This email should be ready to copy-paste and send with minimal editing.
+
+CRITICAL FORMAT RULES:
+1. NO markdown symbols whatsoever - no asterisks (*), no hashes (#), no underscores (_), or formatting characters
+2. Use plain text only with proper spacing and line breaks
+3. Use numbered lists (1. 2. 3.) or simple dashes (-) for bullet points
+4. Keep paragraphs short and separated by blank lines
+
+Instructions:
+1. Start with a friendly greeting using the client's name
+2. Thank them for taking the time to meet
+3. Summarise the main discussion points in a clear, organised manner
+4. List any action items or next steps with clear ownership
+5. End with an appropriate sign-off using the advisor's name
+
+Use {transcript} as the source for the meeting content.
+Use {clientName} for the client's name.
+Use {advisorName} for the financial advisor's name.`
   }
-  return [];
-}
+];
 
 export default function Meetings() {
   const [meetings, setMeetings] = useState({ future: [], past: [] });
@@ -566,15 +583,29 @@ export default function Meetings() {
            date.getFullYear() === today.getFullYear();
   };
 
-  // Load templates on component mount
+  // Load templates on component mount - fetch from API
   useEffect(() => {
-    const loadedTemplates = loadTemplates();
-    setTemplates(loadedTemplates);
-    if (loadedTemplates.length > 0) {
-      // Default to Advicly Summary template (auto-template)
-      const adviclyTemplate = loadedTemplates.find(t => t.id === 'auto-template') || loadedTemplates[0];
-      setSelectedTemplate(adviclyTemplate);
-    }
+    const fetchTemplates = async () => {
+      try {
+        const fetchedTemplates = await api.get('/templates');
+        if (fetchedTemplates && fetchedTemplates.length > 0) {
+          setTemplates(fetchedTemplates);
+          // Default to Advicly Summary template (auto-template)
+          const adviclyTemplate = fetchedTemplates.find(t => t.id === 'auto-template' || t.title === 'Advicly Summary') || fetchedTemplates[0];
+          setSelectedTemplate(adviclyTemplate);
+        } else {
+          // Use fallback templates if API returns empty
+          setTemplates(fallbackTemplates);
+          setSelectedTemplate(fallbackTemplates[0]);
+        }
+      } catch (error) {
+        console.error('Error fetching templates:', error);
+        // Use fallback templates on error
+        setTemplates(fallbackTemplates);
+        setSelectedTemplate(fallbackTemplates[0]);
+      }
+    };
+    fetchTemplates();
   }, []);
 
   const fetchMeetings = useCallback(async () => {

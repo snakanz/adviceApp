@@ -884,9 +884,9 @@ export default function ActionItems() {
             ) : (
               <>
                 {/* Bulk Action Controls */}
-                <div className="mb-4 flex items-center justify-between bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <div className="mb-4 flex items-center justify-between bg-card/80 backdrop-blur-sm border border-orange-500/30 rounded-lg p-4">
                   <div className="flex items-center gap-4">
-                    <AlertCircle className="w-5 h-5 text-orange-600" />
+                    <AlertCircle className="w-5 h-5 text-orange-500" />
                     <div>
                       <h3 className="text-sm font-semibold text-foreground">
                         {totalPendingApprovalCount} Action Item{totalPendingApprovalCount > 1 ? 's' : ''} Awaiting Approval
@@ -918,7 +918,7 @@ export default function ActionItems() {
                       onClick={rejectPendingItems}
                       disabled={selectedPendingItems.length === 0}
                       variant="outline"
-                      className="border-red-300 text-red-600 hover:bg-red-50 h-8"
+                      className="border-red-500/50 text-red-500 hover:bg-red-500/10 h-8"
                       size="sm"
                     >
                       <X className="w-4 h-4 mr-2" />
@@ -930,7 +930,7 @@ export default function ActionItems() {
                 {/* Pending Items by Client */}
                 <div className="space-y-4">
                   {pendingApprovalClients.map((client) => (
-                    <Card key={client.clientId} className="border-orange-200 bg-orange-50/30">
+                    <Card key={client.clientId} className="border-border/50 bg-card/80 backdrop-blur-sm">
                       <CardHeader>
                         <div className="flex items-center justify-between">
                           <div>
@@ -959,21 +959,21 @@ export default function ActionItems() {
                                   {new Date(meeting.meetingStartTime).toLocaleDateString()}
                                 </span>
                               </div>
-                              <Badge variant="outline" className="bg-orange-100 text-orange-700 border-orange-300">
+                              <Badge variant="outline" className="bg-orange-500/20 text-orange-400 border-orange-500/50">
                                 {meeting.pendingItems.length} pending
                               </Badge>
                             </div>
 
                             <div className="space-y-2 pl-6">
                               {meeting.pendingItems.map((item) => (
-                                <Card key={item.id} className="border-orange-200 bg-white hover:shadow-sm transition-shadow">
+                                <Card key={item.id} className="border-border/50 bg-card/60 hover:bg-card/80 transition-all">
                                   <CardContent className="p-3">
                                     <div className="flex items-start gap-3">
                                       <input
                                         type="checkbox"
                                         checked={selectedPendingItems.includes(item.id)}
                                         onChange={() => togglePendingItemSelection(item.id)}
-                                        className="mt-1 w-4 h-4 text-orange-600 border-orange-300 rounded focus:ring-orange-500 cursor-pointer"
+                                        className="mt-1 w-4 h-4 text-orange-500 border-border rounded focus:ring-orange-500 cursor-pointer"
                                       />
                                       <div className="flex-1 space-y-2">
                                         {editingPendingItemId === item.id ? (
@@ -982,7 +982,7 @@ export default function ActionItems() {
                                             <textarea
                                               value={editingPendingText}
                                               onChange={(e) => setEditingPendingText(e.target.value)}
-                                              className="w-full text-sm border border-orange-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                              className="w-full text-sm bg-background border border-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500 text-foreground"
                                               rows={2}
                                               autoFocus
                                               onKeyDown={(e) => {
@@ -998,7 +998,7 @@ export default function ActionItems() {
                                                 size="sm"
                                                 onClick={() => savePendingItemEdit(item.id)}
                                                 disabled={savingPendingEdit}
-                                                className="h-7 text-xs bg-orange-600 hover:bg-orange-700"
+                                                className="h-7 text-xs bg-orange-500 hover:bg-orange-600"
                                               >
                                                 {savingPendingEdit ? (
                                                   <>
@@ -1074,14 +1074,14 @@ export default function ActionItems() {
 
                               {/* Add New Action Item */}
                               {addingPendingItem?.meetingId === meeting.meetingId ? (
-                                <Card className="border-orange-300 bg-orange-50/50">
+                                <Card className="border-orange-500/30 bg-card/60">
                                   <CardContent className="p-3">
                                     <div className="space-y-2">
                                       <textarea
                                         value={newPendingItemText}
                                         onChange={(e) => setNewPendingItemText(e.target.value)}
                                         placeholder="Enter action item text..."
-                                        className="w-full text-sm border border-orange-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                        className="w-full text-sm bg-background border border-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500 text-foreground"
                                         rows={2}
                                         autoFocus
                                         onKeyDown={(e) => {
@@ -1118,7 +1118,7 @@ export default function ActionItems() {
                                           size="sm"
                                           onClick={saveNewPendingItem}
                                           disabled={savingNewPendingItem}
-                                          className="h-7 text-xs bg-orange-600 hover:bg-orange-700"
+                                          className="h-7 text-xs bg-orange-500 hover:bg-orange-600"
                                         >
                                           {savingNewPendingItem ? (
                                             <>
@@ -1154,7 +1154,7 @@ export default function ActionItems() {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => startAddingPendingItem(meeting.meetingId, client.clientId)}
-                                  className="w-full h-8 text-xs border-orange-300 text-orange-700 hover:bg-orange-50"
+                                  className="w-full h-8 text-xs border-orange-500/30 text-orange-400 hover:bg-orange-500/10"
                                 >
                                   <Plus className="w-3 h-3 mr-1" />
                                   Add Action Item
