@@ -461,7 +461,7 @@ export default function Meetings() {
   const [generatingAISummaries, setGeneratingAISummaries] = useState(false);
 
   // Add template selection state
-  const [templates, setTemplates] = useState(loadTemplates());
+  const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
   // eslint-disable-next-line no-unused-vars
   const [currentSummaryTemplate, setCurrentSummaryTemplate] = useState(null);
