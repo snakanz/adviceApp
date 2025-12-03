@@ -1427,36 +1427,6 @@ export default function Meetings() {
     }
   };
 
-  // New function to generate summary with custom template
-  const generateAISummaryWithTemplate = async (transcript, prompt) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const response = await fetch(`${API_URL}/api/calendar/generate-summary`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          transcript,
-          prompt
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to generate AI summary with template');
-      }
-
-      const data = await response.json();
-      return data.summary;
-    } catch (error) {
-      console.error('Error generating AI summary with template:', error);
-      throw error;
-    }
-  };
-
   // NOTE: Calendar sync is now handled automatically via webhooks
   // Manual sync buttons have been removed from the UI
 
