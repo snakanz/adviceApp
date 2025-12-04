@@ -871,11 +871,11 @@ export default function Pipeline() {
             <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-4">
               <div className="grid grid-cols-12 gap-3 lg:gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 <div className="col-span-3">Client & Business Type</div>
-                <div className="col-span-1">Stage</div>
+                <div className="col-span-2">Stage</div>
                 <div className="col-span-2">Next Meeting</div>
                 <div className="col-span-1">Expected Fees</div>
                 <div className="col-span-2">Investment</div>
-                <div className="col-span-3">AI Next Steps</div>
+                <div className="col-span-2">AI Next Steps</div>
               </div>
             </div>
 
@@ -921,7 +921,7 @@ export default function Pipeline() {
                   </div>
 
                   {/* Stage Dropdown */}
-                  <div className="col-span-1 flex items-center" onClick={(e) => e.stopPropagation()}>
+                  <div className="col-span-2 flex items-center" onClick={(e) => e.stopPropagation()}>
                     {client.businessTypeId ? (
                       <Select
                         value={client.stage || 'Not Written'}
@@ -992,7 +992,7 @@ export default function Pipeline() {
                   </div>
 
                   {/* AI Next Steps Summary (List View) */}
-                  <div className="col-span-3">
+                  <div className="col-span-2">
                       <label className="text-[11px] font-medium text-muted-foreground mb-1 block flex items-center gap-1">
                         <Sparkles className="w-3 h-3" />
                         Next Steps to Close

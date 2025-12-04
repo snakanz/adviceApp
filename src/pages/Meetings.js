@@ -40,7 +40,6 @@ import DocumentsTab from '../components/DocumentsTab';
 import { getRecallBotStatus, getStatusColor, getStatusIcon, getMeetingUrl, hasValidMeetingUrl, getMeetingPlatform, getPlatformDisplayName, VIDEO_PLATFORM_LOGOS } from '../utils/recallBotStatus';
 import EditMeetingDialog from '../components/EditMeetingDialog';
 import LinkClientDialog from '../components/LinkClientDialog';
-import ReviewWizard from './ReviewWizard';
 
 import DataImport from '../components/DataImport';
 import InlineChatWidget from '../components/InlineChatWidget';
@@ -478,10 +477,6 @@ export default function Meetings() {
   // Streaming text state for typewriter effect
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
-
-  // Review wizard state (for smarter review template)
-  const [showReviewWizard, setShowReviewWizard] = useState(false);
-  const [reviewWizardMeeting, setReviewWizardMeeting] = useState(null);
 
   // Add import dialog state
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -3178,7 +3173,7 @@ export default function Meetings() {
                             </div>
 
                             {loadingPendingItems ? (
-                              <Card className="border-orange-200 bg-orange-50/50">
+                              <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
                                 <CardContent className="p-3">
                                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                     <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
@@ -3190,14 +3185,14 @@ export default function Meetings() {
                               <>
                                 <div className="space-y-2">
                                   {pendingActionItems.map((item) => (
-                                    <Card key={item.id} className="border-orange-200 bg-orange-50/30 hover:shadow-sm transition-shadow">
+                                    <Card key={item.id} className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all">
                                       <CardContent className="p-3">
                                         <div className="flex items-start gap-3">
                                           <input
                                             type="checkbox"
                                             checked={selectedPendingItems.includes(item.id)}
                                             onChange={() => togglePendingItemSelection(item.id)}
-                                            className="mt-1 w-4 h-4 text-orange-600 border-orange-300 rounded focus:ring-orange-500 cursor-pointer"
+                                            className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
                                           />
                                           <div className="flex-1 space-y-2">
                                             {editingPendingItemId === item.id ? (
@@ -3206,7 +3201,7 @@ export default function Meetings() {
                                                 <textarea
                                                   value={editingPendingText}
                                                   onChange={(e) => setEditingPendingText(e.target.value)}
-                                                  className="w-full text-sm border border-orange-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                                  className="w-full text-sm bg-background border border-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
                                                   rows={2}
                                                   autoFocus
                                                   onKeyDown={(e) => {
@@ -3740,14 +3735,8 @@ Example:
                   <Button
                     onClick={() => {
                       setShowTemplateModal(false);
-                      // If this is the smarter Review template, open the wizard
-                      if (selectedTemplate?.type === 'review-summary' && selectedMeeting?.transcript) {
-                        setReviewWizardMeeting(selectedMeeting);
-                        setShowReviewWizard(true);
-                      } else {
-                        // Otherwise, use the standard generation flow
-                        handleGenerateAISummary();
-                      }
+                      // Use standard generation flow with typewriter effect for all templates
+                      handleGenerateAISummary();
                     }}
                     disabled={!selectedTemplate || generatingSummary}
                     className="bg-primary hover:bg-primary/90 text-primary-foreground"
@@ -3769,24 +3758,6 @@ Example:
             </div>
           </div>
         </div>
-      )}
-      {/* Review Wizard Modal for smarter Review template */}
-      {showReviewWizard && reviewWizardMeeting && selectedMeeting?.id === reviewWizardMeeting.id && (
-        <ReviewWizard
-          meeting={reviewWizardMeeting}
-          transcript={reviewWizardMeeting.transcript}
-          isOpen={showReviewWizard}
-          onClose={() => {
-            setShowReviewWizard(false);
-            setReviewWizardMeeting(null);
-          }}
-          onComplete={({ emailBody }) => {
-            // When the wizard completes, drop the generated email into the email summary box
-            setEmailSummary(emailBody || '');
-            setShowReviewWizard(false);
-            setReviewWizardMeeting(null);
-          }}
-        />
       )}
 
 

@@ -71,129 +71,204 @@ Generate the email body only. No subject line. No markdown. Plain text only.`,
   {
     id: 'review-template',
     title: 'Review',
-    description: 'Smart review meeting email generator using transcript + confirmed review data',
-    content: `You are Advicly's Review Meeting Assistant.
+    description: 'Professional client review email generator - extracts data from transcripts and populates structured template',
+    content: `You are "Client Review Assistant", a specialised AI designed to convert meeting transcripts into fully-structured client review emails for financial planning purposes. Your role is to extract information from the transcript and produce a polished, professional email following a strict template.
 
-You are given two inputs:
-1) A full meeting transcript as plain text.
-2) A JSON object called reviewData that contains CONFIRMED details about the client and this review meeting.
-
-reviewData is the primary source of truth. If a field exists in reviewData and is non-empty, you MUST treat it as accurate and up to date, even if the transcript is ambiguous or incomplete.
-Only when a field is missing or null in reviewData may you infer or phrase things more generically from the transcript.
-
-The two inputs will be injected like this:
-- TRANSCRIPT:
-{transcript}
-
-- REVIEW DATA (JSON):
-{reviewData}
+INPUT:
+- Client Name: {clientName}
+- Transcript: {transcript}
+- Advisor: {advisorName} from {businessName}
 
 ---
 
-YOUR TASK
+EMAIL TEMPLATE STRUCTURE (MUST FOLLOW EXACT ORDER WITH SECTION HEADINGS)
 
-Using BOTH the transcript and reviewData, write a single, finished client email that:
-- Is clear, professional, and UK retail financial advice compliant.
-- Contains NO placeholders like [X]%, [Insert Amount], [TO CONFIRM], or similar.
-- Contains NO questions to the client asking for missing data.
-- Does NOT include any markdown formatting (no **bold**, no headings, no tables).
-- Is ready to send exactly as written.
-
-If important information is missing from BOTH the transcript and reviewData (for example, an exact retirement age or plan number), then:
-- Do NOT invent numbers or facts.
-- Instead, use neutral wording such as "This will be confirmed separately" or "We will discuss this in more detail at our next review", so the email still reads complete and professional.
+Generate the email with these exact sections in this order:
 
 ---
 
-EMAIL STRUCTURE (PLAIN TEXT ONLY)
+1) PERSONALISED INTRODUCTION
 
-Follow this structure in free-flowing paragraphs and simple lists where helpful. Do NOT include headings or markdown symbols in the final output.
-
-1) Greeting and Introduction
-- Address the client by name if available in reviewData.client_name; otherwise use a neutral greeting like "Dear Client".
-- Thank them for their time and explain that this is a summary of their recent review meeting.
-
-2) Your Circumstances
-Based primarily on reviewData and supported by the transcript, briefly describe:
-- Health status
-- Personal circumstances (employment, family, home situation)
-- Income and expenditure (including any expected changes or short-term income needs)
-- Assets and liabilities (only at a high level, no unnecessary detail)
-- Emergency fund position
-- Tax status (high-level, e.g. basic rate taxpayer, higher rate, etc., if known)
-- Capacity for loss
-- Attitude to risk
-
-Keep the tone factual and reassuring. If some of these points are not clearly covered in either the transcript or reviewData, omit them or describe them in neutral terms without inventing specifics.
-
-3) Your Goals and Objectives
-Summarise the client’s main goals, using reviewData where available:
-- Retirement timing and lifestyle goals (e.g. desired retirement age, income targets in retirement)
-- Capital growth or income objectives
-- Any other specific goals mentioned (e.g. paying off mortgage, helping children, estate planning, etc.)
-
-If cashflow modelling has been discussed and captured in reviewData (for example, required rate of return or additional contributions), explain this in clear, client-friendly language without including raw placeholder-style figures. Where exact figures are available in reviewData, you may include them. Where they are not, explain the conclusion in words (for example, that the current plan appears on track, or that additional saving may be required).
-
-4) Your Current Investments
-Provide a concise narrative summary of the client’s existing plans based on reviewData.current_investments and/or the transcript, such as:
-- Types of plans held (e.g. pensions, ISAs, general investment accounts)
-- Overall value range (if known) and any regular contributions
-- How the current investments align with the agreed risk profile and objectives
-- Any notable changes since the last review (e.g. fund switches, top-ups, transfers)
-
-Do NOT use a markdown table. Instead, describe holdings in sentences or a simple bullet-style list if that reads more clearly.
-
-5) Investment Knowledge & Experience, Capacity for Loss, and Risk Profile
-Using reviewData.investment_knowledge_level, reviewData.capacity_for_loss and reviewData.attitude_to_risk (plus the transcript where helpful), clearly state:
-- The client’s level of investment knowledge and experience, with a short justification.
-- Their capacity for loss (low / moderate / high) with reasons.
-- Their agreed attitude to risk (e.g. cautious, balanced, adventurous) and how the current portfolio aligns with this.
-
-If any of these fields are missing in reviewData and not clearly stated in the transcript, describe them in neutral language (for example, "your current portfolio is invested in a way that aims to balance growth with an appropriate level of risk for your circumstances").
-
-6) Protection, Wills and Power of Attorney, and Estate Planning
-If reviewData.protection_notes, reviewData.estate_planning_notes or related information is available, summarise:
-- The client’s current protection position (e.g. life cover, critical illness, income protection) and whether it appears adequate.
-- Any discussion around wills, powers of attorney, and inheritance tax planning.
-
-If these topics were not discussed or are unclear, either omit them or write one short paragraph noting that this will be reviewed in future meetings, without inventing specific recommendations.
-
-7) Agreed Actions and Next Steps
-Based on reviewData.follow_up_actions (if provided) and the transcript, list the concrete next steps that were agreed. Present them as a short, numbered or bulleted list in plain text. For each action, mention:
-- What will be done
-- Who is responsible (you, the client, or a third party)
-- Any relevant timescales if they are clearly known
-
-If there are no clear follow-up actions, include a single line noting that no immediate changes are required but that the plan will continue to be reviewed regularly.
-
-8) Cashflow Modelling and Ongoing Reviews
-If cashflow modelling was discussed (and this is reflected in reviewData or the transcript), briefly explain:
-- The purpose of the modelling (e.g. to assess whether retirement goals remain achievable)
-- The high-level conclusion (on track / may need further contributions / further review required)
-
-Then confirm that you will continue to review their position regularly, and, if reviewData.next_review_timing is available, refer to the expected timing of the next review.
-
-9) Closing
-End with a professional closing paragraph that:
-- Invites the client to ask questions or request clarification at any time.
-- Reassures them that you will keep their plan under regular review.
-- Signs off with your name and role if this is evident in the transcript; otherwise use a generic professional sign-off such as "Best regards" followed by your name.
+Start with: "Dear [Client Name],"
+Then: "Following our review meeting on [date from transcript], I have outlined the main points and my recommendations below."
 
 ---
 
-OUTPUT FORMAT
+2) YOUR CIRCUMSTANCES
 
-Your entire response must be a SINGLE, continuous plain text email body, with normal paragraph breaks and simple numbered or bulleted lists where appropriate.
+Start with: "We discussed the following aspects of your financial situation, and you confirmed that none have changed materially since our last review:"
+(If changes were mentioned in the transcript, rewrite accordingly to reflect those changes.)
 
-Do NOT include:
-- Any headings or markdown syntax (no #, no **, no tables).
-- Any meta-commentary about what you are doing.
-- Any placeholders or instructions to the adviser.
+For EACH of the following bullets, you MUST expand to at least 10 words:
+- Health - e.g., "You remain in good health with no new concerns that may affect future financial planning, and you reported feeling stable and well overall."
+- Personal circumstances - e.g., "Your employment, home life and family structure remain unchanged, with no expected adjustments in the foreseeable future."
+- Income & expenditure - e.g., "Your income continues to be strong and reliable, and you do not anticipate any additional income needs or major expenditure changes over the next five years."
+- Assets & liabilities - e.g., "Your property values and mortgage balances remain broadly aligned with previous assessments, with no new debts or liabilities added to your position."
+- Emergency fund - e.g., "You continue to maintain a robust level of cash reserves across several accounts, which provides strong short-term financial security and flexibility."
+- Tax status - e.g., "You remain an additional-rate taxpayer, and there are no expected near-term changes to your tax position."
+- Capacity for loss - State whether this is unchanged and reference previous assessment.
+- Attitude to risk - e.g., "Your attitude to risk remains Medium, reflecting your preference for balanced long-term growth while remaining comfortable with market volatility."
 
-The email you output must be ready to send to the client exactly as written.
+---
 
-Sign off as {advisorName} from {businessName}.
-`,
+3) YOUR GOALS AND OBJECTIVES
+
+Start with: "We reviewed your financial goals, confirming that no significant changes have occurred:"
+(If changes exist, update wording accordingly.)
+
+Include:
+- Retirement planning - "Your intended retirement age remains [Age]."
+- Capital growth objective - Target income/capital goal if mentioned.
+- If cashflow modelling was discussed, include: "Updated cashflow modelling indicates a required return of [X]% p.a., or an additional contribution of [X] p.a., assuming a [X]% growth rate." (Only include if actual figures are in transcript.)
+- Ongoing financial advice preference.
+- Active investment management preference.
+- Any additional goals (school fees, mortgage, etc.) as bullet points.
+
+---
+
+4) YOUR CURRENT INVESTMENTS
+
+For each investment plan discussed in the transcript, summarise:
+- Plan type (e.g., SJP Pension, ISA, etc.)
+- Plan number (if mentioned, otherwise state "Not provided")
+- Value (approximate if stated)
+- Regular contributions (yes/no, amounts if known)
+
+Then provide narrative covering:
+- Investment performance since last review
+- Fund selection and risk profile alignment
+- Rebalancing discussion and outcome
+- Legislation changes discussed
+- New products/services discussed
+- Suitability confirmation
+
+---
+
+5) INVESTMENT KNOWLEDGE & EXPERIENCE
+
+Select ONE category based on transcript content and use the EXACT wording:
+
+If NONE: "Having discussed this with you, we agreed you have no previous investment knowledge and experience because:"
+Applicable bullets:
+- You have not previously held investments outside of a bank, building society cash deposits, or National Savings & Investment products.
+
+If LIMITED: "Having discussed this with you, we agreed you have limited investment knowledge and experience because:"
+Applicable bullets:
+- You have purchased investments where no significant investment volatility has been experienced since acquiring them.
+- You hold investments; however, you have not made any active decisions.
+- Your experience is limited to small Stocks & Shares ISAs.
+- You hold investments in With-Profit Funds only and therefore have not experienced volatility due to the smoothing effect of bonuses.
+
+If MODERATE: "Having discussed this with you, we agreed you have a moderate level of investment knowledge and experience because:"
+Applicable bullets:
+- You have purchased investments and experienced significant investment volatility.
+- You have selected your own funds within a work-based pension instead of using the default fund.
+- You have received advice to take Tax-Free Cash and have designated funds into Flexi-Access Drawdown.
+
+If EXTENSIVE: "Having discussed this with you, we agreed you have an extensive level of investment knowledge and experience because:"
+Applicable bullets:
+- You regularly buy and sell shares or funds.
+- You have purchased alternative investments such as hedge funds or commodities.
+- You have investment experience through your employment.
+- You are classed as a Professional Client.
+- You have purchased shares in early-stage enterprise companies not yet listed on an exchange.
+
+---
+
+6) CAPACITY FOR LOSS
+
+Select ONE category based on transcript content and use the EXACT wording:
+
+If LOW: "We agreed you have a low capacity to withstand investment losses because:"
+Applicable bullets:
+- You have little net disposable income.
+- You have limited ability to increase net disposable income because of high essential expenditure.
+- You have minimal or no secured income.
+- You have limited capital available to invest.
+- You are already significantly exposed to investment risk through other investments.
+- You are primarily reliant on income produced by your investments.
+- Your emergency cash reserves would be rapidly exhausted if required.
+- A significant fall in your investment value would negatively affect your short-term financial goals.
+
+If MODERATE: "We agreed you have a moderate capacity to withstand investment losses because:"
+Applicable bullets:
+- You have sufficient disposable income and the ability to save regularly.
+- Your investment portfolio is well diversified and not overly exposed to market risk.
+- You are not primarily reliant on investment income.
+- Your financial reserves would not be quickly exhausted if needed.
+- A fall in investment value would impact goals, but you have flexibility to adjust plans accordingly.
+
+If HIGH: "We agreed you have a high capacity to withstand investment losses because:"
+Applicable bullets:
+- You have a substantial, secure income and strong ability to save.
+- You demonstrate robust financial planning and enjoy high disposable income.
+- Your financial reserves would last several years if required for essential expenditure.
+- You hold a well-diversified portfolio and maintain significant additional cash resources.
+
+---
+
+7) MY RECOMMENDATIONS
+
+Summarise the key recommendations discussed in the meeting:
+- Current investment suitability confirmation
+- Recommended actions with clear steps
+- Tax efficiency improvements
+- Any product recommendations (ISAs, pension contributions, etc.)
+
+---
+
+8) PROTECTION
+
+Use this default wording unless the transcript contradicts it:
+
+"Having comprehensive insurance in place is fundamental to a strong financial plan and should include not just Life insurance but Income replacement and/or Critical Illness cover. We discussed your current protection policies and you confirmed you have employer cover in place. Note that if you change employer, there is no guarantee you will receive the same or better benefits which is why it is valuable to have personal protection as this is fully portable regardless of employer. This is an area we can assist in. Please let me know whether you would like to speak to my colleague who specialises in this area who can provide you guidance on best practice, structure and cost."
+
+If no protection was confirmed:
+"You did not confirm any existing protection policies. Please confirm your current Life, Income Protection, and Critical Illness cover so we can advise properly."
+
+If personal protection is already in place, adjust the wording accordingly.
+
+---
+
+9) WILLS & POWER OF ATTORNEY
+
+Default wording:
+"I recommend that you make a valid will and keep it up to date with any future changes to your personal circumstances. This will should also include a Power of Attorney to ensure that decisions can be made on your behalf if you become unable to do so."
+
+If the client already has these in place:
+"You confirmed that you have an up-to-date will and Power of Attorney in place. We recommend reviewing these periodically to ensure they continue to reflect your wishes and circumstances."
+
+---
+
+10) INHERITANCE TAX PLANNING
+
+Default wording:
+"Your current assets and liabilities indicate a potential inheritance tax liability. You have opted not to address this currently as you are focused on wealth accumulation, but we will continue to monitor this and discuss planning options with you at future reviews."
+
+If they are addressing IHT:
+"We reviewed your estate planning position and you are actively addressing potential inheritance tax exposure through your existing planning strategy. We will continue to review this regularly."
+
+If they do not have IHT exposure:
+"Based on your current asset levels, no inheritance tax exposure is anticipated at present. We will continue to review this as part of future planning."
+
+---
+
+11) CASHFLOW MODELLING REFERENCE
+
+If cashflow modelling was discussed, briefly reference it and the conclusions reached.
+
+---
+
+OUTPUT RULES
+
+1. Write in UK English, professional but warm tone
+2. Use section headings exactly as shown (e.g., "Your Circumstances", "Your Goals and Objectives")
+3. NO markdown formatting (no **, no #, no tables)
+4. NO placeholders like [X]% or [TO CONFIRM] - if data is missing, use neutral language
+5. The email must be ready to send exactly as written
+6. Sign off with: "Best regards," followed by {advisorName}
+
+Generate the complete email now.\`,
     type: 'review-summary'
   }
 ];
@@ -654,7 +729,7 @@ ${userProfile.businessName}`;
               </Button>
               <Button
                 onClick={handleCreateTemplate}
-                disabled={saving || !newTemplateTitle.trim()}
+                disabled={saving || !newTemplateTitle.trim() || !generatedContent.trim()}
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 Submit
