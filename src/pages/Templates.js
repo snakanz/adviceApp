@@ -268,7 +268,7 @@ OUTPUT RULES
 5. The email must be ready to send exactly as written
 6. Sign off with: "Best regards," followed by {advisorName}
 
-Generate the complete email now.\`,
+Generate the complete email now.`,
     type: 'review-summary'
   }
 ];
