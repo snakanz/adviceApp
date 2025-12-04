@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const axios = require('axios');
 const CalendlyService = require('../services/calendlyService');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
+const clientExtractionService = require('../services/clientExtraction');
 
 const router = express.Router();
 
@@ -423,6 +424,16 @@ async function handleInviteeCreated(payload, webhookUserId) {
           last_calendly_sync: new Date().toISOString()
         })
         .eq('id', userId);
+
+      // Extract and link client from the new meeting
+      try {
+        console.log('🔄 Starting client extraction for Calendly webhook meeting...');
+        const extractionResult = await clientExtractionService.linkMeetingsToClients(userId);
+        console.log('✅ Client extraction completed for Calendly webhook:', extractionResult);
+      } catch (extractionError) {
+        console.error('❌ Error extracting client from Calendly webhook meeting:', extractionError);
+        // Don't fail the webhook if client extraction fails
+      }
     }
   } catch (error) {
     console.error('❌ Error handling invitee.created:', error);
