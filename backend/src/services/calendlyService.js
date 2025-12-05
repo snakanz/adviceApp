@@ -1,6 +1,7 @@
 const { getSupabase } = require('../lib/supabase');
 const axios = require('axios');
 const clientExtractionService = require('./clientExtraction');
+const { checkUserHasTranscriptionAccess } = require('../utils/subscriptionCheck');
 
 /**
  * Calendly API v2 Service
@@ -547,19 +548,30 @@ class CalendlyService {
               // Schedule Recall bot if transcription is enabled AND meeting is happening now / very soon
               if (transcriptionEnabled && newMeeting) {
                 try {
-                  const now = new Date();
-                  const start = new Date(event.start_time);
-                  const end = new Date(event.end_time);
-
-                  const alreadyOver = end <= now;
-                  const startsTooFarInFuture = start.getTime() - now.getTime() > 1 * 60 * 1000; // more than 1 minute ahead (per Recall recommendation)
-
-                  if (!alreadyOver && !startsTooFarInFuture) {
-                    await this.scheduleRecallBotForCalendlyEvent(event, newMeeting.id, userId);
+                  // Check if user has transcription access (paid or within free limit)
+                  const hasAccess = await checkUserHasTranscriptionAccess(userId);
+                  if (!hasAccess) {
+                    console.log(`🚫 User ${userId} has exceeded free meeting limit - skipping Recall bot for meeting ${newMeeting.id}`);
+                    // Mark meeting as needing upgrade
+                    await getSupabase()
+                      .from('meetings')
+                      .update({ recall_status: 'upgrade_required' })
+                      .eq('id', newMeeting.id);
                   } else {
-                    console.log(
-                      `⏭️  Skipping Recall bot for Calendly event "${event.name}" (start=${start.toISOString()}, end=${end.toISOString()})`
-                    );
+                    const now = new Date();
+                    const start = new Date(event.start_time);
+                    const end = new Date(event.end_time);
+
+                    const alreadyOver = end <= now;
+                    const startsTooFarInFuture = start.getTime() - now.getTime() > 1 * 60 * 1000; // more than 1 minute ahead (per Recall recommendation)
+
+                    if (!alreadyOver && !startsTooFarInFuture) {
+                      await this.scheduleRecallBotForCalendlyEvent(event, newMeeting.id, userId);
+                    } else {
+                      console.log(
+                        `⏭️  Skipping Recall bot for Calendly event "${event.name}" (start=${start.toISOString()}, end=${end.toISOString()})`
+                      );
+                    }
                   }
                 } catch (recallError) {
                   console.warn(`⚠️  Failed to schedule Recall bot for meeting ${newMeeting.id}:`, recallError.message);

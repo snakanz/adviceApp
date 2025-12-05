@@ -3,6 +3,7 @@ const router = express.Router();
 const axios = require('axios');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
+const { checkUserHasTranscriptionAccess } = require('../utils/subscriptionCheck');
 
 /**
  * Extract meeting URL from calendar event
@@ -90,6 +91,24 @@ router.post('/schedule-bot', authenticateSupabaseUser, async (req, res) => {
     }
 
     const supabase = getSupabase();
+
+    // Check if user has transcription access (paid or within free limit)
+    const hasAccess = await checkUserHasTranscriptionAccess(userId);
+    if (!hasAccess) {
+      console.log(`🚫 User ${userId} has exceeded free meeting limit - rejecting bot scheduling request`);
+      // Mark meeting as needing upgrade
+      await supabase
+        .from('meetings')
+        .update({ recall_status: 'upgrade_required' })
+        .eq('id', meetingId)
+        .eq('user_id', userId);
+
+      return res.status(403).json({
+        error: 'Free meeting limit exceeded',
+        code: 'UPGRADE_REQUIRED',
+        message: 'You have used all 5 free transcribed meetings. Please upgrade to continue using meeting transcription.'
+      });
+    }
 
     // Create Recall bot
     const bot = await createRecallBot(meetingUrl, meetingId, userId);

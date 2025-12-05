@@ -4,6 +4,7 @@ const GoogleCalendarWebhook = require('./googleCalendarWebhook');
 const MicrosoftCalendarService = require('./microsoftCalendar');
 const WebhookHealthService = require('./webhookHealthService');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
+const { checkUserHasTranscriptionAccess } = require('../utils/subscriptionCheck');
 
 /**
  * Sync Scheduler Service
@@ -507,6 +508,19 @@ class SyncScheduler {
           // Validate meeting URL
           if (!meeting.meeting_url || meeting.meeting_url.trim() === '') {
             console.log(`  ⏭️  Skipping meeting ${meeting.id}: no valid meeting URL`);
+            skipped++;
+            continue;
+          }
+
+          // Check if user has transcription access (paid or within free limit)
+          const hasAccess = await checkUserHasTranscriptionAccess(meeting.user_id);
+          if (!hasAccess) {
+            console.log(`  🚫 Skipping meeting ${meeting.id}: user ${meeting.user_id} has exceeded free meeting limit`);
+            // Mark meeting as needing upgrade
+            await supabase
+              .from('meetings')
+              .update({ recall_status: 'upgrade_required' })
+              .eq('id', meeting.id);
             skipped++;
             continue;
           }

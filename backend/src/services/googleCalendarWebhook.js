@@ -2,6 +2,7 @@ const { google } = require('googleapis');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 const crypto = require('crypto');
 const clientExtractionService = require('./clientExtraction');
+const { checkUserHasTranscriptionAccess } = require('../utils/subscriptionCheck');
 
 /**
  * Google Calendar Webhook Service
@@ -311,19 +312,30 @@ class GoogleCalendarWebhookService {
               // Schedule Recall bot if transcription is enabled AND meeting is happening now / very soon
               if (transcriptionEnabled) {
                 try {
-                  const now = new Date();
-                  const start = new Date(event.start.dateTime || event.start.date);
-                  const end = new Date(event.end?.dateTime || event.end?.date || start);
-
-                  const alreadyOver = end <= now;
-                  const startsTooFarInFuture = start.getTime() - now.getTime() > 1 * 60 * 1000; // more than 1 minute ahead (per Recall recommendation)
-
-                  if (!alreadyOver && !startsTooFarInFuture) {
-                    await this.scheduleRecallBotForMeeting(event, newMeeting.id, userId);
+                  // Check if user has transcription access (paid or within free limit)
+                  const hasAccess = await checkUserHasTranscriptionAccess(userId);
+                  if (!hasAccess) {
+                    console.log(`🚫 User ${userId} has exceeded free meeting limit - skipping Recall bot for meeting ${newMeeting.id}`);
+                    // Mark meeting as needing upgrade
+                    await getSupabase()
+                      .from('meetings')
+                      .update({ recall_status: 'upgrade_required' })
+                      .eq('id', newMeeting.id);
                   } else {
-                    console.log(
-                      `⏭️  Skipping Recall bot for Google event outside live window: ${event.summary} (start=${start.toISOString()}, end=${end.toISOString()})`
-                    );
+                    const now = new Date();
+                    const start = new Date(event.start.dateTime || event.start.date);
+                    const end = new Date(event.end?.dateTime || event.end?.date || start);
+
+                    const alreadyOver = end <= now;
+                    const startsTooFarInFuture = start.getTime() - now.getTime() > 1 * 60 * 1000; // more than 1 minute ahead (per Recall recommendation)
+
+                    if (!alreadyOver && !startsTooFarInFuture) {
+                      await this.scheduleRecallBotForMeeting(event, newMeeting.id, userId);
+                    } else {
+                      console.log(
+                        `⏭️  Skipping Recall bot for Google event outside live window: ${event.summary} (start=${start.toISOString()}, end=${end.toISOString()})`
+                      );
+                    }
                   }
                 } catch (recallError) {
                   console.warn(`⚠️  Failed to schedule Recall bot for meeting ${newMeeting.id}:`, recallError.message);
