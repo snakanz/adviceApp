@@ -161,9 +161,9 @@ export default function InlineChatWidget({
                   <Sparkles className="w-4 h-4" />
                 </AvatarFallback>
               </Avatar>
-              <div className="bg-muted rounded-lg px-4 py-3 max-w-[85%]">
+              <div className="px-4 py-3 max-w-[85%]">
                 <p className="text-sm text-foreground">
-                  {contextType === 'meeting' 
+                  {contextType === 'meeting'
                     ? `How can I help you with this meeting${clientName ? ` with ${clientName}` : ''}?`
                     : `How can I help you with ${clientName || 'this client'}?`
                   }
@@ -180,7 +180,7 @@ export default function InlineChatWidget({
                     key={idx}
                     onClick={() => handlePromptClick(prompt.text)}
                     disabled={loading}
-                    className="w-full text-left p-3 rounded-lg border border-border/50 bg-card hover:bg-muted/50 hover:border-primary/30 transition-all group disabled:opacity-50"
+                    className="w-full text-left p-3 rounded-lg hover:bg-muted/30 transition-all group disabled:opacity-50"
                   >
                     <div className="flex items-center gap-3">
                       <Icon className={cn("w-4 h-4 flex-shrink-0", prompt.color)} />
@@ -236,7 +236,7 @@ export default function InlineChatWidget({
                     <Sparkles className="w-4 h-4" />
                   </AvatarFallback>
                 </Avatar>
-                <div className="bg-muted rounded-lg px-4 py-3">
+                <div className="px-4 py-3">
                   <div className="flex items-center gap-1">
                     <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
                     <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
@@ -250,7 +250,7 @@ export default function InlineChatWidget({
       </div>
 
       {/* Input area */}
-      <div className="border-t border-border/50 p-3">
+      <div className="p-3">
         <div className="flex items-end gap-2">
           <div className="flex-1 relative">
             <textarea
@@ -260,7 +260,7 @@ export default function InlineChatWidget({
               onKeyDown={handleKeyDown}
               placeholder="Ask anything..."
               rows={1}
-              className="w-full min-h-[40px] max-h-24 p-3 bg-muted/50 text-foreground border border-border/50 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+              className="w-full min-h-[40px] max-h-24 p-3 bg-transparent text-foreground border border-border/30 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm placeholder:text-muted-foreground"
               disabled={loading}
             />
           </div>
