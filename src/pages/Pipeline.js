@@ -26,7 +26,7 @@ import BusinessTypeManager from '../components/BusinessTypeManager';
 const STAGE_OPTIONS = [
   { value: 'Not Written', label: 'Not Written', color: 'bg-gray-500/20 text-gray-300' },
   { value: 'In Progress', label: 'In Progress', color: 'bg-blue-500/20 text-blue-400' },
-  { value: 'Signed', label: 'Signed', color: 'bg-yellow-500/20 text-yellow-400' },
+  { value: 'Waiting to Sign', label: 'Waiting to Sign', color: 'bg-yellow-500/20 text-yellow-400' },
   { value: 'Completed', label: 'Completed', color: 'bg-green-500/20 text-green-400' }
 ];
 
@@ -196,12 +196,13 @@ export default function Pipeline() {
   };
 
   const formatCurrency = (amount) => {
+    const value = parseFloat(amount) || 0;
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0
-    }).format(amount);
+    }).format(value);
   };
 
   const getBusinessTypeColor = (type) => {
@@ -274,13 +275,15 @@ export default function Pipeline() {
       businessTypesData: client.business_types_data || client.businessTypesData || [],
       totalBusinessAmount: client.business_amount || client.investmentAmount || 0,
       totalIafExpected: client.iaf_expected || client.expectedFees || 0,
+      expectedValue: client.iaf_expected || client.expectedFees || client.expectedValue || 0,
       pipelineNotes: client.notes || client.pipelineNotes || null,
       // Preserve meeting stats from pipeline row data
       nextMeetingDate: client.nextMeetingDate || null,
       pastMeetingCount: typeof client.pastMeetingCount === 'number' ? client.pastMeetingCount : (client.meeting_count || 0),
-      // Include stage info from the business types
-      allBusinessTypesWithStage: (client.business_types_data || client.businessTypesData || client.allBusinessTypes || []).map(bt => ({
+      // Include stage info from the business types - use allBusinessTypes which contains the full list with IDs
+      allBusinessTypesWithStage: (client.allBusinessTypes || client.business_types_data || client.businessTypesData || []).map(bt => ({
         ...bt,
+        id: bt.id, // Ensure id is explicitly preserved for stage updates
         stage: bt.stage || 'Not Written'
       }))
     };
@@ -382,9 +385,15 @@ export default function Pipeline() {
         c.businessTypeId === businessTypeId ? { ...c, stage: newStage } : c
       ));
 
-      // Update selected client if applicable
-      if (selectedClient && selectedClient.businessTypeId === businessTypeId) {
-        setSelectedClient(prev => ({ ...prev, stage: newStage }));
+      // Update selected client if applicable - also update allBusinessTypesWithStage
+      if (selectedClient) {
+        setSelectedClient(prev => ({
+          ...prev,
+          stage: prev.businessTypeId === businessTypeId ? newStage : prev.stage,
+          allBusinessTypesWithStage: (prev.allBusinessTypesWithStage || []).map(bt =>
+            bt.id === businessTypeId ? { ...bt, stage: newStage } : bt
+          )
+        }));
       }
     } catch (error) {
       console.error('Error updating stage:', error);
