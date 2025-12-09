@@ -103,10 +103,10 @@ const LoginPage = () => {
                 <Card className="shadow-large border-border/50 bg-card/80 backdrop-blur-sm">
                     <CardHeader className="text-center space-y-4">
                         <div className="flex justify-center mb-4">
-                            <img 
-                                src={process.env.PUBLIC_URL + '/logo-advicly.png'} 
-                                alt="Advicly Logo" 
-                                className="h-12 w-auto" 
+                            <img
+                                src="https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Advicly%20(400%20x%20100%20px).svg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvQWR2aWNseSAoNDAwIHggMTAwIHB4KS5zdmciLCJpYXQiOjE3NjUyODM0NTcsImV4cCI6MTgyODM1NTQ1N30.yJa3VGx3OEyV3yrCDZ20KS2FMKr6fNiNp7McqkQ17jo"
+                                alt="Advicly Logo"
+                                className="h-12 w-auto"
                             />
                         </div>
                         <CardTitle className="text-2xl font-bold text-foreground">

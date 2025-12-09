@@ -185,7 +185,7 @@ const OnboardingFlow = () => {
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center space-x-2">
                             <img
-                                src="https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Advicly%20Logo.svg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvQWR2aWNseSBMb2dvLnN2ZyIsImlhdCI6MTc2NDc5MTAxMiwiZXhwIjoxNzk2MzI3MDEyfQ.KNKi1mLZLOsvWHC9WWlJqTKPtmvSG_kcHIqiSiqEL_A"
+                                src="https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Advicly%20(400%20x%20100%20px).svg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvQWR2aWNseSAoNDAwIHggMTAwIHB4KS5zdmciLCJpYXQiOjE3NjUyODM0NTcsImV4cCI6MTgyODM1NTQ1N30.yJa3VGx3OEyV3yrCDZ20KS2FMKr6fNiNp7McqkQ17jo"
                                 alt="Advicly"
                                 className="h-8 w-auto"
                             />
