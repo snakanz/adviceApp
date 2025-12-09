@@ -23,10 +23,12 @@ import CreateClientForm from '../components/CreateClientForm';
 import BusinessTypeManager from '../components/BusinessTypeManager';
 
 // Stage options for business types - dark theme compatible colors
+// Note: 'Signed' is kept for backwards compatibility with existing database records
 const STAGE_OPTIONS = [
   { value: 'Not Written', label: 'Not Written', color: 'bg-gray-500/20 text-gray-300' },
   { value: 'In Progress', label: 'In Progress', color: 'bg-blue-500/20 text-blue-400' },
   { value: 'Waiting to Sign', label: 'Waiting to Sign', color: 'bg-yellow-500/20 text-yellow-400' },
+  { value: 'Signed', label: 'Signed', color: 'bg-yellow-500/20 text-yellow-400', legacy: true },
   { value: 'Completed', label: 'Completed', color: 'bg-green-500/20 text-green-400' }
 ];
 
@@ -212,7 +214,9 @@ export default function Pipeline() {
       'Bond': 'bg-purple-100 text-purple-800 border-purple-200',
       'Investment': 'bg-orange-100 text-orange-800 border-orange-200',
       'Insurance': 'bg-red-100 text-red-800 border-red-200',
-      'Mortgage': 'bg-yellow-100 text-yellow-800 border-yellow-200'
+      'Protection': 'bg-red-100 text-red-800 border-red-200',
+      'Mortgage': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      'Other': 'bg-gray-100 text-gray-800 border-gray-200'
     };
     return colors[type] || 'bg-gray-100 text-gray-800 border-gray-200';
   };

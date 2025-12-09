@@ -22,7 +22,7 @@ import {
 const BUSINESS_TYPES = [
   'Investment',
   'Mortgage',
-  'Insurance',
+  'Protection',
   'Other'
 ];
 

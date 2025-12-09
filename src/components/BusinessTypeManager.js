@@ -15,7 +15,8 @@ import { api } from '../services/api';
 const BUSINESS_TYPES = [
   'Investment',
   'Mortgage',
-  'Insurance'
+  'Protection',
+  'Other'
 ];
 
 function getBusinessTypeLabel(type) {
@@ -26,7 +27,8 @@ function getBusinessTypeLabel(type) {
     case 'Investment':
       return 'Investment';
     case 'Insurance':
-      return 'Protection / Insurance';
+    case 'Protection':
+      return 'Protection';
     case 'Mortgage':
       return 'Mortgage';
     default:

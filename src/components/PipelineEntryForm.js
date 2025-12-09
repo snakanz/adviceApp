@@ -31,7 +31,8 @@ const PipelineEntryForm = ({ client, onClose, onSubmit, isSubmitting }) => {
   const businessTypes = [
     'Investment',
     'Mortgage',
-    'Insurance'
+    'Protection',
+    'Other'
   ];
 
   const meetingTypes = [
