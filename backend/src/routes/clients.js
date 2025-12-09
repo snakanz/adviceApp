@@ -1273,7 +1273,7 @@ router.patch('/business-types/:businessTypeId/stage', authenticateSupabaseUser, 
     console.log('🔄 Updating business type stage:', { businessTypeId, stage });
 
     // Validate stage value
-    const validStages = ['Not Written', 'In Progress', 'Signed', 'Completed'];
+    const validStages = ['Not Written', 'In Progress', 'Waiting to Sign', 'Signed', 'Completed'];
     if (!validStages.includes(stage)) {
       return res.status(400).json({
         error: 'Invalid stage value',
