@@ -18,7 +18,9 @@ import {
   Loader2,
   Check,
   X,
-  Sparkles
+  Sparkles,
+  ExternalLink,
+  AlertCircle
 } from 'lucide-react';
 import { Badge } from '../components/ui/badge';
 import axios from 'axios';
@@ -69,6 +71,9 @@ export default function Settings() {
   // Billing states
   const [billingLoading, setBillingLoading] = useState(false);
   const [billingError, setBillingError] = useState('');
+  const [subscriptionDetails, setSubscriptionDetails] = useState(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
 
   // Form states
   const [personalData, setPersonalData] = useState({
@@ -118,6 +123,30 @@ export default function Settings() {
       loadUserData();
     }
   }, [user]);
+
+  // Load subscription details when billing section is active
+  useEffect(() => {
+    const loadSubscriptionDetails = async () => {
+      if (activeSection !== 'billing') return;
+
+      setSubscriptionLoading(true);
+      try {
+        const token = await getAccessToken();
+        const response = await axios.get(
+          `${API_BASE_URL}/api/billing/subscription-details`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setSubscriptionDetails(response.data);
+      } catch (err) {
+        console.error('Error loading subscription details:', err);
+        setSubscriptionDetails({ isPaid: false, plan: 'free', status: 'active' });
+      } finally {
+        setSubscriptionLoading(false);
+      }
+    };
+
+    loadSubscriptionDetails();
+  }, [activeSection, getAccessToken]);
 
   const handleSavePersonal = async () => {
     setSaving(true);
@@ -214,6 +243,41 @@ export default function Settings() {
     } finally {
       setBillingLoading(false);
     }
+  };
+
+  const handleManageSubscription = async () => {
+    setPortalLoading(true);
+    setBillingError('');
+
+    try {
+      const token = await getAccessToken();
+      const response = await axios.post(
+        `${API_BASE_URL}/api/billing/customer-portal`,
+        { returnUrl: `${window.location.origin}/settings?section=billing` },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.url) {
+        window.location.href = response.data.url;
+      } else {
+        throw new Error('No portal URL received');
+      }
+    } catch (err) {
+      console.error('Error opening customer portal:', err);
+      setBillingError(err.response?.data?.error || 'Failed to open billing portal. Please try again.');
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  // Format date helper
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
   };
 
   // Render content based on active section
@@ -320,6 +384,132 @@ export default function Settings() {
         );
 
       case 'billing':
+        // Show loading state
+        if (subscriptionLoading) {
+          return (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold text-foreground mb-1">Billing</h2>
+                <p className="text-sm text-muted-foreground">Manage your subscription and billing</p>
+              </div>
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            </div>
+          );
+        }
+
+        // Show subscription details for paid users
+        if (subscriptionDetails?.isPaid) {
+          return (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-xl font-semibold text-foreground mb-1">Billing</h2>
+                <p className="text-sm text-muted-foreground">Manage your subscription and billing</p>
+              </div>
+
+              {/* Current Subscription Card */}
+              <Card className="border-2 border-green-500/50 bg-green-500/5">
+                <CardContent className="p-6 space-y-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-xl font-bold">Professional Plan</h3>
+                        <Badge className="bg-green-500 text-white border-0">
+                          {subscriptionDetails.status === 'active' ? 'Active' : subscriptionDetails.status}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {subscriptionDetails.productName || 'Unlimited AI-transcribed meetings'}
+                      </p>
+                    </div>
+                    <Sparkles className="w-8 h-8 text-primary" />
+                  </div>
+
+                  {/* Billing Details */}
+                  <div className="grid sm:grid-cols-2 gap-4 pt-4 border-t border-border">
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Amount</p>
+                      <p className="text-2xl font-bold">
+                        £{subscriptionDetails.amount || '70.00'}
+                        <span className="text-sm font-normal text-muted-foreground">
+                          /{subscriptionDetails.interval || 'month'}
+                        </span>
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Next billing date</p>
+                      <p className="text-lg font-semibold">
+                        {formatDate(subscriptionDetails.nextBillingDate)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Cancel at period end warning */}
+                  {subscriptionDetails.cancelAtPeriodEnd && (
+                    <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-md">
+                      <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-yellow-700">Subscription ending</p>
+                        <p className="text-sm text-yellow-600">
+                          Your subscription will end on {formatDate(subscriptionDetails.currentPeriodEnd)}.
+                          You can reactivate it from the billing portal.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Manage Subscription Button */}
+                  <Button
+                    onClick={handleManageSubscription}
+                    disabled={portalLoading}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    {portalLoading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Opening portal...
+                      </>
+                    ) : (
+                      <>
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Manage Subscription
+                      </>
+                    )}
+                  </Button>
+                  <p className="text-xs text-center text-muted-foreground">
+                    Update payment method, view invoices, or cancel your subscription
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Plan Features */}
+              <Card className="border-border/50">
+                <CardContent className="p-6">
+                  <h4 className="font-medium mb-4">Your plan includes:</h4>
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {proPlanFeatures.map((feature, index) => (
+                      <div key={index} className="flex items-start gap-2">
+                        <Check className="w-4 h-4 text-green-600 flex-shrink-0 mt-0.5" />
+                        <span className="text-sm">{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Error Message */}
+              {billingError && (
+                <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                  {billingError}
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        // Show upgrade UI for free users
         return (
           <div className="space-y-6">
             <div>

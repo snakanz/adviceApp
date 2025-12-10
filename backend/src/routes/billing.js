@@ -331,6 +331,150 @@ router.get('/subscription', authenticateSupabaseUser, async (req, res) => {
 });
 
 /**
+ * GET /api/billing/subscription-details
+ * Get detailed subscription info from Stripe (amount, next billing date, etc.)
+ */
+router.get('/subscription-details', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!stripe) {
+      return res.status(500).json({ error: 'Payment system not configured' });
+    }
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    // Get subscription from database
+    const { data: subscription } = await getSupabase()
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    // If no subscription or free plan, return basic info
+    if (!subscription || subscription.plan === 'free') {
+      return res.json({
+        isPaid: false,
+        plan: 'free',
+        status: 'active'
+      });
+    }
+
+    // Get Stripe subscription details if we have a subscription ID
+    if (subscription.stripe_subscription_id) {
+      try {
+        const stripeSubscription = await stripe.subscriptions.retrieve(
+          subscription.stripe_subscription_id,
+          { expand: ['items.data.price.product', 'default_payment_method'] }
+        );
+
+        const priceItem = stripeSubscription.items.data[0];
+        const price = priceItem?.price;
+        const product = price?.product;
+
+        // Format amount (Stripe amounts are in pence/cents)
+        const amount = price?.unit_amount ? (price.unit_amount / 100).toFixed(2) : null;
+        const currency = price?.currency?.toUpperCase() || 'GBP';
+        const interval = price?.recurring?.interval || 'month';
+
+        // Get next billing date
+        const nextBillingDate = stripeSubscription.current_period_end
+          ? new Date(stripeSubscription.current_period_end * 1000).toISOString()
+          : null;
+
+        // Check if subscription is set to cancel at period end
+        const cancelAtPeriodEnd = stripeSubscription.cancel_at_period_end;
+
+        return res.json({
+          isPaid: true,
+          plan: subscription.plan || 'professional',
+          status: stripeSubscription.status,
+          amount: amount,
+          currency: currency,
+          interval: interval,
+          productName: typeof product === 'object' ? product.name : 'Professional Plan',
+          nextBillingDate: nextBillingDate,
+          currentPeriodStart: new Date(stripeSubscription.current_period_start * 1000).toISOString(),
+          currentPeriodEnd: new Date(stripeSubscription.current_period_end * 1000).toISOString(),
+          cancelAtPeriodEnd: cancelAtPeriodEnd,
+          stripeSubscriptionId: stripeSubscription.id
+        });
+      } catch (stripeError) {
+        console.error('Error fetching Stripe subscription:', stripeError);
+        // Fall back to database info if Stripe call fails
+        return res.json({
+          isPaid: true,
+          plan: subscription.plan,
+          status: subscription.status,
+          currentPeriodStart: subscription.current_period_start,
+          currentPeriodEnd: subscription.current_period_end,
+          error: 'Could not fetch latest billing details'
+        });
+      }
+    }
+
+    // No Stripe subscription ID, return database info
+    res.json({
+      isPaid: subscription.plan !== 'free',
+      plan: subscription.plan,
+      status: subscription.status,
+      currentPeriodStart: subscription.current_period_start,
+      currentPeriodEnd: subscription.current_period_end
+    });
+
+  } catch (error) {
+    console.error('Error getting subscription details:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/billing/customer-portal
+ * Create a Stripe Customer Portal session for managing subscription
+ */
+router.post('/customer-portal', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { returnUrl } = req.body;
+
+    if (!stripe) {
+      return res.status(500).json({ error: 'Payment system not configured' });
+    }
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    // Get Stripe customer ID
+    const { data: customer } = await getSupabase()
+      .from('stripe_customers')
+      .select('stripe_customer_id')
+      .eq('user_id', userId)
+      .single();
+
+    if (!customer?.stripe_customer_id) {
+      return res.status(404).json({ error: 'No billing account found' });
+    }
+
+    // Create portal session
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: customer.stripe_customer_id,
+      return_url: returnUrl || `${process.env.FRONTEND_URL}/settings?section=billing`
+    });
+
+    console.log(`✅ Customer portal session created for user ${userId}`);
+
+    res.json({ url: portalSession.url });
+
+  } catch (error) {
+    console.error('Error creating customer portal session:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * NOTE: Stripe webhook handler has been moved to a separate file
  * (routes/stripe-webhook.js) and is mounted BEFORE express.json() middleware
  * in index.js to ensure raw body is available for signature verification.
