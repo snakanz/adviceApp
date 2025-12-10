@@ -13,6 +13,7 @@ const UpgradeModal = ({ isOpen, onClose }) => {
     const { getAccessToken } = useAuth();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
+    const [billingCycle, setBillingCycle] = useState('monthly'); // 'monthly' or 'annual'
 
     const freePlanFeatures = [
         { text: '5 AI-transcribed meetings', included: true },
@@ -43,8 +44,10 @@ const UpgradeModal = ({ isOpen, onClose }) => {
         try {
             const token = await getAccessToken();
 
-            // Get the monthly price ID from environment
-            const priceId = process.env.REACT_APP_STRIPE_PRICE_ID;
+            // Get the price ID based on billing cycle
+            const priceId = billingCycle === 'annual'
+                ? process.env.REACT_APP_STRIPE_PRICE_ID_ANNUAL
+                : process.env.REACT_APP_STRIPE_PRICE_ID;
             const publicKey = process.env.REACT_APP_STRIPE_PUBLIC_KEY;
 
             // Enhanced error logging
@@ -146,6 +149,35 @@ const UpgradeModal = ({ isOpen, onClose }) => {
                         </div>
                     </CardHeader>
                     <CardContent className="space-y-6">
+                        {/* Billing Cycle Toggle */}
+                        <div className="flex justify-center">
+                            <div className="inline-flex items-center bg-muted rounded-lg p-1">
+                                <button
+                                    onClick={() => setBillingCycle('monthly')}
+                                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
+                                        billingCycle === 'monthly'
+                                            ? 'bg-background text-foreground shadow-sm'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                                >
+                                    Monthly
+                                </button>
+                                <button
+                                    onClick={() => setBillingCycle('annual')}
+                                    className={`px-4 py-2 text-sm font-medium rounded-md transition-all flex items-center gap-2 ${
+                                        billingCycle === 'annual'
+                                            ? 'bg-background text-foreground shadow-sm'
+                                            : 'text-muted-foreground hover:text-foreground'
+                                    }`}
+                                >
+                                    Annual
+                                    <Badge className="bg-green-500 text-white text-xs px-1.5 py-0.5">
+                                        Save 20%
+                                    </Badge>
+                                </button>
+                            </div>
+                        </div>
+
                         {/* Pricing Comparison */}
                         <div className="grid md:grid-cols-2 gap-6">
                             {/* Free Plan */}
@@ -190,13 +222,27 @@ const UpgradeModal = ({ isOpen, onClose }) => {
                                     <p className="text-sm text-muted-foreground">Unlimited everything</p>
                                 </div>
                                 <div className="space-y-1">
-                                    <div className="flex items-baseline gap-2">
-                                        <span className="text-4xl font-bold">£70</span>
-                                        <span className="text-muted-foreground">/month</span>
-                                    </div>
-                                    <p className="text-sm text-green-600 font-medium">
-                                        Billed monthly
-                                    </p>
+                                    {billingCycle === 'annual' ? (
+                                        <>
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="text-4xl font-bold">£56</span>
+                                                <span className="text-muted-foreground">/month</span>
+                                            </div>
+                                            <p className="text-sm text-green-600 font-medium">
+                                                £672 billed annually (save £168)
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <div className="flex items-baseline gap-2">
+                                                <span className="text-4xl font-bold">£70</span>
+                                                <span className="text-muted-foreground">/month</span>
+                                            </div>
+                                            <p className="text-sm text-green-600 font-medium">
+                                                Billed monthly
+                                            </p>
+                                        </>
+                                    )}
                                 </div>
                                 <div className="space-y-2">
                                     {proPlanFeatures.map((feature, index) => (
