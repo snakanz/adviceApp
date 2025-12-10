@@ -131,7 +131,8 @@ router.post('/checkout', authenticateSupabaseUser, async (req, res) => {
       success_url: finalSuccessUrl,
       cancel_url: finalCancelUrl,
       billing_address_collection: 'required',
-      payment_method_types: ['card']
+      payment_method_types: ['card'],
+      allow_promotion_codes: true // Enable promo code field at checkout
       // Note: 3D Secure is automatically handled by Stripe Checkout when required
     });
 
