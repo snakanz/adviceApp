@@ -139,22 +139,9 @@ router.patch('/action-items/:actionItemId/toggle', authenticateSupabaseUser, asy
 
     console.log(`✅ Successfully toggled action item ${actionItemId} to completed=${updatedItem.completed}`);
 
-    // Transform to camelCase format to match frontend expectations
-    const formattedItem = {
-      id: updatedItem.id,
-      actionText: updatedItem.action_text,
-      completed: updatedItem.completed,
-      completedAt: updatedItem.completed_at,
-      displayOrder: updatedItem.display_order,
-      priority: updatedItem.priority || 3,
-      createdAt: updatedItem.created_at,
-      meetingId: updatedItem.meeting_id,
-      clientId: updatedItem.client_id,
-      advisorId: updatedItem.advisor_id
-    };
-
-    // Ensure we're sending the response
-    return res.status(200).json({ actionItem: formattedItem });
+    // Return in snake_case format to match the GET endpoint and frontend expectations
+    // The frontend expects the same format as the initial fetch
+    return res.status(200).json({ actionItem: updatedItem });
   } catch (error) {
     console.error('❌ EXCEPTION in toggle action item:', error);
     console.error('Stack trace:', error.stack);

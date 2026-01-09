@@ -339,8 +339,9 @@ router.post('/threads/:threadId/messages', authenticateSupabaseUser, async (req,
       .from('meetings')
       .select('id, external_id, title, starttime, endtime, transcript, quick_summary, detailed_summary, attendees')
       .eq('user_id', advisorId)
+      .eq('is_deleted', false) // Only get non-deleted meetings
       .order('starttime', { ascending: false })
-      .limit(50); // recent meetings only to control token use
+      .limit(200); // Increased limit to ensure we get all client meetings for accurate counts
 
     const { data: allClients } = await req.supabase
       .from('clients')
@@ -525,13 +526,76 @@ It looks like you may be asking about another client (${mentionedOtherClient.nam
 
         const proactiveInsights = generateProactiveInsights(meetingData);
 
+        // Extract client email from meeting attendees to provide broader client context
+        let clientEmail = null;
+        let clientName = null;
+        try {
+          const attendeesList = typeof meetingData.attendees === 'string'
+            ? JSON.parse(meetingData.attendees)
+            : meetingData.attendees;
+
+          if (Array.isArray(attendeesList) && attendeesList.length > 0) {
+            // Find the first attendee that's not the advisor (assuming advisor is the user)
+            const { data: advisorData } = await req.supabase
+              .from('users')
+              .select('email')
+              .eq('id', advisorId)
+              .single();
+
+            const advisorEmail = advisorData?.email?.toLowerCase();
+            const clientAttendee = attendeesList.find(a => {
+              const email = typeof a === 'string' ? a : a.email;
+              return email && email.toLowerCase() !== advisorEmail;
+            });
+
+            if (clientAttendee) {
+              clientEmail = typeof clientAttendee === 'string' ? clientAttendee : clientAttendee.email;
+              clientName = typeof clientAttendee === 'object' ? clientAttendee.name : null;
+            }
+          }
+        } catch (e) {
+          console.error('Error extracting client from attendees:', e);
+        }
+
+        // If we found a client email, add all their meetings to context
+        let clientMeetingsContext = '';
+        if (clientEmail) {
+          const clientMeetings = allMeetings?.filter(m => {
+            if (!m.attendees || m.id === meetingData.id) return false; // Exclude current meeting
+            try {
+              const attendeesList = typeof m.attendees === 'string' ? JSON.parse(m.attendees) : m.attendees;
+              return Array.isArray(attendeesList) && attendeesList.some(attendee =>
+                (typeof attendee === 'string' && attendee.toLowerCase() === clientEmail.toLowerCase()) ||
+                (typeof attendee === 'object' && attendee.email && attendee.email.toLowerCase() === clientEmail.toLowerCase())
+              );
+            } catch (e) {
+              return String(m.attendees).toLowerCase().includes(clientEmail.toLowerCase());
+            }
+          }) || [];
+
+          if (clientMeetings.length > 0) {
+            clientMeetingsContext = `\n\n=== CLIENT MEETING HISTORY ===
+Client: ${clientName || clientEmail}
+Total past meetings with this client: ${clientMeetings.length}
+
+Recent meetings:
+${clientMeetings.slice(0, 10).map(m =>
+  `• ${m.title} (${new Date(m.starttime).toLocaleDateString()})${m.quick_summary ? ` - ${m.quick_summary}` : ''}`
+).join('\n')}
+
+=== END CLIENT MEETING HISTORY ===`;
+          }
+        }
+
         specificContext = `\n\n${meetingContextParts.join('\n')}
 
         ${proactiveInsights}
+        ${clientMeetingsContext}
 
-        CRITICAL: You are discussing ONLY the specific meeting "${meetingData.title}" from ${new Date(meetingData.starttime).toLocaleDateString()}.
-        - Stay within the scope of this meeting unless explicitly asked about history for the SAME client
-        - Reference specific quotes, decisions, and details from the transcript above
+        CRITICAL: You are discussing the specific meeting "${meetingData.title}" from ${new Date(meetingData.starttime).toLocaleDateString()}${clientName ? ` with ${clientName}` : ''}.
+        - You have access to the full meeting transcript and summary above${clientMeetingsContext ? ', as well as the complete history of meetings with this client' : ''}
+        - When asked about this client's meeting history, use the CLIENT MEETING HISTORY section above to provide accurate counts and details
+        - Reference specific quotes, decisions, and details from the transcript
         - Mention specific client concerns, goals, or situations discussed
         - Provide insights and follow-up actions based on what was actually discussed`;
       } else {

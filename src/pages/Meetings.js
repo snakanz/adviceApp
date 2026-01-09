@@ -2912,9 +2912,9 @@ export default function Meetings() {
                 );
               })()}
 
-              {/* Tabs - New Order: Ask Advicely, Summary, Generate Email, Transcript, Documents */}
+              {/* Tabs - New Order: Ask Advicly, Summary, Generate Email, Transcript, Documents */}
               <div className="flex border-b border-border/50 mb-4 overflow-x-auto">
-                {/* Ask Advicely Tab */}
+                {/* Ask Advicly Tab */}
                 <button
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
@@ -2925,7 +2925,7 @@ export default function Meetings() {
                   onClick={() => setActiveTab('ask')}
                 >
                   <Sparkles className="w-4 h-4" />
-                  Ask Advicely
+                  Ask Advicly
                 </button>
 
                 {/* Summary Tab */}
@@ -2996,7 +2996,7 @@ export default function Meetings() {
 
               {/* Content */}
               <div className="space-y-4">
-                {/* Ask Advicely Tab Content - Inline Chat */}
+                {/* Ask Advicly Tab Content - Inline Chat */}
                 {activeTab === 'ask' && (
                   <div className="h-[calc(100vh-380px)] min-h-[400px]">
                     <InlineChatWidget
@@ -3293,15 +3293,15 @@ export default function Meetings() {
 
                                   {/* Add New Action Item */}
                                   {addingPendingItem ? (
-                                    <Card className="border-orange-300 bg-orange-50/50">
-                                      <CardContent className="p-3">
-                                        <div className="space-y-2">
+                                    <Card className="border-2 border-orange-400 bg-orange-100 shadow-md">
+                                      <CardContent className="p-4">
+                                        <div className="space-y-3">
                                           <textarea
                                             value={newPendingItemText}
                                             onChange={(e) => setNewPendingItemText(e.target.value)}
                                             placeholder="Enter action item text..."
-                                            className="w-full text-sm border border-orange-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-orange-500"
-                                            rows={2}
+                                            className="w-full text-sm border-2 border-orange-400 rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                            rows={3}
                                             autoFocus
                                             onKeyDown={(e) => {
                                               if (e.key === 'Enter' && e.ctrlKey) {
@@ -3312,12 +3312,12 @@ export default function Meetings() {
                                             }}
                                           />
                                           <div className="flex items-center gap-2">
-                                            <span className="text-xs text-muted-foreground">Priority:</span>
+                                            <span className="text-xs font-medium text-orange-900">Priority:</span>
                                             <Select
                                               value={String(newPendingItemPriority)}
                                               onValueChange={(value) => setNewPendingItemPriority(parseInt(value))}
                                             >
-                                              <SelectTrigger className="w-32 h-7 text-xs">
+                                              <SelectTrigger className="w-32 h-8 text-xs border-orange-400">
                                                 <SelectValue />
                                               </SelectTrigger>
                                               <SelectContent>
@@ -3337,7 +3337,7 @@ export default function Meetings() {
                                               size="sm"
                                               onClick={saveNewPendingItem}
                                               disabled={savingNewPendingItem}
-                                              className="h-7 text-xs bg-orange-600 hover:bg-orange-700"
+                                              className="h-8 text-xs bg-orange-600 hover:bg-orange-700 font-medium"
                                             >
                                               {savingNewPendingItem ? (
                                                 <>
@@ -3356,12 +3356,12 @@ export default function Meetings() {
                                               variant="outline"
                                               onClick={cancelAddingPendingItem}
                                               disabled={savingNewPendingItem}
-                                              className="h-7 text-xs"
+                                              className="h-8 text-xs border-orange-400"
                                             >
                                               <X className="w-3 h-3 mr-1" />
                                               Cancel
                                             </Button>
-                                            <span className="text-xs text-muted-foreground ml-2">
+                                            <span className="text-xs text-orange-800 ml-2 font-medium">
                                               Ctrl+Enter to add, Esc to cancel
                                             </span>
                                           </div>
@@ -3373,9 +3373,9 @@ export default function Meetings() {
                                       variant="outline"
                                       size="sm"
                                       onClick={startAddingPendingItem}
-                                      className="w-full h-8 text-xs border-orange-300 text-orange-700 hover:bg-orange-50"
+                                      className="w-full h-9 text-sm border-2 border-orange-400 text-orange-700 hover:bg-orange-100 hover:border-orange-500 font-medium shadow-sm"
                                     >
-                                      <Plus className="w-3 h-3 mr-1" />
+                                      <Plus className="w-4 h-4 mr-2" />
                                       Add Action Item
                                     </Button>
                                   )}
