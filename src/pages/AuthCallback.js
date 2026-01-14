@@ -29,6 +29,89 @@ const AuthCallback = () => {
         console.log('🔍 Query params:', window.location.search);
         console.log('🔍 Hash params:', window.location.hash);
 
+        // **NEW**: Check for explicit error parameter from backend
+        const errorParam = params.get('error');
+        const successParam = params.get('success');
+        const providerParam = params.get('provider');
+        const isOnboarding = params.get('onboarding') === 'true';
+
+        if (errorParam) {
+          // Backend returned explicit error (e.g., from calendar OAuth)
+          console.error('❌ AuthCallback: Backend returned error:', errorParam);
+
+          if (isOnboarding) {
+            // Restore onboarding state and show error
+            const onboardingState = sessionStorage.getItem('onboarding_state');
+            if (onboardingState) {
+              const state = JSON.parse(onboardingState);
+
+              // Mark OAuth as failed
+              sessionStorage.setItem('oauth_return', JSON.stringify({
+                provider: providerParam || state.selectedProvider,
+                success: false,
+                error: decodeURIComponent(errorParam)
+              }));
+
+              // Clear onboarding state
+              sessionStorage.removeItem('onboarding_state');
+
+              // Redirect back to onboarding with error
+              setStatus('error');
+              setMessage(`Calendar connection failed: ${decodeURIComponent(errorParam)}`);
+
+              setTimeout(() => {
+                navigate('/onboarding', {
+                  replace: true,
+                  state: { restoredData: state }
+                });
+              }, 2000);
+              return;
+            }
+          }
+
+          // Not onboarding - regular error
+          setStatus('error');
+          setMessage(decodeURIComponent(errorParam));
+          setTimeout(() => navigate('/login'), 3000);
+          return;
+        }
+
+        if (successParam === 'true' && providerParam) {
+          // **NEW**: Backend explicitly confirmed success (calendar OAuth)
+          console.log('✅ AuthCallback: Backend confirmed calendar connection success:', providerParam);
+
+          // Check if returning from onboarding
+          const onboardingState = sessionStorage.getItem('onboarding_state');
+          if (onboardingState) {
+            const state = JSON.parse(onboardingState);
+
+            // Mark OAuth as successful
+            sessionStorage.setItem('oauth_return', JSON.stringify({
+              provider: providerParam,
+              success: true
+            }));
+
+            // Clear onboarding state
+            sessionStorage.removeItem('onboarding_state');
+
+            // Redirect back to onboarding
+            setStatus('success');
+            setMessage('Calendar connected successfully!');
+
+            setTimeout(() => {
+              navigate('/onboarding', {
+                replace: true,
+                state: { restoredData: state }
+              });
+            }, 1000);
+            return;
+          }
+
+          // Not onboarding - proceed to check session
+          await handleOAuthCallback();
+          return;
+        }
+
         // OAuth callbacks have access_token or code in the URL
         // Google/Microsoft OAuth returns: #access_token=... or ?code=...
         const hasOAuthTokens = urlHash.has('access_token') ||

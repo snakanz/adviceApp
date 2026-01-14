@@ -25,13 +25,16 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
     // Check if returning from OAuth redirect
     useEffect(() => {
         const checkOAuthReturn = async () => {
+            console.log('🔍 Checking for OAuth return in sessionStorage...');
             const oauthReturn = sessionStorage.getItem('oauth_return');
+
             if (oauthReturn) {
+                console.log('🔍 OAuth return found:', oauthReturn);
                 const { provider, success, error: oauthError } = JSON.parse(oauthReturn);
                 sessionStorage.removeItem('oauth_return');
 
                 if (success) {
-                    console.log(`✅ ${provider} Calendar OAuth successful`);
+                    console.log(`✅ ${provider} Calendar OAuth successful - Setting connected state`);
                     setSelectedProvider(provider);
                     setIsConnected(true);
                     setError('');
@@ -40,6 +43,8 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                     setError(oauthError || `Failed to connect to ${provider} Calendar`);
                 }
                 setIsConnecting(false);
+            } else {
+                console.log('🔍 No OAuth return found - User has not attempted OAuth yet');
             }
         };
 
@@ -110,11 +115,16 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
     };
 
     const handleGoogleConnect = async () => {
+        console.log('🔵 Starting Google Calendar connection...');
+        console.log('🔵 Current user:', user?.email, 'User ID:', user?.id);
+        console.log('🔵 Onboarding data:', data);
+
         setIsConnecting(true);
         setError('');
 
         try {
             const token = await getAccessToken();
+            console.log('🔵 Access token obtained:', token ? 'YES' : 'NO');
 
             // Get OAuth URL from auth endpoint
             const response = await axios.get(
@@ -122,11 +132,12 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 
-            if (response.data.url && user?.id) {
-                console.log('🔄 Saving onboarding state and redirecting to Google OAuth...');
+            console.log('🔵 OAuth URL response:', response.data);
 
-                // Save onboarding state to sessionStorage before redirect
-                sessionStorage.setItem('onboarding_state', JSON.stringify({
+            if (response.data.url && user?.id) {
+                console.log('🔵 Saving onboarding state to sessionStorage...');
+
+                const stateToSave = {
                     currentStep: 3,
                     selectedProvider: 'google',
                     selectedPlan: data.selected_plan,
@@ -136,31 +147,48 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                     timezone: data.timezone,
                     enable_transcription: enableTranscription,
                     user_id: user.id
-                }));
+                };
 
+                console.log('🔵 State to save:', stateToSave);
+
+                // Save onboarding state to sessionStorage before redirect
+                sessionStorage.setItem('onboarding_state', JSON.stringify(stateToSave));
+
+                console.log('🔵 Redirecting to OAuth URL...');
                 // Redirect to OAuth (no popup blockers!)
                 window.location.href = response.data.url;
+            } else {
+                console.error('❌ Missing OAuth URL or user ID');
+                setError('Failed to initiate calendar connection');
+                setIsConnecting(false);
             }
         } catch (err) {
-            console.error('Error connecting to Google:', err);
+            console.error('❌ Error connecting to Google:', err);
+            console.error('❌ Error details:', err.response?.data);
             setError('Failed to connect to Google Calendar');
             setIsConnecting(false);
         }
     };
 
     const handleMicrosoftConnect = async () => {
+        console.log('🔵 Starting Microsoft Calendar connection...');
+        console.log('🔵 Current user:', user?.email, 'User ID:', user?.id);
+        console.log('🔵 Onboarding data:', data);
+
         setIsConnecting(true);
         setError('');
 
         try {
-            console.log('🔵 Starting Microsoft OAuth flow...');
             const token = await getAccessToken();
+            console.log('🔵 Access token obtained:', token ? 'YES' : 'NO');
 
             // Get OAuth URL from auth endpoint
             const response = await axios.get(
                 `${API_BASE_URL}/api/auth/microsoft`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
+
+            console.log('🔵 OAuth URL response:', response.data);
 
             if (!response.data.url) {
                 console.error('❌ No OAuth URL in response:', response.data);
@@ -176,10 +204,9 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                 return;
             }
 
-            console.log('🔄 Saving onboarding state and redirecting to Microsoft OAuth...');
+            console.log('🔵 Saving onboarding state to sessionStorage...');
 
-            // Save onboarding state to sessionStorage before redirect
-            sessionStorage.setItem('onboarding_state', JSON.stringify({
+            const stateToSave = {
                 currentStep: 3,
                 selectedProvider: 'microsoft',
                 selectedPlan: data.selected_plan,
@@ -189,12 +216,19 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                 timezone: data.timezone,
                 enable_transcription: enableTranscription,
                 user_id: user.id
-            }));
+            };
 
+            console.log('🔵 State to save:', stateToSave);
+
+            // Save onboarding state to sessionStorage before redirect
+            sessionStorage.setItem('onboarding_state', JSON.stringify(stateToSave));
+
+            console.log('🔵 Redirecting to OAuth URL...');
             // Redirect to OAuth (no popup blockers!)
             window.location.href = response.data.url;
         } catch (err) {
             console.error('❌ Error connecting to Microsoft:', err);
+            console.error('❌ Error details:', err.response?.data);
             let errorMessage = 'Failed to connect to Microsoft Calendar';
             if (err.response?.data?.error) {
                 errorMessage = err.response.data.error;

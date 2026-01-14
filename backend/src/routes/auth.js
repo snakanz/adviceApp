@@ -422,23 +422,15 @@ router.get('/google/callback', async (req, res) => {
       }
     }
 
-    // Generate JWT and redirect to frontend
-    console.log('✅ Redirect mode - Generating JWT and redirecting to /auth/callback');
-    const jwtToken = jwt.sign(
-      {
-        id: user.id,
-        email: user.email,
-        name: user.name
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    // Redirect to frontend with token
-    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${jwtToken}`);
+    // **FIX**: Redirect back to /auth/callback WITHOUT JWT token
+    // Frontend will use existing Supabase session from onboarding
+    console.log('✅ Google Calendar connected - redirecting to /auth/callback');
+    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?success=true&provider=google`);
   } catch (error) {
-    console.error('Google auth error:', error);
-    res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
+    console.error('❌ Google auth error:', error);
+    // **FIX**: Include error details and preserve onboarding context
+    const errorMessage = encodeURIComponent(error.message || 'Authentication failed');
+    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?error=${errorMessage}&provider=google&onboarding=true`);
   }
 });
 
@@ -779,23 +771,15 @@ router.get('/microsoft/callback', async (req, res) => {
       // Don't fail the connection if sync fails
     }
 
-    // Generate JWT and redirect to frontend
-    console.log('✅ Generating JWT and redirecting to /auth/callback');
-    const jwtToken = jwt.sign(
-      {
-        id: user.id,
-        email: user.email,
-        name: user.name
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    // Redirect to frontend with token
-    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${jwtToken}`);
+    // **FIX**: Redirect back to /auth/callback WITHOUT JWT token
+    // Frontend will use existing Supabase session from onboarding
+    console.log('✅ Microsoft Calendar connected - redirecting to /auth/callback');
+    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?success=true&provider=microsoft`);
   } catch (error) {
-    console.error('Microsoft auth error:', error);
-    res.redirect(`${process.env.FRONTEND_URL}/login?error=auth_failed`);
+    console.error('❌ Microsoft auth error:', error);
+    // **FIX**: Include error details and preserve onboarding context
+    const errorMessage = encodeURIComponent(error.message || 'Authentication failed');
+    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?error=${errorMessage}&provider=microsoft&onboarding=true`);
   }
 });
 
