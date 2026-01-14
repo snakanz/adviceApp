@@ -93,7 +93,7 @@ export default function Layout() {
   };
 
   return (
-    <div className="flex h-screen font-sans layout-bg">
+    <div className="flex min-h-screen font-sans layout-bg">
       {/* AppBar - Glass-Morphism */}
       <header className="fixed top-0 left-0 sm:left-64 right-0 z-50 bg-card/90 border-b border-border/20 backdrop-blur-lg shadow-card">
         <div className="flex items-center justify-between px-6 py-4 h-18">
@@ -236,9 +236,7 @@ export default function Layout() {
 
       {/* Main Content */}
       <main className="flex-1 ml-0 sm:ml-64 bg-background min-h-screen pt-20">
-        <div className="h-full w-full overflow-hidden">
-          <Outlet />
-        </div>
+        <Outlet />
       </main>
 
       {/* Mobile Menu Dialog */}
