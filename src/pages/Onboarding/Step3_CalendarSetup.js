@@ -20,7 +20,8 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
     // TEMPORARILY DISABLED: Calendly state
     // const [calendlyToken, setCalendlyToken] = useState('');
     // const [showTokenInput, setShowTokenInput] = useState(false);
-    const [enableTranscription, setEnableTranscription] = useState(false);
+    // Default transcription to ON for better user experience
+    const [enableTranscription] = useState(true);
 
     // Check if returning from OAuth redirect
     useEffect(() => {
@@ -40,15 +41,44 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                     setError('');
                     setIsConnecting(false);
 
-                    // **FIX**: Automatically proceed to next step after successful calendar connection
-                    console.log('🔄 Calendar connected successfully - Auto-advancing to next step in 1.5s...');
-                    setTimeout(() => {
-                        console.log('🔄 Calling onNext to proceed to Step 4...');
-                        onNext({
-                            calendar_provider: provider,
-                            enable_transcription: enableTranscription
-                        });
-                    }, 1500);
+                    // Enable transcription automatically (default: ON)
+                    const enableTranscriptionForConnection = async () => {
+                        try {
+                            const token = await getAccessToken();
+                            const connectionsResponse = await axios.get(
+                                `${API_BASE_URL}/api/calendar-connections`,
+                                { headers: { Authorization: `Bearer ${token}` } }
+                            );
+
+                            const activeConnection = connectionsResponse.data.find(
+                                conn => conn.is_active && conn.provider === provider
+                            );
+
+                            if (activeConnection && enableTranscription) {
+                                await axios.patch(
+                                    `${API_BASE_URL}/api/calendar-connections/${activeConnection.id}/toggle-transcription`,
+                                    { transcription_enabled: true },
+                                    { headers: { Authorization: `Bearer ${token}` } }
+                                );
+                                console.log('✅ Transcription enabled for calendar connection');
+                            }
+                        } catch (err) {
+                            console.error('⚠️ Error enabling transcription (non-fatal):', err);
+                            // Don't block the flow if transcription update fails
+                        }
+                    };
+
+                    // **FIX**: Enable transcription then auto-advance to next step
+                    console.log('🔄 Calendar connected successfully - Enabling transcription and advancing...');
+                    enableTranscriptionForConnection().finally(() => {
+                        setTimeout(() => {
+                            console.log('🔄 Calling onNext to proceed to Step 4...');
+                            onNext({
+                                calendar_provider: provider,
+                                enable_transcription: enableTranscription
+                            });
+                        }, 1000);
+                    });
                 } else {
                     console.error(`❌ ${provider} Calendar OAuth error:`, oauthError);
                     setError(oauthError || `Failed to connect to ${provider} Calendar`);

@@ -387,7 +387,7 @@ router.get('/google/callback', async (req, res) => {
           is_active: true,
           is_primary: true,
           sync_enabled: true,
-          transcription_enabled: false // Disabled by default - user must opt-in
+          transcription_enabled: true // Enabled by default for better UX - users can disable in settings
         });
 
       if (createError) {
@@ -732,7 +732,7 @@ router.get('/microsoft/callback', async (req, res) => {
           is_active: true,
           is_primary: true,
           sync_enabled: true,
-          transcription_enabled: false
+          transcription_enabled: true // Enabled by default for better UX - users can disable in settings
         });
 
       if (createError) {

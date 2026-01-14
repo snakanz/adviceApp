@@ -208,7 +208,7 @@ router.get('/auth/google/callback', async (req, res) => {
             is_active: true,
             is_primary: true,
             sync_enabled: true,
-            transcription_enabled: false,  // Disabled by default - users can enable in settings
+            transcription_enabled: true,  // Enabled by default for better UX - users can disable in settings
             updated_at: new Date().toISOString()
           })
           .eq('id', existingConnection.id);
@@ -244,7 +244,7 @@ router.get('/auth/google/callback', async (req, res) => {
             is_active: true,
             is_primary: true,
             sync_enabled: true,
-            transcription_enabled: false  // Disabled by default - users can enable in settings
+            transcription_enabled: true  // Enabled by default for better UX - users can disable in settings
           });
 
         if (insertError) {
@@ -357,7 +357,7 @@ router.get('/auth/google/callback', async (req, res) => {
           is_active: true,
           is_primary: true,
           sync_enabled: true,
-          transcription_enabled: false,  // Disabled by default - users can enable in settings
+          transcription_enabled: true,  // Enabled by default for better UX - users can disable in settings
           updated_at: new Date().toISOString()
         })
         .eq('id', existingConnection.id);
@@ -382,7 +382,7 @@ router.get('/auth/google/callback', async (req, res) => {
           is_active: true,
           is_primary: true,
           sync_enabled: true,
-          transcription_enabled: false  // Disabled by default - users can enable in settings
+          transcription_enabled: true  // Enabled by default for better UX - users can disable in settings
         });
 
       if (insertError) {
