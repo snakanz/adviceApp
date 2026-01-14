@@ -9,6 +9,7 @@ import { Check } from 'lucide-react';
 import axios from 'axios';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
+const STRIPE_PUBLIC_KEY = process.env.REACT_APP_STRIPE_PUBLIC_KEY;
 
 const BUSINESS_TYPES = [
     'Financial Advisor',
@@ -82,15 +83,55 @@ const Step2_BusinessProfile = ({ data, onNext, user }) => {
                 planValue = 'professional_annual';
             }
 
-            // Pass tenant_id and selected plan to next step
-            onNext({
+            // If FREE plan, proceed to calendar setup
+            if (selectedPlan === 'free') {
+                onNext({
+                    ...formData,
+                    tenant_id: response.data.tenant_id,
+                    selected_plan: planValue
+                });
+                return;
+            }
+
+            // If PAID plan, redirect directly to Stripe checkout (skip confirmation screen)
+            console.log('💳 Redirecting to Stripe checkout...', { plan: planValue, billingCycle });
+
+            // Get the correct price ID based on billing cycle
+            const priceId = billingCycle === 'annual'
+                ? process.env.REACT_APP_STRIPE_PRICE_ID_ANNUAL
+                : process.env.REACT_APP_STRIPE_PRICE_ID;
+
+            if (!priceId) {
+                setError('Payment system is not configured. Please contact support.');
+                setIsLoading(false);
+                return;
+            }
+
+            // Create checkout session
+            const checkoutResponse = await axios.post(
+                `${API_BASE_URL}/api/billing/checkout`,
+                { priceId },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            // Save plan info before redirect
+            sessionStorage.setItem('selectedPlan', planValue);
+            sessionStorage.setItem('onboarding_data', JSON.stringify({
                 ...formData,
                 tenant_id: response.data.tenant_id,
                 selected_plan: planValue
-            });
+            }));
+
+            // Redirect to Stripe Checkout
+            if (checkoutResponse.data.sessionId) {
+                const stripe = window.Stripe(STRIPE_PUBLIC_KEY);
+                await stripe.redirectToCheckout({ sessionId: checkoutResponse.data.sessionId });
+            } else {
+                throw new Error('No session ID received from checkout');
+            }
         } catch (err) {
-            console.error('Error saving business profile:', err);
-            setError(err.response?.data?.error || 'Failed to save business profile');
+            console.error('Error in submit:', err);
+            setError(err.response?.data?.error || err.message || 'Failed to process. Please try again.');
             setIsLoading(false);
         }
     };
