@@ -1824,13 +1824,38 @@ router.post('/:clientId/generate-pipeline-summary', authenticateSupabaseUser, as
       summaryExists,
       dataUpdatedAt: dataUpdatedAt?.toISOString(),
       summaryGeneratedAt: summaryGeneratedAt?.toISOString(),
+      pipelineDataColumnExists: client.pipeline_data_updated_at !== undefined,
       needsRegeneration: dataUpdatedAt && summaryGeneratedAt ? dataUpdatedAt > summaryGeneratedAt : true
     });
 
     // If summary exists and data hasn't changed since generation, return cached summary
     if (summaryExists && summaryGeneratedAt) {
+      // If pipeline_data_updated_at column doesn't exist (migration not run), treat as if data never changed
+      // This means we'll use the cache until the migration is run
+      if (client.pipeline_data_updated_at === undefined) {
+        console.log('⚠️  Warning: pipeline_data_updated_at column not found - using cached summary (migration 032 may not be deployed)');
+        return res.json({
+          summary: client.pipeline_next_steps,
+          generated_at: client.pipeline_next_steps_generated_at,
+          cached: true,
+          reason: 'Migration not deployed - using existing summary'
+        });
+      }
+
+      // If pipeline_data_updated_at is NULL, it means no tracked changes have occurred yet
+      // Use the summary generation time as the baseline
+      if (dataUpdatedAt === null) {
+        console.log('✅ Using cached pipeline summary - no tracked data changes (pipeline_data_updated_at is NULL)');
+        return res.json({
+          summary: client.pipeline_next_steps,
+          generated_at: client.pipeline_next_steps_generated_at,
+          cached: true,
+          reason: 'No tracked data changes since generation'
+        });
+      }
+
       // Check if data changed since summary generation
-      if (dataUpdatedAt && dataUpdatedAt <= summaryGeneratedAt) {
+      if (dataUpdatedAt <= summaryGeneratedAt) {
         console.log('✅ Using cached pipeline summary - no data changes detected');
         return res.json({
           summary: client.pipeline_next_steps,

@@ -1,5 +1,13 @@
 # AI Summary Caching Status Check
 
+## IMPORTANT: Complete Setup Required
+
+To enable smart caching, you MUST run these migrations in order:
+1. **Migration 032**: `backend/migrations/032_add_pipeline_data_updated_at.sql` - Tracks business types and meetings changes
+2. **Migration 033**: `backend/migrations/033_add_pipeline_notes_trigger.sql` - Tracks pipeline notes changes
+
+Then run the verification/fix script: `verify-and-fix-caching.sql`
+
 ## How to Verify Smart Caching is Working
 
 ### 1. Check Database Migration Status
