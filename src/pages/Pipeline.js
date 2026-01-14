@@ -128,7 +128,7 @@ export default function Pipeline() {
               next_follow_up_date: client.next_follow_up_date,
               pipeline_next_steps: client.pipeline_next_steps || null,
               pipeline_next_steps_generated_at: client.pipeline_next_steps_generated_at || null,
-              pipelineNotes: client.notes || bt.notes || null
+              pipelineNotes: client.pipeline_notes || client.notes || bt.notes || null
             };
           });
         }
@@ -156,7 +156,7 @@ export default function Pipeline() {
           next_follow_up_date: client.next_follow_up_date,
           pipeline_next_steps: client.pipeline_next_steps || null,
           pipeline_next_steps_generated_at: client.pipeline_next_steps_generated_at || null,
-          pipelineNotes: client.notes || null
+          pipelineNotes: client.pipeline_notes || client.notes || null
         }];
       });
 
@@ -283,7 +283,7 @@ export default function Pipeline() {
       totalBusinessAmount: client.business_amount || client.investmentAmount || 0,
       totalIafExpected: client.iaf_expected || client.expectedFees || 0,
       expectedValue: client.iaf_expected || client.expectedFees || client.expectedValue || 0,
-      pipelineNotes: client.notes || client.pipelineNotes || null,
+      pipelineNotes: client.pipeline_notes || client.pipelineNotes || client.notes || null,
       // Preserve meeting stats from pipeline row data
       nextMeetingDate: client.nextMeetingDate || null,
       pastMeetingCount: typeof client.pastMeetingCount === 'number' ? client.pastMeetingCount : (client.meeting_count || 0),

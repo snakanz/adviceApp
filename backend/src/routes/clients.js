@@ -596,21 +596,27 @@ router.put('/:clientId/notes', authenticateSupabaseUser, async (req, res) => {
       return res.status(404).json({ error: 'Client not found' });
     }
 
-    // Update client notes
+    // Update client pipeline notes
+    // CRITICAL: Use pipeline_notes column (used by AI summary), not notes column
     const { data: updatedClient, error: updateError } = await req.supabase
       .from('clients')
-      .update({ notes: notes || null, updated_at: new Date().toISOString() })
+      .update({
+        pipeline_notes: notes || null,
+        updated_at: new Date().toISOString()
+      })
       .eq('id', clientId)
       .eq('user_id', userId)
       .select()
       .single();
 
     if (updateError) {
-      console.error('Error updating client notes:', updateError);
-      return res.status(500).json({ error: 'Failed to update notes' });
+      console.error('Error updating client pipeline notes:', updateError);
+      return res.status(500).json({ error: 'Failed to update pipeline notes' });
     }
 
-    res.json({ success: true, notes: updatedClient.notes });
+    console.log('✅ Pipeline notes updated successfully - will trigger summary regeneration via trigger');
+
+    res.json({ success: true, notes: updatedClient.pipeline_notes });
   } catch (error) {
     console.error('Error updating client notes:', error);
     res.status(500).json({ error: 'Failed to update notes', details: error.message });
