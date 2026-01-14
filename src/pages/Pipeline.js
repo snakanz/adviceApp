@@ -404,8 +404,28 @@ export default function Pipeline() {
 
     setLoadingActionItems(true);
     try {
-      const response = await api.request(`/action-items?clientId=${clientId}`);
-      setClientActionItems(response || []);
+      const response = await api.request(`/transcript-action-items/clients/${clientId}/action-items`);
+
+      // Backend returns { meetings: [...] } with grouped action items
+      // Flatten into a simple array for display
+      const allActionItems = [];
+      if (response.meetings) {
+        response.meetings.forEach(meeting => {
+          meeting.actionItems.forEach(item => {
+            allActionItems.push({
+              id: item.id,
+              action_item_text: item.actionText,
+              completed: item.completed,
+              completed_at: item.completedAt,
+              meeting_title: meeting.meetingTitle,
+              meeting_id: meeting.meetingId,
+              created_at: item.createdAt
+            });
+          });
+        });
+      }
+
+      setClientActionItems(allActionItems);
     } catch (error) {
       console.error('Error fetching action items:', error);
       setClientActionItems([]);
@@ -417,9 +437,8 @@ export default function Pipeline() {
   // Toggle action item completion
   const handleToggleActionItem = async (actionItemId, currentStatus) => {
     try {
-      await api.request(`/action-items/${actionItemId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ completed: !currentStatus })
+      await api.request(`/transcript-action-items/${actionItemId}/toggle`, {
+        method: 'POST'
       });
 
       // Update local state
@@ -495,10 +514,13 @@ export default function Pipeline() {
   const handleSaveBusinessTypes = async (businessTypes) => {
     if (!selectedClient) return;
 
+    // FIX: Use actual client ID, not composite ID
+    const actualClientId = selectedClient.clientId || selectedClient.id;
+
     setSavingBusinessTypes(true);
     try {
       // Save business types via API
-      await api.request(`/clients/${selectedClient.id}/business-types`, {
+      await api.request(`/clients/${actualClientId}/business-types`, {
         method: 'PUT',
         body: JSON.stringify({ businessTypes })
       });
@@ -512,7 +534,7 @@ export default function Pipeline() {
 
       // FIX ISSUE 1 & 2: Update selected client with fresh data from the refreshed clients list
       // This ensures the detail panel shows updated business amounts and expected close dates
-      const updatedClientData = await api.request(`/clients/${selectedClient.id}`);
+      const updatedClientData = await api.request(`/clients/${actualClientId}`);
       if (updatedClientData) {
         // Transform to match pipeline format
         const businessTypesData = updatedClientData.business_types_data || [];
@@ -547,7 +569,7 @@ export default function Pipeline() {
 
       // Regenerate pipeline summary after update
       if (selectedClient) {
-        await handleGeneratePipelineSummary(selectedClient.id);
+        await handleGeneratePipelineSummary(actualClientId);
       }
     } catch (error) {
       console.error('Error saving business types:', error);
