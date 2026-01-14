@@ -395,13 +395,20 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         });
     };
 
-    const handleSelectProvider = (provider) => {
+    const handleSelectProvider = async (provider) => {
         setSelectedProvider(provider);
         setIsConnected(false);
         setError('');
         // TEMPORARILY DISABLED: Calendly state setters
         // setShowTokenInput(false);
         // setCalendlyToken('');
+
+        // Automatically trigger OAuth connection for Google/Microsoft
+        if (provider === 'google') {
+            await handleGoogleConnect();
+        } else if (provider === 'microsoft') {
+            await handleMicrosoftConnect();
+        }
     };
 
     return (
