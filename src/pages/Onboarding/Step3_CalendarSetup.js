@@ -38,18 +38,29 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                     setSelectedProvider(provider);
                     setIsConnected(true);
                     setError('');
+                    setIsConnecting(false);
+
+                    // **FIX**: Automatically proceed to next step after successful calendar connection
+                    console.log('🔄 Calendar connected successfully - Auto-advancing to next step in 1.5s...');
+                    setTimeout(() => {
+                        console.log('🔄 Calling onNext to proceed to Step 4...');
+                        onNext({
+                            calendar_provider: provider,
+                            enable_transcription: enableTranscription
+                        });
+                    }, 1500);
                 } else {
                     console.error(`❌ ${provider} Calendar OAuth error:`, oauthError);
                     setError(oauthError || `Failed to connect to ${provider} Calendar`);
+                    setIsConnecting(false);
                 }
-                setIsConnecting(false);
             } else {
                 console.log('🔍 No OAuth return found - User has not attempted OAuth yet');
             }
         };
 
         checkOAuthReturn();
-    }, []);
+    }, [enableTranscription, onNext]);
 
     // Check if already connected on mount (from auto-connect)
     useEffect(() => {
