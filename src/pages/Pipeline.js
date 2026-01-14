@@ -762,10 +762,10 @@ export default function Pipeline() {
   }
 
   return (
-    <div className="h-screen bg-background flex overflow-hidden">
+    <div className="h-screen bg-background flex">
       {/* Main Content */}
       <div className={cn(
-        "flex-1 flex flex-col transition-all duration-300 min-w-0",
+        "flex-1 flex flex-col transition-all duration-300 min-w-0 overflow-hidden",
         showDetailPanel ? "mr-0 lg:mr-96" : ""
       )}>
         {/* Header */}
@@ -975,7 +975,7 @@ export default function Pipeline() {
         </div>
 
         {/* Pipeline Table */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto" style={{ minHeight: 0 }}>
           <div className="min-w-[1200px]">
             {/* Table Header */}
             <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-4">
