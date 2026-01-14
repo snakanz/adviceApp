@@ -298,42 +298,32 @@ export default function Pipeline() {
     setSelectedClient(normalizedClient);
     setShowDetailPanel(true);
     setEditingNotes(false); // Reset notes editing state
-    setNextStepsSummary(null); // Reset summary when switching clients
 
     // Fetch action items for this client
     const actualClientId = client.clientId || client.id;
     fetchClientActionItems(actualClientId);
 
-    // FIX 3.2: Smart AI generation - only regenerate if data has changed
-    // Check if summary exists and is fresh (< 1 hour old)
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const summaryDate = client.pipeline_next_steps_generated_at ? new Date(client.pipeline_next_steps_generated_at) : null;
+    // SMART AUTO-GENERATION: Show cached summary immediately, then check if regeneration needed
+    const cachedSummary = client.pipeline_next_steps || client.fullClient?.pipeline_next_steps;
 
-    if (client.pipeline_next_steps && summaryDate && summaryDate > oneHourAgo) {
-      // Use cached summary if fresh (no token waste)
-      setNextStepsSummary(client.pipeline_next_steps);
-    } else if (client.pipeline_next_steps && summaryDate) {
-      // Summary exists but is stale - check if client data changed since summary was generated
-      const lastMeetingDate = client.last_contact_date ? new Date(client.last_contact_date) : null;
-      const dataChangedSinceSummary = lastMeetingDate && lastMeetingDate > summaryDate;
-
-      if (dataChangedSinceSummary) {
-        // Data changed - regenerate
-        await handleGeneratePipelineSummary(client.clientId || client.id);
-      } else {
-        // Data unchanged - use cached summary
-        setNextStepsSummary(client.pipeline_next_steps);
-      }
+    if (cachedSummary) {
+      // Show cached summary instantly
+      setNextStepsSummary(cachedSummary);
     } else {
-      // No summary exists - generate new one only if client has meaningful data
-      const hasMeetings = client.pastMeetingCount > 0;
-      const hasBusinessTypes = client.allBusinessTypes && client.allBusinessTypes.length > 0;
+      // No cache - will generate below
+      setNextStepsSummary(null);
+    }
 
-      if (hasMeetings || hasBusinessTypes) {
-        await handleGeneratePipelineSummary(client.clientId || client.id);
-      } else {
-        setNextStepsSummary('No data available yet. Add meetings or business types to generate insights.');
-      }
+    // AUTO-GENERATE: Check if we need to generate/regenerate
+    // Backend will use smart caching to avoid wasting tokens
+    const hasMeetings = client.pastMeetingCount > 0;
+    const hasBusinessTypes = client.allBusinessTypes && client.allBusinessTypes.length > 0;
+
+    if (hasMeetings || hasBusinessTypes) {
+      // Let backend decide if regeneration is needed based on pipeline_data_updated_at
+      await handleGeneratePipelineSummary(client.clientId || client.id);
+    } else if (!cachedSummary) {
+      setNextStepsSummary('No data available yet. Add meetings or business types to generate insights.');
     }
   };
 
@@ -344,18 +334,29 @@ export default function Pipeline() {
         method: 'POST'
       });
 
+      console.log('📊 AI Summary Response:', {
+        clientId,
+        cached: response.cached,
+        reason: response.reason,
+        hasSummary: !!response.summary,
+        summaryPreview: response.summary?.substring(0, 50)
+      });
+
       if (response.summary) {
         setNextStepsSummary(response.summary);
 
         // Update the client in the list with the new summary
         setClients(prev => prev.map(c =>
-          c.id === clientId ? { ...c, pipeline_next_steps: response.summary, pipeline_next_steps_generated_at: response.generated_at } : c
+          c.id === clientId || c.clientId === clientId ? { ...c, pipeline_next_steps: response.summary, pipeline_next_steps_generated_at: response.generated_at } : c
         ));
 
         // Update selected client if it's the same one
-        if (selectedClient && selectedClient.id === clientId) {
+        if (selectedClient && (selectedClient.id === clientId || selectedClient.clientId === clientId)) {
           setSelectedClient(prev => ({ ...prev, pipeline_next_steps: response.summary, pipeline_next_steps_generated_at: response.generated_at }));
         }
+
+        // Note: Removed fetchPipelineData() call to prevent page refresh
+        // The summary is already updated in state above
       }
     } catch (error) {
       console.error('Error generating pipeline summary:', error);
@@ -369,9 +370,12 @@ export default function Pipeline() {
   const handleSaveNotes = async () => {
     if (!selectedClient) return;
 
+    // FIX: Use actual client ID, not composite ID
+    const actualClientId = selectedClient.clientId || selectedClient.id;
+
     setSavingNotes(true);
     try {
-      await api.request(`/clients/${selectedClient.id}/notes`, {
+      await api.request(`/clients/${actualClientId}/notes`, {
         method: 'PUT',
         body: JSON.stringify({ notes: pipelineNotes })
       });
@@ -381,10 +385,13 @@ export default function Pipeline() {
 
       // Update clients list
       setClients(prev => prev.map(c =>
-        c.id === selectedClient.id ? { ...c, pipelineNotes: pipelineNotes } : c
+        (c.id === actualClientId || c.clientId === actualClientId) ? { ...c, pipelineNotes: pipelineNotes } : c
       ));
 
       setEditingNotes(false);
+
+      // Trigger AI summary regeneration after notes change (notes affect summary)
+      await handleGeneratePipelineSummary(actualClientId);
     } catch (error) {
       console.error('Error saving notes:', error);
     } finally {
@@ -972,13 +979,12 @@ export default function Pipeline() {
           <div className="min-w-[1200px]">
             {/* Table Header */}
             <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-4">
-              <div className="grid grid-cols-12 gap-3 lg:gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              <div className="grid grid-cols-10 gap-3 lg:gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 <div className="col-span-3">Client & Business Type</div>
                 <div className="col-span-2">Stage</div>
                 <div className="col-span-2">Next Meeting</div>
                 <div className="col-span-1">Expected Fees</div>
                 <div className="col-span-2">Investment</div>
-                <div className="col-span-2">AI Next Steps</div>
               </div>
             </div>
 
@@ -988,7 +994,7 @@ export default function Pipeline() {
                 <div
                   key={client.id}
                   onClick={() => handleClientClick({ ...client.fullClient, ...client, fullClient: client.fullClient })}
-                  className="grid grid-cols-12 gap-3 lg:gap-4 py-4 border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-all duration-200 group rounded-lg hover:shadow-sm"
+                  className="grid grid-cols-10 gap-3 lg:gap-4 py-4 border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-all duration-200 group rounded-lg hover:shadow-sm"
                 >
                   {/* Client Information & Business Type */}
                   <div className="col-span-3 flex items-center gap-3">
@@ -1102,23 +1108,6 @@ export default function Pipeline() {
                       {client.investmentAmount > 0 ? formatCurrency(client.investmentAmount) : '-'}
                     </div>
                   </div>
-
-                  {/* AI Next Steps Summary (List View) */}
-                  <div className="col-span-2">
-                      <label className="text-[11px] font-medium text-muted-foreground mb-1 block flex items-center gap-1">
-                        <Sparkles className="w-3 h-3" />
-                        Next Steps to Close
-                      </label>
-                      <div className="text-[11px] text-foreground/90 bg-muted/40 border border-border/60 rounded-md px-2 py-1.5 max-h-16 overflow-hidden">
-                        {client.pipeline_next_steps ? (
-                          <span className="line-clamp-3">
-                            {client.pipeline_next_steps}
-                          </span>
-                        ) : (
-                          <span className="italic text-muted-foreground">No AI summary yet – open this client to generate next steps.</span>
-                        )}
-                      </div>
-                    </div>
                 </div>
               ))}
             </div>
@@ -1283,15 +1272,6 @@ export default function Pipeline() {
                         <p className="text-sm text-blue-700 dark:text-blue-300 italic">
                           Generating next steps...
                         </p>
-                      )}
-                      {!generatingPipelineSummary && nextStepsSummary && (
-                        <button
-                          onClick={() => handleGeneratePipelineSummary(selectedClient.clientId || selectedClient.id)}
-                          className="mt-3 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1"
-                        >
-                          <Sparkles className="w-3 h-3" />
-                          Regenerate
-                        </button>
                       )}
                     </div>
                   </div>

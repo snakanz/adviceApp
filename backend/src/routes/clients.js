@@ -145,6 +145,7 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
         avatar_url: client.avatar_url,
         pipeline_next_steps: client.pipeline_next_steps,
         pipeline_next_steps_generated_at: client.pipeline_next_steps_generated_at,
+        pipeline_data_updated_at: client.pipeline_data_updated_at, // Track when pipeline data last changed
         meetings: meetings,
         upcoming_meetings_count: upcomingMeetings.length,
         has_upcoming_meetings: upcomingMeetings.length > 0
@@ -1807,8 +1808,42 @@ router.post('/:clientId/generate-pipeline-summary', authenticateSupabaseUser, as
     if (!businessTypes || businessTypes.length === 0) {
       return res.json({
         summary: 'No pipeline information available yet. Add at least one business type to get AI-generated next steps.',
-        generated_at: new Date().toISOString()
+        generated_at: new Date().toISOString(),
+        cached: false
       });
+    }
+
+    // SMART REGENERATION: Check if summary exists and if data has changed since last generation
+    const summaryExists = client.pipeline_next_steps && client.pipeline_next_steps_generated_at;
+    const dataUpdatedAt = client.pipeline_data_updated_at ? new Date(client.pipeline_data_updated_at) : null;
+    const summaryGeneratedAt = client.pipeline_next_steps_generated_at ? new Date(client.pipeline_next_steps_generated_at) : null;
+
+    console.log('📊 Pipeline summary check:', {
+      clientId,
+      clientName: client.name,
+      summaryExists,
+      dataUpdatedAt: dataUpdatedAt?.toISOString(),
+      summaryGeneratedAt: summaryGeneratedAt?.toISOString(),
+      needsRegeneration: dataUpdatedAt && summaryGeneratedAt ? dataUpdatedAt > summaryGeneratedAt : true
+    });
+
+    // If summary exists and data hasn't changed since generation, return cached summary
+    if (summaryExists && summaryGeneratedAt) {
+      // Check if data changed since summary generation
+      if (dataUpdatedAt && dataUpdatedAt <= summaryGeneratedAt) {
+        console.log('✅ Using cached pipeline summary - no data changes detected');
+        return res.json({
+          summary: client.pipeline_next_steps,
+          generated_at: client.pipeline_next_steps_generated_at,
+          cached: true,
+          reason: 'No data changes since last generation'
+        });
+      }
+
+      // Data changed after summary - regenerate
+      console.log('🔄 Regenerating pipeline summary - data changed since last generation');
+    } else {
+      console.log('🤖 Generating new pipeline summary - no existing summary');
     }
 
     // Prepare context for OpenAI
@@ -1881,9 +1916,13 @@ Be specific and actionable. Focus on what needs to happen NOW to move this forwa
       // Don't fail the request, just return the summary
     }
 
+    console.log('✅ Pipeline summary generated and saved successfully');
+
     res.json({
       summary,
-      generated_at: new Date().toISOString()
+      generated_at: new Date().toISOString(),
+      cached: false,
+      reason: 'New summary generated'
     });
 
   } catch (error) {
