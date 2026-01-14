@@ -762,10 +762,10 @@ export default function Pipeline() {
   }
 
   return (
-    <div className="h-screen bg-background flex">
+    <div className="h-screen bg-background flex" style={{ height: '100vh', maxHeight: '100vh' }}>
       {/* Main Content */}
       <div className={cn(
-        "flex-1 flex flex-col transition-all duration-300 min-w-0 overflow-hidden",
+        "flex-1 flex flex-col transition-all duration-300 min-w-0",
         showDetailPanel ? "mr-0 lg:mr-96" : ""
       )}>
         {/* Header */}
@@ -875,7 +875,7 @@ export default function Pipeline() {
 
                 {/* Collapsible Client List */}
                 {showOverdueSection && (
-                  <div className="mt-3 space-y-2 max-h-[40vh] lg:max-h-96 overflow-y-auto overflow-x-hidden">
+                  <div className="mt-3 space-y-2 max-h-64 overflow-y-auto overflow-x-hidden">
                     {overdueClients.map((client) => (
                       <div
                         key={client.id}
@@ -975,7 +975,7 @@ export default function Pipeline() {
         </div>
 
         {/* Pipeline Table */}
-        <div className="flex-1 overflow-auto" style={{ minHeight: 0 }}>
+        <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ minHeight: 0, maxHeight: '100%' }}>
           <div className="min-w-[1200px]">
             {/* Table Header */}
             <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-4">
