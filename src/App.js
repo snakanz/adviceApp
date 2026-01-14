@@ -17,6 +17,10 @@ import OnboardingFlow from './pages/Onboarding/OnboardingFlow';
 import AskAdvicly from './pages/AskAdvicly';
 import notificationService from './services/notificationService';
 import axios from 'axios';
+import { initMobileAuthFixes } from './utils/mobileAuthFix';
+
+// Initialize mobile auth fixes on app load
+initMobileAuthFixes();
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 

@@ -8,6 +8,7 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react';
+import { getMobileWaitTime, logMobileDebugInfo, isMobile } from '../utils/mobileAuthFix';
 
 const AuthCallback = () => {
   const navigate = useNavigate();
@@ -17,11 +18,14 @@ const AuthCallback = () => {
   useEffect(() => {
     const handleCallback = async () => {
       try {
+        // MOBILE FIX: Log mobile debug info
+        logMobileDebugInfo();
+
         // IMPROVED DETECTION LOGIC - Distinguish between OAuth and email confirmation
         const params = new URLSearchParams(window.location.search);
         const urlHash = new URLSearchParams(window.location.hash.substring(1));
 
-        console.log('🔍 AuthCallback: Analyzing URL...');
+        console.log('🔍 AuthCallback: Analyzing URL...', { isMobile: isMobile() });
         console.log('🔍 Query params:', window.location.search);
         console.log('🔍 Hash params:', window.location.hash);
 
@@ -40,8 +44,10 @@ const AuthCallback = () => {
           // Email confirmations redirect without tokens but create a session
           console.log('📧 AuthCallback: No OAuth tokens found, checking for email confirmation...');
 
-          // Wait a moment for Supabase to establish session after redirect
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // MOBILE FIX: Wait longer on mobile for session establishment
+          const waitTime = getMobileWaitTime();
+          console.log(`⏱️  Waiting ${waitTime}ms for session (mobile: ${isMobile()})...`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
 
           const { data: { session } } = await supabase.auth.getSession();
 
