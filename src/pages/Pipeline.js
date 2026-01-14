@@ -13,7 +13,8 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
-  Sparkles
+  Sparkles,
+  CheckCircle
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -51,6 +52,9 @@ export default function Pipeline() {
   const [editingNotes, setEditingNotes] = useState(false); // Notes editing state
   const [pipelineNotes, setPipelineNotes] = useState(''); // Notes text
   const [savingNotes, setSavingNotes] = useState(false); // Saving notes state
+  const [clientActionItems, setClientActionItems] = useState([]); // Action items for selected client
+  const [loadingActionItems, setLoadingActionItems] = useState(false); // Loading state for action items
+  const [showActionItems, setShowActionItems] = useState(true); // Expandable section state
 
   const { isAuthenticated} = useAuth();
   const navigate = useNavigate();
@@ -296,16 +300,40 @@ export default function Pipeline() {
     setEditingNotes(false); // Reset notes editing state
     setNextStepsSummary(null); // Reset summary when switching clients
 
-    // Auto-generate pipeline summary if not already generated or if stale (older than 1 hour)
+    // Fetch action items for this client
+    const actualClientId = client.clientId || client.id;
+    fetchClientActionItems(actualClientId);
+
+    // FIX 3.2: Smart AI generation - only regenerate if data has changed
+    // Check if summary exists and is fresh (< 1 hour old)
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const summaryDate = client.pipeline_next_steps_generated_at ? new Date(client.pipeline_next_steps_generated_at) : null;
 
     if (client.pipeline_next_steps && summaryDate && summaryDate > oneHourAgo) {
-      // Use cached summary if fresh
+      // Use cached summary if fresh (no token waste)
       setNextStepsSummary(client.pipeline_next_steps);
+    } else if (client.pipeline_next_steps && summaryDate) {
+      // Summary exists but is stale - check if client data changed since summary was generated
+      const lastMeetingDate = client.last_contact_date ? new Date(client.last_contact_date) : null;
+      const dataChangedSinceSummary = lastMeetingDate && lastMeetingDate > summaryDate;
+
+      if (dataChangedSinceSummary) {
+        // Data changed - regenerate
+        await handleGeneratePipelineSummary(client.clientId || client.id);
+      } else {
+        // Data unchanged - use cached summary
+        setNextStepsSummary(client.pipeline_next_steps);
+      }
     } else {
-      // Generate new summary
-      await handleGeneratePipelineSummary(client.id);
+      // No summary exists - generate new one only if client has meaningful data
+      const hasMeetings = client.pastMeetingCount > 0;
+      const hasBusinessTypes = client.allBusinessTypes && client.allBusinessTypes.length > 0;
+
+      if (hasMeetings || hasBusinessTypes) {
+        await handleGeneratePipelineSummary(client.clientId || client.id);
+      } else {
+        setNextStepsSummary('No data available yet. Add meetings or business types to generate insights.');
+      }
     }
   };
 
@@ -370,6 +398,41 @@ export default function Pipeline() {
     setEditingNotes(true);
   };
 
+  // Fetch action items for selected client
+  const fetchClientActionItems = async (clientId) => {
+    if (!clientId) return;
+
+    setLoadingActionItems(true);
+    try {
+      const response = await api.request(`/action-items?clientId=${clientId}`);
+      setClientActionItems(response || []);
+    } catch (error) {
+      console.error('Error fetching action items:', error);
+      setClientActionItems([]);
+    } finally {
+      setLoadingActionItems(false);
+    }
+  };
+
+  // Toggle action item completion
+  const handleToggleActionItem = async (actionItemId, currentStatus) => {
+    try {
+      await api.request(`/action-items/${actionItemId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ completed: !currentStatus })
+      });
+
+      // Update local state
+      setClientActionItems(prev =>
+        prev.map(item =>
+          item.id === actionItemId ? { ...item, completed: !currentStatus } : item
+        )
+      );
+    } catch (error) {
+      console.error('Error toggling action item:', error);
+    }
+  };
+
   // Update business type stage
   const handleStageChange = async (businessTypeId, newStage, e) => {
     if (e) {
@@ -406,20 +469,26 @@ export default function Pipeline() {
   const handleEditPipeline = async () => {
     if (!selectedClient) return;
 
+    // FIX ISSUE 3.5: Use clientId instead of composite id (which may be like "clientId-bt-0")
+    const actualClientId = selectedClient.clientId || selectedClient.id;
+
     try {
-      // Fetch business types for the selected client
-      const businessTypes = await api.request(`/clients/${selectedClient.id}/business-types`);
-      setClientBusinessTypes(businessTypes || []);
+      // Pre-populate with existing data immediately to avoid blank screen
+      const existingBusinessTypes = selectedClient.allBusinessTypes || selectedClient.businessTypesData || [];
+      setClientBusinessTypes(existingBusinessTypes);
       setShowEditPipelineModal(true);
-      // FIX ISSUE 3: Hide the detail panel when opening the modal to prevent old "Add Pipeline" screen appearing behind
       setShowDetailPanel(false);
+
+      // Fetch fresh data in background
+      const businessTypes = await api.request(`/clients/${actualClientId}/business-types`);
+      // Update with fresh data if available
+      if (businessTypes && businessTypes.length > 0) {
+        setClientBusinessTypes(businessTypes);
+      }
     } catch (error) {
       console.error('Error loading business types:', error);
-      // Show modal anyway with empty business types
-      setClientBusinessTypes([]);
-      setShowEditPipelineModal(true);
-      // FIX ISSUE 3: Hide the detail panel even on error
-      setShowDetailPanel(false);
+      // Keep pre-populated data even if API fails
+      // Modal is already open with cached data, so user can still edit
     }
   };
 
@@ -1195,7 +1264,7 @@ export default function Pipeline() {
                       )}
                       {!generatingPipelineSummary && nextStepsSummary && (
                         <button
-                          onClick={() => handleGeneratePipelineSummary(selectedClient.id)}
+                          onClick={() => handleGeneratePipelineSummary(selectedClient.clientId || selectedClient.id)}
                           className="mt-3 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1"
                         >
                           <Sparkles className="w-3 h-3" />
@@ -1204,6 +1273,92 @@ export default function Pipeline() {
                       )}
                     </div>
                   </div>
+                </div>
+
+                {/* Action Items Section */}
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 border border-purple-200 dark:border-purple-800 rounded-lg">
+                  <button
+                    onClick={() => setShowActionItems(!showActionItems)}
+                    className="w-full p-4 flex items-center justify-between hover:bg-purple-100/50 dark:hover:bg-purple-900/20 transition-colors rounded-t-lg"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
+                        <CheckCircle className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-100">Action Items</h4>
+                        {loadingActionItems ? (
+                          <p className="text-xs text-purple-700 dark:text-purple-300">Loading...</p>
+                        ) : (
+                          <p className="text-xs text-purple-700 dark:text-purple-300">
+                            {clientActionItems.filter(item => !item.completed).length} pending, {clientActionItems.filter(item => item.completed).length} complete
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronDown className={cn(
+                      "w-5 h-5 text-purple-600 dark:text-purple-400 transition-transform",
+                      showActionItems && "transform rotate-180"
+                    )} />
+                  </button>
+
+                  {showActionItems && (
+                    <div className="p-4 pt-0 space-y-2">
+                      {loadingActionItems ? (
+                        <div className="space-y-2">
+                          <div className="h-8 bg-purple-200/50 dark:bg-purple-800/30 rounded animate-pulse" />
+                          <div className="h-8 bg-purple-200/50 dark:bg-purple-800/30 rounded animate-pulse" />
+                        </div>
+                      ) : clientActionItems.length === 0 ? (
+                        <p className="text-sm text-purple-700 dark:text-purple-300 italic text-center py-4">
+                          No action items for this client yet.
+                        </p>
+                      ) : (
+                        <>
+                          {/* Pending Action Items */}
+                          {clientActionItems.filter(item => !item.completed).map(item => (
+                            <div key={item.id} className="flex items-start gap-2 p-2 bg-white/50 dark:bg-purple-900/20 rounded-lg hover:bg-white dark:hover:bg-purple-900/30 transition-colors">
+                              <input
+                                type="checkbox"
+                                checked={false}
+                                onChange={() => handleToggleActionItem(item.id, false)}
+                                className="mt-1 w-4 h-4 rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-purple-900 dark:text-purple-100">{item.action_item_text || item.title}</p>
+                                {item.meeting_title && (
+                                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">From: {item.meeting_title}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+
+                          {/* Completed Action Items */}
+                          {clientActionItems.filter(item => item.completed).map(item => (
+                            <div key={item.id} className="flex items-start gap-2 p-2 bg-white/30 dark:bg-purple-900/10 rounded-lg opacity-60">
+                              <input
+                                type="checkbox"
+                                checked={true}
+                                onChange={() => handleToggleActionItem(item.id, true)}
+                                className="mt-1 w-4 h-4 rounded border-purple-300 text-purple-600 focus:ring-purple-500"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-purple-900 dark:text-purple-100 line-through">{item.action_item_text || item.title}</p>
+                              </div>
+                            </div>
+                          ))}
+
+                          {/* Link to full action items page */}
+                          <button
+                            onClick={() => navigate(`/action-items?clientId=${selectedClient.clientId || selectedClient.id}`)}
+                            className="w-full mt-2 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-medium text-center py-2 hover:bg-purple-100/50 dark:hover:bg-purple-900/20 rounded transition-colors"
+                          >
+                            View All Action Items →
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
 
               {/* Pipeline Financials & Notes (Read Only) */}
