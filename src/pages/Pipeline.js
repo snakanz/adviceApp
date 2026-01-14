@@ -692,8 +692,8 @@ export default function Pipeline() {
 
   if (loading) {
     return (
-      <div className="h-screen bg-background flex flex-col overflow-hidden">
-        <div className="flex-shrink-0 border-b border-border/50 p-4 lg:p-6 bg-card/50">
+      <div className="bg-background">
+        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-bold text-foreground mb-2">Client Pipeline</h1>
@@ -718,10 +718,10 @@ export default function Pipeline() {
           <div className="h-10 bg-muted rounded animate-pulse"></div>
         </div>
 
-        <div className="flex-1 overflow-auto">
+        <div className="overflow-x-auto">
           <div className="min-w-[1200px]">
             {/* Loading Table Header */}
-            <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-4">
+            <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-4 z-10">
               <div className="grid grid-cols-12 gap-3 lg:gap-4">
                 {[...Array(6)].map((_, i) => (
                   <div key={i} className="h-4 bg-muted rounded animate-pulse col-span-2"></div>
@@ -762,14 +762,14 @@ export default function Pipeline() {
   }
 
   return (
-    <div className="h-screen bg-background flex" style={{ height: '100vh', maxHeight: '100vh' }}>
+    <div className="bg-background">
       {/* Main Content */}
       <div className={cn(
-        "flex-1 flex flex-col transition-all duration-300 min-w-0",
+        "pb-8",
         showDetailPanel ? "mr-0 lg:mr-96" : ""
       )}>
         {/* Header */}
-        <div className="flex-shrink-0 border-b border-border/50 p-4 lg:p-6 bg-card/50">
+        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-bold text-foreground mb-2">Client Pipeline</h1>
@@ -975,10 +975,10 @@ export default function Pipeline() {
         </div>
 
         {/* Pipeline Table */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden" style={{ minHeight: 0, maxHeight: '100%' }}>
+        <div className="overflow-x-auto">
           <div className="min-w-[1200px]">
             {/* Table Header */}
-            <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-4">
+            <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-4 z-10">
               <div className="grid grid-cols-10 gap-3 lg:gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 <div className="col-span-3">Client & Business Type</div>
                 <div className="col-span-2">Stage</div>
