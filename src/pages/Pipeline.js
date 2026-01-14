@@ -23,12 +23,11 @@ import CreateClientForm from '../components/CreateClientForm';
 import BusinessTypeManager from '../components/BusinessTypeManager';
 
 // Stage options for business types - dark theme compatible colors
-// Note: 'Signed' is kept for backwards compatibility with existing database records
+// Note: 'Signed' stage removed from dropdown options (but data with 'Signed' will still display correctly)
 const STAGE_OPTIONS = [
   { value: 'Not Written', label: 'Not Written', color: 'bg-gray-500/20 text-gray-300' },
   { value: 'In Progress', label: 'In Progress', color: 'bg-blue-500/20 text-blue-400' },
   { value: 'Waiting to Sign', label: 'Waiting to Sign', color: 'bg-yellow-500/20 text-yellow-400' },
-  { value: 'Signed', label: 'Signed', color: 'bg-yellow-500/20 text-yellow-400', legacy: true },
   { value: 'Completed', label: 'Completed', color: 'bg-green-500/20 text-green-400' }
 ];
 
@@ -941,7 +940,16 @@ export default function Pipeline() {
                         onValueChange={(value) => handleStageChange(client.businessTypeId, value)}
                       >
                         <SelectTrigger className="h-8 text-xs w-full">
-                          <SelectValue />
+                          <SelectValue>
+                            {/* Show current stage even if it's 'Signed' (legacy) */}
+                            <span className={cn(
+                              "px-2 py-0.5 rounded text-xs",
+                              client.stage === 'Signed' ? 'bg-yellow-500/20 text-yellow-400' :
+                              STAGE_OPTIONS.find(opt => opt.value === client.stage)?.color || 'bg-gray-500/20 text-gray-300'
+                            )}>
+                              {client.stage || 'Not Written'}
+                            </span>
+                          </SelectValue>
                         </SelectTrigger>
                         <SelectContent>
                           {STAGE_OPTIONS.map((option) => (
@@ -1280,7 +1288,16 @@ export default function Pipeline() {
                               onValueChange={(value) => handleStageChange(bt.id, value)}
                             >
                               <SelectTrigger className="h-7 text-xs w-32">
-                                <SelectValue />
+                                <SelectValue>
+                                  {/* Show current stage even if it's 'Signed' (legacy) */}
+                                  <span className={cn(
+                                    "px-2 py-0.5 rounded text-xs",
+                                    bt.stage === 'Signed' ? 'bg-yellow-500/20 text-yellow-400' :
+                                    STAGE_OPTIONS.find(opt => opt.value === bt.stage)?.color || 'bg-gray-500/20 text-gray-300'
+                                  )}>
+                                    {bt.stage || 'Not Written'}
+                                  </span>
+                                </SelectValue>
                               </SelectTrigger>
                               <SelectContent>
                                 {STAGE_OPTIONS.map((option) => (
