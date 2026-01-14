@@ -598,6 +598,7 @@ router.put('/:clientId/notes', authenticateSupabaseUser, async (req, res) => {
 
     // Update client pipeline notes
     // CRITICAL: Use pipeline_notes column (used by AI summary), not notes column
+    // If pipeline_notes column doesn't exist, fall back to notes column temporarily
     const { data: updatedClient, error: updateError } = await req.supabase
       .from('clients')
       .update({
@@ -610,8 +611,41 @@ router.put('/:clientId/notes', authenticateSupabaseUser, async (req, res) => {
       .single();
 
     if (updateError) {
+      // If pipeline_notes column doesn't exist, try updating notes column as fallback
+      if (updateError.message?.includes('pipeline_notes') || updateError.code === '42703') {
+        console.error('⚠️  pipeline_notes column not found, falling back to notes column. RUN MIGRATION 034!');
+        const { data: fallbackClient, error: fallbackError } = await req.supabase
+          .from('clients')
+          .update({
+            notes: notes || null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', clientId)
+          .eq('user_id', userId)
+          .select()
+          .single();
+
+        if (fallbackError) {
+          console.error('Error updating client notes (fallback):', fallbackError);
+          return res.status(500).json({
+            error: 'Failed to update notes',
+            details: 'pipeline_notes column missing - run migration 034',
+            migration_needed: true
+          });
+        }
+
+        return res.json({
+          success: true,
+          notes: fallbackClient.notes,
+          warning: 'Using fallback notes column - pipeline_notes column missing. Run migration 034.'
+        });
+      }
+
       console.error('Error updating client pipeline notes:', updateError);
-      return res.status(500).json({ error: 'Failed to update pipeline notes' });
+      return res.status(500).json({
+        error: 'Failed to update pipeline notes',
+        details: updateError.message
+      });
     }
 
     console.log('✅ Pipeline notes updated successfully - will trigger summary regeneration via trigger');
