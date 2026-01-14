@@ -506,28 +506,6 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                                             </p>
                                         </div>
                                     </div>
-
-                                    {/* Transcription Opt-in */}
-                                    <div className="border border-border rounded-lg p-4 space-y-3">
-                                        <div className="flex items-start space-x-3">
-                                            <input
-                                                type="checkbox"
-                                                id="enable-transcription"
-                                                checked={enableTranscription}
-                                                onChange={(e) => setEnableTranscription(e.target.checked)}
-                                                className="mt-1 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                            />
-                                            <label htmlFor="enable-transcription" className="flex-1 cursor-pointer">
-                                                <div className="font-medium text-foreground">
-                                                    Enable AI Meeting Transcription
-                                                </div>
-                                                <p className="text-sm text-muted-foreground mt-1">
-                                                    Automatically record and transcribe your meetings with AI-powered bots.
-                                                    You can change this setting later for individual meetings.
-                                                </p>
-                                            </label>
-                                        </div>
-                                    </div>
                                 </>
                             ) : (
                                 <>
