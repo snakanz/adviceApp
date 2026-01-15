@@ -82,33 +82,54 @@ const AuthCallback = () => {
 
           // Check if returning from onboarding
           const onboardingState = sessionStorage.getItem('onboarding_state');
+          console.log('🔍 Checking for onboarding_state:', onboardingState ? 'FOUND' : 'NOT FOUND');
+
           if (onboardingState) {
-            const state = JSON.parse(onboardingState);
+            try {
+              const state = JSON.parse(onboardingState);
+              console.log('✅ Parsed onboarding state:', state);
 
-            // Mark OAuth as successful
-            sessionStorage.setItem('oauth_return', JSON.stringify({
-              provider: providerParam,
-              success: true
-            }));
+              // Mark OAuth as successful
+              sessionStorage.setItem('oauth_return', JSON.stringify({
+                provider: providerParam,
+                success: true
+              }));
 
-            // Clear onboarding state
-            sessionStorage.removeItem('onboarding_state');
+              // Clear onboarding state
+              sessionStorage.removeItem('onboarding_state');
 
-            // Redirect back to onboarding
+              // Redirect back to onboarding
+              setStatus('success');
+              setMessage('Calendar connected successfully!');
+
+              setTimeout(() => {
+                navigate('/onboarding', {
+                  replace: true,
+                  state: { restoredData: state }
+                });
+              }, 1000);
+              return;
+            } catch (e) {
+              console.error('❌ Error parsing onboarding state:', e);
+            }
+          }
+
+          // **FIX**: If no onboarding state found, check if user is already logged in
+          // This happens when sessionStorage is cleared or after manual login
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            console.log('✅ User already logged in, redirecting to dashboard');
             setStatus('success');
             setMessage('Calendar connected successfully!');
-
-            setTimeout(() => {
-              navigate('/onboarding', {
-                replace: true,
-                state: { restoredData: state }
-              });
-            }, 1000);
+            setTimeout(() => navigate('/dashboard'), 1500);
             return;
           }
 
-          // Not onboarding - proceed to check session
-          await handleOAuthCallback();
+          // No session - they need to log in
+          console.log('⚠️  No onboarding state and no session - redirecting to login');
+          setStatus('error');
+          setMessage('Please log in to continue');
+          setTimeout(() => navigate('/login'), 2000);
           return;
         }
 
