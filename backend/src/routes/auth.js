@@ -12,7 +12,7 @@ const oauth2Client = new google.auth.OAuth2(
 );
 
 // Get Google OAuth URL
-router.get('/google', (req, res) => {
+router.get('/google', authenticateSupabaseUser, (req, res) => {
   const scopes = [
         'https://www.googleapis.com/auth/userinfo.profile',
     'https://www.googleapis.com/auth/userinfo.email',
@@ -20,10 +20,18 @@ router.get('/google', (req, res) => {
     'https://www.googleapis.com/auth/calendar.events'
   ];
 
+  // **FIX**: Pass the currently authenticated user's ID in the state parameter
+  // This allows the callback to link the calendar to the correct user
+  const state = JSON.stringify({
+    user_id: req.user?.id || null,
+    timestamp: Date.now()
+  });
+
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: scopes,
-    prompt: 'consent'
+    prompt: 'consent',
+    state: state // Pass user ID in state parameter
   });
 
     res.json({ url });
@@ -239,6 +247,7 @@ router.get('/google/callback', async (req, res) => {
 
     console.log('📅 /api/auth/google/callback called');
     console.log('  - code:', code ? '✅ Present' : '❌ Missing');
+    console.log('  - state:', state ? '✅ Present' : '❌ Missing');
 
     // Check if Supabase is available
     if (!isSupabaseAvailable()) {
@@ -249,6 +258,18 @@ router.get('/google/callback', async (req, res) => {
       return res.redirect(`${process.env.FRONTEND_URL}/login?error=missing_code`);
     }
 
+    // **FIX**: Parse state to get the authenticated user ID
+    let authenticatedUserId = null;
+    if (state) {
+      try {
+        const stateData = JSON.parse(state);
+        authenticatedUserId = stateData.user_id;
+        console.log('📅 Authenticated user ID from state:', authenticatedUserId);
+      } catch (e) {
+        console.warn('⚠️  Could not parse state parameter:', e);
+      }
+    }
+
     // Exchange code for tokens
     const { tokens } = await oauth2Client.getToken(code);
     oauth2Client.setCredentials(tokens);
@@ -257,40 +278,67 @@ router.get('/google/callback', async (req, res) => {
     const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
     const userInfo = await oauth2.userinfo.get();
 
-    console.log('📅 Google OAuth callback - User:', userInfo.data.email);
+    console.log('📅 Google OAuth callback - Google account:', userInfo.data.email);
     console.log('📅 Google tokens received - Access token:', tokens.access_token ? 'yes' : 'no', 'Refresh token:', tokens.refresh_token ? 'yes' : 'no');
 
-    // Find or create user
-    const { data: existingUser, error: findError } = await getSupabase()
-      .from('users')
-      .select('*')
-      .eq('email', userInfo.data.email)
-      .single();
+    // **FIX**: Use the authenticated user ID from state parameter (for calendar connection during onboarding)
+    // If state contains a user_id, this is a calendar connection for an existing logged-in user
+    // Otherwise, this is a new user signup via Google OAuth
+    let user;
+    let tenantId;
 
-    if (findError && findError.code !== 'PGRST116') {
-      // PGRST116 is "not found" error, which is expected for new users
-      console.error('Error finding user:', findError);
-      throw new Error('Database error while finding user');
-    }
+    if (authenticatedUserId) {
+      // Calendar connection for existing user - use the authenticated user from state
+      console.log('📅 Linking calendar to existing authenticated user:', authenticatedUserId);
+      const { data: existingUser, error: findError } = await getSupabase()
+        .from('users')
+        .select('*')
+        .eq('id', authenticatedUserId)
+        .single();
 
-    // Use UserService to get or create user with Supabase Auth UUID
-    const UserService = require('../services/userService');
-
-    // Create a Supabase user object from Google OAuth info
-    const supabaseUser = {
-      id: userInfo.data.id,  // This will be replaced with Supabase Auth UUID if available
-      email: userInfo.data.email,
-      user_metadata: {
-        full_name: userInfo.data.name
+      if (findError || !existingUser) {
+        console.error('❌ Could not find authenticated user:', authenticatedUserId);
+        throw new Error('Authenticated user not found');
       }
-    };
 
-    // Get or create user
-    const user = await UserService.getOrCreateUser(supabaseUser);
-    let tenantId = user.tenant_id;
+      user = existingUser;
+      tenantId = user.tenant_id;
+      console.log('✅ Found authenticated user:', user.email);
+    } else {
+      // New user signup via Google OAuth - create/find user by email
+      console.log('📅 New user signup or login via Google OAuth');
+      const { data: existingUser, error: findError } = await getSupabase()
+        .from('users')
+        .select('*')
+        .eq('email', userInfo.data.email)
+        .single();
+
+      if (findError && findError.code !== 'PGRST116') {
+        // PGRST116 is "not found" error, which is expected for new users
+        console.error('Error finding user:', findError);
+        throw new Error('Database error while finding user');
+      }
+
+      // Use UserService to get or create user with Supabase Auth UUID
+      const UserService = require('../services/userService');
+
+      // Create a Supabase user object from Google OAuth info
+      const supabaseUser = {
+        id: userInfo.data.id,  // This will be replaced with Supabase Auth UUID if available
+        email: userInfo.data.email,
+        user_metadata: {
+          full_name: userInfo.data.name
+        }
+      };
+
+      // Get or create user
+      user = await UserService.getOrCreateUser(supabaseUser);
+      tenantId = user.tenant_id;
+    }
 
     // Ensure user has a tenant (UserService should have created one, but double-check)
     if (!tenantId) {
+      const UserService = require('../services/userService');
       tenantId = await UserService.ensureUserHasTenant(user);
     }
 
