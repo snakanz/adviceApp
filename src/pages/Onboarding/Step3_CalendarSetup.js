@@ -90,6 +90,7 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         };
 
         checkOAuthReturn();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [enableTranscription, onNext]);
 
     // Check if already connected on mount (from auto-connect)
