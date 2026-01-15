@@ -470,10 +470,15 @@ router.get('/google/callback', async (req, res) => {
       }
     }
 
-    // **FIX**: Redirect back to /auth/callback WITHOUT JWT token
-    // Frontend will use existing Supabase session from onboarding
-    console.log('✅ Google Calendar connected - redirecting to /auth/callback');
-    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?success=true&provider=google`);
+    // **FIX**: If this was a calendar connection for an existing user (authenticatedUserId exists),
+    // redirect to settings. Otherwise, redirect to auth/callback for onboarding flow.
+    if (authenticatedUserId) {
+      console.log('✅ Google Calendar connected for existing user - redirecting to Settings');
+      res.redirect(`${process.env.FRONTEND_URL}/settings?calendar_connected=google`);
+    } else {
+      console.log('✅ Google Calendar connected during onboarding - redirecting to /auth/callback');
+      res.redirect(`${process.env.FRONTEND_URL}/auth/callback?success=true&provider=google`);
+    }
   } catch (error) {
     console.error('❌ Google auth error:', error);
     // **FIX**: Include error details and preserve onboarding context
@@ -819,10 +824,10 @@ router.get('/microsoft/callback', async (req, res) => {
       // Don't fail the connection if sync fails
     }
 
-    // **FIX**: Redirect back to /auth/callback WITHOUT JWT token
-    // Frontend will use existing Supabase session from onboarding
-    console.log('✅ Microsoft Calendar connected - redirecting to /auth/callback');
-    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?success=true&provider=microsoft`);
+    // **FIX**: Microsoft Calendar is only used for calendar connections (not user signup)
+    // Always redirect to Settings page after successful connection
+    console.log('✅ Microsoft Calendar connected - redirecting to Settings');
+    res.redirect(`${process.env.FRONTEND_URL}/settings?calendar_connected=microsoft`);
   } catch (error) {
     console.error('❌ Microsoft auth error:', error);
     // **FIX**: Include error details and preserve onboarding context
