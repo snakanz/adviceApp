@@ -483,9 +483,9 @@ router.get('/google/callback', async (req, res) => {
       console.log('✅ Google Calendar connected from Settings - redirecting to Settings');
       res.redirect(`${process.env.FRONTEND_URL}/settings?calendar_connected=google`);
     } else {
-      // Onboarding calendar connection OR new user signup → redirect to auth/callback
+      // Onboarding calendar connection OR new user signup → redirect to auth/callback with onboarding flag
       console.log('✅ Google Calendar connected during onboarding - redirecting to /auth/callback');
-      res.redirect(`${process.env.FRONTEND_URL}/auth/callback?success=true&provider=google`);
+      res.redirect(`${process.env.FRONTEND_URL}/auth/callback?success=true&provider=google&onboarding=true`);
     }
   } catch (error) {
     console.error('❌ Google auth error:', error);

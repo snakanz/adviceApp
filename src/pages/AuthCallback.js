@@ -79,43 +79,50 @@ const AuthCallback = () => {
         if (successParam === 'true' && providerParam) {
           // **NEW**: Backend explicitly confirmed success (calendar OAuth)
           console.log('✅ AuthCallback: Backend confirmed calendar connection success:', providerParam);
+          console.log('🔍 Onboarding flag from URL:', isOnboarding);
 
-          // Check if returning from onboarding
-          const onboardingState = sessionStorage.getItem('onboarding_state');
-          console.log('🔍 Checking for onboarding_state:', onboardingState ? 'FOUND' : 'NOT FOUND');
+          // **FIX**: Check onboarding flag from URL query parameter (not sessionStorage)
+          // This is more reliable as sessionStorage can be cleared during OAuth redirects
+          if (isOnboarding) {
+            console.log('✅ Onboarding calendar connection detected from URL parameter');
 
-          if (onboardingState) {
-            try {
-              const state = JSON.parse(onboardingState);
-              console.log('✅ Parsed onboarding state:', state);
+            // Mark OAuth as successful for Step3 to detect
+            sessionStorage.setItem('oauth_return', JSON.stringify({
+              provider: providerParam,
+              success: true
+            }));
 
-              // Mark OAuth as successful
-              sessionStorage.setItem('oauth_return', JSON.stringify({
-                provider: providerParam,
-                success: true
-              }));
+            // Try to restore onboarding state from sessionStorage (if it survived)
+            const onboardingState = sessionStorage.getItem('onboarding_state');
+            let restoredData = null;
 
-              // Clear onboarding state
-              sessionStorage.removeItem('onboarding_state');
-
-              // Redirect back to onboarding
-              setStatus('success');
-              setMessage('Calendar connected successfully!');
-
-              setTimeout(() => {
-                navigate('/onboarding', {
-                  replace: true,
-                  state: { restoredData: state }
-                });
-              }, 1000);
-              return;
-            } catch (e) {
-              console.error('❌ Error parsing onboarding state:', e);
+            if (onboardingState) {
+              try {
+                restoredData = JSON.parse(onboardingState);
+                console.log('✅ Restored onboarding state from sessionStorage');
+                sessionStorage.removeItem('onboarding_state');
+              } catch (e) {
+                console.warn('⚠️  Could not parse onboarding state:', e);
+              }
+            } else {
+              console.log('⚠️  SessionStorage was cleared, user will need to complete remaining steps');
             }
+
+            // Redirect back to onboarding
+            setStatus('success');
+            setMessage('Calendar connected successfully!');
+
+            setTimeout(() => {
+              navigate('/onboarding', {
+                replace: true,
+                state: restoredData ? { restoredData } : undefined
+              });
+            }, 1000);
+            return;
           }
 
-          // **FIX**: If no onboarding state found, check if user is already logged in
-          // This happens when sessionStorage is cleared or after manual login
+          // Not onboarding - this is a post-login calendar connection from Settings
+          // Check if user is logged in and redirect to dashboard
           const { data: { session } } = await supabase.auth.getSession();
           if (session) {
             console.log('✅ User already logged in, redirecting to dashboard');
@@ -126,7 +133,7 @@ const AuthCallback = () => {
           }
 
           // No session - they need to log in
-          console.log('⚠️  No onboarding state and no session - redirecting to login');
+          console.log('⚠️  No session found - redirecting to login');
           setStatus('error');
           setMessage('Please log in to continue');
           setTimeout(() => navigate('/login'), 2000);
