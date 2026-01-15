@@ -20,10 +20,14 @@ router.get('/google', authenticateSupabaseUser, (req, res) => {
     'https://www.googleapis.com/auth/calendar.events'
   ];
 
+  // Check if this is during onboarding (query parameter from frontend)
+  const isOnboarding = req.query.onboarding === 'true';
+
   // **FIX**: Pass the currently authenticated user's ID in the state parameter
   // This allows the callback to link the calendar to the correct user
   const state = JSON.stringify({
     user_id: req.user?.id || null,
+    onboarding: isOnboarding,
     timestamp: Date.now()
   });
 
@@ -31,7 +35,7 @@ router.get('/google', authenticateSupabaseUser, (req, res) => {
     access_type: 'offline',
     scope: scopes,
     prompt: 'consent',
-    state: state // Pass user ID in state parameter
+    state: state // Pass user ID and onboarding flag in state parameter
   });
 
     res.json({ url });
@@ -258,13 +262,16 @@ router.get('/google/callback', async (req, res) => {
       return res.redirect(`${process.env.FRONTEND_URL}/login?error=missing_code`);
     }
 
-    // **FIX**: Parse state to get the authenticated user ID
+    // **FIX**: Parse state to get the authenticated user ID and onboarding flag
     let authenticatedUserId = null;
+    let isOnboarding = false;
     if (state) {
       try {
         const stateData = JSON.parse(state);
         authenticatedUserId = stateData.user_id;
+        isOnboarding = stateData.onboarding === true;
         console.log('📅 Authenticated user ID from state:', authenticatedUserId);
+        console.log('📅 Is onboarding:', isOnboarding);
       } catch (e) {
         console.warn('⚠️  Could not parse state parameter:', e);
       }
@@ -470,12 +477,13 @@ router.get('/google/callback', async (req, res) => {
       }
     }
 
-    // **FIX**: If this was a calendar connection for an existing user (authenticatedUserId exists),
-    // redirect to settings. Otherwise, redirect to auth/callback for onboarding flow.
-    if (authenticatedUserId) {
-      console.log('✅ Google Calendar connected for existing user - redirecting to Settings');
+    // **FIX**: Redirect based on whether this is onboarding or post-login calendar connection
+    if (authenticatedUserId && !isOnboarding) {
+      // Post-login calendar connection from Settings → redirect back to Settings
+      console.log('✅ Google Calendar connected from Settings - redirecting to Settings');
       res.redirect(`${process.env.FRONTEND_URL}/settings?calendar_connected=google`);
     } else {
+      // Onboarding calendar connection OR new user signup → redirect to auth/callback
       console.log('✅ Google Calendar connected during onboarding - redirecting to /auth/callback');
       res.redirect(`${process.env.FRONTEND_URL}/auth/callback?success=true&provider=google`);
     }
