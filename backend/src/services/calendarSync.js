@@ -104,24 +104,25 @@ class CalendarSyncService {
           .eq('id', userId);
       }
 
-      // After syncing meetings, extract and associate clients
-      if (syncResults.added > 0 || syncResults.updated > 0 || syncResults.restored > 0) {
-        try {
-          console.log('🔄 Starting client extraction from synced meetings...');
-          const clientExtractionService = require('./clientExtraction');
-          const extractionResult = await clientExtractionService.linkMeetingsToClients(userId);
-          console.log('✅ Client extraction completed:', extractionResult);
+      // **FIX**: ALWAYS run client extraction after sync to catch any unlinked meetings
+      // This ensures clients are created even if meetings were synced before this feature was added
+      try {
+        console.log('🔄 Running client extraction to link any unlinked meetings...');
+        const clientExtractionService = require('./clientExtraction');
+        const extractionResult = await clientExtractionService.linkMeetingsToClients(userId);
+        console.log('✅ Client extraction completed:', extractionResult);
 
-          // Add extraction results to sync results
-          syncResults.clientsCreated = extractionResult.clientsCreated || 0;
-          syncResults.clientsLinked = extractionResult.linked || 0;
-        } catch (error) {
-          console.error('❌ Error extracting clients from synced meetings:', error);
-          // Don't fail the whole sync if client extraction fails
-          syncResults.clientsCreated = 0;
-          syncResults.clientsLinked = 0;
-        }
-      } else {
+        // Add extraction results to sync results
+        syncResults.clientsCreated = extractionResult.clientsCreated || 0;
+        syncResults.clientsLinked = extractionResult.linked || 0;
+      } catch (error) {
+        console.error('❌ Error extracting clients from synced meetings:', error);
+        // Don't fail the whole sync if client extraction fails
+        syncResults.clientsCreated = 0;
+        syncResults.clientsLinked = 0;
+      }
+
+      if (syncResults.added === 0 && syncResults.updated === 0 && syncResults.restored === 0) {
         syncResults.clientsCreated = 0;
         syncResults.clientsLinked = 0;
       }
