@@ -633,16 +633,15 @@ class CalendlyService {
         }
       }
 
-      // After syncing meetings, extract and associate clients
-      if (syncedCount > 0 || updatedCount > 0 || restoredCount > 0) {
-        try {
-          console.log('🔄 Starting client extraction for Calendly meetings...');
-          const extractionResult = await clientExtractionService.linkMeetingsToClients(userId);
-          console.log('✅ Client extraction completed for Calendly meetings:', extractionResult);
-        } catch (error) {
-          console.error('❌ Error extracting clients from Calendly meetings:', error);
-          // Don't fail the whole sync if client extraction fails
-        }
+      // **FIX**: ALWAYS run client extraction after sync to catch any unlinked meetings
+      // This ensures clients are created even if meetings were synced before this feature was added
+      try {
+        console.log('🔄 Running client extraction to link any unlinked Calendly meetings...');
+        const extractionResult = await clientExtractionService.linkMeetingsToClients(userId);
+        console.log('✅ Client extraction completed for Calendly meetings:', extractionResult);
+      } catch (error) {
+        console.error('❌ Error extracting clients from Calendly meetings:', error);
+        // Don't fail the whole sync if client extraction fails
       }
 
       // Update user's sync status
