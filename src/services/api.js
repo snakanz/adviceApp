@@ -58,7 +58,16 @@ class ApiService {
 
                     throw new Error('Unauthorized');
                 }
-                throw new Error(`HTTP error! status: ${response.status}`);
+                // Try to get error details from response body
+                let errorDetails = '';
+                try {
+                    const errorBody = await response.json();
+                    console.error('API error response:', errorBody);
+                    errorDetails = errorBody.details || errorBody.error || '';
+                } catch (e) {
+                    // Couldn't parse error body
+                }
+                throw new Error(errorDetails || `HTTP error! status: ${response.status}`);
             }
 
             const data = await response.json();
