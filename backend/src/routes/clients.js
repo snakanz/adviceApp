@@ -1453,7 +1453,7 @@ router.patch('/business-types/:businessTypeId/not-proceeding', authenticateSupab
   }
 });
 
-// Create new client with pipeline integration and business types
+// Create new client (simplified - no business types required)
 router.post('/create', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -1464,69 +1464,13 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
       email,
       phone,
       address,
-      // Pipeline info
-      likely_close_month,
-      priority_level,
       notes,
-      source,
-      // Business types array
-      business_types
+      source
     } = req.body;
 
-    // Validation
+    // Validation - only name and email are required
     if (!name || !email) {
       return res.status(400).json({ error: 'Name and email are required' });
-    }
-
-    if (!business_types || !Array.isArray(business_types) || business_types.length === 0) {
-      return res.status(400).json({ error: 'At least one business type is required' });
-    }
-
-    const hasValidBusinessType = business_types.some(
-      bt => bt.business_type && bt.business_type.trim() !== ''
-    );
-    if (!hasValidBusinessType) {
-      return res.status(400).json({ error: 'At least one business type must be selected' });
-    }
-
-    // Validate business types
-    for (const bt of business_types) {
-      if (!bt.business_type || bt.business_type.trim() === '') {
-        continue;
-      }
-
-      const { business_type, iaf_expected, business_amount } = bt;
-
-      if (
-        business_type === 'Investment' &&
-        (iaf_expected === undefined || iaf_expected === null || `${iaf_expected}`.trim() === '')
-      ) {
-        return res.status(400).json({
-          error: 'Expected fee is required for Investment business types'
-        });
-      }
-
-      if (
-        business_amount !== undefined &&
-        business_amount !== null &&
-        `${business_amount}`.trim() !== '' &&
-        isNaN(parseFloat(business_amount))
-      ) {
-        return res.status(400).json({
-          error: 'Business amounts must be valid numbers'
-        });
-      }
-
-      if (
-        iaf_expected !== undefined &&
-        iaf_expected !== null &&
-        `${iaf_expected}`.trim() !== '' &&
-        isNaN(parseFloat(iaf_expected))
-      ) {
-        return res.status(400).json({
-          error: 'Expected fees must be valid numbers'
-        });
-      }
     }
 
     if (!isSupabaseAvailable()) {
@@ -1559,10 +1503,9 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
       email,
       phone: phone || null,
       address: address || null,
-      likely_close_month: likely_close_month || null,
-      priority_level: priority_level || 3,
       notes: notes || null,
       source: source || 'manual',
+      priority_level: 3,
       last_contact_date: new Date().toISOString(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -1579,28 +1522,6 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
       return res.status(500).json({ error: 'Failed to create client' });
     }
 
-    // Create business types
-    const businessTypeData = business_types
-      .filter(bt => bt.business_type && bt.business_type.trim() !== '')
-      .map(bt => ({
-        client_id: newClient.id,
-        business_type: bt.business_type,
-        business_amount: bt.business_amount ? parseFloat(bt.business_amount) : null,
-        iaf_expected: bt.iaf_expected ? parseFloat(bt.iaf_expected) : null,
-        expected_close_date: bt.expected_close_date || null,
-        notes: bt.notes || null
-      }));
-
-    const { data: newBusinessTypes, error: businessTypeError } = await req.supabase
-      .from('client_business_types')
-      .insert(businessTypeData)
-      .select();
-
-    if (businessTypeError) {
-      console.error('Error creating business types:', businessTypeError);
-      // Don't fail the whole operation, but log the error
-    }
-
     // Create pipeline activity (optional - don't fail if table doesn't exist)
     try {
       await req.supabase
@@ -1610,10 +1531,9 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
           user_id: userId,
           activity_type: 'note',
           title: 'Client created',
-          description: `New client created. Business types: ${business_types.map(bt => bt.business_type).join(', ')}`,
+          description: `New client created: ${name}`,
           metadata: {
-            source: 'client_creation',
-            business_types: business_types.map(bt => bt.business_type)
+            source: 'client_creation'
           }
         });
       console.log('✅ Client creation activity logged successfully');
@@ -1623,8 +1543,7 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
 
     res.json({
       message: 'Client created successfully',
-      client: newClient,
-      business_types: newBusinessTypes
+      client: newClient
     });
 
   } catch (error) {
