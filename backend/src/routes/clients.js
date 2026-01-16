@@ -1519,7 +1519,12 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
 
     if (clientError) {
       console.error('Error creating client:', clientError);
-      return res.status(500).json({ error: 'Failed to create client' });
+      console.error('Client data that failed:', JSON.stringify(clientData, null, 2));
+      return res.status(500).json({
+        error: 'Failed to create client',
+        details: clientError.message,
+        code: clientError.code
+      });
     }
 
     // Create pipeline activity (optional - don't fail if table doesn't exist)
