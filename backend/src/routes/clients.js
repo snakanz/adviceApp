@@ -1453,22 +1453,12 @@ router.patch('/business-types/:businessTypeId/not-proceeding', authenticateSupab
   }
 });
 
-// Create new client (simplified - no business types required)
+// Create new client (simplified - only name and email required)
 router.post('/create', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
+    const { name, email } = req.body;
 
-    const {
-      // Basic client info
-      name,
-      email,
-      phone,
-      address,
-      notes,
-      source
-    } = req.body;
-
-    // Validation - only name and email are required
     if (!name || !email) {
       return res.status(400).json({ error: 'Name and email are required' });
     }
@@ -1496,19 +1486,13 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
       return res.status(400).json({ error: 'Client with this email already exists' });
     }
 
-    // Create new client
+    // Create new client with minimal fields
     const clientData = {
       user_id: userId,
       name,
       email,
-      phone: phone || null,
-      address: address || null,
-      notes: notes || null,
-      source: source || 'manual',
-      priority_level: 3,
-      last_contact_date: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      source: 'manual',
+      priority_level: 3
     };
 
     const { data: newClient, error: clientError } = await req.supabase
@@ -1519,7 +1503,6 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
 
     if (clientError) {
       console.error('Error creating client:', clientError);
-      console.error('Client data that failed:', JSON.stringify(clientData, null, 2));
       return res.status(500).json({
         error: 'Failed to create client',
         details: clientError.message,
@@ -1527,24 +1510,7 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
       });
     }
 
-    // Create pipeline activity (optional - don't fail if table doesn't exist)
-    try {
-      await req.supabase
-        .from('pipeline_activities')
-        .insert({
-          client_id: newClient.id,
-          user_id: userId,
-          activity_type: 'note',
-          title: 'Client created',
-          description: `New client created: ${name}`,
-          metadata: {
-            source: 'client_creation'
-          }
-        });
-      console.log('✅ Client creation activity logged successfully');
-    } catch (activityError) {
-      console.warn('⚠️ Failed to log client creation activity (table may not exist):', activityError.message);
-    }
+    console.log('✅ Client created successfully:', newClient.id);
 
     res.json({
       message: 'Client created successfully',
