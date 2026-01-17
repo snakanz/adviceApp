@@ -224,9 +224,9 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
             const token = await getAccessToken();
             console.log('🔵 Access token obtained:', token ? 'YES' : 'NO');
 
-            // Get OAuth URL from auth endpoint
+            // Get OAuth URL from auth endpoint (with onboarding flag)
             const response = await axios.get(
-                `${API_BASE_URL}/api/auth/microsoft`,
+                `${API_BASE_URL}/api/auth/microsoft?onboarding=true`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 

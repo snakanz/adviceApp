@@ -548,11 +548,21 @@ router.get('/microsoft', async (req, res) => {
       });
     }
 
+    // Check if this is during onboarding (query parameter from frontend)
+    const isOnboarding = req.query.onboarding === 'true';
+
+    // Create state parameter with onboarding flag
+    const state = JSON.stringify({
+      onboarding: isOnboarding,
+      timestamp: Date.now()
+    });
+
     console.log('🔗 Generating Microsoft OAuth URL...');
     console.log('  - Redirect URI:', microsoftService.redirectUri);
+    console.log('  - Is onboarding:', isOnboarding);
 
-    // IMPORTANT: getAuthCodeUrl() returns a Promise, so we need to await it
-    const url = await microsoftService.getAuthorizationUrl();
+    // Pass state to authorization URL
+    const url = await microsoftService.getAuthorizationUrl(state);
 
     console.log('✅ Microsoft OAuth URL generated successfully');
     console.log('  - URL length:', url.length);
@@ -832,13 +842,30 @@ router.get('/microsoft/callback', async (req, res) => {
       // Don't fail the connection if sync fails
     }
 
-    // **FIX**: Microsoft Calendar is only used for calendar connections (not user signup)
-    // Always redirect to Settings page after successful connection
-    console.log('✅ Microsoft Calendar connected - redirecting to Settings');
-    res.redirect(`${process.env.FRONTEND_URL}/settings?calendar_connected=microsoft`);
+    // Parse state to check if this is during onboarding
+    let isOnboarding = false;
+    if (state) {
+      try {
+        const stateData = JSON.parse(state);
+        isOnboarding = stateData.onboarding === true;
+        console.log('📅 Microsoft callback - Is onboarding:', isOnboarding);
+      } catch (e) {
+        console.warn('⚠️  Could not parse state parameter:', e);
+      }
+    }
+
+    // Redirect based on whether this is onboarding or post-login calendar connection
+    if (isOnboarding) {
+      // Onboarding calendar connection → redirect to auth/callback with onboarding flag
+      console.log('✅ Microsoft Calendar connected during onboarding - redirecting to /auth/callback');
+      res.redirect(`${process.env.FRONTEND_URL}/auth/callback?success=true&provider=microsoft&onboarding=true`);
+    } else {
+      // Post-login calendar connection from Settings → redirect back to Settings
+      console.log('✅ Microsoft Calendar connected from Settings - redirecting to Settings');
+      res.redirect(`${process.env.FRONTEND_URL}/settings?calendar_connected=microsoft`);
+    }
   } catch (error) {
     console.error('❌ Microsoft auth error:', error);
-    // **FIX**: Include error details and preserve onboarding context
     const errorMessage = encodeURIComponent(error.message || 'Authentication failed');
     res.redirect(`${process.env.FRONTEND_URL}/auth/callback?error=${errorMessage}&provider=microsoft&onboarding=true`);
   }
