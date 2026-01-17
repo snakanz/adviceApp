@@ -536,7 +536,7 @@ router.get('/microsoft/test-config', (req, res) => {
   }
 });
 
-router.get('/microsoft', async (req, res) => {
+router.get('/microsoft', authenticateSupabaseUser, async (req, res) => {
   try {
     const MicrosoftCalendarService = require('../services/microsoftCalendar');
     const microsoftService = new MicrosoftCalendarService();
@@ -551,8 +551,10 @@ router.get('/microsoft', async (req, res) => {
     // Check if this is during onboarding (query parameter from frontend)
     const isOnboarding = req.query.onboarding === 'true';
 
-    // Create state parameter with onboarding flag
+    // **FIX**: Pass the currently authenticated user's ID in the state parameter
+    // This allows the callback to link the calendar to the correct user
     const state = JSON.stringify({
+      user_id: req.user?.id || null,
       onboarding: isOnboarding,
       timestamp: Date.now()
     });
@@ -560,6 +562,7 @@ router.get('/microsoft', async (req, res) => {
     console.log('🔗 Generating Microsoft OAuth URL...');
     console.log('  - Redirect URI:', microsoftService.redirectUri);
     console.log('  - Is onboarding:', isOnboarding);
+    console.log('  - User ID in state:', req.user?.id || 'none');
 
     // Pass state to authorization URL
     const url = await microsoftService.getAuthorizationUrl(state);
@@ -710,38 +713,78 @@ router.get('/microsoft/callback', async (req, res) => {
 
     // Get user info from Microsoft
     const userInfo = await microsoftService.getUserInfo(accessToken);
+    const microsoftEmail = userInfo.mail || userInfo.userPrincipalName;
 
-    console.log('📅 Microsoft OAuth callback - User:', userInfo.mail || userInfo.userPrincipalName);
+    console.log('📅 Microsoft OAuth callback - Microsoft account:', microsoftEmail);
     console.log('📅 Microsoft tokens received - Access token:', accessToken ? 'yes' : 'no', 'Refresh token:', refreshToken ? 'yes' : 'no');
 
-    // Find or create user
-    const userEmail = userInfo.mail || userInfo.userPrincipalName;
-    const { data: existingUser, error: findError } = await getSupabase()
-      .from('users')
-      .select('*')
-      .eq('email', userEmail)
-      .single();
-
-    if (findError && findError.code !== 'PGRST116') {
-      console.error('Error finding user:', findError);
-      throw new Error('Database error while finding user');
+    // **FIX**: Parse state to get the authenticated user ID and onboarding flag
+    let authenticatedUserId = null;
+    let isOnboarding = false;
+    if (state) {
+      try {
+        const stateData = JSON.parse(state);
+        authenticatedUserId = stateData.user_id;
+        isOnboarding = stateData.onboarding === true;
+        console.log('📅 Authenticated user ID from state:', authenticatedUserId);
+        console.log('📅 Is onboarding:', isOnboarding);
+      } catch (e) {
+        console.warn('⚠️  Could not parse state parameter:', e);
+      }
     }
 
-    // Use UserService to get or create user
-    const UserService = require('../services/userService');
+    // **FIX**: Use the authenticated user ID from state parameter (for calendar connection during onboarding)
+    // If state contains a user_id, this is a calendar connection for an existing logged-in user
+    // Otherwise, this is a new user signup via Microsoft OAuth (not currently supported)
+    let user;
+    let tenantId;
 
-    const supabaseUser = {
-      id: userInfo.id,
-      email: userEmail,
-      user_metadata: {
-        full_name: userInfo.displayName
+    if (authenticatedUserId) {
+      // Calendar connection for existing user - use the authenticated user from state
+      console.log('📅 Linking Microsoft calendar to existing authenticated user:', authenticatedUserId);
+      const { data: existingUser, error: findError } = await getSupabase()
+        .from('users')
+        .select('*')
+        .eq('id', authenticatedUserId)
+        .single();
+
+      if (findError || !existingUser) {
+        console.error('❌ Could not find authenticated user:', authenticatedUserId);
+        throw new Error('Authenticated user not found');
       }
-    };
 
-    const user = await UserService.getOrCreateUser(supabaseUser);
-    let tenantId = user.tenant_id;
+      user = existingUser;
+      tenantId = user.tenant_id;
+      console.log('✅ Found authenticated user:', user.email);
+    } else {
+      // No authenticated user - try to find by Microsoft email
+      console.log('📅 No authenticated user in state, looking up by Microsoft email:', microsoftEmail);
+      const { data: existingUser, error: findError } = await getSupabase()
+        .from('users')
+        .select('*')
+        .eq('email', microsoftEmail)
+        .single();
 
+      if (findError && findError.code !== 'PGRST116') {
+        console.error('Error finding user:', findError);
+        throw new Error('Database error while finding user');
+      }
+
+      if (existingUser) {
+        user = existingUser;
+        tenantId = user.tenant_id;
+        console.log('✅ Found existing user by Microsoft email:', user.email);
+      } else {
+        // No existing user found - Microsoft OAuth signup not supported for new users
+        // They should sign up with email/password or Google first
+        console.error('❌ No existing user found for Microsoft email:', microsoftEmail);
+        throw new Error('Please sign up first before connecting Microsoft Calendar');
+      }
+    }
+
+    // Ensure user has a tenant
     if (!tenantId) {
+      const UserService = require('../services/userService');
       tenantId = await UserService.ensureUserHasTenant(user);
     }
 
@@ -842,19 +885,8 @@ router.get('/microsoft/callback', async (req, res) => {
       // Don't fail the connection if sync fails
     }
 
-    // Parse state to check if this is during onboarding
-    let isOnboarding = false;
-    if (state) {
-      try {
-        const stateData = JSON.parse(state);
-        isOnboarding = stateData.onboarding === true;
-        console.log('📅 Microsoft callback - Is onboarding:', isOnboarding);
-      } catch (e) {
-        console.warn('⚠️  Could not parse state parameter:', e);
-      }
-    }
-
     // Redirect based on whether this is onboarding or post-login calendar connection
+    // (isOnboarding was already parsed from state earlier in the callback)
     if (isOnboarding) {
       // Onboarding calendar connection → redirect to auth/callback with onboarding flag
       console.log('✅ Microsoft Calendar connected during onboarding - redirecting to /auth/callback');
