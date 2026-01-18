@@ -675,17 +675,17 @@ export default function ActionItems() {
   return (
     <div className="h-full bg-background flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-border/50 p-6 bg-card/50">
-        <div className="flex items-center justify-between mb-4">
+      <div className="flex-shrink-0 border-b border-border/50 p-4 sm:p-6 bg-card/50">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-foreground mb-2">Action Items</h1>
-            <p className="text-sm text-muted-foreground">
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground mb-1 sm:mb-2">Action Items</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">
               Track and manage action items from client meetings
             </p>
           </div>
-          <Button onClick={() => { fetchActionItems(); }} variant="outline" size="sm">
-            <Clock className="w-4 h-4 mr-2" />
-            Refresh
+          <Button onClick={() => { fetchActionItems(); }} variant="outline" size="sm" className="self-start sm:self-auto">
+            <Clock className="w-4 h-4 sm:mr-2" />
+            <span className="hidden sm:inline">Refresh</span>
           </Button>
         </div>
 
@@ -724,23 +724,23 @@ export default function ActionItems() {
         {/* Statistics - Only show for Action Items tab */}
         {activeTab === 'action-items' && (
           <>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
               <Card className="border-border/50">
-                <CardContent className="p-4">
-                  <div className="text-2xl font-bold text-foreground">{totalItems}</div>
-                  <div className="text-xs text-muted-foreground">Total Items</div>
+                <CardContent className="p-3 sm:p-4">
+                  <div className="text-xl sm:text-2xl font-bold text-foreground">{totalItems}</div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground">Total</div>
                 </CardContent>
               </Card>
               <Card className="border-border/50">
-                <CardContent className="p-4">
-                  <div className="text-2xl font-bold text-orange-600">{pendingItems}</div>
-                  <div className="text-xs text-muted-foreground">Pending</div>
+                <CardContent className="p-3 sm:p-4">
+                  <div className="text-xl sm:text-2xl font-bold text-orange-600">{pendingItems}</div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground">Pending</div>
                 </CardContent>
               </Card>
               <Card className="border-border/50">
-                <CardContent className="p-4">
-                  <div className="text-2xl font-bold text-green-600">{completedItems}</div>
-                  <div className="text-xs text-muted-foreground">Completed</div>
+                <CardContent className="p-3 sm:p-4">
+                  <div className="text-xl sm:text-2xl font-bold text-green-600">{completedItems}</div>
+                  <div className="text-[10px] sm:text-xs text-muted-foreground">Done</div>
                 </CardContent>
               </Card>
             </div>

@@ -616,16 +616,18 @@ export default function Clients() {
       {/* Main Content */}
       <div className="h-full flex flex-col">
         {/* Header */}
-        <div className="border-b border-border/50 p-6 bg-card/50">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-foreground">Clients</h1>
-            <div className="flex items-center gap-3">
+        <div className="border-b border-border/50 p-4 sm:p-6 bg-card/50">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Clients</h1>
+            <div className="flex items-center gap-2 sm:gap-3">
               <Button
                 onClick={() => setShowCreateClientForm(true)}
                 className="flex items-center gap-2"
+                size="sm"
               >
                 <Plus className="w-4 h-4" />
-                Create Client
+                <span className="hidden sm:inline">Create Client</span>
+                <span className="sm:hidden">Add</span>
               </Button>
               <Button
                 onClick={handleExtractClients}
@@ -636,12 +638,12 @@ export default function Clients() {
                 {extracting ? (
                   <>
                     <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />
-                    Extracting...
+                    <span className="hidden sm:inline">Extracting...</span>
                   </>
                 ) : (
                   <>
-                    <Users className="w-4 h-4 mr-2" />
-                    Extract Clients
+                    <Users className="w-4 h-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Extract Clients</span>
                   </>
                 )}
               </Button>
@@ -649,12 +651,13 @@ export default function Clients() {
           </div>
 
           {/* Filters and Search */}
-          <div className="flex gap-4 items-center">
-            <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 sm:items-center">
+            <div className="flex gap-2 overflow-x-auto pb-1 sm:pb-0">
               <Button
                 onClick={() => setClientFilter('all')}
                 variant={clientFilter === 'all' ? 'default' : 'outline'}
                 size="sm"
+                className="whitespace-nowrap"
               >
                 All ({clients.length})
               </Button>
@@ -662,19 +665,23 @@ export default function Clients() {
                 onClick={() => setClientFilter('with-upcoming')}
                 variant={clientFilter === 'with-upcoming' ? 'default' : 'outline'}
                 size="sm"
+                className="whitespace-nowrap"
               >
-                With Upcoming
+                <span className="hidden sm:inline">With Upcoming</span>
+                <span className="sm:hidden">Upcoming</span>
               </Button>
               <Button
                 onClick={() => setClientFilter('no-upcoming')}
                 variant={clientFilter === 'no-upcoming' ? 'default' : 'outline'}
                 size="sm"
+                className="whitespace-nowrap"
               >
-                Need Follow-up
+                <span className="hidden sm:inline">Need Follow-up</span>
+                <span className="sm:hidden">Follow-up</span>
               </Button>
             </div>
 
-            <div className="relative flex-1 max-w-md">
+            <div className="relative flex-1 sm:max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Search clients..."
@@ -688,9 +695,9 @@ export default function Clients() {
 
         {/* List View (Table) */}
         <div className="flex-1 overflow-auto">
-            <div className="min-w-full">
+            <div className="min-w-[800px] sm:min-w-full">
               {/* Table Header */}
-              <div className="sticky top-0 bg-muted/50 border-b border-border/50 px-6 py-3 z-10">
+              <div className="sticky top-0 bg-muted/50 border-b border-border/50 px-4 sm:px-6 py-3 z-10">
                 <div className="grid grid-cols-12 gap-4 text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 {/* Sortable: Client Name */}
                 <div
@@ -916,30 +923,30 @@ export default function Clients() {
           {/* Detail Panel - Expanded Width */}
           <div className="fixed right-0 top-0 h-full w-full lg:w-[45%] xl:w-[40%] bg-card border-l border-border shadow-xl z-50 overflow-hidden flex flex-col">
             {/* Panel Header */}
-            <div className="sticky top-0 bg-background border-b border-border/50 p-6 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Avatar className="w-12 h-12 bg-primary/10 text-primary">
-                  <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
+            <div className="sticky top-0 bg-background border-b border-border/50 p-4 sm:p-6 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                <Avatar className="w-10 h-10 sm:w-12 sm:h-12 bg-primary/10 text-primary flex-shrink-0">
+                  <AvatarFallback className="bg-primary/10 text-primary text-base sm:text-lg font-semibold">
                     {getUserInitials(selectedClient.name)}
                   </AvatarFallback>
                 </Avatar>
-                <div>
-                  <h2 className="text-xl font-bold text-foreground">
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-lg sm:text-xl font-bold text-foreground truncate">
                     {selectedClient.name || 'Unnamed Client'}
                   </h2>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground truncate">
                     {selectedClient.email}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={() => handleEditClient(selectedClient)}
                 >
-                  <Edit3 className="w-4 h-4 mr-2" />
-                  Edit
+                  <Edit3 className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Edit</span>
                 </Button>
                 <Button
                   variant="ghost"
@@ -952,7 +959,7 @@ export default function Clients() {
             </div>
 
             {/* Panel Content - Scrollable */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
               {/* Client Summary - Full Width at Top */}
               <Card className="border-border/50 bg-blue-50/50 dark:bg-blue-950/20">
                 <CardContent className="p-4">

@@ -259,76 +259,74 @@ export default function Layout() {
                 <CloseIcon />
               </Button>
             </div>
-            <nav className="p-4 space-y-2">
-              {navItems.map((item) => (
-                <NavLink
-                  key={item.label}
-                  to={item.path}
-                  onClick={() => setOpen(false)}
-                  className={({ isActive }) =>
-                    cn(
-                      "sidebar-item",
-                      isActive && "active"
-                    )
-                  }
-                >
-                  <span className="w-5 h-5">
-                    {item.icon}
+            <nav className="flex-1 overflow-y-auto py-4">
+              <div className="px-4 space-y-2">
+                {navItems.map((item) => (
+                  <NavLink
+                    key={item.label}
+                    to={item.path}
+                    onClick={() => setOpen(false)}
+                    className={({ isActive }) =>
+                      cn(
+                        "sidebar-item",
+                        isActive && "active"
+                      )
+                    }
+                  >
+                    <span className="w-5 h-5">
+                      {item.icon}
+                    </span>
+                    {item.label}
+                  </NavLink>
+                ))}
+              </div>
+
+              {/* Analytics Section - Mobile */}
+              <div className="mt-6 px-4">
+                <div className="mb-2">
+                  <span className="label">
+                    Analytics
                   </span>
-                  {item.label}
-                </NavLink>
-              ))}
+                </div>
+                <div className="space-y-1">
+                  {analyticsNav.map((item) => (
+                    <NavLink
+                      key={item.label}
+                      to={item.path}
+                      onClick={() => setOpen(false)}
+                      className={({ isActive }) =>
+                        cn(
+                          "sidebar-item",
+                          isActive && "active"
+                        )
+                      }
+                    >
+                      <span className="w-5 h-5">
+                        {item.icon}
+                      </span>
+                      {item.label}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
             </nav>
 
-            {/* Calendar Integrations Status - Mobile */}
-            <div className="px-4 py-3 border-t border-border/50 mt-4" onClick={() => setOpen(false)}>
-              <SidebarCalendarStatus />
+            {/* Sticky Footer - Mobile */}
+            <div className="border-t border-border/50">
+              {/* Meeting Limit Indicator - Mobile */}
+              <div className="p-3">
+                <MeetingLimitIndicator onUpgradeClick={() => {
+                  setOpen(false);
+                  setShowUpgradeModal(true);
+                }} />
+              </div>
+
+              {/* Calendar Integrations Status - Mobile */}
+              <div className="p-3" onClick={() => setOpen(false)}>
+                <SidebarCalendarStatus />
+              </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* New Meeting Dialog */}
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
-          <Card className="w-full max-w-md border-border/50">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-xl font-semibold">New Meeting</CardTitle>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setOpen(false)}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <CloseIcon />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Meeting Summary</label>
-                <textarea
-                  className="w-full h-24 px-3 py-2 border border-border bg-background text-foreground rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-                  placeholder="Enter meeting summary..."
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => setOpen(false)}
-                >
-                  Save
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       )}
 

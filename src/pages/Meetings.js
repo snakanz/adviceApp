@@ -2395,9 +2395,9 @@ export default function Meetings() {
       {/* Main Content - Meetings List */}
       <div className="h-full flex flex-col bg-background overflow-hidden">
         {/* Header */}
-        <div className="border-b border-border/50 p-6 bg-card/50 flex-shrink-0">
-          <div className="flex items-center justify-between mb-4">
-            <h1 className="text-2xl font-bold text-foreground">Meetings</h1>
+        <div className="border-b border-border/50 p-4 sm:p-6 bg-card/50 flex-shrink-0">
+          <div className="flex items-center justify-between mb-4 gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Meetings</h1>
             <div className="flex items-center gap-2">
               {/* View Mode Toggle */}
               <div className="flex items-center gap-1 border border-border rounded-lg p-1 bg-background">
@@ -2405,19 +2405,19 @@ export default function Meetings() {
                   onClick={() => setViewMode('calendar')}
                   variant={viewMode === 'calendar' ? 'default' : 'ghost'}
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3"
                 >
                   <CalendarDays className="w-4 h-4" />
-                  Calendar View
+                  <span className="hidden sm:inline">Calendar View</span>
                 </Button>
                 <Button
                   onClick={() => setViewMode('list')}
                   variant={viewMode === 'list' ? 'default' : 'ghost'}
                   size="sm"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3"
                 >
                   <List className="w-4 h-4" />
-                  List View
+                  <span className="hidden sm:inline">List View</span>
                 </Button>
               </div>
             </div>
@@ -2480,7 +2480,7 @@ export default function Meetings() {
         {/* Meetings List */}
         <div className="flex-1 overflow-y-auto">
           {viewMode === 'list' ? (
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
           {meetingView === 'past' && (
             <div className="space-y-6">
               {meetings.past.length === 0 ? (
@@ -2545,11 +2545,11 @@ export default function Meetings() {
           </div>
           ) : (
             /* Calendar View */
-            <div className="p-6">
+            <div className="p-4 sm:p-6">
               {/* Calendar Header */}
-              <div className="mb-6 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <h2 className="text-xl font-bold text-foreground">
+              <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 sm:gap-4">
+                  <h2 className="text-lg sm:text-xl font-bold text-foreground">
                     {currentWeekStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                   </h2>
                   <Button onClick={goToToday} variant="outline" size="sm">
@@ -2566,8 +2566,9 @@ export default function Meetings() {
                 </div>
               </div>
 
-              {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-4">
+              {/* Calendar Grid - Scrollable on mobile */}
+              <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                <div className="grid grid-cols-7 gap-2 sm:gap-4 min-w-[700px] sm:min-w-0">
                 {getWeekDays().map((day, index) => {
                   const meetingsOnDay = getMeetingsForDay(day);
                   const dayIsToday = isToday(day);
@@ -2694,6 +2695,7 @@ export default function Meetings() {
                     </div>
                   );
                 })}
+                </div>
               </div>
             </div>
           )}
@@ -2712,7 +2714,7 @@ export default function Meetings() {
           {/* Detail Panel - Expanded Width */}
           <div className="fixed right-0 top-0 h-full w-full lg:w-[45%] xl:w-[40%] bg-card border-l border-border shadow-xl z-50 overflow-hidden flex flex-col">
             {/* Header */}
-            <div className="sticky top-0 bg-background border-b border-border/50 p-6 flex-shrink-0">
+            <div className="sticky top-0 bg-background border-b border-border/50 p-4 sm:p-6 flex-shrink-0">
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-2 flex-wrap">
