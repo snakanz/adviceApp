@@ -172,6 +172,11 @@ router.post('/create-trial', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
 
+    console.log('=== CREATE TRIAL REQUEST ===');
+    console.log('User ID:', userId);
+    console.log('Email:', req.user.email);
+    console.log('Timestamp:', new Date().toISOString());
+
     if (!isSupabaseAvailable()) {
       return res.status(503).json({ error: 'Database service unavailable' });
     }

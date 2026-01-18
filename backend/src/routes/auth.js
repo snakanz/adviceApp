@@ -1144,6 +1144,12 @@ router.put('/onboarding/step', authenticateSupabaseUser, async (req, res) => {
     const userId = req.user.id;
     const { step } = req.body;
 
+    console.log('=== ONBOARDING STEP UPDATE ===');
+    console.log('User ID:', userId);
+    console.log('Email:', req.user.email);
+    console.log('Step:', step);
+    console.log('Timestamp:', new Date().toISOString());
+
     if (typeof step !== 'number' || step < 0) {
       return res.status(400).json({ error: 'Invalid step number' });
     }
