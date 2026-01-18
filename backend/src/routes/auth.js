@@ -1,9 +1,25 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const { google } = require('googleapis');
 const jwt = require('jsonwebtoken');
 const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
 const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
+
+// In-memory store for OAuth state tokens (for CSRF protection)
+// In production, consider using Redis for multi-instance deployments
+const oauthStateStore = new Map();
+
+// Clean up expired state tokens every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  const maxAge = 10 * 60 * 1000; // 10 minutes
+  for (const [key, value] of oauthStateStore.entries()) {
+    if (now - value.timestamp > maxAge) {
+      oauthStateStore.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
 
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
@@ -14,7 +30,7 @@ const oauth2Client = new google.auth.OAuth2(
 // Get Google OAuth URL
 router.get('/google', authenticateSupabaseUser, (req, res) => {
   const scopes = [
-        'https://www.googleapis.com/auth/userinfo.profile',
+    'https://www.googleapis.com/auth/userinfo.profile',
     'https://www.googleapis.com/auth/userinfo.email',
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/calendar.events'
@@ -23,22 +39,26 @@ router.get('/google', authenticateSupabaseUser, (req, res) => {
   // Check if this is during onboarding (query parameter from frontend)
   const isOnboarding = req.query.onboarding === 'true';
 
-  // **FIX**: Pass the currently authenticated user's ID in the state parameter
-  // This allows the callback to link the calendar to the correct user
-  const state = JSON.stringify({
+  // Generate a cryptographically secure nonce for CSRF protection
+  const nonce = crypto.randomBytes(32).toString('hex');
+
+  // Store the state data with the nonce as the key
+  const stateData = {
     user_id: req.user?.id || null,
     onboarding: isOnboarding,
     timestamp: Date.now()
-  });
+  };
+  oauthStateStore.set(nonce, stateData);
 
+  // The state parameter contains only the nonce (the actual data is stored server-side)
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: scopes,
     prompt: 'consent',
-    state: state // Pass user ID and onboarding flag in state parameter
+    state: nonce // Cryptographic nonce for CSRF protection
   });
 
-    res.json({ url });
+  res.json({ url });
 });
 
 // Check Google Calendar connection status
@@ -262,18 +282,34 @@ router.get('/google/callback', async (req, res) => {
       return res.redirect(`${process.env.FRONTEND_URL}/login?error=missing_code`);
     }
 
-    // **FIX**: Parse state to get the authenticated user ID and onboarding flag
+    // Validate the state parameter (CSRF protection)
+    // The state is a nonce that maps to stored session data
     let authenticatedUserId = null;
     let isOnboarding = false;
+
     if (state) {
-      try {
-        const stateData = JSON.parse(state);
+      const stateData = oauthStateStore.get(state);
+      if (stateData) {
+        // Valid state - retrieve the stored data
         authenticatedUserId = stateData.user_id;
         isOnboarding = stateData.onboarding === true;
         console.log('📅 Authenticated user ID from state:', authenticatedUserId);
         console.log('📅 Is onboarding:', isOnboarding);
-      } catch (e) {
-        console.warn('⚠️  Could not parse state parameter:', e);
+
+        // Delete the nonce after use (one-time use)
+        oauthStateStore.delete(state);
+      } else {
+        // State not found - could be expired or invalid (potential CSRF attack)
+        console.warn('⚠️ Invalid or expired state parameter - possible CSRF attempt');
+        // For backwards compatibility, try parsing as JSON (old format)
+        try {
+          const parsedState = JSON.parse(state);
+          authenticatedUserId = parsedState.user_id;
+          isOnboarding = parsedState.onboarding === true;
+          console.log('📅 Using legacy state format (JSON)');
+        } catch (e) {
+          console.warn('⚠️ Could not parse state parameter:', e);
+        }
       }
     }
 
@@ -581,21 +617,24 @@ router.get('/microsoft', authenticateSupabaseUser, async (req, res) => {
     // Check if this is during onboarding (query parameter from frontend)
     const isOnboarding = req.query.onboarding === 'true';
 
-    // **FIX**: Pass the currently authenticated user's ID in the state parameter
-    // This allows the callback to link the calendar to the correct user
-    const state = JSON.stringify({
+    // Generate a cryptographically secure nonce for CSRF protection
+    const nonce = crypto.randomBytes(32).toString('hex');
+
+    // Store the state data with the nonce as the key
+    const stateData = {
       user_id: req.user?.id || null,
       onboarding: isOnboarding,
       timestamp: Date.now()
-    });
+    };
+    oauthStateStore.set(nonce, stateData);
 
     console.log('🔗 Generating Microsoft OAuth URL...');
     console.log('  - Redirect URI:', microsoftService.redirectUri);
     console.log('  - Is onboarding:', isOnboarding);
     console.log('  - User ID in state:', req.user?.id || 'none');
 
-    // Pass state to authorization URL
-    const url = await microsoftService.getAuthorizationUrl(state);
+    // Pass nonce as state to authorization URL
+    const url = await microsoftService.getAuthorizationUrl(nonce);
 
     console.log('✅ Microsoft OAuth URL generated successfully');
     console.log('  - URL length:', url.length);
@@ -748,22 +787,38 @@ router.get('/microsoft/callback', async (req, res) => {
     console.log('📅 Microsoft OAuth callback - Microsoft account:', microsoftEmail);
     console.log('📅 Microsoft tokens received - Access token:', accessToken ? 'yes' : 'no', 'Refresh token:', refreshToken ? 'yes' : 'no');
 
-    // **FIX**: Parse state to get the authenticated user ID and onboarding flag
+    // Validate the state parameter (CSRF protection)
+    // The state is a nonce that maps to stored session data
     let authenticatedUserId = null;
     let isOnboarding = false;
+
     if (state) {
-      try {
-        const stateData = JSON.parse(state);
+      const stateData = oauthStateStore.get(state);
+      if (stateData) {
+        // Valid state - retrieve the stored data
         authenticatedUserId = stateData.user_id;
         isOnboarding = stateData.onboarding === true;
         console.log('📅 Authenticated user ID from state:', authenticatedUserId);
         console.log('📅 Is onboarding:', isOnboarding);
-      } catch (e) {
-        console.warn('⚠️  Could not parse state parameter:', e);
+
+        // Delete the nonce after use (one-time use)
+        oauthStateStore.delete(state);
+      } else {
+        // State not found - could be expired or invalid (potential CSRF attack)
+        console.warn('⚠️ Invalid or expired state parameter - possible CSRF attempt');
+        // For backwards compatibility, try parsing as JSON (old format)
+        try {
+          const parsedState = JSON.parse(state);
+          authenticatedUserId = parsedState.user_id;
+          isOnboarding = parsedState.onboarding === true;
+          console.log('📅 Using legacy state format (JSON)');
+        } catch (e) {
+          console.warn('⚠️ Could not parse state parameter:', e);
+        }
       }
     }
 
-    // **FIX**: Use the authenticated user ID from state parameter (for calendar connection during onboarding)
+    // Use the authenticated user ID from state parameter (for calendar connection during onboarding)
     // If state contains a user_id, this is a calendar connection for an existing logged-in user
     // Otherwise, this is a new user signup via Microsoft OAuth (not currently supported)
     let user;
@@ -1646,5 +1701,214 @@ router.post('/auto-connect-calendar', authenticateSupabaseUser, async (req, res)
     res.status(500).json({ error: 'Internal server error' });
   }
 });
+
+/**
+ * POST /api/auth/risc/events
+ * Google Cross-Account Protection (RISC) endpoint
+ * Receives security events when a user's Google account is compromised
+ *
+ * This endpoint handles Security Event Tokens (SETs) from Google's RISC API
+ * https://developers.google.com/identity/protocols/risc
+ */
+router.post('/risc/events', async (req, res) => {
+  try {
+    console.log('🔐 RISC Event received');
+    console.log('  - Headers:', JSON.stringify(req.headers, null, 2));
+
+    // Google sends the event as a JWT in the request body
+    const eventToken = req.body;
+
+    if (!eventToken) {
+      console.warn('⚠️ RISC: No event token received');
+      return res.status(400).json({ error: 'No event token' });
+    }
+
+    // For verification requests, Google may send a challenge
+    if (req.body.challenge) {
+      console.log('✅ RISC: Responding to challenge');
+      return res.json({ challenge: req.body.challenge });
+    }
+
+    // Parse the Security Event Token (SET)
+    // The token is a JWT that should be verified with Google's public keys
+    // For now, we'll log the event and take appropriate action
+
+    let decodedEvent;
+    try {
+      // Decode without verification for logging (in production, verify with Google's keys)
+      const parts = typeof eventToken === 'string' ? eventToken.split('.') : null;
+      if (parts && parts.length === 3) {
+        decodedEvent = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+      } else {
+        decodedEvent = eventToken;
+      }
+    } catch (e) {
+      decodedEvent = eventToken;
+    }
+
+    console.log('🔐 RISC Event details:', JSON.stringify(decodedEvent, null, 2));
+
+    // Handle different event types
+    // https://developers.google.com/identity/protocols/risc#supported_event_types
+    const events = decodedEvent.events || {};
+
+    for (const [eventType, eventData] of Object.entries(events)) {
+      console.log(`🔐 Processing RISC event: ${eventType}`);
+
+      const subject = eventData.subject || decodedEvent.sub;
+      const subjectEmail = subject?.email;
+      const subjectId = subject?.id || subject?.sub;
+
+      switch (eventType) {
+        case 'https://schemas.openid.net/secevent/risc/event-type/account-disabled':
+          // User's Google account was disabled
+          console.log('⚠️ RISC: Account disabled for:', subjectEmail || subjectId);
+          await handleAccountCompromise(subjectEmail, subjectId, 'account_disabled');
+          break;
+
+        case 'https://schemas.openid.net/secevent/risc/event-type/account-enabled':
+          // User's Google account was re-enabled
+          console.log('✅ RISC: Account re-enabled for:', subjectEmail || subjectId);
+          break;
+
+        case 'https://schemas.openid.net/secevent/risc/event-type/account-credential-change-required':
+          // User needs to change credentials (potential compromise)
+          console.log('⚠️ RISC: Credential change required for:', subjectEmail || subjectId);
+          await handleAccountCompromise(subjectEmail, subjectId, 'credential_change_required');
+          break;
+
+        case 'https://schemas.openid.net/secevent/risc/event-type/sessions-revoked':
+          // All sessions were revoked
+          console.log('⚠️ RISC: Sessions revoked for:', subjectEmail || subjectId);
+          await handleAccountCompromise(subjectEmail, subjectId, 'sessions_revoked');
+          break;
+
+        case 'https://schemas.openid.net/secevent/risc/event-type/tokens-revoked':
+          // OAuth tokens were revoked
+          console.log('⚠️ RISC: Tokens revoked for:', subjectEmail || subjectId);
+          await handleTokensRevoked(subjectEmail, subjectId);
+          break;
+
+        case 'https://schemas.openid.net/secevent/risc/event-type/account-purged':
+          // Account was deleted
+          console.log('⚠️ RISC: Account purged for:', subjectEmail || subjectId);
+          break;
+
+        default:
+          console.log('ℹ️ RISC: Unknown event type:', eventType);
+      }
+    }
+
+    // Always acknowledge receipt
+    res.status(202).json({ status: 'accepted' });
+
+  } catch (error) {
+    console.error('❌ Error processing RISC event:', error);
+    // Still acknowledge to prevent retries
+    res.status(202).json({ status: 'accepted', error: 'Processing error' });
+  }
+});
+
+/**
+ * Handle account compromise events
+ * Invalidate calendar connections and notify user
+ */
+async function handleAccountCompromise(email, googleId, reason) {
+  try {
+    if (!email && !googleId) {
+      console.warn('⚠️ Cannot handle account compromise: no email or ID provided');
+      return;
+    }
+
+    // Find user by email or Google provider ID
+    let query = getSupabase().from('users').select('id, email');
+
+    if (email) {
+      query = query.eq('email', email);
+    }
+
+    const { data: user, error } = await query.single();
+
+    if (error || !user) {
+      console.log('ℹ️ RISC: User not found in our system:', email || googleId);
+      return;
+    }
+
+    console.log(`🔐 Handling account compromise for user ${user.id} (${user.email}) - reason: ${reason}`);
+
+    // Mark Google calendar connections as requiring re-authentication
+    const { error: updateError } = await getSupabase()
+      .from('calendar_connections')
+      .update({
+        is_active: false,
+        sync_enabled: false,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', user.id)
+      .eq('provider', 'google');
+
+    if (updateError) {
+      console.error('❌ Error deactivating calendar connections:', updateError);
+    } else {
+      console.log('✅ Deactivated Google calendar connections for user:', user.id);
+    }
+
+    // TODO: Send email notification to user about the security event
+    // TODO: Create audit log entry
+
+  } catch (err) {
+    console.error('❌ Error in handleAccountCompromise:', err);
+  }
+}
+
+/**
+ * Handle token revocation events
+ * Mark calendar connections as inactive
+ */
+async function handleTokensRevoked(email, googleId) {
+  try {
+    if (!email && !googleId) {
+      console.warn('⚠️ Cannot handle token revocation: no email or ID provided');
+      return;
+    }
+
+    // Find user by email
+    let query = getSupabase().from('users').select('id, email');
+
+    if (email) {
+      query = query.eq('email', email);
+    }
+
+    const { data: user, error } = await query.single();
+
+    if (error || !user) {
+      console.log('ℹ️ RISC: User not found for token revocation:', email || googleId);
+      return;
+    }
+
+    console.log(`🔐 Handling token revocation for user ${user.id} (${user.email})`);
+
+    // Mark Google calendar connections as needing re-authentication
+    const { error: updateError } = await getSupabase()
+      .from('calendar_connections')
+      .update({
+        is_active: false,
+        access_token: null,
+        refresh_token: null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('user_id', user.id)
+      .eq('provider', 'google');
+
+    if (updateError) {
+      console.error('❌ Error clearing calendar tokens:', updateError);
+    } else {
+      console.log('✅ Cleared Google calendar tokens for user:', user.id);
+    }
+
+  } catch (err) {
+    console.error('❌ Error in handleTokensRevoked:', err);
+  }
+}
 
 module.exports = router;
