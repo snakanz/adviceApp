@@ -778,6 +778,14 @@ router.get('/microsoft/callback', async (req, res) => {
         .eq('id', authenticatedUserId)
         .single();
 
+      // Log what we found
+      console.log('👤 Microsoft callback user lookup:', {
+        authenticatedUserId,
+        found: !!existingUser,
+        errorCode: findError?.code,
+        errorMessage: findError?.message
+      });
+
       if (findError || !existingUser) {
         // User not found in users table - this can happen during email/password signup
         // when the auth.users record exists but the public users record hasn't been created yet
@@ -893,7 +901,7 @@ router.get('/microsoft/callback', async (req, res) => {
         .eq('user_id', user.id)
         .eq('is_active', true);
 
-      const { error: createError } = await getSupabase()
+      const { data: newConnection, error: createError } = await getSupabase()
         .from('calendar_connections')
         .insert({
           user_id: user.id,
@@ -907,12 +915,17 @@ router.get('/microsoft/callback', async (req, res) => {
           is_primary: true,
           sync_enabled: true,
           transcription_enabled: true // Enabled by default for better UX - users can disable in settings
-        });
+        })
+        .select()
+        .single();
 
       if (createError) {
-        console.error('Error creating calendar connection:', createError);
+        console.error('❌ Error creating calendar connection:', createError);
+        console.error('Error details:', { code: createError.code, message: createError.message, details: createError.details, hint: createError.hint });
+        // This is a critical failure - throw to redirect with error
+        throw new Error(`Failed to save calendar connection: ${createError.message}`);
       } else {
-        console.log('✅ Microsoft Calendar connection created successfully');
+        console.log('✅ Microsoft Calendar connection created successfully:', newConnection?.id);
       }
     }
 
