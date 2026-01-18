@@ -248,6 +248,7 @@ router.post('/create-trial', authenticateSupabaseUser, async (req, res) => {
 
     if (error) {
       console.error('Error creating free subscription:', error);
+      console.error('Error details:', { code: error.code, message: error.message, details: error.details, hint: error.hint });
       return res.status(500).json({ error: 'Failed to create free subscription', details: error.message });
     }
 

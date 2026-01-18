@@ -1063,7 +1063,10 @@ router.get('/onboarding/status', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const { data: user, error } = await req.supabase
+    // CRITICAL FIX: Use service role client instead of user-scoped client
+    // For email/password signup users, the user record may not exist yet in public.users
+    // and RLS policies could block reads for newly created users
+    const { data: user, error } = await getSupabase()
       .from('users')
       .select('onboarding_completed, onboarding_step, business_name')
       .eq('id', userId)
@@ -1132,8 +1135,8 @@ router.put('/onboarding/step', authenticateSupabaseUser, async (req, res) => {
       return res.status(400).json({ error: 'Invalid step number' });
     }
 
-    // First check if user exists
-    const { data: existingUser, error: checkError } = await req.supabase
+    // First check if user exists - use service role client to bypass RLS
+    const { data: existingUser, error: checkError } = await getSupabase()
       .from('users')
       .select('id')
       .eq('id', userId)
@@ -1162,7 +1165,10 @@ router.put('/onboarding/step', authenticateSupabaseUser, async (req, res) => {
       }
     }
 
-    const { data: user, error } = await req.supabase
+    // CRITICAL FIX: Use service role client instead of user-scoped client
+    // The user-scoped client (req.supabase) uses RLS, which can fail for newly created users
+    // because the user record may have just been created moments ago during onboarding
+    const { data: user, error } = await getSupabase()
       .from('users')
       .update({
         onboarding_step: step,
@@ -1174,7 +1180,8 @@ router.put('/onboarding/step', authenticateSupabaseUser, async (req, res) => {
 
     if (error) {
       console.error('Error updating onboarding step:', error);
-      return res.status(500).json({ error: 'Failed to update onboarding step' });
+      console.error('Error details:', { code: error.code, message: error.message, details: error.details });
+      return res.status(500).json({ error: 'Failed to update onboarding step', details: error.message });
     }
 
     res.json({
@@ -1201,7 +1208,8 @@ router.post('/onboarding/business-profile', authenticateSupabaseUser, async (req
     }
 
     // Update user's business info
-    const { error: userError } = await req.supabase
+    // Use service role client to bypass RLS for newly created users
+    const { error: userError } = await getSupabase()
       .from('users')
       .update({
         business_name,
@@ -1213,7 +1221,8 @@ router.post('/onboarding/business-profile', authenticateSupabaseUser, async (req
 
     if (userError) {
       console.error('Error updating user business info:', userError);
-      return res.status(500).json({ error: 'Failed to save business profile' });
+      console.error('Error details:', { code: userError.code, message: userError.message });
+      return res.status(500).json({ error: 'Failed to save business profile', details: userError.message });
     }
 
     console.log(`✅ Business profile saved for user ${userId}`);
@@ -1242,7 +1251,8 @@ router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) =
     }
 
     // ✅ CRITICAL: Verify user has active subscription or trial
-    let { data: subscription, error: subError } = await req.supabase
+    // Use service role client to bypass RLS for newly created users
+    let { data: subscription, error: subError } = await getSupabase()
       .from('subscriptions')
       .select('*')
       .eq('user_id', userId)
@@ -1317,7 +1327,8 @@ router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) =
     console.log(`✅ Verified subscription for user ${userId}: status=${subscription.status}`);
 
     // ✅ Only now mark onboarding as complete
-    const { error } = await req.supabase
+    // Use service role client to bypass RLS for newly created users
+    const { error } = await getSupabase()
       .from('users')
       .update({
         onboarding_completed: true,
@@ -1338,7 +1349,8 @@ router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) =
       console.log('🔄 Setting up calendar webhooks and sync after onboarding completion...');
 
       // Check which calendar provider the user has connected
-      const { data: calendarConnection } = await req.supabase
+      // Use service role client to bypass RLS
+      const { data: calendarConnection } = await getSupabase()
         .from('calendar_connections')
         .select('provider')
         .eq('user_id', userId)
