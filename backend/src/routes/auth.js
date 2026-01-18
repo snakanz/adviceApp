@@ -1251,7 +1251,7 @@ router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) =
     }
 
     // ✅ CRITICAL: Verify user has active subscription or trial
-    const { data: subscription, error: subError } = await req.supabase
+    let { data: subscription, error: subError } = await req.supabase
       .from('subscriptions')
       .select('*')
       .eq('user_id', userId)
@@ -1263,13 +1263,42 @@ router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) =
       return res.status(500).json({ error: 'Failed to verify subscription' });
     }
 
-    // Check if subscription exists and is active
+    // If no subscription exists, create a free tier subscription
+    // This is a fallback in case the create-trial call failed earlier
     if (!subscription) {
-      console.warn(`⚠️  User ${userId} attempted to complete onboarding without subscription`);
-      return res.status(403).json({
-        error: 'Subscription required',
-        message: 'Please complete your subscription before finishing onboarding'
-      });
+      console.log(`⚠️ No subscription found for user ${userId}, creating free tier as fallback...`);
+
+      try {
+        const { data: newSub, error: createError } = await getSupabase()
+          .from('subscriptions')
+          .insert({
+            user_id: userId,
+            plan: 'free',
+            status: 'active',
+            free_meetings_limit: 5,
+            free_meetings_used: 0,
+            current_period_start: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('❌ Error creating fallback subscription:', createError);
+          return res.status(403).json({
+            error: 'Subscription required',
+            message: 'Could not create subscription. Please try again.'
+          });
+        }
+
+        subscription = newSub;
+        console.log(`✅ Created fallback free subscription for user ${userId}`);
+      } catch (fallbackError) {
+        console.error('❌ Fallback subscription creation failed:', fallbackError);
+        return res.status(403).json({
+          error: 'Subscription required',
+          message: 'Please complete your subscription before finishing onboarding'
+        });
+      }
     }
 
     // Check subscription status
