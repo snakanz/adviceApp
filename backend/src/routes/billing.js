@@ -176,6 +176,29 @@ router.post('/create-trial', authenticateSupabaseUser, async (req, res) => {
       return res.status(503).json({ error: 'Database service unavailable' });
     }
 
+    // Check if user already has a subscription
+    const { data: existingSubscription, error: checkError } = await getSupabase()
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      // Real error (not "not found")
+      console.error('Error checking existing subscription:', checkError);
+      return res.status(500).json({ error: 'Failed to check existing subscription' });
+    }
+
+    if (existingSubscription) {
+      // User already has a subscription - return it
+      console.log(`✅ User ${userId} already has subscription: ${existingSubscription.plan}`);
+      return res.json({
+        success: true,
+        message: 'Subscription already exists',
+        subscription: existingSubscription
+      });
+    }
+
     // Create free tier subscription (5 free meetings)
     const { data, error } = await getSupabase()
       .from('subscriptions')
@@ -192,7 +215,7 @@ router.post('/create-trial', authenticateSupabaseUser, async (req, res) => {
 
     if (error) {
       console.error('Error creating free subscription:', error);
-      return res.status(500).json({ error: 'Failed to create free subscription' });
+      return res.status(500).json({ error: 'Failed to create free subscription', details: error.message });
     }
 
     console.log(`✅ Free tier created for user ${userId} with 5 free meetings`);
