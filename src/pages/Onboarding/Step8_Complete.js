@@ -49,12 +49,18 @@ const Step8_Complete = ({ data, selectedPlan = 'free', onComplete }) => {
 
             // Only create free subscription if user selected free plan AND doesn't have a paid subscription
             if (selectedPlan === 'free' && !hasSubscription) {
-                await axios.post(
-                    `${API_BASE_URL}/api/billing/create-trial`,
-                    {},
-                    { headers: { Authorization: `Bearer ${token}` } }
-                );
-                console.log('✅ Free subscription created (5 free meetings)');
+                try {
+                    await axios.post(
+                        `${API_BASE_URL}/api/billing/create-trial`,
+                        {},
+                        { headers: { Authorization: `Bearer ${token}` } }
+                    );
+                    console.log('✅ Free subscription created (5 free meetings)');
+                } catch (trialErr) {
+                    // Don't block onboarding if trial creation fails
+                    // The subscription can be created later or manually
+                    console.warn('⚠️ Could not create free subscription (will retry later):', trialErr.response?.data?.error || trialErr.message);
+                }
             } else if (hasSubscription) {
                 console.log('✅ Paid subscription already created via Stripe webhook');
             } else {
