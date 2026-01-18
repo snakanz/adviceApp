@@ -1072,31 +1072,22 @@ router.get('/onboarding/status', authenticateSupabaseUser, async (req, res) => {
     if (error) {
       // Check if user doesn't exist in users table (PGRST116 = not found)
       if (error.code === 'PGRST116') {
-        console.log('⚠️ User not found in users table, creating from auth.users:', userId);
+        console.log('⚠️ User not found in users table, creating from req.user:', userId);
 
-        // Try to create the user record from auth.users
+        // Create the user record using info from JWT token (already available in req.user)
         try {
           const UserService = require('../services/userService');
-          const { data: authUsers, error: authError } = await getSupabase().auth.admin.listUsers();
 
-          if (authError) {
-            console.error('❌ Error fetching auth users:', authError);
-            return res.status(500).json({ error: 'Failed to fetch user information' });
-          }
-
-          const authUser = authUsers.users.find(u => u.id === userId);
-
-          if (!authUser) {
-            console.error('❌ Could not find user in auth.users:', userId);
-            return res.status(404).json({ error: 'User not found' });
-          }
-
-          // Create the user record
+          // Use req.user which already has the authenticated user's info from the JWT
           const newUser = await UserService.getOrCreateUser({
-            id: authUser.id,
-            email: authUser.email,
-            user_metadata: authUser.user_metadata,
-            app_metadata: authUser.app_metadata
+            id: req.user.id,
+            email: req.user.email,
+            user_metadata: {
+              full_name: req.user.name || req.user.email.split('@')[0]
+            },
+            app_metadata: {
+              provider: req.user.provider || 'email'
+            }
           });
 
           console.log('✅ Created user record for:', newUser.email);
@@ -1109,7 +1100,7 @@ router.get('/onboarding/status', authenticateSupabaseUser, async (req, res) => {
           });
         } catch (createError) {
           console.error('❌ Error creating user record:', createError);
-          return res.status(500).json({ error: 'Failed to create user record' });
+          return res.status(500).json({ error: 'Failed to create user record', details: createError.message });
         }
       }
 
@@ -1149,23 +1140,23 @@ router.put('/onboarding/step', authenticateSupabaseUser, async (req, res) => {
       .single();
 
     if (checkError && checkError.code === 'PGRST116') {
-      // User doesn't exist - create them first
+      // User doesn't exist - create them first using req.user info from JWT
       console.log('⚠️ User not found in users table for step update, creating:', userId);
 
       try {
         const UserService = require('../services/userService');
-        const { data: authUsers } = await getSupabase().auth.admin.listUsers();
-        const authUser = authUsers.users.find(u => u.id === userId);
 
-        if (authUser) {
-          await UserService.getOrCreateUser({
-            id: authUser.id,
-            email: authUser.email,
-            user_metadata: authUser.user_metadata,
-            app_metadata: authUser.app_metadata
-          });
-          console.log('✅ Created user record before step update');
-        }
+        await UserService.getOrCreateUser({
+          id: req.user.id,
+          email: req.user.email,
+          user_metadata: {
+            full_name: req.user.name || req.user.email.split('@')[0]
+          },
+          app_metadata: {
+            provider: req.user.provider || 'email'
+          }
+        });
+        console.log('✅ Created user record before step update');
       } catch (createError) {
         console.error('❌ Error creating user for step update:', createError);
       }
