@@ -304,13 +304,43 @@ router.get('/google/callback', async (req, res) => {
         .single();
 
       if (findError || !existingUser) {
-        console.error('❌ Could not find authenticated user:', authenticatedUserId);
-        throw new Error('Authenticated user not found');
-      }
+        // User not found in users table - this can happen during email/password signup
+        // when the auth.users record exists but the public users record hasn't been created yet
+        console.log('⚠️ User not found in users table, attempting to create from auth.users:', authenticatedUserId);
 
-      user = existingUser;
-      tenantId = user.tenant_id;
-      console.log('✅ Found authenticated user:', user.email);
+        // Try to get the user from Supabase Auth and create their users record
+        const { data: authUsers, error: authError } = await getSupabase().auth.admin.listUsers();
+
+        if (authError) {
+          console.error('❌ Error fetching auth users:', authError);
+          throw new Error('Authenticated user not found');
+        }
+
+        const authUser = authUsers.users.find(u => u.id === authenticatedUserId);
+
+        if (!authUser) {
+          console.error('❌ Could not find user in auth.users:', authenticatedUserId);
+          throw new Error('Authenticated user not found');
+        }
+
+        console.log('✅ Found user in auth.users:', authUser.email);
+
+        // Create the user record using UserService
+        const UserService = require('../services/userService');
+        user = await UserService.getOrCreateUser({
+          id: authUser.id,
+          email: authUser.email,
+          user_metadata: authUser.user_metadata,
+          app_metadata: authUser.app_metadata
+        });
+
+        tenantId = user.tenant_id;
+        console.log('✅ Created user record for:', user.email);
+      } else {
+        user = existingUser;
+        tenantId = user.tenant_id;
+        console.log('✅ Found authenticated user:', user.email);
+      }
     } else {
       // New user signup via Google OAuth - create/find user by email
       console.log('📅 New user signup or login via Google OAuth');
@@ -749,13 +779,43 @@ router.get('/microsoft/callback', async (req, res) => {
         .single();
 
       if (findError || !existingUser) {
-        console.error('❌ Could not find authenticated user:', authenticatedUserId);
-        throw new Error('Authenticated user not found');
-      }
+        // User not found in users table - this can happen during email/password signup
+        // when the auth.users record exists but the public users record hasn't been created yet
+        console.log('⚠️ User not found in users table, attempting to create from auth.users:', authenticatedUserId);
 
-      user = existingUser;
-      tenantId = user.tenant_id;
-      console.log('✅ Found authenticated user:', user.email);
+        // Try to get the user from Supabase Auth and create their users record
+        const { data: authUsers, error: authError } = await getSupabase().auth.admin.listUsers();
+
+        if (authError) {
+          console.error('❌ Error fetching auth users:', authError);
+          throw new Error('Authenticated user not found');
+        }
+
+        const authUser = authUsers.users.find(u => u.id === authenticatedUserId);
+
+        if (!authUser) {
+          console.error('❌ Could not find user in auth.users:', authenticatedUserId);
+          throw new Error('Authenticated user not found');
+        }
+
+        console.log('✅ Found user in auth.users:', authUser.email);
+
+        // Create the user record using UserService
+        const UserService = require('../services/userService');
+        user = await UserService.getOrCreateUser({
+          id: authUser.id,
+          email: authUser.email,
+          user_metadata: authUser.user_metadata,
+          app_metadata: authUser.app_metadata
+        });
+
+        tenantId = user.tenant_id;
+        console.log('✅ Created user record for:', user.email);
+      } else {
+        user = existingUser;
+        tenantId = user.tenant_id;
+        console.log('✅ Found authenticated user:', user.email);
+      }
     } else {
       // No authenticated user - try to find by Microsoft email
       console.log('📅 No authenticated user in state, looking up by Microsoft email:', microsoftEmail);
@@ -798,7 +858,7 @@ router.get('/microsoft/callback', async (req, res) => {
       .select('id')
       .eq('user_id', user.id)
       .eq('provider', 'microsoft')
-      .eq('provider_account_email', userEmail)
+      .eq('provider_account_email', microsoftEmail)
       .single();
 
     if (existingConnection) {
@@ -839,7 +899,7 @@ router.get('/microsoft/callback', async (req, res) => {
           user_id: user.id,
           tenant_id: tenantId,
           provider: 'microsoft',
-          provider_account_email: userEmail,
+          provider_account_email: microsoftEmail,
           access_token: accessToken,
           refresh_token: refreshToken || null,
           token_expires_at: expiresOn ? new Date(expiresOn).toISOString() : null,
