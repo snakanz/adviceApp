@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../../components/ui/button';
 import { LogOut } from 'lucide-react';
@@ -13,6 +13,7 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:300
 
 const OnboardingFlow = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const [searchParams] = useSearchParams();
     const { user, getAccessToken, isAuthenticated, signOut } = useAuth();
     const [currentStep, setCurrentStep] = useState(1);
@@ -62,6 +63,56 @@ const OnboardingFlow = () => {
                 setCurrentStep(selectedPlan === 'free' ? 4 : 5);
                 setIsLoading(false);
                 return;
+            }
+
+            // **FIX**: Check if returning from OAuth calendar connection
+            const oauthReturn = sessionStorage.getItem('oauth_return');
+            if (oauthReturn) {
+                try {
+                    const oauthData = JSON.parse(oauthReturn);
+                    console.log('🔄 Detected OAuth return:', oauthData);
+
+                    if (oauthData.success) {
+                        console.log('✅ Calendar connected successfully via OAuth, advancing to next step');
+                        // Clear the oauth_return flag
+                        sessionStorage.removeItem('oauth_return');
+
+                        // Also check for restored state from navigation
+                        const restoredData = location.state?.restoredData;
+                        if (restoredData) {
+                            console.log('✅ Restoring onboarding data from navigation state:', restoredData);
+                            setOnboardingData(prev => ({
+                                ...prev,
+                                ...restoredData
+                            }));
+                        }
+
+                        // Move to next step after calendar connection (Step 4 for free, Step 5 for paid)
+                        // Calendar is Step 3 for free plan, Step 4 for paid plan
+                        const nextStep = selectedPlan === 'free' ? 4 : 5;
+                        setCurrentStep(nextStep);
+                        setIsLoading(false);
+
+                        // Save the step to the database
+                        try {
+                            const token = await getAccessToken();
+                            await axios.put(
+                                `${API_BASE_URL}/api/auth/onboarding/step`,
+                                { step: nextStep },
+                                { headers: { Authorization: `Bearer ${token}` } }
+                            );
+                            console.log('✅ Saved onboarding step:', nextStep);
+                        } catch (saveError) {
+                            console.warn('⚠️ Could not save onboarding step:', saveError);
+                        }
+
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Could not parse oauth_return:', e);
+                }
+                // Clear invalid oauth_return
+                sessionStorage.removeItem('oauth_return');
             }
 
             const token = await getAccessToken();
