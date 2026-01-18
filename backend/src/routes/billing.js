@@ -183,28 +183,45 @@ router.post('/create-trial', authenticateSupabaseUser, async (req, res) => {
       .eq('id', userId)
       .single();
 
-    if (userCheckError && userCheckError.code === 'PGRST116') {
-      // User doesn't exist - create them first
-      console.log('⚠️ User not found in users table for subscription, creating:', userId);
+    // Log what we found
+    console.log('👤 User check result:', {
+      userId,
+      found: !!existingUser,
+      errorCode: userCheckError?.code,
+      errorMessage: userCheckError?.message
+    });
 
-      try {
-        const UserService = require('../services/userService');
-        await UserService.getOrCreateUser({
-          id: req.user.id,
-          email: req.user.email,
-          user_metadata: {
-            full_name: req.user.name || req.user.email.split('@')[0]
-          },
-          app_metadata: {
-            provider: req.user.provider || 'email'
-          }
-        });
-        console.log('✅ Created user record before subscription');
-      } catch (createError) {
-        console.error('❌ Error creating user for subscription:', createError);
+    if (userCheckError) {
+      if (userCheckError.code === 'PGRST116') {
+        // User doesn't exist - create them first
+        console.log('⚠️ User not found in users table for subscription, creating:', userId);
+
+        try {
+          const UserService = require('../services/userService');
+          await UserService.getOrCreateUser({
+            id: req.user.id,
+            email: req.user.email,
+            user_metadata: {
+              full_name: req.user.name || req.user.email.split('@')[0]
+            },
+            app_metadata: {
+              provider: req.user.provider || 'email'
+            }
+          });
+          console.log('✅ Created user record before subscription');
+        } catch (createError) {
+          console.error('❌ Error creating user for subscription:', createError);
+          return res.status(500).json({
+            error: 'Failed to create user record',
+            details: createError.message
+          });
+        }
+      } else {
+        // Some other database error
+        console.error('❌ Database error checking user:', userCheckError);
         return res.status(500).json({
-          error: 'Failed to create user record',
-          details: createError.message
+          error: 'Database error checking user',
+          details: userCheckError.message
         });
       }
     }

@@ -1142,26 +1142,48 @@ router.put('/onboarding/step', authenticateSupabaseUser, async (req, res) => {
       .eq('id', userId)
       .single();
 
-    if (checkError && checkError.code === 'PGRST116') {
-      // User doesn't exist - create them first using req.user info from JWT
-      console.log('⚠️ User not found in users table for step update, creating:', userId);
+    // Log what we found
+    console.log('👤 User check for step update:', {
+      userId,
+      email: req.user.email,
+      found: !!existingUser,
+      errorCode: checkError?.code,
+      errorMessage: checkError?.message
+    });
 
-      try {
-        const UserService = require('../services/userService');
+    if (checkError) {
+      if (checkError.code === 'PGRST116') {
+        // User doesn't exist - create them first using req.user info from JWT
+        console.log('⚠️ User not found in users table for step update, creating:', userId);
 
-        await UserService.getOrCreateUser({
-          id: req.user.id,
-          email: req.user.email,
-          user_metadata: {
-            full_name: req.user.name || req.user.email.split('@')[0]
-          },
-          app_metadata: {
-            provider: req.user.provider || 'email'
-          }
+        try {
+          const UserService = require('../services/userService');
+
+          await UserService.getOrCreateUser({
+            id: req.user.id,
+            email: req.user.email,
+            user_metadata: {
+              full_name: req.user.name || req.user.email.split('@')[0]
+            },
+            app_metadata: {
+              provider: req.user.provider || 'email'
+            }
+          });
+          console.log('✅ Created user record before step update');
+        } catch (createError) {
+          console.error('❌ Error creating user for step update:', createError);
+          return res.status(500).json({
+            error: 'Failed to create user record',
+            details: createError.message
+          });
+        }
+      } else {
+        // Some other database error
+        console.error('❌ Database error checking user for step update:', checkError);
+        return res.status(500).json({
+          error: 'Database error checking user',
+          details: checkError.message
         });
-        console.log('✅ Created user record before step update');
-      } catch (createError) {
-        console.error('❌ Error creating user for step update:', createError);
       }
     }
 
