@@ -324,6 +324,32 @@ router.get('/google/callback', async (req, res) => {
     console.log('📅 Google OAuth callback - Google account:', userInfo.data.email);
     console.log('📅 Google tokens received - Access token:', tokens.access_token ? 'yes' : 'no', 'Refresh token:', tokens.refresh_token ? 'yes' : 'no');
 
+    // ✅ CRITICAL: Verify the user actually granted calendar permissions
+    // If they didn't click "Allow" on the calendar scope, the tokens won't have calendar access
+    try {
+      console.log('🔍 Verifying Google Calendar permissions...');
+      const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+      // Try to list calendars - this will fail if calendar permission wasn't granted
+      const calendarList = await calendar.calendarList.list({ maxResults: 1 });
+
+      if (!calendarList.data || !calendarList.data.items) {
+        throw new Error('No calendar access');
+      }
+
+      console.log('✅ Google Calendar permissions verified - found', calendarList.data.items.length, 'calendar(s)');
+    } catch (calendarError) {
+      console.error('❌ Google Calendar permission verification failed:', calendarError.message);
+
+      // Redirect with error - user didn't grant calendar permissions
+      const errorMessage = encodeURIComponent('Calendar access not granted. Please click "Allow" on the Google permissions screen to connect your calendar.');
+      const redirectUrl = isOnboarding
+        ? `${process.env.FRONTEND_URL}/auth/callback?error=${errorMessage}&onboarding=true&provider=google`
+        : `${process.env.FRONTEND_URL}/auth/callback?error=${errorMessage}&provider=google`;
+
+      return res.redirect(redirectUrl);
+    }
+
     // **FIX**: Use the authenticated user ID from state parameter (for calendar connection during onboarding)
     // If state contains a user_id, this is a calendar connection for an existing logged-in user
     // Otherwise, this is a new user signup via Google OAuth
@@ -786,6 +812,54 @@ router.get('/microsoft/callback', async (req, res) => {
 
     console.log('📅 Microsoft OAuth callback - Microsoft account:', microsoftEmail);
     console.log('📅 Microsoft tokens received - Access token:', accessToken ? 'yes' : 'no', 'Refresh token:', refreshToken ? 'yes' : 'no');
+
+    // ✅ CRITICAL: Verify the user actually granted calendar permissions
+    // If they didn't click "Allow" on the calendar scope, the tokens won't have calendar access
+    try {
+      console.log('🔍 Verifying Microsoft Calendar permissions...');
+
+      // Try to access the user's calendar - this will fail if calendar permission wasn't granted
+      // Using fetch to make a direct Graph API call
+      const calendarResponse = await fetch('https://graph.microsoft.com/v1.0/me/calendars', {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!calendarResponse.ok) {
+        const errorData = await calendarResponse.json().catch(() => ({}));
+        console.error('❌ Calendar access check failed:', calendarResponse.status, errorData);
+        throw new Error('No calendar access');
+      }
+
+      const calendarData = await calendarResponse.json();
+      if (!calendarData.value || calendarData.value.length === 0) {
+        throw new Error('No calendars found');
+      }
+
+      console.log('✅ Microsoft Calendar permissions verified - found', calendarData.value.length, 'calendar(s)');
+    } catch (calendarError) {
+      console.error('❌ Microsoft Calendar permission verification failed:', calendarError.message);
+
+      // Parse state to check if onboarding (need to do this before the main state parsing below)
+      let isOnboardingForError = false;
+      if (state) {
+        const stateData = oauthStateStore.get(state);
+        if (stateData) {
+          isOnboardingForError = stateData.onboarding === true;
+          oauthStateStore.delete(state); // Clean up the nonce
+        }
+      }
+
+      // Redirect with error - user didn't grant calendar permissions
+      const errorMessage = encodeURIComponent('Calendar access not granted. Please click "Allow" on the Microsoft permissions screen to connect your calendar.');
+      const redirectUrl = isOnboardingForError
+        ? `${process.env.FRONTEND_URL}/auth/callback?error=${errorMessage}&onboarding=true&provider=microsoft`
+        : `${process.env.FRONTEND_URL}/auth/callback?error=${errorMessage}&provider=microsoft`;
+
+      return res.redirect(redirectUrl);
+    }
 
     // Validate the state parameter (CSRF protection)
     // The state is a nonce that maps to stored session data
