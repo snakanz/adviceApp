@@ -3222,7 +3222,7 @@ export default function Meetings() {
                         <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
                           <CardContent className="p-0">
                             {emailViewMode === 'preview' ? (
-                              /* Email Preview Mode - styled like an email */}
+                              /* Email Preview Mode - styled like an email */
                               <div className="p-5">
                                 {/* Email header */}
                                 <div className="border-b border-border/30 pb-3 mb-4">
