@@ -3186,12 +3186,12 @@ export default function Meetings() {
                                     size="sm"
                                     onClick={() => {
                                       const content = streamingComplete ? streamingContent : selectedMeeting?.email_summary_draft;
-                                      const clientName = selectedMeeting?.client?.name || selectedMeeting?.clients?.name || '';
+                                      const clientEmail = selectedMeeting?.client?.email || '';
                                       const meetingTitle = selectedMeeting?.title || 'Meeting Follow-up';
-                                      // Create mailto link with pre-filled subject and body
+                                      // Create mailto link with pre-filled recipient, subject and body
                                       const subject = encodeURIComponent(`Follow-up: ${meetingTitle}`);
                                       const body = encodeURIComponent(content || '');
-                                      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+                                      window.location.href = `mailto:${clientEmail}?subject=${subject}&body=${body}`;
                                     }}
                                     className="h-8 px-2"
                                   >
