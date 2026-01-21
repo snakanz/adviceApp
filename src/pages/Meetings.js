@@ -3142,6 +3142,19 @@ export default function Meetings() {
                                 Plain Text
                               </button>
                             </div>
+                            {/* Generate New Email button - moved here */}
+                            {selectedMeeting?.transcript && !streamingComplete && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowTemplateModal(true)}
+                                disabled={generatingSummary}
+                                className="h-7 text-xs"
+                              >
+                                <Mail className="w-3 h-3 mr-1" />
+                                Generate New
+                              </Button>
+                            )}
                           </div>
 
                           {/* Action buttons */}
@@ -3202,49 +3215,18 @@ export default function Meetings() {
                               </Tooltip>
                             </TooltipProvider>
 
-                            {/* Regenerate */}
-                            {selectedMeeting?.transcript && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        setStreamingComplete(false);
-                                        setShowTemplateModal(true);
-                                      }}
-                                      className="h-8 px-2 text-muted-foreground hover:text-foreground"
-                                    >
-                                      <Sparkles className="w-4 h-4" />
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent>Regenerate with different template</TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
                           </div>
                         </div>
 
-                        {/* Email content card */}
-                        <Card className={cn(
-                          "border-border/50 transition-all",
-                          emailViewMode === 'preview' && "bg-white dark:bg-slate-900"
-                        )}>
-                          <CardContent className={cn(
-                            "p-0",
-                            emailViewMode === 'preview' && "p-0"
-                          )}>
+                        {/* Email content card - glassy design */}
+                        <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                          <CardContent className="p-0">
                             {emailViewMode === 'preview' ? (
-                              /* Email Preview Mode - styled like an email */
-                              <div className="p-6">
-                                {/* Email header simulation */}
-                                <div className="border-b border-border/30 pb-4 mb-4">
-                                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
-                                    <Mail className="w-3 h-3" />
-                                    <span>Email Preview</span>
-                                  </div>
-                                  <div className="space-y-1">
+                              /* Email Preview Mode - styled like an email */}
+                              <div className="p-5">
+                                {/* Email header */}
+                                <div className="border-b border-border/30 pb-3 mb-4">
+                                  <div className="space-y-1.5">
                                     <div className="text-sm">
                                       <span className="text-muted-foreground">To:</span>
                                       <span className="ml-2 text-foreground">
@@ -3274,21 +3256,6 @@ export default function Meetings() {
                             )}
                           </CardContent>
                         </Card>
-
-                        {/* Generate new email button when one already exists */}
-                        {selectedMeeting?.transcript && !streamingComplete && (
-                          <div className="flex justify-center pt-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setShowTemplateModal(true)}
-                              disabled={generatingSummary}
-                            >
-                              <Mail className="w-4 h-4 mr-2" />
-                              Generate New Email
-                            </Button>
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
