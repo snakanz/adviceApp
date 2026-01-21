@@ -416,23 +416,7 @@ export default function CalendarSettings() {
   };
 
   // OAuth handler removed - now using API token only
-
-  const getUserIdFromToken = async () => {
-    try {
-      const token = await getAccessToken();
-      // Decode JWT to get user ID
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const jsonPayload = decodeURIComponent(atob(base64).split('').map((c) => {
-        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-      }).join(''));
-      const payload = JSON.parse(jsonPayload);
-      return payload.sub || payload.id || '';
-    } catch (err) {
-      console.error('Error extracting user ID from token:', err);
-      return '';
-    }
-  };
+  // getUserIdFromToken removed - backend now handles state parameter with secure nonce
 
   // Poll for sync progress
   const pollSyncProgress = useCallback(async (token) => {
@@ -590,11 +574,12 @@ export default function CalendarSettings() {
       });
 
       if (response.data.url) {
-        // Get current user ID from token to pass in state parameter
-        const userIdFromToken = await getUserIdFromToken();
-        const urlWithState = `${response.data.url}&state=${userIdFromToken}`;
+        // ✅ FIX: Don't append state parameter - the backend already includes it
+        // The backend generates a secure nonce and stores it server-side
+        // Appending another state= causes "OAuth 2 parameters can only have a single value: state" error
+        const oauthUrl = response.data.url;
 
-        // ✅ FIX: Open OAuth in popup window instead of full page redirect
+        // Open OAuth in popup window instead of full page redirect
         // This keeps the main window intact and returns focus after auth
         const width = 500;
         const height = 600;
@@ -602,7 +587,7 @@ export default function CalendarSettings() {
         const top = window.screenY + (window.outerHeight - height) / 2;
 
         const popup = window.open(
-          urlWithState,
+          oauthUrl,
           'GoogleOAuth',
           `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
         );
@@ -637,9 +622,10 @@ export default function CalendarSettings() {
       });
 
       if (response.data.url) {
-        // Get current user ID from token to pass in state parameter
-        const userIdFromToken = await getUserIdFromToken();
-        const urlWithState = `${response.data.url}&state=${userIdFromToken}`;
+        // ✅ FIX: Don't append state parameter - the backend already includes it
+        // The backend generates a secure nonce and stores it server-side
+        // Appending another state= causes "OAuth 2 parameters can only have a single value: state" error
+        const oauthUrl = response.data.url;
 
         // Open OAuth in popup window
         const width = 500;
@@ -648,7 +634,7 @@ export default function CalendarSettings() {
         const top = window.screenY + (window.outerHeight - height) / 2;
 
         const popup = window.open(
-          urlWithState,
+          oauthUrl,
           'MicrosoftOAuth',
           `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
         );

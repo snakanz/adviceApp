@@ -111,7 +111,7 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
         try {
             const token = await getAccessToken();
 
-            // Check if Google Calendar is already connected (from auto-connect)
+            // Check if Google Calendar is already connected (from auto-connect or previous signup)
             const googleResponse = await axios.get(
                 `${API_BASE_URL}/api/auth/google/status`,
                 { headers: { Authorization: `Bearer ${token}` } }
@@ -121,7 +121,90 @@ const Step3_CalendarSetup = ({ data, onNext, onBack }) => {
                 console.log('✅ Google Calendar already connected (auto-connect)');
                 setSelectedProvider('google');
                 setIsConnected(true);
-                // Don't auto-skip - let user see they're connected and choose to continue
+
+                // ✅ FIX: Auto-advance when calendar is already connected
+                // This prevents users from getting stuck on this step
+                // Enable transcription and proceed to next step automatically
+                try {
+                    const connectionsResponse = await axios.get(
+                        `${API_BASE_URL}/api/calendar-connections`,
+                        { headers: { Authorization: `Bearer ${token}` } }
+                    );
+
+                    const activeConnection = connectionsResponse.data.find
+                        ? connectionsResponse.data.find(conn => conn.is_active && conn.provider === 'google')
+                        : (connectionsResponse.data.connections || []).find(conn => conn.is_active && conn.provider === 'google');
+
+                    if (activeConnection) {
+                        // Enable transcription by default
+                        await axios.patch(
+                            `${API_BASE_URL}/api/calendar-connections/${activeConnection.id}/toggle-transcription`,
+                            { transcription_enabled: true },
+                            { headers: { Authorization: `Bearer ${token}` } }
+                        );
+                        console.log('✅ Transcription enabled for existing connection');
+                    }
+                } catch (transcriptionErr) {
+                    console.warn('⚠️ Could not enable transcription (non-fatal):', transcriptionErr);
+                }
+
+                // Auto-advance to next step after short delay to show "Connected!" state
+                console.log('🔄 Auto-advancing from Step 3 (calendar already connected)...');
+                setTimeout(() => {
+                    onNext({
+                        calendar_provider: 'google',
+                        enable_transcription: true
+                    });
+                }, 1500); // 1.5 second delay to show user it's connected
+                return;
+            }
+
+            // Also check for Microsoft Calendar
+            try {
+                const microsoftResponse = await axios.get(
+                    `${API_BASE_URL}/api/auth/microsoft/status`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+
+                if (microsoftResponse.data.connected) {
+                    console.log('✅ Microsoft Calendar already connected');
+                    setSelectedProvider('microsoft');
+                    setIsConnected(true);
+
+                    // Enable transcription and auto-advance
+                    try {
+                        const connectionsResponse = await axios.get(
+                            `${API_BASE_URL}/api/calendar-connections`,
+                            { headers: { Authorization: `Bearer ${token}` } }
+                        );
+
+                        const activeConnection = connectionsResponse.data.find
+                            ? connectionsResponse.data.find(conn => conn.is_active && (conn.provider === 'microsoft' || conn.provider === 'outlook'))
+                            : (connectionsResponse.data.connections || []).find(conn => conn.is_active && (conn.provider === 'microsoft' || conn.provider === 'outlook'));
+
+                        if (activeConnection) {
+                            await axios.patch(
+                                `${API_BASE_URL}/api/calendar-connections/${activeConnection.id}/toggle-transcription`,
+                                { transcription_enabled: true },
+                                { headers: { Authorization: `Bearer ${token}` } }
+                            );
+                            console.log('✅ Transcription enabled for existing Microsoft connection');
+                        }
+                    } catch (transcriptionErr) {
+                        console.warn('⚠️ Could not enable transcription (non-fatal):', transcriptionErr);
+                    }
+
+                    console.log('🔄 Auto-advancing from Step 3 (Microsoft calendar already connected)...');
+                    setTimeout(() => {
+                        onNext({
+                            calendar_provider: 'microsoft',
+                            enable_transcription: true
+                        });
+                    }, 1500);
+                }
+            } catch (msErr) {
+                // Microsoft status check failed - that's okay, user might not have MS connected
+                console.log('ℹ️ Microsoft Calendar not connected or status check failed');
             }
         } catch (err) {
             console.error('Error checking for existing connection:', err);
