@@ -613,6 +613,14 @@ export default function Meetings() {
     fetchTemplates();
   }, []);
 
+  // Reset streaming state when switching meetings
+  // This ensures generated email from one meeting doesn't persist when viewing another meeting
+  useEffect(() => {
+    setStreamingComplete(false);
+    setStreamingContent('');
+    setIsStreaming(false);
+  }, [selectedMeetingId]);
+
   const fetchMeetings = useCallback(async () => {
     setLoading(true);
     try {
