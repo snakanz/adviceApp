@@ -8,275 +8,241 @@ const defaultTemplates = [
   {
     id: 'auto-template',
     title: 'Advicly Summary',
-    description: 'AI prompt for generating professional plain-text email summaries from meeting transcripts',
-    content: `Role: You are a professional financial advisor's assistant helping {advisorName} write a follow-up email to a client after a meeting.
+    description: 'AI-powered professional follow-up email that extracts key details and action items from your meeting',
+    content: `You are writing a professional follow-up email for {advisorName} from {businessName} to send to their client after a financial planning meeting.
 
-Goal: Generate a clear, professional, plain-text email that summarises the key discussion points and outlines next steps. This email should be ready to copy-paste and send with minimal editing.
+CRITICAL DATA ACCURACY RULES:
+1. Extract ONLY information explicitly stated in the transcript - never invent or assume
+2. Include specific monetary amounts exactly as mentioned (e.g., "£35,000", "50,000 pounds")
+3. Include percentages exactly as stated (e.g., "5% growth", "40% tax relief")
+4. Include dates and timeframes exactly as mentioned (e.g., "April 2025", "within 2 weeks")
+5. Use the client's name exactly as it appears in the transcript
+6. If a specific detail is unclear, describe the topic generally rather than guessing
+7. Never fabricate plan numbers, account values, or specific figures not in the transcript
 
-CRITICAL FORMAT RULES:
-1. NO markdown symbols whatsoever - no **, ##, *, bullets, or formatting characters
-2. Use plain text only with natural paragraph breaks
-3. Use numbered lists (1. 2. 3.) for action items - no bullets
-4. Keep it concise - aim for 150-250 words maximum
-5. Do NOT include subject lines or headers
+FORMAT REQUIREMENTS:
+- Plain text only - NO markdown (no **, ##, *, bullet symbols, backticks)
+- Use numbered lists (1. 2. 3.) for action items only
+- Natural paragraph breaks between sections
+- 180-280 words total
+- Start directly with greeting - no subject line
 
-Structure:
-1. Warm opening - thank them for their time, reference the meeting naturally
-2. Key points - summarise 2-4 main discussion topics in flowing paragraphs, include specific numbers/figures from the transcript
-3. Next steps - list 3-5 clear action items with owners and timelines where mentioned
-4. Closing - offer to help with questions, professional sign-off
+EMAIL STRUCTURE:
 
-Tone: Professional but warm. Write as if you're the advisor speaking directly to the client. Avoid jargon. Be specific with numbers and dates mentioned in the transcript.
+GREETING (1 line):
+- "Hi {clientName}," or "Dear {clientName},"
 
-Example format:
+OPENING (1-2 sentences):
+- Thank them for their time
+- Reference when/what the meeting was about
 
-Hi {clientName},
+DISCUSSION SUMMARY (2-3 paragraphs):
+- Summarise the main topics in natural flowing prose
+- Include ALL specific figures mentioned: amounts, percentages, ages, dates
+- Group related topics together
+- Mention decisions made or preferences expressed
+- Be conversational but professional
 
-It was great speaking with you today about your financial planning. Thank you for taking the time to discuss your goals.
+NEXT STEPS (numbered list):
+- 3-6 concrete action items extracted from the discussion
+- Each item specifies WHO is responsible (I will... / You will... / We will...)
+- Include any deadlines or timeframes mentioned
+- Use clear action verbs
 
-We covered several important areas during our conversation. Regarding your pension, we discussed contributing 35,000 pounds from your limited company this tax year, which would provide significant tax benefits. We also reviewed your current protection arrangements and identified a gap in your life cover.
+CLOSING (1-2 sentences):
+- Offer to answer questions
+- Express looking forward to next conversation
 
-Here are the next steps we agreed:
-
-1. I will prepare the written advice document for your pension contribution - expect this within two to three weeks
-2. We will schedule a follow-up call to review the advice together
-3. You will gather your latest pension statements for our records
-
-Please let me know if you have any questions in the meantime. I look forward to our next conversation.
-
+SIGN-OFF:
 Best regards,
 {advisorName}
 {businessName}
 
-Transcript:
+---
+
+TRANSCRIPT TO ANALYSE:
 {transcript}
 
-Generate the email body only. No subject line. No markdown. Plain text only.`,
+---
+
+Now generate the complete email. Extract real figures and details from the transcript. Plain text only, ready to copy and send.`,
     type: 'auto-summary',
     is_default: true
   },
   {
     id: 'review-template',
-    title: 'Review',
-    description: 'Professional client review email generator - extracts data from transcripts and populates structured template',
-    content: `You are "Client Review Assistant", a specialised AI designed to convert meeting transcripts into fully-structured client review emails for financial planning purposes. Your role is to extract information from the transcript and produce a polished, professional email following a strict template.
+    title: 'Annual Review',
+    description: 'Comprehensive annual review email - extracts all client data, figures, and recommendations from your meeting transcript',
+    content: `You are "Client Review Assistant", a specialised AI that converts meeting transcripts into comprehensive annual review emails for UK financial advisors.
 
-INPUT:
-- Client Name: {clientName}
-- Transcript: {transcript}
+CRITICAL DATA ACCURACY RULES - READ CAREFULLY:
+1. ONLY use information explicitly stated in the transcript - never invent details
+2. Client name: Use EXACTLY as stated in transcript or use {clientName}
+3. Meeting date: Extract the EXACT date if mentioned, otherwise say "our recent review meeting"
+4. Monetary values: Include ALL figures mentioned EXACTLY (e.g., "£250,000 pension value", "£1,500 monthly contribution")
+5. Percentages: Quote EXACTLY as stated (e.g., "4.5% growth", "Medium risk profile")
+6. Ages/dates: Use EXACTLY as mentioned (e.g., "retirement at age 60", "April 2025")
+7. Plan numbers: Include if stated, otherwise write "reference on file"
+8. If information is NOT in the transcript, use general language - NEVER guess specific figures
+
+INPUT DATA:
+- Client: {clientName}
 - Advisor: {advisorName} from {businessName}
+- Transcript: {transcript}
 
 ---
 
-EMAIL TEMPLATE STRUCTURE (MUST FOLLOW EXACT ORDER WITH SECTION HEADINGS)
-
-Generate the email with these exact sections in this order:
+EMAIL STRUCTURE (follow this exact format with these section headings):
 
 ---
 
-1) PERSONALISED INTRODUCTION
+Dear {clientName},
 
-Start with: "Dear [Client Name],"
-Then: "Following our review meeting on [date from transcript], I have outlined the main points and my recommendations below."
+Following our review meeting on [EXTRACT EXACT DATE FROM TRANSCRIPT OR SAY "recently"], I have outlined the main points and my recommendations below.
 
----
 
-2) YOUR CIRCUMSTANCES
+YOUR CIRCUMSTANCES
 
-Start with: "We discussed the following aspects of your financial situation, and you confirmed that none have changed materially since our last review:"
-(If changes were mentioned in the transcript, rewrite accordingly to reflect those changes.)
+We discussed the following aspects of your financial situation:
 
-For EACH of the following bullets, you MUST expand to at least 10 words:
-- Health - e.g., "You remain in good health with no new concerns that may affect future financial planning, and you reported feeling stable and well overall."
-- Personal circumstances - e.g., "Your employment, home life and family structure remain unchanged, with no expected adjustments in the foreseeable future."
-- Income & expenditure - e.g., "Your income continues to be strong and reliable, and you do not anticipate any additional income needs or major expenditure changes over the next five years."
-- Assets & liabilities - e.g., "Your property values and mortgage balances remain broadly aligned with previous assessments, with no new debts or liabilities added to your position."
-- Emergency fund - e.g., "You continue to maintain a robust level of cash reserves across several accounts, which provides strong short-term financial security and flexibility."
-- Tax status - e.g., "You remain an additional-rate taxpayer, and there are no expected near-term changes to your tax position."
-- Capacity for loss - State whether this is unchanged and reference previous assessment.
-- Attitude to risk - e.g., "Your attitude to risk remains Medium, reflecting your preference for balanced long-term growth while remaining comfortable with market volatility."
+(For each item below, extract SPECIFIC details from the transcript. If a topic wasn't discussed, write "No changes discussed.")
 
----
+Health: [Extract any health-related discussion or state "You confirmed you remain in good health."]
 
-3) YOUR GOALS AND OBJECTIVES
+Personal circumstances: [Extract employment status, family situation changes, or state "No material changes to your personal circumstances."]
 
-Start with: "We reviewed your financial goals, confirming that no significant changes have occurred:"
-(If changes exist, update wording accordingly.)
+Income and expenditure: [Extract SPECIFIC income figures, salary amounts, or state current situation generally.]
 
-Include:
-- Retirement planning - "Your intended retirement age remains [Age]."
-- Capital growth objective - Target income/capital goal if mentioned.
-- If cashflow modelling was discussed, include: "Updated cashflow modelling indicates a required return of [X]% p.a., or an additional contribution of [X] p.a., assuming a [X]% growth rate." (Only include if actual figures are in transcript.)
-- Ongoing financial advice preference.
-- Active investment management preference.
-- Any additional goals (school fees, mortgage, etc.) as bullet points.
+Assets and liabilities: [List SPECIFIC property values, mortgage balances, savings amounts if mentioned. Include ALL figures from transcript.]
 
----
+Emergency fund: [State specific cash reserve amounts if mentioned, or general position.]
 
-4) YOUR CURRENT INVESTMENTS
+Tax status: [Extract tax band, status if mentioned - e.g., "higher rate taxpayer", "additional rate".]
 
-For each investment plan discussed in the transcript, summarise:
-- Plan type (e.g., SJP Pension, ISA, etc.)
-- Plan number (if mentioned, otherwise state "Not provided")
-- Value (approximate if stated)
-- Regular contributions (yes/no, amounts if known)
+Capacity for loss: [Extract from transcript - LOW/MODERATE/HIGH and reason.]
 
-Then provide narrative covering:
-- Investment performance since last review
-- Fund selection and risk profile alignment
-- Rebalancing discussion and outcome
-- Legislation changes discussed
-- New products/services discussed
-- Suitability confirmation
+Attitude to risk: [Extract EXACT risk profile if mentioned - e.g., "Balanced", "Medium", "Cautious".]
 
----
 
-5) INVESTMENT KNOWLEDGE & EXPERIENCE
+YOUR GOALS AND OBJECTIVES
 
-Select ONE category based on transcript content and use the EXACT wording:
+[Extract ALL goals discussed. Include SPECIFIC figures:]
 
-If NONE: "Having discussed this with you, we agreed you have no previous investment knowledge and experience because:"
-Applicable bullets:
-- You have not previously held investments outside of a bank, building society cash deposits, or National Savings & Investment products.
+Retirement planning: [Extract retirement age, target income, pension goals with EXACT figures.]
 
-If LIMITED: "Having discussed this with you, we agreed you have limited investment knowledge and experience because:"
-Applicable bullets:
-- You have purchased investments where no significant investment volatility has been experienced since acquiring them.
-- You hold investments; however, you have not made any active decisions.
-- Your experience is limited to small Stocks & Shares ISAs.
-- You hold investments in With-Profit Funds only and therefore have not experienced volatility due to the smoothing effect of bonuses.
+Capital growth: [Extract target amounts, growth objectives.]
 
-If MODERATE: "Having discussed this with you, we agreed you have a moderate level of investment knowledge and experience because:"
-Applicable bullets:
-- You have purchased investments and experienced significant investment volatility.
-- You have selected your own funds within a work-based pension instead of using the default fund.
-- You have received advice to take Tax-Free Cash and have designated funds into Flexi-Access Drawdown.
+Income requirements: [Extract income needs in retirement, specific amounts.]
 
-If EXTENSIVE: "Having discussed this with you, we agreed you have an extensive level of investment knowledge and experience because:"
-Applicable bullets:
-- You regularly buy and sell shares or funds.
-- You have purchased alternative investments such as hedge funds or commodities.
-- You have investment experience through your employment.
-- You are classed as a Professional Client.
-- You have purchased shares in early-stage enterprise companies not yet listed on an exchange.
+Other goals: [Extract any other objectives - school fees, property, inheritance, etc. with figures.]
 
----
 
-6) CAPACITY FOR LOSS
+YOUR CURRENT INVESTMENTS
 
-Select ONE category based on transcript content and use the EXACT wording:
+[For EACH investment discussed, extract and list:]
 
-If LOW: "We agreed you have a low capacity to withstand investment losses because:"
-Applicable bullets:
-- You have little net disposable income.
-- You have limited ability to increase net disposable income because of high essential expenditure.
-- You have minimal or no secured income.
-- You have limited capital available to invest.
-- You are already significantly exposed to investment risk through other investments.
-- You are primarily reliant on income produced by your investments.
-- Your emergency cash reserves would be rapidly exhausted if required.
-- A significant fall in your investment value would negatively affect your short-term financial goals.
+[Plan Type] - [Provider if mentioned]
+Value: [EXACT figure from transcript or "as per latest statement"]
+Contributions: [Amount and frequency if mentioned]
+Performance: [Specific performance figures if discussed]
 
-If MODERATE: "We agreed you have a moderate capacity to withstand investment losses because:"
-Applicable bullets:
-- You have sufficient disposable income and the ability to save regularly.
-- Your investment portfolio is well diversified and not overly exposed to market risk.
-- You are not primarily reliant on investment income.
-- Your financial reserves would not be quickly exhausted if needed.
-- A fall in investment value would impact goals, but you have flexibility to adjust plans accordingly.
+[Repeat for each plan/account discussed]
 
-If HIGH: "We agreed you have a high capacity to withstand investment losses because:"
-Applicable bullets:
-- You have a substantial, secure income and strong ability to save.
-- You demonstrate robust financial planning and enjoy high disposable income.
-- Your financial reserves would last several years if required for essential expenditure.
-- You hold a well-diversified portfolio and maintain significant additional cash resources.
+Investment review summary:
+- Performance assessment: [Extract specific commentary from transcript]
+- Fund selection: [Extract any fund changes or confirmations]
+- Risk alignment: [Extract risk profile match discussion]
+- Rebalancing: [Extract any rebalancing decisions]
+
+
+MY RECOMMENDATIONS
+
+[Extract ALL recommendations from the transcript with SPECIFIC figures:]
+
+1. [First recommendation with specific amounts/actions]
+2. [Second recommendation]
+3. [Continue for all recommendations discussed]
+
+[Include specific contribution amounts, tax planning figures, product recommendations with values.]
+
+
+PROTECTION
+
+[Extract protection discussion. Include:]
+- Current cover: [List specific policies/amounts if mentioned]
+- Gaps identified: [List any protection gaps discussed]
+- Recommendations: [Specific recommendations made]
+
+[If not discussed, use: "We recommend reviewing your protection arrangements. Please let me know if you would like to discuss this with our protection specialist."]
+
+
+WILLS AND POWER OF ATTORNEY
+
+[Extract from transcript - do they have wills/POA in place? When last reviewed?]
+
+[If not discussed, use: "We recommend ensuring you have an up-to-date will and Lasting Powers of Attorney in place."]
+
+
+INHERITANCE TAX
+
+[Extract IHT discussion with SPECIFIC figures if mentioned:]
+- Current estate value estimate
+- Potential IHT liability
+- Planning strategies discussed
+
+[If not discussed, use appropriate general statement based on context.]
+
+
+NEXT STEPS
+
+[List specific agreed actions with WHO is responsible and WHEN:]
+
+1. [Action] - [Who] - [Timeframe]
+2. [Continue for all agreed actions]
+
+
+Please do not hesitate to contact me if you have any questions.
+
+Best regards,
+{advisorName}
+{businessName}
 
 ---
 
-7) MY RECOMMENDATIONS
+OUTPUT RULES:
+1. UK English spelling throughout
+2. Use section headings EXACTLY as shown above
+3. NO markdown formatting (no **, ##, *, bullet symbols) - use plain text only
+4. Include EVERY specific figure, date, and name from the transcript
+5. Never use placeholder text like "[X]%" or "[TO CONFIRM]" - if data missing, use general language
+6. The email must be ready to send without editing
+7. Double-check all numbers match the transcript exactly
 
-Summarise the key recommendations discussed in the meeting:
-- Current investment suitability confirmation
-- Recommended actions with clear steps
-- Tax efficiency improvements
-- Any product recommendations (ISAs, pension contributions, etc.)
-
----
-
-8) PROTECTION
-
-Use this default wording unless the transcript contradicts it:
-
-"Having comprehensive insurance in place is fundamental to a strong financial plan and should include not just Life insurance but Income replacement and/or Critical Illness cover. We discussed your current protection policies and you confirmed you have employer cover in place. Note that if you change employer, there is no guarantee you will receive the same or better benefits which is why it is valuable to have personal protection as this is fully portable regardless of employer. This is an area we can assist in. Please let me know whether you would like to speak to my colleague who specialises in this area who can provide you guidance on best practice, structure and cost."
-
-If no protection was confirmed:
-"You did not confirm any existing protection policies. Please confirm your current Life, Income Protection, and Critical Illness cover so we can advise properly."
-
-If personal protection is already in place, adjust the wording accordingly.
-
----
-
-9) WILLS & POWER OF ATTORNEY
-
-Default wording:
-"I recommend that you make a valid will and keep it up to date with any future changes to your personal circumstances. This will should also include a Power of Attorney to ensure that decisions can be made on your behalf if you become unable to do so."
-
-If the client already has these in place:
-"You confirmed that you have an up-to-date will and Power of Attorney in place. We recommend reviewing these periodically to ensure they continue to reflect your wishes and circumstances."
-
----
-
-10) INHERITANCE TAX PLANNING
-
-Default wording:
-"Your current assets and liabilities indicate a potential inheritance tax liability. You have opted not to address this currently as you are focused on wealth accumulation, but we will continue to monitor this and discuss planning options with you at future reviews."
-
-If they are addressing IHT:
-"We reviewed your estate planning position and you are actively addressing potential inheritance tax exposure through your existing planning strategy. We will continue to review this regularly."
-
-If they do not have IHT exposure:
-"Based on your current asset levels, no inheritance tax exposure is anticipated at present. We will continue to review this as part of future planning."
-
----
-
-11) CASHFLOW MODELLING REFERENCE
-
-If cashflow modelling was discussed, briefly reference it and the conclusions reached.
-
----
-
-OUTPUT RULES
-
-1. Write in UK English, professional but warm tone
-2. Use section headings exactly as shown (e.g., "Your Circumstances", "Your Goals and Objectives")
-3. NO markdown formatting (no **, no #, no tables)
-4. NO placeholders like [X]% or [TO CONFIRM] - if data is missing, use neutral language
-5. The email must be ready to send exactly as written
-6. Sign off with: "Best regards," followed by {advisorName}
-
-Generate the complete email now.`,
+Generate the complete review email now, extracting all specific data from the transcript.`,
     type: 'review-summary',
     is_default: true
   }
 ];
 
-// Helper function to check if a template has old markdown format
-function hasOldMarkdownFormat(promptContent) {
+// Helper function to check if Advicly Summary template needs updating
+function hasOldSummaryFormat(promptContent) {
   if (!promptContent) return false;
-  // Check for common markdown patterns from the old template
+  // Check for patterns from older template versions
   return promptContent.includes('## Key Discussion Points') ||
          promptContent.includes('**1. [Main Topic]**') ||
-         promptContent.includes('Use bolded headings for clarity');
+         promptContent.includes('Use bolded headings for clarity') ||
+         promptContent.includes('Role: You are a professional financial advisor') ||
+         (promptContent.includes('CRITICAL FORMAT RULES') && !promptContent.includes('CRITICAL DATA ACCURACY RULES'));
 }
 
-// Helper function to check if Review template has old format (missing 11-section structure)
+// Helper function to check if Review template has old format
 function hasOldReviewFormat(promptContent) {
   if (!promptContent) return false;
-  // The old Review template used reviewData JSON and didn't have the 11-section structure
+  // The old Review template didn't have the enhanced data extraction rules
   return promptContent.includes('reviewData is the primary source of truth') ||
          promptContent.includes('REVIEW DATA (JSON)') ||
-         !promptContent.includes('EMAIL TEMPLATE STRUCTURE (MUST FOLLOW EXACT ORDER WITH SECTION HEADINGS)');
+         (promptContent.includes('EMAIL TEMPLATE STRUCTURE') && !promptContent.includes('CRITICAL DATA ACCURACY RULES - READ CAREFULLY')) ||
+         (promptContent.includes('Your Circumstances') && !promptContent.includes('For each item below, extract SPECIFIC details'));
 }
 
 // GET /api/templates - Get all templates for the user
@@ -309,21 +275,22 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
 
     // Auto-update any templates that have old formats
     const updatedTemplates = await Promise.all(templates.map(async (template) => {
-      // Auto-update Advicly Summary templates with old markdown format
+      // Auto-update Advicly Summary templates with old format
       if (template.title === 'Advicly Summary' &&
           template.type === 'auto-summary' &&
-          hasOldMarkdownFormat(template.prompt_content)) {
+          hasOldSummaryFormat(template.prompt_content)) {
 
-        console.log(`🔄 Auto-updating Advicly Summary template ${template.id} to plain-text format`);
+        console.log(`🔄 Auto-updating Advicly Summary template ${template.id} to enhanced data extraction format`);
 
         const newContent = defaultTemplates.find(t => t.id === 'auto-template')?.content;
+        const newDescription = defaultTemplates.find(t => t.id === 'auto-template')?.description;
 
         if (newContent) {
           const { data: updated, error: updateError } = await req.supabase
             .from('email_templates')
             .update({
               prompt_content: newContent,
-              description: 'AI prompt for generating professional plain-text email summaries from meeting transcripts',
+              description: newDescription || 'AI-powered professional follow-up email that extracts key details and action items from your meeting',
               updated_at: new Date().toISOString()
             })
             .eq('id', template.id)
@@ -331,27 +298,30 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
             .single();
 
           if (!updateError && updated) {
-            console.log(`✅ Updated Advicly Summary template ${template.id} to plain-text format`);
+            console.log(`✅ Updated Advicly Summary template ${template.id} to enhanced format`);
             return updated;
           }
         }
       }
 
-      // Auto-update Review templates with old format (missing 11-section structure)
-      if (template.title === 'Review' &&
+      // Auto-update Review/Annual Review templates with old format
+      if ((template.title === 'Review' || template.title === 'Annual Review') &&
           template.type === 'review-summary' &&
           hasOldReviewFormat(template.prompt_content)) {
 
-        console.log(`🔄 Auto-updating Review template ${template.id} to 11-section format`);
+        console.log(`🔄 Auto-updating Review template ${template.id} to enhanced data extraction format`);
 
         const newContent = defaultTemplates.find(t => t.id === 'review-template')?.content;
+        const newDescription = defaultTemplates.find(t => t.id === 'review-template')?.description;
+        const newTitle = defaultTemplates.find(t => t.id === 'review-template')?.title;
 
         if (newContent) {
           const { data: updated, error: updateError } = await req.supabase
             .from('email_templates')
             .update({
+              title: newTitle || 'Annual Review',
               prompt_content: newContent,
-              description: 'Professional client review email generator - extracts data from transcripts and populates structured template',
+              description: newDescription || 'Comprehensive annual review email - extracts all client data, figures, and recommendations from your meeting transcript',
               updated_at: new Date().toISOString()
             })
             .eq('id', template.id)
@@ -359,7 +329,7 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
             .single();
 
           if (!updateError && updated) {
-            console.log(`✅ Updated Review template ${template.id} to 11-section format`);
+            console.log(`✅ Updated Review template ${template.id} to enhanced format`);
             return updated;
           }
         }

@@ -849,8 +849,8 @@ router.post('/generate-summary', async (req, res) => {
 });
 
 // Streaming AI summary endpoint - for typewriter effect
-router.post('/generate-summary-stream', async (req, res) => {
-  const { transcript, prompt } = req.body;
+router.post('/generate-summary-stream', authenticateSupabaseUser, async (req, res) => {
+  const { transcript, prompt, meetingId } = req.body;
   if (!transcript) return res.status(400).json({ error: 'Transcript is required' });
   if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
@@ -860,6 +860,55 @@ router.post('/generate-summary-stream', async (req, res) => {
         error: 'OpenAI service is not available. Please check your API key configuration.'
       });
     }
+
+    // Get user profile for template placeholders
+    const userId = req.user.id;
+    let advisorName = 'Financial Advisor';
+    let businessName = 'Financial Services';
+    let clientName = 'Client';
+
+    try {
+      const { data: user } = await req.supabase
+        .from('users')
+        .select('name, business_name')
+        .eq('id', userId)
+        .single();
+
+      if (user) {
+        advisorName = user.name || advisorName;
+        businessName = user.business_name || businessName;
+      }
+
+      // Try to get client name from meeting if meetingId provided
+      if (meetingId) {
+        const { data: meeting } = await req.supabase
+          .from('meetings')
+          .select('client_id, clients(name)')
+          .eq('id', meetingId)
+          .single();
+
+        if (meeting?.clients?.name) {
+          clientName = meeting.clients.name;
+        }
+      }
+
+      // Also try to extract client name from transcript if not found
+      if (clientName === 'Client') {
+        // Simple extraction: look for common patterns like "Hi [Name]" or "Dear [Name]"
+        const nameMatch = transcript.match(/(?:Hi|Hello|Dear|Speaking with|Meeting with)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
+        if (nameMatch && nameMatch[1] && nameMatch[1].length > 1) {
+          clientName = nameMatch[1];
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch user/meeting info for placeholders:', err.message);
+    }
+
+    // Replace placeholders in the prompt
+    let processedPrompt = prompt
+      .replace(/\{advisorName\}/g, advisorName)
+      .replace(/\{businessName\}/g, businessName)
+      .replace(/\{clientName\}/g, clientName);
 
     // Set headers for Server-Sent Events (SSE)
     res.setHeader('Content-Type', 'text/event-stream');
@@ -877,15 +926,15 @@ router.post('/generate-summary-stream', async (req, res) => {
       messages: [
         {
           role: "system",
-          content: "You are a professional email writer. IMPORTANT: Never use markdown formatting. No ## headers, no **bold**, no * bullets, no ` backticks. Write in plain text only with natural paragraphs and numbered lists (1. 2. 3.) where needed."
+          content: "You are a professional email writer for UK financial advisors. IMPORTANT: Never use markdown formatting. No ## headers, no **bold**, no * bullets, no ` backticks. Write in plain text only with natural paragraphs and numbered lists (1. 2. 3.) where needed. Extract and use SPECIFIC figures, dates, and names from the transcript - never fabricate data."
         },
         {
           role: "user",
-          content: prompt
+          content: processedPrompt
         }
       ],
-      temperature: 0.7,
-      max_tokens: 1000,
+      temperature: 0.5, // Slightly lower for more consistent, accurate output
+      max_tokens: 2000, // Increased for Annual Review template which is longer
       stream: true
     });
 

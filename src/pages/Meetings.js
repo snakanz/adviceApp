@@ -27,7 +27,10 @@ import {
   Video,
   ExternalLink,
   Bot,
-  AlertCircle
+  AlertCircle,
+  Copy,
+  Eye,
+  Send
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -477,6 +480,9 @@ export default function Meetings() {
   // Streaming text state for typewriter effect
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [streamingComplete, setStreamingComplete] = useState(false); // Track when streaming just finished
+  const [emailViewMode, setEmailViewMode] = useState('preview'); // 'preview' or 'plain'
+  const [copiedEmail, setCopiedEmail] = useState(false); // For copy feedback
 
   // Add import dialog state
   const [showImportDialog, setShowImportDialog] = useState(false);
@@ -955,6 +961,11 @@ export default function Meetings() {
     setSelectedMeetingId(meeting.id);
     setActiveTab('summary');
 
+    // Reset streaming state when selecting a new meeting
+    setStreamingComplete(false);
+    setStreamingContent('');
+    setIsStreaming(false);
+
     // Set existing summaries if available (using current database schema)
     setQuickSummary(meeting.quick_summary || '');
     setEmailSummary(meeting.email_summary_draft || '');
@@ -1281,6 +1292,7 @@ export default function Meetings() {
     setGeneratingSummary(true);
     setIsStreaming(true);
     setStreamingContent('');
+    setStreamingComplete(false); // Reset completion state for new generation
     setSummaryContent(''); // Clear existing content to show streaming
 
     try {
@@ -1317,7 +1329,8 @@ export default function Meetings() {
         },
         body: JSON.stringify({
           transcript: selectedMeeting.transcript,
-          prompt
+          prompt,
+          meetingId: selectedMeeting.id
         })
       });
 
@@ -1361,6 +1374,7 @@ export default function Meetings() {
 
       setEmailSummary(fullContent);
       setIsStreaming(false);
+      setStreamingComplete(true); // Mark streaming as just completed to prevent flash
 
       // Save the generated summary to database
       try {
@@ -3054,7 +3068,7 @@ export default function Meetings() {
                             <Sparkles className="w-5 h-5 text-primary animate-pulse" />
                             <span className="text-sm font-medium text-primary">Generating email...</span>
                           </div>
-                          <div className="text-sm text-foreground whitespace-pre-line leading-relaxed">
+                          <div className="text-sm text-foreground whitespace-pre-line leading-relaxed font-mono bg-background/50 p-4 rounded-lg border border-border/30">
                             {streamingContent}
                             <span className="inline-block w-2 h-4 bg-primary ml-0.5 animate-pulse" />
                           </div>
@@ -3062,8 +3076,8 @@ export default function Meetings() {
                       </Card>
                     )}
 
-                    {/* Show generate button when not streaming */}
-                    {!isStreaming && selectedMeeting?.transcript && (
+                    {/* Show generate button when no email exists and not streaming */}
+                    {!isStreaming && !streamingComplete && !selectedMeeting?.email_summary_draft && selectedMeeting?.transcript && (
                       <Card className="border-border/50 bg-gradient-to-br from-blue-500/5 to-blue-500/10">
                         <CardContent className="p-6 text-center">
                           <Mail className="w-12 h-12 mx-auto mb-4 text-blue-500" />
@@ -3094,30 +3108,187 @@ export default function Meetings() {
                       </Card>
                     )}
 
-                    {/* Show existing email draft if available and not streaming */}
-                    {!isStreaming && selectedMeeting?.email_summary_draft && (
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <h3 className="text-sm font-semibold text-foreground">Email Draft</h3>
-                          {selectedMeeting?.transcript && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setShowTemplateModal(true)}
-                              className="text-xs text-muted-foreground hover:text-foreground"
-                            >
-                              <Sparkles className="w-3 h-3 mr-1" />
-                              Regenerate
-                            </Button>
-                          )}
-                        </div>
-                        <Card className="border-border/50">
-                          <CardContent className="p-4">
-                            <div className="text-sm text-foreground whitespace-pre-line leading-relaxed">
-                              {selectedMeeting.email_summary_draft}
+                    {/* Show email draft - either from streaming completion or from database */}
+                    {!isStreaming && (streamingComplete || selectedMeeting?.email_summary_draft) && (
+                      <div className="space-y-3">
+                        {/* Header with view toggle and actions */}
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-semibold text-foreground">Email Draft</h3>
+                            {/* View mode toggle */}
+                            <div className="flex items-center bg-muted rounded-lg p-0.5">
+                              <button
+                                onClick={() => setEmailViewMode('preview')}
+                                className={cn(
+                                  "px-2 py-1 text-xs rounded-md transition-all",
+                                  emailViewMode === 'preview'
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                                )}
+                              >
+                                <Eye className="w-3 h-3 inline mr-1" />
+                                Preview
+                              </button>
+                              <button
+                                onClick={() => setEmailViewMode('plain')}
+                                className={cn(
+                                  "px-2 py-1 text-xs rounded-md transition-all",
+                                  emailViewMode === 'plain'
+                                    ? "bg-background text-foreground shadow-sm"
+                                    : "text-muted-foreground hover:text-foreground"
+                                )}
+                              >
+                                <FileText className="w-3 h-3 inline mr-1" />
+                                Plain Text
+                              </button>
                             </div>
+                          </div>
+
+                          {/* Action buttons */}
+                          <div className="flex items-center gap-1">
+                            {/* Copy to clipboard */}
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      const content = streamingComplete ? streamingContent : selectedMeeting?.email_summary_draft;
+                                      if (content) {
+                                        navigator.clipboard.writeText(content);
+                                        setCopiedEmail(true);
+                                        setTimeout(() => setCopiedEmail(false), 2000);
+                                        setShowSnackbar(true);
+                                        setSnackbarMessage('Email copied to clipboard');
+                                        setSnackbarSeverity('success');
+                                      }
+                                    }}
+                                    className="h-8 px-2"
+                                  >
+                                    {copiedEmail ? (
+                                      <Check className="w-4 h-4 text-green-500" />
+                                    ) : (
+                                      <Copy className="w-4 h-4" />
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Copy to clipboard</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+
+                            {/* Open in email client */}
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      const content = streamingComplete ? streamingContent : selectedMeeting?.email_summary_draft;
+                                      const clientName = selectedMeeting?.client?.name || selectedMeeting?.clients?.name || '';
+                                      const meetingTitle = selectedMeeting?.title || 'Meeting Follow-up';
+                                      // Create mailto link with pre-filled subject and body
+                                      const subject = encodeURIComponent(`Follow-up: ${meetingTitle}`);
+                                      const body = encodeURIComponent(content || '');
+                                      window.location.href = `mailto:?subject=${subject}&body=${body}`;
+                                    }}
+                                    className="h-8 px-2"
+                                  >
+                                    <Send className="w-4 h-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Open in email client</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+
+                            {/* Regenerate */}
+                            {selectedMeeting?.transcript && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setStreamingComplete(false);
+                                        setShowTemplateModal(true);
+                                      }}
+                                      className="h-8 px-2 text-muted-foreground hover:text-foreground"
+                                    >
+                                      <Sparkles className="w-4 h-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Regenerate with different template</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Email content card */}
+                        <Card className={cn(
+                          "border-border/50 transition-all",
+                          emailViewMode === 'preview' && "bg-white dark:bg-slate-900"
+                        )}>
+                          <CardContent className={cn(
+                            "p-0",
+                            emailViewMode === 'preview' && "p-0"
+                          )}>
+                            {emailViewMode === 'preview' ? (
+                              /* Email Preview Mode - styled like an email */
+                              <div className="p-6">
+                                {/* Email header simulation */}
+                                <div className="border-b border-border/30 pb-4 mb-4">
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
+                                    <Mail className="w-3 h-3" />
+                                    <span>Email Preview</span>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <div className="text-sm">
+                                      <span className="text-muted-foreground">To:</span>
+                                      <span className="ml-2 text-foreground">
+                                        {selectedMeeting?.client?.name || selectedMeeting?.clients?.name || 'Client'}
+                                      </span>
+                                    </div>
+                                    <div className="text-sm">
+                                      <span className="text-muted-foreground">Subject:</span>
+                                      <span className="ml-2 text-foreground font-medium">
+                                        Follow-up: {selectedMeeting?.title || 'Meeting'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                {/* Email body */}
+                                <div className="text-sm text-foreground leading-relaxed whitespace-pre-line">
+                                  {streamingComplete ? streamingContent : selectedMeeting?.email_summary_draft}
+                                </div>
+                              </div>
+                            ) : (
+                              /* Plain Text Mode - for easy copying */
+                              <div className="p-4">
+                                <pre className="text-sm text-foreground whitespace-pre-wrap font-mono bg-muted/30 p-4 rounded-lg overflow-x-auto">
+                                  {streamingComplete ? streamingContent : selectedMeeting?.email_summary_draft}
+                                </pre>
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
+
+                        {/* Generate new email button when one already exists */}
+                        {selectedMeeting?.transcript && !streamingComplete && (
+                          <div className="flex justify-center pt-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowTemplateModal(true)}
+                              disabled={generatingSummary}
+                            >
+                              <Mail className="w-4 h-4 mr-2" />
+                              Generate New Email
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
