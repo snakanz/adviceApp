@@ -201,12 +201,12 @@ async function fetchTranscriptFromRecall(botId) {
 
             // Format with timestamp if available (helps AI understand conversation flow)
             const startTime = segment.words?.[0]?.start_timestamp?.relative;
-            const timeStr = startTime ? `[${formatTimestamp(startTime)}]` : '';
+            const timeStr = startTime ? ` [${formatTimestamp(startTime)}]` : '';
 
-            return `${speakerName}${timeStr}: ${segmentText}`;
+            return `${speakerName}${timeStr}:\n${segmentText}`;
           })
           .filter(text => text.length > 0)
-          .join('\n');
+          .join('\n\n');
       } else {
         // Non-diarized format - just extract text
         console.log(`   ⚠️ No speaker diarization - extracting plain text`);
@@ -239,10 +239,10 @@ async function fetchTranscriptFromRecall(botId) {
             }
 
             if (!segmentText) return '';
-            return `${speakerName}: ${segmentText}`;
+            return `${speakerName}:\n${segmentText}`;
           })
           .filter(text => text.length > 0)
-          .join('\n');
+          .join('\n\n');
       } else {
         transcriptText = transcriptData.segments
           .map(segment => {

@@ -3150,13 +3150,13 @@ export default function Meetings() {
                                 Plain Text
                               </button>
                             </div>
-                            {/* Generate New Email button - moved here */}
-                            {selectedMeeting?.transcript && !streamingComplete && (
+                            {/* Generate New Email button - always visible when transcript exists */}
+                            {selectedMeeting?.transcript && (
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => setShowTemplateModal(true)}
-                                disabled={generatingSummary}
+                                disabled={generatingSummary || isStreaming}
                                 className="h-7 text-xs"
                               >
                                 <Mail className="w-3 h-3 mr-1" />
@@ -3779,7 +3779,15 @@ Example:
                             </div>
                           </div>
                           <div className="prose prose-sm max-w-none text-foreground">
-                            <div className="whitespace-pre-line text-sm leading-relaxed">{selectedMeeting.transcript}</div>
+                            <div className="whitespace-pre-line text-sm leading-relaxed">
+                              {/* Format transcript with proper spacing between speakers */}
+                              {selectedMeeting.transcript
+                                // Add blank line before speaker labels if not already there
+                                .replace(/([^\n])\n([A-Za-z][A-Za-z\s]*\s*\[?\d)/g, '$1\n\n$2')
+                                // Ensure double newlines between speaker blocks
+                                .replace(/(\]:\s*[^\n]+)\n([A-Za-z])/g, '$1\n\n$2')
+                              }
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
