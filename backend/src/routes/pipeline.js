@@ -68,7 +68,7 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
     const { data: meetings, error: meetingsError } = await req.supabase
       .from('meetings')
       .select('id, attendees')
-      .eq('userid', userId);
+      .eq('user_id', userId);
 
     if (meetingsError) {
       console.error('Error fetching meetings:', meetingsError);

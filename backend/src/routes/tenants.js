@@ -212,10 +212,24 @@ router.put('/:id', authenticateSupabaseUser, async (req, res) => {
 /**
  * GET /api/tenants/:id/members
  * Get all members of a tenant
+ * SECURITY: Only members of the tenant can view its member list
  */
 router.get('/:id/members', authenticateSupabaseUser, async (req, res) => {
   try {
+    const userId = req.user.id;
     const tenantId = req.params.id;
+
+    // SECURITY: Verify the requesting user is a member of this tenant
+    const { data: membership, error: membershipError } = await req.supabase
+      .from('tenant_members')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('user_id', userId)
+      .single();
+
+    if (membershipError || !membership) {
+      return res.status(403).json({ error: 'Not authorized to view this tenant' });
+    }
 
     // Get tenant members with user details
     const { data: members, error } = await req.supabase

@@ -200,7 +200,7 @@ app.get('/api/protected', (req, res) => {
   if (!auth) return res.status(401).json({ error: 'No token' });
   try {
     const token = auth.split(' ')[1];
-    console.log('Verifying JWT with secret:', process.env.JWT_SECRET);
+    // SECURITY: Never log JWT secrets - removed console.log that exposed JWT_SECRET
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     res.json({ message: 'Protected data', user: decoded });
   } catch (e) {

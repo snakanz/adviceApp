@@ -77,41 +77,14 @@ function extractTopicFromMessage(message) {
   return foundTopic ? foundTopic.charAt(0).toUpperCase() + foundTopic.slice(1) + ' Discussion' : null;
 }
 
-// Test route
+// Test route - simple health check
 router.get('/test', (req, res) => {
-  console.log('Test route hit!');
   res.json({ message: 'Ask Advicly routes working!' });
 });
 
-// Debug route to check meeting data
-router.get('/debug/meetings', async (req, res) => {
-  try {
-    const { data: meetings } = await req.supabase
-      .from('meetings')
-      .select('external_id, title, starttime, attendees, transcript, quick_summary, email_summary_draft')
-      .order('starttime', { ascending: false })
-      .limit(10);
-
-    res.json({
-      count: meetings?.length || 0,
-      meetings: meetings?.map(m => ({
-        external_id: m.external_id,
-        title: m.title,
-        starttime: m.starttime,
-        attendees: m.attendees,
-        hasTranscript: !!m.transcript,
-        transcriptLength: m.transcript?.length || 0,
-        hasQuickSummary: !!m.quick_summary,
-        hasEmailSummary: !!m.email_summary_draft
-      }))
-    });
-  } catch (error) {
-    console.error('Debug meetings error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-console.log('Test route registered');
+// SECURITY: Debug endpoint removed - was exposing meeting data without proper user filtering
+// The /debug/meetings endpoint has been removed as it returned data from any user
+// without authentication or ownership verification
 
 // Get all threads for an advisor with enhanced context support
 router.get('/threads', authenticateSupabaseUser, async (req, res) => {

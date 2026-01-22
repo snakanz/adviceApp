@@ -3,25 +3,53 @@ const router = express.Router();
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 
 /**
+ * Helper function to verify admin access
+ * Requires ADMIN_API_KEY environment variable to be set
+ * Returns true if authorized, false otherwise
+ */
+function verifyAdminAccess(req, res) {
+  const adminKey = req.headers['x-admin-key'];
+  const expectedKey = process.env.ADMIN_API_KEY;
+
+  // SECURITY: Require ADMIN_API_KEY to be explicitly set - no default fallback
+  if (!expectedKey) {
+    console.error('❌ ADMIN_API_KEY environment variable not configured');
+    res.status(503).json({ error: 'Admin API not configured - ADMIN_API_KEY environment variable required' });
+    return false;
+  }
+
+  if (!adminKey || adminKey !== expectedKey) {
+    console.warn('⚠️ Unauthorized admin access attempt');
+    res.status(401).json({ error: 'Unauthorized - Invalid or missing admin key' });
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * POST /api/admin/update-subscription
- * Temporary admin endpoint to manually update a subscription
- * 
- * SECURITY: This should be removed or properly secured in production
+ * Admin endpoint to manually update a subscription
+ *
+ * SECURITY: Requires x-admin-key header matching ADMIN_API_KEY env var
  */
 router.post('/update-subscription', async (req, res) => {
   try {
+    // Verify admin access first
+    if (!verifyAdminAccess(req, res)) return;
+
     const { userId, plan, status } = req.body;
-    
+
     if (!userId || !plan) {
-      return res.status(400).json({ 
-        error: 'Missing required fields: userId and plan are required' 
+      return res.status(400).json({
+        error: 'Missing required fields: userId and plan are required'
       });
     }
-    
+
     if (!isSupabaseAvailable()) {
       return res.status(503).json({ error: 'Database service unavailable' });
     }
-    
+
     console.log(`🔄 Admin: Updating subscription for user ${userId} to plan: ${plan}`);
     
     // Update subscription
@@ -71,16 +99,12 @@ router.post('/update-subscription', async (req, res) => {
  * ADMIN ENDPOINT: Clean up all Calendly data for ALL users
  * This removes all Calendly connections, meetings, and webhook subscriptions
  *
- * SECURITY: This is a destructive operation - should be properly secured in production
+ * SECURITY: Requires x-admin-key header matching ADMIN_API_KEY env var
  */
 router.post('/cleanup-calendly-all-users', async (req, res) => {
   try {
-    // Simple security check - in production, use proper authentication
-    const adminKey = req.headers['x-admin-key'];
-    const expectedKey = process.env.ADMIN_API_KEY || 'admin-cleanup-key';
-    if (adminKey !== expectedKey) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    // Verify admin access - no default fallback key
+    if (!verifyAdminAccess(req, res)) return;
 
     if (!isSupabaseAvailable()) {
       return res.status(503).json({ error: 'Database service unavailable' });
@@ -182,16 +206,12 @@ router.post('/cleanup-calendly-all-users', async (req, res) => {
  * - All tenants
  * - All users (from custom users table, NOT auth.users)
  *
- * SECURITY: This is extremely destructive - should be properly secured in production
+ * SECURITY: Requires x-admin-key header matching ADMIN_API_KEY env var
  */
 router.post('/wipe-all-data', async (req, res) => {
   try {
-    // Simple security check - in production, use proper authentication
-    const adminKey = req.headers['x-admin-key'];
-    const expectedKey = process.env.ADMIN_API_KEY || 'admin-cleanup-key';
-    if (adminKey !== expectedKey) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+    // Verify admin access - no default fallback key
+    if (!verifyAdminAccess(req, res)) return;
 
     if (!isSupabaseAvailable()) {
       return res.status(503).json({ error: 'Database service unavailable' });
