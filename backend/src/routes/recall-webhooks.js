@@ -106,6 +106,16 @@ function verifySvixSignature(rawBody, headers, webhookSecret) {
 }
 
 /**
+ * Format timestamp in seconds to MM:SS format
+ */
+function formatTimestamp(seconds) {
+  if (typeof seconds !== 'number' || isNaN(seconds)) return '';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}m ${secs}s`;
+}
+
+/**
  * Fetch transcript from Recall.ai API
  * Called when transcript.done webhook is received
  *
@@ -163,33 +173,87 @@ async function fetchTranscriptFromRecall(botId) {
     console.log(`✅ Transcript file downloaded`);
     console.log(`   Type: ${typeof transcriptData}`);
 
-    // Parse transcript based on format
+    // Parse transcript based on format - PRESERVE SPEAKER DIARIZATION
     let transcriptText = '';
 
     if (Array.isArray(transcriptData)) {
-      // If it's an array of segments, join them
+      // Recall.ai format: Array of segments with participant info and words
+      // Format: [{ participant: { name: "Speaker" }, words: [{ text: "...", start_timestamp: {...} }] }]
       console.log(`   Format: Array with ${transcriptData.length} segments`);
-      transcriptText = transcriptData
-        .map(segment => {
-          if (segment.words && Array.isArray(segment.words)) {
-            return segment.words.map(w => w.text).join(' ');
-          }
-          return segment.text || '';
-        })
-        .filter(text => text.length > 0)
-        .join('\n');
+
+      // Check if this is diarized format (has participant info)
+      const hasDiarization = transcriptData.some(segment => segment.participant?.name);
+
+      if (hasDiarization) {
+        console.log(`   ✅ Speaker diarization detected - preserving speaker labels`);
+        transcriptText = transcriptData
+          .map(segment => {
+            const speakerName = segment.participant?.name || 'Unknown Speaker';
+            let segmentText = '';
+
+            if (segment.words && Array.isArray(segment.words)) {
+              segmentText = segment.words.map(w => w.text || w).join(' ').trim();
+            } else if (segment.text) {
+              segmentText = segment.text;
+            }
+
+            if (!segmentText) return '';
+
+            // Format with timestamp if available (helps AI understand conversation flow)
+            const startTime = segment.words?.[0]?.start_timestamp?.relative;
+            const timeStr = startTime ? `[${formatTimestamp(startTime)}]` : '';
+
+            return `${speakerName}${timeStr}: ${segmentText}`;
+          })
+          .filter(text => text.length > 0)
+          .join('\n');
+      } else {
+        // Non-diarized format - just extract text
+        console.log(`   ⚠️ No speaker diarization - extracting plain text`);
+        transcriptText = transcriptData
+          .map(segment => {
+            if (segment.words && Array.isArray(segment.words)) {
+              return segment.words.map(w => w.text || w).join(' ');
+            }
+            return segment.text || '';
+          })
+          .filter(text => text.length > 0)
+          .join('\n');
+      }
     } else if (typeof transcriptData === 'object' && transcriptData.segments) {
-      // If it has segments property
+      // If it has segments property (alternative format)
       console.log(`   Format: Object with segments`);
-      transcriptText = transcriptData.segments
-        .map(segment => {
-          if (segment.words && Array.isArray(segment.words)) {
-            return segment.words.map(w => w.text).join(' ');
-          }
-          return segment.text || '';
-        })
-        .filter(text => text.length > 0)
-        .join('\n');
+      const hasDiarization = transcriptData.segments.some(segment => segment.participant?.name || segment.speaker);
+
+      if (hasDiarization) {
+        console.log(`   ✅ Speaker diarization detected`);
+        transcriptText = transcriptData.segments
+          .map(segment => {
+            const speakerName = segment.participant?.name || segment.speaker || 'Unknown Speaker';
+            let segmentText = '';
+
+            if (segment.words && Array.isArray(segment.words)) {
+              segmentText = segment.words.map(w => w.text || w).join(' ').trim();
+            } else if (segment.text) {
+              segmentText = segment.text;
+            }
+
+            if (!segmentText) return '';
+            return `${speakerName}: ${segmentText}`;
+          })
+          .filter(text => text.length > 0)
+          .join('\n');
+      } else {
+        transcriptText = transcriptData.segments
+          .map(segment => {
+            if (segment.words && Array.isArray(segment.words)) {
+              return segment.words.map(w => w.text || w).join(' ');
+            }
+            return segment.text || '';
+          })
+          .filter(text => text.length > 0)
+          .join('\n');
+      }
     } else if (typeof transcriptData === 'string') {
       // If it's already a string
       transcriptText = transcriptData;

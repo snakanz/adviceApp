@@ -11,6 +11,11 @@ const defaultTemplates = [
     description: 'AI-powered professional follow-up email that extracts key details and action items from your meeting',
     content: `You are writing a professional follow-up email for {advisorName} from {businessName} to send to their client after a financial planning meeting.
 
+MEETING DETAILS:
+- Meeting Date: {meetingDate}
+- Client: {clientName}
+- Advisor: {advisorName}
+
 CRITICAL DATA ACCURACY RULES:
 1. Extract ONLY information explicitly stated in the transcript - never invent or assume
 2. Include specific monetary amounts exactly as mentioned (e.g., "£35,000", "50,000 pounds")
@@ -19,6 +24,7 @@ CRITICAL DATA ACCURACY RULES:
 5. Use the client's name exactly as it appears in the transcript
 6. If a specific detail is unclear, describe the topic generally rather than guessing
 7. Never fabricate plan numbers, account values, or specific figures not in the transcript
+8. Use the meeting date provided above - do NOT guess or make up a different date
 
 FORMAT REQUIREMENTS:
 - Plain text only - NO markdown (no **, ##, *, bullet symbols, backticks)
@@ -34,7 +40,7 @@ GREETING (1 line):
 
 OPENING (1-2 sentences):
 - Thank them for their time
-- Reference when/what the meeting was about
+- Reference the meeting date ({meetingDate}) and what the meeting was about
 
 DISCUSSION SUMMARY (2-3 paragraphs):
 - Summarise the main topics in natural flowing prose
@@ -75,10 +81,15 @@ Now generate the complete email. Extract real figures and details from the trans
     description: 'Comprehensive annual review email - extracts all client data, figures, and recommendations from your meeting transcript',
     content: `You are "Client Review Assistant", a specialised AI that converts meeting transcripts into comprehensive annual review emails for UK financial advisors.
 
+MEETING DETAILS (use these exact values):
+- Meeting Date: {meetingDate}
+- Client: {clientName}
+- Advisor: {advisorName} from {businessName}
+
 CRITICAL DATA ACCURACY RULES - READ CAREFULLY:
 1. ONLY use information explicitly stated in the transcript - never invent details
-2. Client name: Use EXACTLY as stated in transcript or use {clientName}
-3. Meeting date: Extract the EXACT date if mentioned, otherwise say "our recent review meeting"
+2. Client name: Use EXACTLY as provided above: {clientName}
+3. Meeting date: Use EXACTLY as provided above: {meetingDate} - do NOT guess a different date
 4. Monetary values: Include ALL figures mentioned EXACTLY (e.g., "£250,000 pension value", "£1,500 monthly contribution")
 5. Percentages: Quote EXACTLY as stated (e.g., "4.5% growth", "Medium risk profile")
 6. Ages/dates: Use EXACTLY as mentioned (e.g., "retirement at age 60", "April 2025")
@@ -86,8 +97,6 @@ CRITICAL DATA ACCURACY RULES - READ CAREFULLY:
 8. If information is NOT in the transcript, use general language - NEVER guess specific figures
 
 INPUT DATA:
-- Client: {clientName}
-- Advisor: {advisorName} from {businessName}
 - Transcript: {transcript}
 
 ---
@@ -98,7 +107,7 @@ EMAIL STRUCTURE (follow this exact format with these section headings):
 
 Dear {clientName},
 
-Following our review meeting on [EXTRACT EXACT DATE FROM TRANSCRIPT OR SAY "recently"], I have outlined the main points and my recommendations below.
+Following our review meeting on {meetingDate}, I have outlined the main points and my recommendations below.
 
 
 YOUR CIRCUMSTANCES
@@ -227,22 +236,26 @@ Generate the complete review email now, extracting all specific data from the tr
 // Helper function to check if Advicly Summary template needs updating
 function hasOldSummaryFormat(promptContent) {
   if (!promptContent) return false;
-  // Check for patterns from older template versions
+  // Check for patterns from older template versions OR missing meeting date placeholder
   return promptContent.includes('## Key Discussion Points') ||
          promptContent.includes('**1. [Main Topic]**') ||
          promptContent.includes('Use bolded headings for clarity') ||
          promptContent.includes('Role: You are a professional financial advisor') ||
-         (promptContent.includes('CRITICAL FORMAT RULES') && !promptContent.includes('CRITICAL DATA ACCURACY RULES'));
+         (promptContent.includes('CRITICAL FORMAT RULES') && !promptContent.includes('CRITICAL DATA ACCURACY RULES')) ||
+         // New: Check if template is missing meeting date support
+         (promptContent.includes('CRITICAL DATA ACCURACY RULES') && !promptContent.includes('{meetingDate}'));
 }
 
 // Helper function to check if Review template has old format
 function hasOldReviewFormat(promptContent) {
   if (!promptContent) return false;
-  // The old Review template didn't have the enhanced data extraction rules
+  // The old Review template didn't have the enhanced data extraction rules or meeting date placeholder
   return promptContent.includes('reviewData is the primary source of truth') ||
          promptContent.includes('REVIEW DATA (JSON)') ||
          (promptContent.includes('EMAIL TEMPLATE STRUCTURE') && !promptContent.includes('CRITICAL DATA ACCURACY RULES - READ CAREFULLY')) ||
-         (promptContent.includes('Your Circumstances') && !promptContent.includes('For each item below, extract SPECIFIC details'));
+         (promptContent.includes('Your Circumstances') && !promptContent.includes('For each item below, extract SPECIFIC details')) ||
+         // New: Check if template is missing meeting date support
+         (promptContent.includes('CRITICAL DATA ACCURACY RULES') && !promptContent.includes('{meetingDate}'));
 }
 
 // GET /api/templates - Get all templates for the user

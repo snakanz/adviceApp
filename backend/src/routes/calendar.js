@@ -866,6 +866,7 @@ router.post('/generate-summary-stream', authenticateSupabaseUser, async (req, re
     let advisorName = 'Financial Advisor';
     let businessName = 'Financial Services';
     let clientName = 'Client';
+    let meetingDate = 'recently'; // Default fallback
 
     try {
       const { data: user } = await req.supabase
@@ -879,16 +880,29 @@ router.post('/generate-summary-stream', authenticateSupabaseUser, async (req, re
         businessName = user.business_name || businessName;
       }
 
-      // Try to get client name from meeting if meetingId provided
+      // Try to get client name and meeting date from meeting if meetingId provided
       if (meetingId) {
         const { data: meeting } = await req.supabase
           .from('meetings')
-          .select('client_id, clients(name)')
+          .select('client_id, clients(name), start_time, starttime, title')
           .eq('id', meetingId)
           .single();
 
         if (meeting?.clients?.name) {
           clientName = meeting.clients.name;
+        }
+
+        // Extract meeting date from calendar data
+        const meetingStartTime = meeting?.start_time || meeting?.starttime;
+        if (meetingStartTime) {
+          const date = new Date(meetingStartTime);
+          // Format: "Wednesday, 21st January 2026" for UK format
+          const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+          const day = date.getDate();
+          const suffix = (day === 1 || day === 21 || day === 31) ? 'st' : (day === 2 || day === 22) ? 'nd' : (day === 3 || day === 23) ? 'rd' : 'th';
+          meetingDate = `${dayNames[date.getDay()]}, ${day}${suffix} ${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+          console.log(`📅 Meeting date extracted: ${meetingDate}`);
         }
       }
 
@@ -908,7 +922,8 @@ router.post('/generate-summary-stream', authenticateSupabaseUser, async (req, re
     let processedPrompt = prompt
       .replace(/\{advisorName\}/g, advisorName)
       .replace(/\{businessName\}/g, businessName)
-      .replace(/\{clientName\}/g, clientName);
+      .replace(/\{clientName\}/g, clientName)
+      .replace(/\{meetingDate\}/g, meetingDate);
 
     // Set headers for Server-Sent Events (SSE)
     res.setHeader('Content-Type', 'text/event-stream');
