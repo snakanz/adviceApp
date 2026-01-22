@@ -393,32 +393,19 @@ function groupMeetingsByDate(meetings, sortOrder = 'desc') {
   return sortedGroups;
 }
 
-// Fallback templates (only used if API fails)
+// Fallback templates (only used if API fails - backend handles prompt construction)
 const fallbackTemplates = [
   {
     id: 'auto-template',
     title: 'Advicly Summary',
-    description: 'AI prompt for generating professional plain-text email summaries from meeting transcripts',
-    prompt_content: `Role: You are a professional financial advisor's assistant helping {advisorName} write a follow-up email to a client after a meeting.
-
-Goal: Generate a clear, professional plain-text email that summarises the key discussion points and next steps. This email should be ready to copy-paste and send with minimal editing.
-
-CRITICAL FORMAT RULES:
-1. NO markdown symbols whatsoever - no asterisks (*), no hashes (#), no underscores (_), or formatting characters
-2. Use plain text only with proper spacing and line breaks
-3. Use numbered lists (1. 2. 3.) or simple dashes (-) for bullet points
-4. Keep paragraphs short and separated by blank lines
-
-Instructions:
-1. Start with a friendly greeting using the client's name
-2. Thank them for taking the time to meet
-3. Summarise the main discussion points in a clear, organised manner
-4. List any action items or next steps with clear ownership
-5. End with an appropriate sign-off using the advisor's name
-
-Use {transcript} as the source for the meeting content.
-Use {clientName} for the client's name.
-Use {advisorName} for the financial advisor's name.`
+    type: 'auto-summary',
+    description: 'Concise follow-up email focusing on key discussion points and actions'
+  },
+  {
+    id: 'review-template',
+    title: 'Annual Review',
+    type: 'review-summary',
+    description: 'Comprehensive review email with structured sections for annual reviews'
   }
 ];
 
@@ -1304,28 +1291,18 @@ export default function Meetings() {
     setSummaryContent(''); // Clear existing content to show streaming
 
     try {
-      // Get the template prompt
-      let templatePrompt;
+      // Determine which template type to use (backend handles prompt construction)
       let templateToUse;
 
       if (selectedTemplate) {
-        templatePrompt = selectedTemplate.prompt_content || selectedTemplate.content;
         templateToUse = selectedTemplate;
-        if (!templatePrompt) {
-          throw new Error('Template has no prompt content');
-        }
       } else {
         templateToUse = templates.find(t => t.id === 'auto-template') || templates[0];
-        templatePrompt = templateToUse.prompt_content || templateToUse.content;
-        if (!templatePrompt) {
-          throw new Error('Auto template has no prompt content');
-        }
       }
 
       setCurrentSummaryTemplate(templateToUse);
-      const prompt = templatePrompt.replace('{transcript}', selectedMeeting.transcript);
 
-      // Use streaming endpoint for typewriter effect
+      // Use streaming endpoint - backend constructs the prompt from structured data
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
 
@@ -1337,8 +1314,8 @@ export default function Meetings() {
         },
         body: JSON.stringify({
           transcript: selectedMeeting.transcript,
-          prompt,
-          meetingId: selectedMeeting.id
+          meetingId: selectedMeeting.id,
+          templateType: templateToUse?.type || 'auto-summary'
         })
       });
 

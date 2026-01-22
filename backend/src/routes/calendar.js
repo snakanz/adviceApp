@@ -848,11 +848,10 @@ router.post('/generate-summary', async (req, res) => {
   }
 });
 
-// Streaming AI summary endpoint - for typewriter effect
+// Streaming AI summary endpoint - data-driven, transcript-led generation
 router.post('/generate-summary-stream', authenticateSupabaseUser, async (req, res) => {
-  const { transcript, prompt, meetingId } = req.body;
+  const { transcript, meetingId, templateType } = req.body;
   if (!transcript) return res.status(400).json({ error: 'Transcript is required' });
-  if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
 
   try {
     if (!openai.isOpenAIAvailable()) {
@@ -861,69 +860,17 @@ router.post('/generate-summary-stream', authenticateSupabaseUser, async (req, re
       });
     }
 
-    // Get user profile for template placeholders
     const userId = req.user.id;
-    let advisorName = 'Financial Advisor';
-    let businessName = 'Financial Services';
-    let clientName = 'Client';
-    let meetingDate = 'recently'; // Default fallback
+    const emailPromptEngine = require('../services/emailPromptEngine');
 
-    try {
-      const { data: user } = await req.supabase
-        .from('users')
-        .select('name, business_name')
-        .eq('id', userId)
-        .single();
-
-      if (user) {
-        advisorName = user.name || advisorName;
-        businessName = user.business_name || businessName;
-      }
-
-      // Try to get client name and meeting date from meeting if meetingId provided
-      if (meetingId) {
-        const { data: meeting } = await req.supabase
-          .from('meetings')
-          .select('client_id, clients(name), start_time, starttime, title')
-          .eq('id', meetingId)
-          .single();
-
-        if (meeting?.clients?.name) {
-          clientName = meeting.clients.name;
-        }
-
-        // Extract meeting date from calendar data
-        const meetingStartTime = meeting?.start_time || meeting?.starttime;
-        if (meetingStartTime) {
-          const date = new Date(meetingStartTime);
-          // Format: "Wednesday, 21st January 2026" for UK format
-          const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-          const day = date.getDate();
-          const suffix = (day === 1 || day === 21 || day === 31) ? 'st' : (day === 2 || day === 22) ? 'nd' : (day === 3 || day === 23) ? 'rd' : 'th';
-          meetingDate = `${dayNames[date.getDay()]}, ${day}${suffix} ${monthNames[date.getMonth()]} ${date.getFullYear()}`;
-          console.log(`📅 Meeting date extracted: ${meetingDate}`);
-        }
-      }
-
-      // Also try to extract client name from transcript if not found
-      if (clientName === 'Client') {
-        // Simple extraction: look for common patterns like "Hi [Name]" or "Dear [Name]"
-        const nameMatch = transcript.match(/(?:Hi|Hello|Dear|Speaking with|Meeting with)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)/i);
-        if (nameMatch && nameMatch[1] && nameMatch[1].length > 1) {
-          clientName = nameMatch[1];
-        }
-      }
-    } catch (err) {
-      console.warn('Could not fetch user/meeting info for placeholders:', err.message);
-    }
-
-    // Replace placeholders in the prompt
-    let processedPrompt = prompt
-      .replace(/\{advisorName\}/g, advisorName)
-      .replace(/\{businessName\}/g, businessName)
-      .replace(/\{clientName\}/g, clientName)
-      .replace(/\{meetingDate\}/g, meetingDate);
+    // Prepare the email generation context, messages, greeting, and sign-off
+    const { messages, greeting, signOff, context, sectionConfig } = await emailPromptEngine.prepareEmailGeneration({
+      supabase: req.supabase,
+      userId,
+      meetingId,
+      transcript,
+      templateType: templateType || 'auto-summary'
+    });
 
     // Set headers for Server-Sent Events (SSE)
     res.setHeader('Content-Type', 'text/event-stream');
@@ -932,59 +879,51 @@ router.post('/generate-summary-stream', authenticateSupabaseUser, async (req, re
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.flushHeaders();
 
-    // Import OpenAI directly for streaming
+    // Send deterministic greeting first
+    res.write(`data: ${JSON.stringify({ content: greeting + '\n\n' })}\n\n`);
+
+    // Stream AI-generated body content
     const OpenAI = require('openai');
     const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
     const stream = await openaiClient.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: "You are a professional email writer for UK financial advisors. IMPORTANT: Never use markdown formatting. No ## headers, no **bold**, no * bullets, no ` backticks. Write in plain text only with natural paragraphs and numbered lists (1. 2. 3.) where needed. Extract and use SPECIFIC figures, dates, and names from the transcript - never fabricate data."
-        },
-        {
-          role: "user",
-          content: processedPrompt
-        }
-      ],
-      temperature: 0.5, // Slightly lower for more consistent, accurate output
-      max_tokens: 2000, // Increased for Annual Review template which is longer
+      model: "gpt-4o",
+      messages,
+      temperature: 0.4,
+      max_tokens: 3000,
       stream: true
     });
 
-    // Stream the response chunks
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content || '';
       if (content) {
-        // Send the chunk as SSE data
         res.write(`data: ${JSON.stringify({ content })}\n\n`);
       }
     }
+
+    // Send deterministic sign-off after AI content
+    res.write(`data: ${JSON.stringify({ content: '\n\n' + signOff })}\n\n`);
 
     // Send completion signal
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
   } catch (err) {
     console.error('Error streaming summary:', err);
-    // If headers haven't been sent, send error as JSON
     if (!res.headersSent) {
       return res.status(500).json({ error: 'Failed to generate summary' });
     }
-    // Otherwise send error through SSE
     res.write(`data: ${JSON.stringify({ error: 'Failed to generate summary' })}\n\n`);
     res.end();
   }
 });
 
-// Auto-generate summaries for a meeting
+// Auto-generate summaries for a meeting (uses new prompt engine)
 router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, async (req, res) => {
   try {
     const meetingId = req.params.id;
     const userId = req.user.id;
     const { forceRegenerate = false } = req.body;
 
-    // Check if Supabase is available
     if (!isSupabaseAvailable()) {
       return res.status(503).json({
         error: 'Database service unavailable. Please configure Supabase environment variables.'
@@ -1010,26 +949,6 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
       return res.status(400).json({ error: 'No transcript available for this meeting' });
     }
 
-    // Extract client information for email personalization
-    let clientName = 'Client';
-    let clientEmail = null;
-
-    if (meeting.clients) {
-      clientName = meeting.clients.name || meeting.clients.email.split('@')[0];
-      clientEmail = meeting.clients.email;
-    } else if (meeting.attendees) {
-      try {
-        const attendees = JSON.parse(meeting.attendees);
-        const clientAttendee = attendees.find(a => a.email && a.email !== req.user.email);
-        if (clientAttendee) {
-          clientName = clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0];
-          clientEmail = clientAttendee.email;
-        }
-      } catch (e) {
-        // Ignore parsing errors
-      }
-    }
-
     // Check if summaries already exist and we're not forcing regeneration
     if (!forceRegenerate && meeting.quick_summary && meeting.email_summary_draft) {
       return res.json({
@@ -1041,37 +960,55 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
       });
     }
 
-    // Check if OpenAI is available
     if (!openai.isOpenAIAvailable()) {
       return res.status(503).json({
         error: 'OpenAI service is not available. Please check your API key configuration.'
       });
     }
 
+    const emailPromptEngine = require('../services/emailPromptEngine');
 
-    // Use unified generator to get quick summary, email summary, detailed summary, and action points
+    // Build context using the new engine
+    const context = await emailPromptEngine.buildMeetingContext(req.supabase, userId, meeting.id, meeting.transcript);
+    const clientName = context.client.name || 'Client';
+
+    // Generate quick summary + action items via unified generator
     const unified = await openai.generateUnifiedMeetingSummary(meeting.transcript, {
       clientName,
       includeDetailedSummary: false,
       maxActionItems: 7
     });
 
-    let { quickSummary, emailSummary, detailedSummary, actionPointsArray } = unified;
+    let { quickSummary, actionPointsArray } = unified;
 
-    // Apply GPT-4 polish to the email summary for all users
-    if (emailSummary) {
-      try {
-        const polishPrompt = 'Please refine this client follow-up email to improve clarity, tone, and professionalism without changing the factual content or adding any placeholders. Keep it in plain text with no markdown.';
-        emailSummary = await openai.adjustMeetingSummary(emailSummary, polishPrompt);
-      } catch (polishError) {
-        console.warn('⚠️  Email polish failed, falling back to base email summary:', polishError.message);
-      }
-    }
+    // Generate email summary using the new prompt engine (non-streaming)
+    const prepared = await emailPromptEngine.prepareEmailGeneration({
+      supabase: req.supabase,
+      userId,
+      meetingId: meeting.id,
+      transcript: meeting.transcript,
+      templateType: 'auto-summary'
+    });
 
-    // Build actionPoints bullet string for storage (for backward compatibility)
+    const OpenAI = require('openai');
+    const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const emailResponse = await openaiClient.chat.completions.create({
+      model: "gpt-4o",
+      messages: prepared.messages,
+      temperature: 0.4,
+      max_tokens: 3000
+    });
+
+    const emailBody = emailResponse.choices[0]?.message?.content || '';
+
+    // Assemble complete email with deterministic greeting and sign-off
+    const emailSummary = `${prepared.greeting}\n\n${emailBody.trim()}\n\n${prepared.signOff}`;
+
+    // Build actionPoints for storage
     let actionPoints = '';
     if (Array.isArray(actionPointsArray) && actionPointsArray.length > 0) {
-      actionPoints = '• ' + actionPointsArray.join('\n• ');
+      actionPoints = actionPointsArray.map((item, i) => `${i + 1}. ${item}`).join('\n');
     } else {
       actionPointsArray = [];
     }
@@ -1081,7 +1018,7 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
       .from('meetings')
       .update({
         quick_summary: quickSummary,
-        detailed_summary: emailSummary, // keep for compatibility
+        detailed_summary: emailSummary,
         action_points: actionPoints,
         updated_at: new Date().toISOString()
       })
@@ -1093,15 +1030,13 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
       return res.status(500).json({ error: 'Failed to save summaries' });
     }
 
-    // Save individual action items to PENDING table (awaiting approval)
+    // Save individual action items to PENDING table
     if (actionPointsArray.length > 0) {
-      // First, delete existing pending action items for this meeting
       await req.supabase
         .from('pending_transcript_action_items')
         .delete()
         .eq('meeting_id', meeting.id);
 
-      // Insert new pending action items
       const actionItemsToInsert = actionPointsArray.map((actionText, index) => ({
         meeting_id: meeting.id,
         client_id: meeting.client_id,
@@ -1116,9 +1051,8 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
 
       if (actionItemsError) {
         console.error('Error saving pending action items:', actionItemsError);
-        // Don't fail the whole request, just log the error
       } else {
-        console.log(`✅ Saved ${actionPointsArray.length} PENDING action items for meeting ${meeting.id} (awaiting approval)`);
+        console.log(`✅ Saved ${actionPointsArray.length} PENDING action items for meeting ${meeting.id}`);
       }
     }
 
