@@ -111,8 +111,8 @@ try {
   console.warn('Failed to mount Calendly webhook route:', error.message);
 }
 
-app.use(express.json());
-console.log('✅ CORS and middleware configured');
+app.use(express.json({ limit: '10mb' }));
+console.log('✅ CORS and middleware configured (body limit: 10mb)');
 
 // Log all requests for debugging
 app.use((req, res, next) => {
