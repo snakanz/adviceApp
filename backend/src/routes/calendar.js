@@ -970,11 +970,13 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
       return res.status(400).json({ error: 'No transcript available for this meeting' });
     }
 
-    // Check if summaries already exist and we're not forcing regeneration
-    if (!forceRegenerate && meeting.quick_summary && meeting.email_summary_draft) {
+    // Check if quick summary already exists and we're not forcing regeneration
+    // Only short-circuit if quick_summary exists (the primary independent output)
+    if (!forceRegenerate && meeting.quick_summary) {
       return res.json({
         quickSummary: meeting.quick_summary,
-        emailSummary: meeting.email_summary_draft,
+        emailSummary: meeting.email_summary_draft || '',
+        actionPoints: meeting.action_points || '',
         templateId: meeting.email_template_id,
         lastSummarizedAt: meeting.last_summarized_at,
         alreadyGenerated: true
@@ -990,6 +992,8 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
     // STEP 1: Generate core outputs (quick summary, action items, client summary, pipeline)
     // This ALWAYS runs independently of email generation
     const { generateMeetingOutputs } = require('../services/meetingSummaryService');
+    console.log(`🤖 [AutoGenerate] Calling generateMeetingOutputs for meeting ${meeting.id} (transcript: ${meeting.transcript?.length || 0} chars)...`);
+
     const summaryResults = await generateMeetingOutputs({
       supabase: req.supabase,
       userId,
@@ -998,74 +1002,83 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
       meeting
     });
 
+    console.log(`🤖 [AutoGenerate] generateMeetingOutputs returned: quickSummary=${summaryResults.quickSummary ? 'YES' : 'NO'}, actionItems=${summaryResults.actionPointsArray?.length || 0}, errors=${summaryResults.errors?.length || 0}`);
+
     if (summaryResults.errors.length > 0) {
-      console.warn('⚠️ Some summary outputs had errors:', summaryResults.errors);
+      console.warn('⚠️ Some summary outputs had errors:', JSON.stringify(summaryResults.errors));
     }
 
     const { quickSummary, actionPointsArray } = summaryResults;
-
-    // STEP 2: Generate email draft (SECONDARY - failure does not affect step 1)
-    let emailSummary = '';
-    try {
-      const emailPromptEngine = require('../services/emailPromptEngine');
-
-      const prepared = await emailPromptEngine.prepareEmailGeneration({
-        supabase: req.supabase,
-        userId,
-        meetingId: meeting.id,
-        transcript: meeting.transcript,
-        templateType: 'auto-summary'
-      });
-
-      const OpenAI = require('openai');
-      const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-      const emailResponse = await openaiClient.chat.completions.create({
-        model: "gpt-4o",
-        messages: prepared.messages,
-        temperature: 0.4,
-        max_tokens: 3000
-      });
-
-      const emailBody = emailResponse.choices[0]?.message?.content || '';
-
-      if (prepared.sectionConfig.includeGreetingSignOff) {
-        emailSummary = emailBody.trim();
-      } else {
-        emailSummary = `${prepared.greeting}\n\n${emailBody.trim()}\n\n${prepared.signOff}`;
-      }
-
-      // Save email draft
-      await req.supabase
-        .from('meetings')
-        .update({
-          email_summary_draft: emailSummary,
-          email_template_id: 'auto-template',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', meeting.id)
-        .eq('user_id', userId);
-
-    } catch (emailError) {
-      console.error('⚠️ Email generation failed (non-critical):', emailError.message);
-      // Email failure does not affect the response - quick summary and actions are already saved
-    }
 
     const actionPoints = actionPointsArray.length > 0
       ? actionPointsArray.map((item, i) => `${i + 1}. ${item}`).join('\n')
       : '';
 
+    // RESPOND IMMEDIATELY with quick summary + action items
+    // Don't block the response waiting for email generation
     res.json({
-      quickSummary,
-      emailSummary,
-      actionPoints,
+      quickSummary: quickSummary || null,
+      emailSummary: null, // Will be generated async
+      actionPoints: actionPoints || null,
       actionItemsCount: actionPointsArray.length,
       templateId: 'auto-template',
       lastSummarizedAt: new Date().toISOString(),
       generated: true,
       clientSummaryUpdated: summaryResults.clientSummaryUpdated,
-      pipelineUpdated: summaryResults.pipelineUpdated
+      pipelineUpdated: summaryResults.pipelineUpdated,
+      generationErrors: summaryResults.errors.length > 0 ? summaryResults.errors : undefined
     });
+
+    // STEP 2: Generate email draft ASYNC (after response sent)
+    // This runs in background - failure does not affect the user response
+    if (process.env.OPENAI_API_KEY) {
+      setImmediate(async () => {
+        try {
+          const emailPromptEngine = require('../services/emailPromptEngine');
+
+          const prepared = await emailPromptEngine.prepareEmailGeneration({
+            supabase: req.supabase,
+            userId,
+            meetingId: meeting.id,
+            transcript: meeting.transcript,
+            templateType: 'auto-summary'
+          });
+
+          const OpenAI = require('openai');
+          const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+          const emailResponse = await openaiClient.chat.completions.create({
+            model: "gpt-4o",
+            messages: prepared.messages,
+            temperature: 0.4,
+            max_tokens: 3000
+          });
+
+          const emailBody = emailResponse.choices[0]?.message?.content || '';
+          let emailSummary;
+          if (prepared.sectionConfig.includeGreetingSignOff) {
+            emailSummary = emailBody.trim();
+          } else {
+            emailSummary = `${prepared.greeting}\n\n${emailBody.trim()}\n\n${prepared.signOff}`;
+          }
+
+          // Save email draft
+          await req.supabase
+            .from('meetings')
+            .update({
+              email_summary_draft: emailSummary,
+              email_template_id: 'auto-template',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', meeting.id)
+            .eq('user_id', userId);
+
+          console.log(`✅ [Async] Email draft saved for meeting ${meeting.id}`);
+        } catch (emailError) {
+          console.error('⚠️ [Async] Email generation failed (non-critical):', emailError.message);
+        }
+      });
+    }
 
   } catch (error) {
     console.error('Error auto-generating summaries:', error);
@@ -1467,74 +1480,37 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
     // ========================================
 
     if (transcript && transcript.trim()) {
-      console.log(`🤖 Auto-generating outputs for manually uploaded transcript (meeting ${existingMeeting.id})`);
+      console.log(`🤖 Auto-generating outputs for manually uploaded transcript (meeting ${existingMeeting.id}, transcript length: ${transcript.length} chars)`);
 
       try {
         // STEP 1: Generate core outputs (quick summary, action items, client summary, pipeline)
         // This ALWAYS runs independently of email generation
         const { generateMeetingOutputs } = require('../services/meetingSummaryService');
+        console.log(`🤖 [TranscriptUpload] Calling generateMeetingOutputs for meeting ${existingMeeting.id}...`);
+
         const summaryResults = await generateMeetingOutputs({
           supabase: req.supabase,
           userId,
           meetingId: existingMeeting.id,
-          transcript
+          transcript,
+          meeting: existingMeeting
         });
 
+        console.log(`🤖 [TranscriptUpload] generateMeetingOutputs returned: quickSummary=${summaryResults.quickSummary ? 'YES' : 'NO'}, actionItems=${summaryResults.actionPointsArray?.length || 0}, errors=${summaryResults.errors?.length || 0}`);
+
         if (summaryResults.errors.length > 0) {
-          console.warn('⚠️ Some summary outputs had errors:', summaryResults.errors);
+          console.warn('⚠️ Some summary outputs had errors:', JSON.stringify(summaryResults.errors));
         }
 
         const { quickSummary, actionPointsArray } = summaryResults;
-
-        // STEP 2: Generate email draft (SECONDARY - failure does not affect step 1)
-        let emailSummary = '';
-        try {
-          const emailPromptEngine = require('../services/emailPromptEngine');
-          const OpenAILib = require('openai');
-          const openaiClient = new OpenAILib({ apiKey: process.env.OPENAI_API_KEY });
-
-          const prepared = await emailPromptEngine.prepareEmailGeneration({
-            supabase: req.supabase,
-            userId,
-            meetingId: existingMeeting.id,
-            transcript,
-            templateType: 'auto-summary'
-          });
-
-          const emailResponse = await openaiClient.chat.completions.create({
-            model: "gpt-4o",
-            messages: prepared.messages,
-            temperature: 0.4,
-            max_tokens: 3000
-          });
-
-          const emailBody = emailResponse.choices[0]?.message?.content || '';
-          if (prepared.sectionConfig.includeGreetingSignOff) {
-            emailSummary = emailBody.trim();
-          } else {
-            emailSummary = `${prepared.greeting}\n\n${emailBody.trim()}\n\n${prepared.signOff}`;
-          }
-
-          // Save email draft
-          await req.supabase
-            .from('meetings')
-            .update({
-              email_summary_draft: emailSummary,
-              email_template_id: 'auto-template',
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', existingMeeting.id);
-
-          console.log(`✅ Email draft saved for meeting ${existingMeeting.id}`);
-        } catch (emailError) {
-          console.error('⚠️ Email generation failed (non-critical):', emailError.message);
-        }
 
         const actionPoints = actionPointsArray.length > 0
           ? actionPointsArray.map((item, i) => `${i + 1}. ${item}`).join('\n')
           : '';
 
-        return res.json({
+        // RESPOND IMMEDIATELY with quick summary + action items
+        // Don't block the response waiting for email generation
+        res.json({
           message: 'Transcript uploaded and summaries generated successfully',
           meeting: {
             ...updatedMeeting,
@@ -1543,19 +1519,82 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
             googleEventId: updatedMeeting.external_id
           },
           summaries: {
-            quickSummary,
-            emailSummary,
-            actionPoints
+            quickSummary: quickSummary || null,
+            emailSummary: null, // Will be generated async
+            actionPoints: actionPoints || null
           },
           actionItemsCount: actionPointsArray.length,
           autoGenerated: true,
           clientSummaryUpdated: summaryResults.clientSummaryUpdated,
-          pipelineUpdated: summaryResults.pipelineUpdated
+          pipelineUpdated: summaryResults.pipelineUpdated,
+          generationErrors: summaryResults.errors.length > 0 ? summaryResults.errors : undefined
         });
 
+        // STEP 2: Generate email draft ASYNC (after response sent)
+        // This runs in background - failure does not affect the user response
+        if (process.env.OPENAI_API_KEY) {
+          setImmediate(async () => {
+            try {
+              const emailPromptEngine = require('../services/emailPromptEngine');
+              const OpenAILib = require('openai');
+              const openaiClient = new OpenAILib({ apiKey: process.env.OPENAI_API_KEY });
+
+              const prepared = await emailPromptEngine.prepareEmailGeneration({
+                supabase: req.supabase,
+                userId,
+                meetingId: existingMeeting.id,
+                transcript,
+                templateType: 'auto-summary'
+              });
+
+              const emailResponse = await openaiClient.chat.completions.create({
+                model: "gpt-4o",
+                messages: prepared.messages,
+                temperature: 0.4,
+                max_tokens: 3000
+              });
+
+              const emailBody = emailResponse.choices[0]?.message?.content || '';
+              let emailSummary;
+              if (prepared.sectionConfig.includeGreetingSignOff) {
+                emailSummary = emailBody.trim();
+              } else {
+                emailSummary = `${prepared.greeting}\n\n${emailBody.trim()}\n\n${prepared.signOff}`;
+              }
+
+              // Save email draft
+              await req.supabase
+                .from('meetings')
+                .update({
+                  email_summary_draft: emailSummary,
+                  email_template_id: 'auto-template',
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', existingMeeting.id);
+
+              console.log(`✅ [Async] Email draft saved for meeting ${existingMeeting.id}`);
+            } catch (emailError) {
+              console.error('⚠️ [Async] Email generation failed (non-critical):', emailError.message);
+            }
+          });
+        }
+
+        return; // Response already sent above
+
       } catch (aiError) {
-        console.error('❌ Error generating outputs for manual transcript:', aiError);
-        // Still return success for transcript upload, just without summaries
+        console.error('❌ Error generating outputs for manual transcript:', aiError.message, aiError.stack);
+        // Return success for transcript upload with error info for debugging
+        return res.json({
+          message: 'Transcript uploaded but summary generation failed',
+          meeting: {
+            ...updatedMeeting,
+            id: updatedMeeting.id,
+            startTime: updatedMeeting.starttime,
+            googleEventId: updatedMeeting.external_id
+          },
+          summaries: null,
+          generationError: aiError.message
+        });
       }
     }
 

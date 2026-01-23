@@ -14,6 +14,22 @@
 const { generateUnifiedMeetingSummary } = require('./openai');
 
 /**
+ * Helper: wrap a promise with a timeout to prevent hanging requests.
+ * @param {Promise} promise - The promise to wrap
+ * @param {number} ms - Timeout in milliseconds
+ * @param {string} label - Label for error messages
+ * @returns {Promise}
+ */
+function withTimeout(promise, ms, label = 'Operation') {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    )
+  ]);
+}
+
+/**
  * Generate all core meeting outputs (excluding email).
  * This should be called whenever a transcript becomes available,
  * regardless of whether an email will be generated.
@@ -37,6 +53,13 @@ async function generateMeetingOutputs({ supabase, userId, meetingId, transcript,
 
   if (!transcript || !transcript.trim()) {
     console.warn(`⚠️ No transcript text for meeting ${meetingId} - skipping summary generation`);
+    return results;
+  }
+
+  // Fail fast if OpenAI is not available
+  if (!process.env.OPENAI_API_KEY) {
+    console.error(`❌ OPENAI_API_KEY not set - cannot generate summaries for meeting ${meetingId}`);
+    results.errors.push('OPENAI_API_KEY not configured');
     return results;
   }
 
@@ -67,11 +90,15 @@ async function generateMeetingOutputs({ supabase, userId, meetingId, transcript,
   console.log(`🤖 [MeetingSummaryService] Generating quick summary + action items for meeting ${meetingId} (client: ${clientName})`);
 
   try {
-    console.log(`🤖 [MeetingSummaryService] Calling generateUnifiedMeetingSummary...`);
-    const unified = await generateUnifiedMeetingSummary(transcript, {
-      clientName,
-      maxActionItems: 7
-    });
+    console.log(`🤖 [MeetingSummaryService] Calling generateUnifiedMeetingSummary (transcript length: ${transcript.length} chars)...`);
+    const unified = await withTimeout(
+      generateUnifiedMeetingSummary(transcript, {
+        clientName,
+        maxActionItems: 7
+      }),
+      30000, // 30 second timeout for AI call
+      'generateUnifiedMeetingSummary'
+    );
     console.log(`🤖 [MeetingSummaryService] AI response received: quickSummary=${unified.quickSummary ? 'YES' : 'NO'}, actionPoints=${unified.actionPointsArray?.length || 0}`);
 
     results.quickSummary = unified.quickSummary;
@@ -144,35 +171,50 @@ async function generateMeetingOutputs({ supabase, userId, meetingId, transcript,
   }
 
   // ═══════════════════════════════════════════════════════
-  // STEP 3: Update Client Summary (aggregated across ALL meetings)
-  // Only if meeting is linked to a client
+  // STEPS 3 & 4: Update Client Summary + Pipeline (run in parallel)
+  // These are secondary outputs - their failure doesn't affect quick summary
   // ═══════════════════════════════════════════════════════
   if (clientId) {
-    try {
-      await updateClientSummary(supabase, userId, clientId);
-      results.clientSummaryUpdated = true;
-      console.log(`✅ Client summary updated for client ${clientId}`);
-    } catch (error) {
-      console.error(`❌ Error updating client summary for client ${clientId}:`, error);
-      results.errors.push(`Client summary update failed: ${error.message}`);
-    }
-  }
+    const secondaryUpdates = [];
 
-  // ═══════════════════════════════════════════════════════
-  // STEP 4: Update Pipeline Next Steps (if client has business types)
-  // Only if meeting is linked to a client
-  // ═══════════════════════════════════════════════════════
-  if (clientId) {
-    try {
-      const updated = await updatePipelineNextSteps(supabase, userId, clientId);
-      results.pipelineUpdated = updated;
-      if (updated) {
-        console.log(`✅ Pipeline next steps updated for client ${clientId}`);
-      }
-    } catch (error) {
-      console.error(`❌ Error updating pipeline next steps for client ${clientId}:`, error);
-      results.errors.push(`Pipeline update failed: ${error.message}`);
-    }
+    // STEP 3: Update Client Summary (aggregated across ALL meetings)
+    secondaryUpdates.push(
+      withTimeout(
+        updateClientSummary(supabase, userId, clientId),
+        20000,
+        'updateClientSummary'
+      )
+        .then(() => {
+          results.clientSummaryUpdated = true;
+          console.log(`✅ Client summary updated for client ${clientId}`);
+        })
+        .catch(error => {
+          console.error(`❌ Error updating client summary for client ${clientId}:`, error.message);
+          results.errors.push(`Client summary update failed: ${error.message}`);
+        })
+    );
+
+    // STEP 4: Update Pipeline Next Steps (if client has business types)
+    secondaryUpdates.push(
+      withTimeout(
+        updatePipelineNextSteps(supabase, userId, clientId),
+        20000,
+        'updatePipelineNextSteps'
+      )
+        .then(updated => {
+          results.pipelineUpdated = !!updated;
+          if (updated) {
+            console.log(`✅ Pipeline next steps updated for client ${clientId}`);
+          }
+        })
+        .catch(error => {
+          console.error(`❌ Error updating pipeline next steps for client ${clientId}:`, error.message);
+          results.errors.push(`Pipeline update failed: ${error.message}`);
+        })
+    );
+
+    // Wait for both to complete (or timeout)
+    await Promise.all(secondaryUpdates);
   }
 
   console.log(`✅ [MeetingSummaryService] Complete for meeting ${meetingId}. ` +
