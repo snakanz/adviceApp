@@ -2,51 +2,20 @@ const express = require('express');
 const router = express.Router();
 const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 const { isSupabaseAvailable } = require('../lib/supabase');
+const { GENERATION_MODES } = require('../services/emailPromptEngine');
 
-// Default templates to seed the database
-const defaultTemplates = [
-  {
-    id: 'auto-template',
-    title: 'Advicly Summary',
-    description: 'AI-powered professional follow-up email that extracts key details and action items from your meeting',
-    content: `Write a clear, friendly follow-up email for {advisorName} from {businessName} to send to their client {clientName} after a financial planning meeting on {meetingDate}.
+// Build the Advicly Summary template content from the emailPromptEngine source of truth
+// This ensures the Templates page always shows exactly what the engine uses for generation
+function buildAdviclyTemplateContent() {
+  const engineInstructions = GENERATION_MODES['auto-summary'].instructions;
+  // Replace engine placeholders with template display placeholders
+  const displayContent = engineInstructions
+    .replace('[Adviser name]', '{advisorName}')
+    .replace('[Business name]', '{businessName}');
 
-WRITING STYLE:
-- Plain text only (no markdown, no symbols).
-- Professional but warm and natural - not overly formal.
-- Write how a real adviser would write, not like a report.
-- Avoid repetitive or formulaic phrasing.
-- 180-280 words.
+  return `Write a clear, friendly follow-up email for {advisorName} from {businessName} to send to their client {clientName} after a financial planning meeting on {meetingDate}.
 
-STRUCTURE (use as guidance, not rigid sections):
-
-Start with a friendly greeting using the client's name.
-Briefly thank them for their time and reference the meeting date and the main purpose of the discussion.
-In a few natural paragraphs, summarise the key points discussed:
-- What was reviewed or explored
-- Any preferences, decisions, or concerns raised
-- Any figures, percentages, or dates mentioned (exactly as stated)
-- Group related topics together and keep the flow conversational
-
-Include a short "Next steps" section using a numbered list:
-- 3-6 clear actions
-- Make it clear who is responsible for each action (I will / You will / We will)
-- Include any timeframes mentioned in the meeting
-
-Close the email warmly, inviting questions and confirming next contact.
-
-End with:
-Best regards,
-{advisorName}
-{businessName}
-
-QUALITY STANDARDS:
-- Every figure, date, and name you include MUST come directly from the transcript
-- The email should feel like it was written by a real person who was in the meeting
-- Use UK English spelling throughout (summarise, organise, favour, colour)
-- Do NOT pad with generic financial advice or compliance statements not discussed
-- Do NOT include topic areas that were not meaningfully discussed
-- The level of detail should match the depth of the conversation
+${displayContent}
 
 ---
 
@@ -55,7 +24,16 @@ TRANSCRIPT TO ANALYSE:
 
 ---
 
-Now generate the complete email. Extract real figures and details from the transcript. Plain text only, ready to copy and send.`,
+Now generate the complete email. Extract real figures and details from the transcript. Plain text only, ready to copy and send.`;
+}
+
+// Default templates to seed the database
+const defaultTemplates = [
+  {
+    id: 'auto-template',
+    title: 'Advicly Summary',
+    description: 'AI-powered professional follow-up email that extracts key details and action items from your meeting',
+    get content() { return buildAdviclyTemplateContent(); },
     type: 'auto-summary',
     is_default: true
   },
@@ -218,20 +196,29 @@ Generate the complete review email now, extracting all specific data from the tr
 ];
 
 // Helper function to check if Advicly Summary template needs updating
+// Compares stored template against the current emailPromptEngine source of truth
 function hasOldSummaryFormat(promptContent) {
   if (!promptContent) return false;
-  // Check for patterns from older template versions
+
+  // Get the current canonical content from the engine
+  const currentContent = buildAdviclyTemplateContent();
+
+  // If stored content doesn't match current engine content, it's outdated
+  // Use a key phrase check rather than full equality to handle minor whitespace differences
+  const hasCurrentWritingStyle = promptContent.includes('WRITING STYLE:') &&
+                                  promptContent.includes('QUALITY STANDARDS:') &&
+                                  promptContent.includes('STRUCTURE (use as guidance, not rigid sections)');
+
+  if (!hasCurrentWritingStyle) return true;
+
+  // Also check for explicitly old patterns
   return promptContent.includes('## Key Discussion Points') ||
          promptContent.includes('**1. [Main Topic]**') ||
          promptContent.includes('Use bolded headings for clarity') ||
          promptContent.includes('Role: You are a professional financial advisor') ||
-         (promptContent.includes('CRITICAL FORMAT RULES') && !promptContent.includes('CRITICAL DATA ACCURACY RULES')) ||
-         // Old format used rigid EMAIL STRUCTURE with section headers
+         promptContent.includes('CRITICAL FORMAT RULES') ||
          (promptContent.includes('EMAIL STRUCTURE:') && promptContent.includes('GREETING (1 line)')) ||
-         // Old format used CRITICAL DATA ACCURACY RULES instead of QUALITY STANDARDS
-         (promptContent.includes('CRITICAL DATA ACCURACY RULES') && !promptContent.includes('QUALITY STANDARDS')) ||
-         // Check if template is missing the new WRITING STYLE section
-         (promptContent.includes('{transcript}') && !promptContent.includes('WRITING STYLE:'));
+         (promptContent.includes('CRITICAL DATA ACCURACY RULES') && !promptContent.includes('QUALITY STANDARDS'));
 }
 
 // Helper function to check if Review template has old format

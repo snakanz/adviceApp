@@ -966,15 +966,15 @@ export default function Meetings() {
     setEmailSummary(meeting.email_summary_draft || '');
     setSummaryContent(meeting.email_summary_draft || meeting.meetingSummary || '');
 
-    // Set template info
+    // Set template info - always show Advicly Summary as default
     if (meeting.templateId) {
       const template = templates.find(t => t.id === meeting.templateId);
       setCurrentSummaryTemplate(template);
       setSelectedTemplate(template);
     } else {
       // Default to Advicly Summary template when no template is set
-      const adviclyTemplate = templates.find(t => t.id === 'auto-template') || templates[0];
-      setCurrentSummaryTemplate(null);
+      const adviclyTemplate = templates.find(t => t.type === 'auto-summary' || t.id === 'auto-template') || templates[0];
+      setCurrentSummaryTemplate(adviclyTemplate);
       setSelectedTemplate(adviclyTemplate);
     }
 
@@ -1066,8 +1066,8 @@ export default function Meetings() {
         };
       });
 
-      // Update template info
-      const template = templates.find(t => t.id === data.templateId);
+      // Update template info - match by type since DB templates have UUID ids
+      const template = templates.find(t => t.id === data.templateId || t.type === 'auto-summary') || templates[0];
       setCurrentSummaryTemplate(template);
       setSelectedTemplate(template);
 
