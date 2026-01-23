@@ -1040,7 +1040,8 @@ export default function Meetings() {
       // Update the meetings state to reflect the new data
       setMeetings(prevMeetings => {
         const updateMeeting = (meeting) => {
-          if (meeting.id === meetingId) {
+          // Match by id OR external_id since meetingId could be either
+          if (meeting.id === meetingId || meeting.external_id === meetingId) {
             return {
               ...meeting,
               quick_summary: data.quickSummary,
@@ -3598,27 +3599,28 @@ export default function Meetings() {
                           )}
                         </div>
 
-                        {/* Location Section */}
-                        {(selectedMeeting?.location || selectedMeeting?.location_type || selectedMeeting?.location_details) && (
-                          <div className="space-y-2">
-                            <h3 className="text-sm font-semibold text-foreground">Location</h3>
-                            <Card className="border-border/50">
-                              <CardContent className="p-3">
-                                <div className="flex items-center gap-2 text-sm text-foreground">
-                                  <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                                  <span>
-                                    {selectedMeeting.location_details ||
-                                     selectedMeeting.location ||
-                                     (selectedMeeting.location_type === 'video' ? 'Video Call' :
-                                      selectedMeeting.location_type === 'phone' ? 'Phone Call' :
-                                      selectedMeeting.location_type === 'in_person' ? 'In Person' :
-                                      selectedMeeting.location_type || 'Not specified')}
-                                  </span>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          </div>
-                        )}
+                        {/* Location Section - only show physical location, not meeting URLs */}
+                        {(() => {
+                          const loc = selectedMeeting?.location_details ||
+                            (selectedMeeting?.location && !/^https?:\/\//i.test(selectedMeeting.location) ? selectedMeeting.location : null);
+                          const locType = selectedMeeting?.location_type;
+                          const displayLoc = loc ||
+                            (locType === 'in_person' ? 'In Person' :
+                             locType === 'phone' ? 'Phone Call' : null);
+                          return displayLoc ? (
+                            <div className="space-y-2">
+                              <h3 className="text-sm font-semibold text-foreground">Location</h3>
+                              <Card className="border-border/50">
+                                <CardContent className="p-3">
+                                  <div className="flex items-center gap-2 text-sm text-foreground">
+                                    <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                    <span>{displayLoc}</span>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          ) : null;
+                        })()}
                       </div>
                     ) : (
                       <Card className="border-border/50">

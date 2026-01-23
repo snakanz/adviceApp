@@ -64,13 +64,15 @@ async function generateMeetingOutputs({ supabase, userId, meetingId, transcript,
   // STEP 1: Generate Quick Summary + Action Items
   // This ALWAYS runs regardless of email generation
   // ═══════════════════════════════════════════════════════
-  console.log(`🤖 [MeetingSummaryService] Generating quick summary + action items for meeting ${meetingId}`);
+  console.log(`🤖 [MeetingSummaryService] Generating quick summary + action items for meeting ${meetingId} (client: ${clientName})`);
 
   try {
+    console.log(`🤖 [MeetingSummaryService] Calling generateUnifiedMeetingSummary...`);
     const unified = await generateUnifiedMeetingSummary(transcript, {
       clientName,
       maxActionItems: 7
     });
+    console.log(`🤖 [MeetingSummaryService] AI response received: quickSummary=${unified.quickSummary ? 'YES' : 'NO'}, actionPoints=${unified.actionPointsArray?.length || 0}`);
 
     results.quickSummary = unified.quickSummary;
     results.actionPointsArray = unified.actionPointsArray || [];
@@ -81,6 +83,7 @@ async function generateMeetingOutputs({ supabase, userId, meetingId, transcript,
       : '';
 
     // Save to meetings table
+    console.log(`🤖 [MeetingSummaryService] Saving quick summary to DB for meeting ${meetingId}...`);
     const { error: updateError } = await supabase
       .from('meetings')
       .update({
@@ -95,41 +98,48 @@ async function generateMeetingOutputs({ supabase, userId, meetingId, transcript,
       console.error(`❌ Error saving quick summary for meeting ${meetingId}:`, updateError);
       results.errors.push('Failed to save quick summary');
     } else {
-      console.log(`✅ Quick summary saved for meeting ${meetingId}`);
+      console.log(`✅ Quick summary saved for meeting ${meetingId}: "${results.quickSummary?.substring(0, 50)}..."`);
     }
 
     // ═══════════════════════════════════════════════════════
     // STEP 2: Save Action Items to Pending Table
     // ═══════════════════════════════════════════════════════
     if (results.actionPointsArray.length > 0) {
+      console.log(`🤖 [MeetingSummaryService] Saving ${results.actionPointsArray.length} action items to pending table...`);
+
       // Delete existing pending items for this meeting
-      await supabase
+      const { error: deleteError } = await supabase
         .from('pending_transcript_action_items')
         .delete()
         .eq('meeting_id', meetingId);
 
+      if (deleteError) {
+        console.warn(`⚠️ Error deleting old pending items (continuing):`, deleteError);
+      }
+
       const actionItemsToInsert = results.actionPointsArray.map((actionText, index) => ({
         meeting_id: meetingId,
-        client_id: clientId,
+        client_id: clientId || null,
         advisor_id: userId,
         action_text: actionText,
         display_order: index
       }));
 
+      console.log(`🤖 [MeetingSummaryService] Inserting action items:`, JSON.stringify(actionItemsToInsert[0]));
       const { error: actionItemsError } = await supabase
         .from('pending_transcript_action_items')
         .insert(actionItemsToInsert);
 
       if (actionItemsError) {
         console.error(`❌ Error saving pending action items for meeting ${meetingId}:`, actionItemsError);
-        results.errors.push('Failed to save action items');
+        results.errors.push(`Failed to save action items: ${JSON.stringify(actionItemsError)}`);
       } else {
         console.log(`✅ Saved ${results.actionPointsArray.length} pending action items for meeting ${meetingId}`);
       }
     }
 
   } catch (error) {
-    console.error(`❌ Error in quick summary generation for meeting ${meetingId}:`, error);
+    console.error(`❌ Error in quick summary generation for meeting ${meetingId}:`, error.message, error.stack);
     results.errors.push(`Quick summary generation failed: ${error.message}`);
   }
 
@@ -179,6 +189,10 @@ async function generateMeetingOutputs({ supabase, userId, meetingId, transcript,
  * This provides a rolling, always-current view of the client relationship.
  */
 async function updateClientSummary(supabase, userId, clientId) {
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn('⚠️ OPENAI_API_KEY not set - skipping client summary update');
+    return null;
+  }
   const OpenAI = require('openai');
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -213,13 +227,18 @@ async function updateClientSummary(supabase, userId, clientId) {
     .select('*')
     .eq('client_id', clientId);
 
-  // Get pending action items across all meetings
-  const { data: actionItems } = await supabase
-    .from('transcript_action_items')
-    .select('action_text, completed')
-    .eq('advisor_id', userId)
-    .in('meeting_id', (meetings || []).map(m => m.id))
-    .eq('completed', false);
+  // Get pending action items across all meetings (guard against empty array)
+  let actionItems = [];
+  const meetingIds = (meetings || []).map(m => m.id).filter(Boolean);
+  if (meetingIds.length > 0) {
+    const { data: fetchedItems } = await supabase
+      .from('transcript_action_items')
+      .select('action_text, completed')
+      .eq('advisor_id', userId)
+      .in('meeting_id', meetingIds)
+      .eq('completed', false);
+    actionItems = fetchedItems || [];
+  }
 
   // Get client todos
   const { data: clientTodos } = await supabase
@@ -239,7 +258,7 @@ async function updateClientSummary(supabase, userId, clientId) {
   ).join('\n');
 
   const pendingActions = [
-    ...(actionItems || []).map(ai => ai.action_text),
+    ...actionItems.map(ai => ai.action_text),
     ...(clientTodos || []).map(t => t.title)
   ];
 
@@ -323,6 +342,10 @@ async function updatePipelineNextSteps(supabase, userId, clientId) {
     return false; // No pipeline entries, skip
   }
 
+  if (!process.env.OPENAI_API_KEY) {
+    console.warn('⚠️ OPENAI_API_KEY not set - skipping pipeline update');
+    return false;
+  }
   const OpenAI = require('openai');
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
