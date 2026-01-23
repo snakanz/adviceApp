@@ -879,10 +879,15 @@ router.post('/generate-summary-stream', authenticateSupabaseUser, async (req, re
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.flushHeaders();
 
-    // Send deterministic greeting first
-    res.write(`data: ${JSON.stringify({ content: greeting + '\n\n' })}\n\n`);
+    // Only send deterministic greeting/sign-off if mode doesn't include them in AI output
+    const includeGreetingSignOff = sectionConfig.includeGreetingSignOff || false;
 
-    // Stream AI-generated body content
+    if (!includeGreetingSignOff) {
+      // Send deterministic greeting first
+      res.write(`data: ${JSON.stringify({ content: greeting + '\n\n' })}\n\n`);
+    }
+
+    // Stream AI-generated content
     const OpenAI = require('openai');
     const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -901,8 +906,10 @@ router.post('/generate-summary-stream', authenticateSupabaseUser, async (req, re
       }
     }
 
-    // Send deterministic sign-off after AI content
-    res.write(`data: ${JSON.stringify({ content: '\n\n' + signOff })}\n\n`);
+    if (!includeGreetingSignOff) {
+      // Send deterministic sign-off after AI content
+      res.write(`data: ${JSON.stringify({ content: '\n\n' + signOff })}\n\n`);
+    }
 
     // Send completion signal
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
@@ -1002,8 +1009,13 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
 
     const emailBody = emailResponse.choices[0]?.message?.content || '';
 
-    // Assemble complete email with deterministic greeting and sign-off
-    const emailSummary = `${prepared.greeting}\n\n${emailBody.trim()}\n\n${prepared.signOff}`;
+    // Assemble complete email - include greeting/sign-off only if mode doesn't produce them
+    let emailSummary;
+    if (prepared.sectionConfig.includeGreetingSignOff) {
+      emailSummary = emailBody.trim();
+    } else {
+      emailSummary = `${prepared.greeting}\n\n${emailBody.trim()}\n\n${prepared.signOff}`;
+    }
 
     // Build actionPoints for storage
     let actionPoints = '';

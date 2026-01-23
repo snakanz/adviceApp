@@ -3052,6 +3052,11 @@ export default function Meetings() {
                           <div className="flex items-center gap-2 mb-4">
                             <Sparkles className="w-5 h-5 text-primary animate-pulse" />
                             <span className="text-sm font-medium text-primary">Generating email...</span>
+                            {currentSummaryTemplate && (
+                              <span className="text-xs text-muted-foreground ml-auto">
+                                Template: {currentSummaryTemplate.title || 'Advicly Summary'}
+                              </span>
+                            )}
                           </div>
                           <div className="text-sm text-foreground whitespace-pre-line leading-relaxed font-mono bg-background/50 p-4 rounded-lg border border-border/30">
                             {streamingContent}
@@ -3079,6 +3084,11 @@ export default function Meetings() {
                             <Mail className="w-5 h-5 mr-2" />
                             {generatingSummary ? 'Generating...' : 'Choose Template & Generate'}
                           </Button>
+                          {selectedTemplate && (
+                            <p className="text-xs text-muted-foreground mt-2">
+                              Using: {selectedTemplate.title || 'Advicly Summary'}
+                            </p>
+                          )}
                         </CardContent>
                       </Card>
                     )}
@@ -3129,16 +3139,23 @@ export default function Meetings() {
                             </div>
                             {/* Generate New Email button - always visible when transcript exists */}
                             {selectedMeeting?.transcript && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setShowTemplateModal(true)}
-                                disabled={generatingSummary || isStreaming}
-                                className="h-7 text-xs"
-                              >
-                                <Mail className="w-3 h-3 mr-1" />
-                                Generate New
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                {currentSummaryTemplate && (
+                                  <span className="text-xs text-muted-foreground">
+                                    Template: {currentSummaryTemplate.title || 'Advicly Summary'}
+                                  </span>
+                                )}
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setShowTemplateModal(true)}
+                                  disabled={generatingSummary || isStreaming}
+                                  className="h-7 text-xs"
+                                >
+                                  <Mail className="w-3 h-3 mr-1" />
+                                  Generate New
+                                </Button>
+                              </div>
                             )}
                           </div>
 
