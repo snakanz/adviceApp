@@ -770,14 +770,21 @@ export default function Meetings() {
   }, [selectedMeeting]);
 
   // Refresh when page becomes visible (user switches back to tab)
-  // Removed 30-second polling - relying on webhooks for real-time updates
+  // Only refreshes if the page was hidden for more than 60 seconds
+  const lastVisibleRef = useRef(Date.now());
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        console.log('📱 Page visible - refreshing meetings...');
-        fetchMeetings();
+      if (document.hidden) {
+        lastVisibleRef.current = Date.now();
+      } else {
+        // Only refresh if hidden for more than 60 seconds
+        const hiddenDuration = Date.now() - lastVisibleRef.current;
+        if (hiddenDuration > 60000) {
+          console.log(`📱 Page visible after ${Math.round(hiddenDuration / 1000)}s - refreshing meetings...`);
+          fetchMeetings();
+        }
       }
     };
 
@@ -912,6 +919,7 @@ export default function Meetings() {
   }, [user?.id]);
 
   // Subscribe to real-time updates on meetings table for bot status changes
+  // Only updates the specific meeting in state - no full page refresh
   useEffect(() => {
     if (!user?.id) return;
 
@@ -926,11 +934,18 @@ export default function Meetings() {
           filter: `user_id=eq.${user.id}`
         },
         (payload) => {
-          // When a meeting is updated (e.g., bot joins, transcript generated)
           if (payload.new) {
-            console.log('🔄 Meeting updated via real-time:', payload.new.id, payload.new.recall_bot_id);
-            // Refresh meetings to get updated data
-            fetchMeetings();
+            // Update only the specific meeting in state (no full refetch)
+            // Preserve existing client relation data since real-time payloads don't include joins
+            const updatedFields = payload.new;
+            setMeetings(prev => ({
+              past: prev.past.map(m => m.id === updatedFields.id
+                ? { ...m, ...updatedFields, client: m.client, clients: m.clients }
+                : m),
+              future: prev.future.map(m => m.id === updatedFields.id
+                ? { ...m, ...updatedFields, client: m.client, clients: m.clients }
+                : m)
+            }));
           }
         }
       )
@@ -939,7 +954,7 @@ export default function Meetings() {
     return () => {
       meetingsSubscription.unsubscribe();
     };
-  }, [user?.id, fetchMeetings]);
+  }, [user?.id]);
 
   // Update bot status when meeting is selected
   useEffect(() => {
@@ -3565,62 +3580,19 @@ export default function Meetings() {
                           </div>
                         )}
 
-                        {/* Action Points Section - Checkbox To-Do List */}
-                        <div className="space-y-2">
-                          <h3 className="text-sm font-semibold text-foreground">
-                            Action Points
-                            {actionItems.length > 0 && (
-                              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                ({actionItems.filter(i => !i.completed).length} pending, {actionItems.filter(i => i.completed).length} completed)
-                              </span>
-                            )}
-                          </h3>
-                          {loadingActionItems ? (
-                            <Card>
+                        {/* AI Meeting Notes - Full action points text from transcript analysis */}
+                        {selectedMeeting?.action_points && (
+                          <div className="space-y-2">
+                            <h3 className="text-sm font-semibold text-foreground">Meeting Notes</h3>
+                            <Card className="border-border/50">
                               <CardContent className="p-3">
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
-                                  Loading action items...
+                                <div className="text-sm text-foreground whitespace-pre-line">
+                                  {selectedMeeting.action_points}
                                 </div>
                               </CardContent>
                             </Card>
-                          ) : actionItems.length > 0 ? (
-                            <div className="space-y-2">
-                              {actionItems.map((item) => (
-                                <Card key={item.id} className="border-border/50">
-                                  <CardContent className="p-3">
-                                    <div className="flex items-start gap-3">
-                                      <input
-                                        type="checkbox"
-                                        checked={item.completed || false}
-                                        onChange={() => toggleActionItem(item.id)}
-                                        className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
-                                      />
-                                      <div className="flex-1">
-                                        <p className={`text-sm ${item.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                                          {item.action_text}
-                                        </p>
-                                        {item.completed_at && (
-                                          <p className="text-xs text-muted-foreground mt-1">
-                                            Completed: {new Date(item.completed_at).toLocaleDateString()}
-                                          </p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </CardContent>
-                                </Card>
-                              ))}
-                            </div>
-                          ) : (
-                            <Card>
-                              <CardContent className="p-3">
-                                <div className="text-sm text-muted-foreground italic">
-                                  No action points generated yet. Action points will be automatically extracted when summaries are generated.
-                                </div>
-                              </CardContent>
-                            </Card>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
                         {/* Location Section - only show physical location, not meeting URLs */}
                         {(() => {
