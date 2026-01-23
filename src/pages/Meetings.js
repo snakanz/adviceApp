@@ -3601,12 +3601,9 @@ export default function Meetings() {
 
                         {/* Location Section - only show physical location, not meeting URLs */}
                         {(() => {
-                          const loc = selectedMeeting?.location_details ||
-                            (selectedMeeting?.location && !/^https?:\/\//i.test(selectedMeeting.location) ? selectedMeeting.location : null);
-                          const locType = selectedMeeting?.location_type;
-                          const displayLoc = loc ||
-                            (locType === 'in_person' ? 'In Person' :
-                             locType === 'phone' ? 'Phone Call' : null);
+                          const rawLoc = selectedMeeting?.location;
+                          // Only show if it's a real location (not a URL like Zoom/Teams links)
+                          const displayLoc = rawLoc && !/^https?:\/\//i.test(rawLoc) ? rawLoc : null;
                           return displayLoc ? (
                             <div className="space-y-2">
                               <h3 className="text-sm font-semibold text-foreground">Location</h3>
