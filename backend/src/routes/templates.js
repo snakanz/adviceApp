@@ -9,60 +9,44 @@ const defaultTemplates = [
     id: 'auto-template',
     title: 'Advicly Summary',
     description: 'AI-powered professional follow-up email that extracts key details and action items from your meeting',
-    content: `You are writing a professional follow-up email for {advisorName} from {businessName} to send to their client after a financial planning meeting.
+    content: `Write a clear, friendly follow-up email for {advisorName} from {businessName} to send to their client {clientName} after a financial planning meeting on {meetingDate}.
 
-MEETING DETAILS:
-- Meeting Date: {meetingDate}
-- Client: {clientName}
-- Advisor: {advisorName}
+WRITING STYLE:
+- Plain text only (no markdown, no symbols).
+- Professional but warm and natural - not overly formal.
+- Write how a real adviser would write, not like a report.
+- Avoid repetitive or formulaic phrasing.
+- 180-280 words.
 
-CRITICAL DATA ACCURACY RULES:
-1. Extract ONLY information explicitly stated in the transcript - never invent or assume
-2. Include specific monetary amounts exactly as mentioned (e.g., "£35,000", "50,000 pounds")
-3. Include percentages exactly as stated (e.g., "5% growth", "40% tax relief")
-4. Include dates and timeframes exactly as mentioned (e.g., "April 2025", "within 2 weeks")
-5. Use the client's name exactly as it appears in the transcript
-6. If a specific detail is unclear, describe the topic generally rather than guessing
-7. Never fabricate plan numbers, account values, or specific figures not in the transcript
-8. Use the meeting date provided above - do NOT guess or make up a different date
+STRUCTURE (use as guidance, not rigid sections):
 
-FORMAT REQUIREMENTS:
-- Plain text only - NO markdown (no **, ##, *, bullet symbols, backticks)
-- Use numbered lists (1. 2. 3.) for action items only
-- Natural paragraph breaks between sections
-- 180-280 words total
-- Start directly with greeting - no subject line
+Start with a friendly greeting using the client's name.
+Briefly thank them for their time and reference the meeting date and the main purpose of the discussion.
+In a few natural paragraphs, summarise the key points discussed:
+- What was reviewed or explored
+- Any preferences, decisions, or concerns raised
+- Any figures, percentages, or dates mentioned (exactly as stated)
+- Group related topics together and keep the flow conversational
 
-EMAIL STRUCTURE:
+Include a short "Next steps" section using a numbered list:
+- 3-6 clear actions
+- Make it clear who is responsible for each action (I will / You will / We will)
+- Include any timeframes mentioned in the meeting
 
-GREETING (1 line):
-- "Hi {clientName}," or "Dear {clientName},"
+Close the email warmly, inviting questions and confirming next contact.
 
-OPENING (1-2 sentences):
-- Thank them for their time
-- Reference the meeting date ({meetingDate}) and what the meeting was about
-
-DISCUSSION SUMMARY (2-3 paragraphs):
-- Summarise the main topics in natural flowing prose
-- Include ALL specific figures mentioned: amounts, percentages, ages, dates
-- Group related topics together
-- Mention decisions made or preferences expressed
-- Be conversational but professional
-
-NEXT STEPS (numbered list):
-- 3-6 concrete action items extracted from the discussion
-- Each item specifies WHO is responsible (I will... / You will... / We will...)
-- Include any deadlines or timeframes mentioned
-- Use clear action verbs
-
-CLOSING (1-2 sentences):
-- Offer to answer questions
-- Express looking forward to next conversation
-
-SIGN-OFF:
+End with:
 Best regards,
 {advisorName}
 {businessName}
+
+QUALITY STANDARDS:
+- Every figure, date, and name you include MUST come directly from the transcript
+- The email should feel like it was written by a real person who was in the meeting
+- Use UK English spelling throughout (summarise, organise, favour, colour)
+- Do NOT pad with generic financial advice or compliance statements not discussed
+- Do NOT include topic areas that were not meaningfully discussed
+- The level of detail should match the depth of the conversation
 
 ---
 
@@ -236,14 +220,18 @@ Generate the complete review email now, extracting all specific data from the tr
 // Helper function to check if Advicly Summary template needs updating
 function hasOldSummaryFormat(promptContent) {
   if (!promptContent) return false;
-  // Check for patterns from older template versions OR missing meeting date placeholder
+  // Check for patterns from older template versions
   return promptContent.includes('## Key Discussion Points') ||
          promptContent.includes('**1. [Main Topic]**') ||
          promptContent.includes('Use bolded headings for clarity') ||
          promptContent.includes('Role: You are a professional financial advisor') ||
          (promptContent.includes('CRITICAL FORMAT RULES') && !promptContent.includes('CRITICAL DATA ACCURACY RULES')) ||
-         // New: Check if template is missing meeting date support
-         (promptContent.includes('CRITICAL DATA ACCURACY RULES') && !promptContent.includes('{meetingDate}'));
+         // Old format used rigid EMAIL STRUCTURE with section headers
+         (promptContent.includes('EMAIL STRUCTURE:') && promptContent.includes('GREETING (1 line)')) ||
+         // Old format used CRITICAL DATA ACCURACY RULES instead of QUALITY STANDARDS
+         (promptContent.includes('CRITICAL DATA ACCURACY RULES') && !promptContent.includes('QUALITY STANDARDS')) ||
+         // Check if template is missing the new WRITING STYLE section
+         (promptContent.includes('{transcript}') && !promptContent.includes('WRITING STYLE:'));
 }
 
 // Helper function to check if Review template has old format
