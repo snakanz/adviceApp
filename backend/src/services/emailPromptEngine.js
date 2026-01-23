@@ -152,26 +152,140 @@ QUALITY STANDARDS:
   'review-summary': {
     id: 'review-summary',
     label: 'Annual Review',
-    description: 'Comprehensive review email with structured sections',
-    target_length: '400-900 words',
-    sections: ['circumstances_update', 'goals_and_objectives', 'investment_review', 'recommendations', 'protection', 'estate_planning', 'next_steps'],
-    instructions: `Write a comprehensive annual review email body for this meeting.
+    description: 'Comprehensive annual review email with all standard sections',
+    target_length: '600-1500 words',
+    sections: ['circumstances_update', 'goals_and_objectives', 'investment_review', 'protection', 'estate_planning', 'next_steps'],
+    includeGreetingSignOff: true,
+    instructions: `Write a comprehensive annual review follow-up email to send to the client after a financial planning review meeting.
 
-STRUCTURE:
-- Opening: 1-2 sentences referencing the review meeting
-- Then include ONLY the relevant section candidates below, using their headings
-- Each section heading should be on its own line in CAPITALS (plain text, not markdown)
-- End with the NEXT STEPS section (numbered list of agreed actions)
-- Closing: 1-2 sentences offering to answer questions
+WRITING STYLE:
+- Plain text only (no markdown, no symbols, no asterisks, no headings with # or ##).
+- Section headings should be on their own line, capitalised (e.g. YOUR CIRCUMSTANCES).
+- Professional, thorough, and personalised to what was discussed.
+- Write as a real UK financial adviser would write to their client.
+- UK English spelling throughout.
 
-CRITICAL RULES FOR SECTION INCLUSION:
-- ONLY include a section if the transcript contains SUBSTANTIVE discussion on that topic
-- "Substantive" means specific details, figures, or decisions - not just a passing mention
-- If a topic was briefly acknowledged but not explored in detail, OMIT that section entirely
-- It is far better to have fewer, well-populated sections than many thin ones
-- For each section you include, extract ALL specific figures, dates, and details from the transcript
-- If only 2-3 sections have substantive content, that is perfectly fine - only include those
-- Never include generic filler text like "No changes discussed" or "We recommend reviewing..." for sections that weren't covered`
+STRUCTURE - Include ALL of the following sections. Every section MUST appear in the email:
+
+Start with:
+Dear [client name],
+
+Following our review meeting on [meeting date], I have outlined below a summary of our discussion, your current position, and the agreed next steps.
+
+---
+
+YOUR CIRCUMSTANCES
+
+Cover each of the following sub-topics. Extract specific details from the transcript for each. If a sub-topic was not discussed, write a brief neutral statement (e.g. "No changes discussed" or "Your position remains unchanged"):
+
+Health - Any health matters discussed or confirmed.
+Personal circumstances - Family, marital status, living arrangements.
+Employment - Current role, any changes, employer details.
+Income and expenditure - Salary, income levels, spending patterns.
+Assets and liabilities - Property, savings, mortgages, debts.
+Emergency fund - Cash reserves, short-term financial resilience.
+Tax status - Tax band, any changes, allowances.
+Capacity for loss - Ability to withstand investment losses and why.
+Attitude to risk - Risk profile, comfort with volatility, investment approach.
+
+---
+
+YOUR GOALS AND OBJECTIVES
+
+Extract all goals and objectives discussed. Include:
+- Retirement planning (target age, income needs)
+- Capital growth objectives
+- Cashflow modelling results if discussed
+- Any other specific goals (school fees, property, inheritance)
+- Ongoing advice preferences
+
+If a goal area was not discussed, state briefly that no changes were noted.
+
+---
+
+YOUR CURRENT INVESTMENTS
+
+For each investment discussed, include:
+- Investment performance and growth figures
+- Asset allocation breakdown (percentages if mentioned)
+- Risk profile alignment
+- Any rebalancing decisions
+- Legislative changes discussed (budget announcements, pension changes)
+- Suitability confirmation
+
+---
+
+INVESTMENT KNOWLEDGE AND EXPERIENCE
+
+Summarise the client's investment knowledge and experience level based on what was discussed:
+- Experience with market volatility
+- Types of investments held
+- Any direct share dealing or personal investment experience
+
+---
+
+CAPACITY FOR LOSS
+
+Explain why the agreed capacity for loss level is appropriate:
+- Income stability
+- Reliance on investment income
+- Diversification
+- Flexibility in timeframes
+
+---
+
+PROTECTION
+
+Cover insurance and protection:
+- Current protection arrangements discussed
+- Any gaps identified
+- Recommendations made
+- If not discussed in detail, include a standard note offering to arrange a protection review with a specialist.
+
+---
+
+WILLS AND POWER OF ATTORNEY
+
+Cover estate documentation:
+- Whether wills and powers of attorney are in place
+- When last reviewed
+- If not discussed, recommend they are reviewed regularly.
+
+---
+
+INHERITANCE TAX PLANNING
+
+Cover IHT if discussed:
+- Current estate position
+- Potential liability
+- Planning strategies discussed
+- If not a current priority, note this and confirm it will be monitored.
+
+---
+
+ACTION LIST (NEXT STEPS)
+
+List all agreed actions as a bullet list:
+- Each action should specify who is responsible
+- Include any timeframes or deadlines mentioned
+- Typically 4-8 actions
+
+---
+
+Close with:
+Please let me know if you would like to discuss any of the above in more detail.
+
+Kind regards,
+[Adviser name]
+[Business name]
+
+QUALITY STANDARDS:
+- Every figure, date, percentage, and name MUST come directly from the transcript
+- Where a topic WAS discussed, extract ALL specific details mentioned
+- Where a topic was NOT discussed, use brief neutral language - do not fabricate details
+- The email should be comprehensive but factual - never invent information
+- Include ALL sections listed above even if brief
+- The level of detail in each section should match the depth of discussion in the transcript`
   }
 };
 
@@ -323,7 +437,6 @@ function extractClientNameFromTranscript(transcript) {
  */
 function determineSectionCandidates(mode, transcript) {
   const modeConfig = GENERATION_MODES[mode] || GENERATION_MODES['auto-summary'];
-  const transcriptLower = transcript.toLowerCase();
 
   // For auto-summary mode, sections are minimal (just next_steps)
   if (mode === 'auto-summary') {
@@ -337,21 +450,8 @@ function determineSectionCandidates(mode, transcript) {
     };
   }
 
-  // For review mode, pre-filter sections based on keyword presence
-  const candidates = modeConfig.sections.filter(sectionId => {
-    const def = SECTION_DEFINITIONS[sectionId];
-    if (!def) return false;
-
-    // next_steps is always included for reviews
-    if (sectionId === 'next_steps') return true;
-
-    // Check if transcript likely contains relevant content
-    if (def.keywords && def.keywords.length > 0) {
-      return def.keywords.some(kw => transcriptLower.includes(kw.toLowerCase()));
-    }
-
-    return true;
-  });
+  // For review mode, include ALL sections (user requires every section to appear)
+  const candidates = modeConfig.sections;
 
   return {
     mode: modeConfig.id,

@@ -938,17 +938,31 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
     }
 
     // Get meeting from database with client information
-    const { data: meeting, error: fetchError } = await req.supabase
+    // Try by external_id first, then by numeric id (frontend may pass either)
+    let meeting;
+
+    const { data: meetingByExternal } = await req.supabase
       .from('meetings')
-      .select(`
-        *,
-        clients(id, name, email)
-      `)
+      .select(`*, clients(id, name, email)`)
       .eq('external_id', meetingId)
       .eq('user_id', userId)
       .single();
 
-    if (fetchError || !meeting) {
+    if (meetingByExternal) {
+      meeting = meetingByExternal;
+    } else {
+      // Fallback: try by numeric id
+      const { data: meetingById } = await req.supabase
+        .from('meetings')
+        .select(`*, clients(id, name, email)`)
+        .eq('id', meetingId)
+        .eq('user_id', userId)
+        .single();
+
+      meeting = meetingById;
+    }
+
+    if (!meeting) {
       return res.status(404).json({ error: 'Meeting not found' });
     }
 
@@ -1025,7 +1039,7 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
       actionPointsArray = [];
     }
 
-    // Save summaries to database
+    // Save summaries to database (use the DB primary key for reliable updates)
     const { error: updateError } = await req.supabase
       .from('meetings')
       .update({
@@ -1036,7 +1050,7 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
         last_summarized_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .eq('external_id', meetingId)
+      .eq('id', meeting.id)
       .eq('user_id', userId);
 
     if (updateError) {

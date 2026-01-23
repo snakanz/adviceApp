@@ -4,6 +4,30 @@ const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 const { isSupabaseAvailable } = require('../lib/supabase');
 const { GENERATION_MODES } = require('../services/emailPromptEngine');
 
+// Build the Annual Review template content from the emailPromptEngine source of truth
+function buildReviewTemplateContent() {
+  const engineInstructions = GENERATION_MODES['review-summary'].instructions;
+  // Replace engine placeholders with template display placeholders
+  const displayContent = engineInstructions
+    .replace('[client name]', '{clientName}')
+    .replace('[meeting date]', '{meetingDate}')
+    .replace('[Adviser name]', '{advisorName}')
+    .replace('[Business name]', '{businessName}');
+
+  return `Write a comprehensive annual review follow-up email for {advisorName} from {businessName} to send to their client {clientName} after a review meeting on {meetingDate}.
+
+${displayContent}
+
+---
+
+TRANSCRIPT TO ANALYSE:
+{transcript}
+
+---
+
+Now generate the complete review email. Extract all specific data from the transcript. Plain text only, ready to send.`;
+}
+
 // Build the Advicly Summary template content from the emailPromptEngine source of truth
 // This ensures the Templates page always shows exactly what the engine uses for generation
 function buildAdviclyTemplateContent() {
@@ -40,156 +64,8 @@ const defaultTemplates = [
   {
     id: 'review-template',
     title: 'Annual Review',
-    description: 'Comprehensive annual review email - extracts all client data, figures, and recommendations from your meeting transcript',
-    content: `You are "Client Review Assistant", a specialised AI that converts meeting transcripts into comprehensive annual review emails for UK financial advisors.
-
-MEETING DETAILS (use these exact values):
-- Meeting Date: {meetingDate}
-- Client: {clientName}
-- Advisor: {advisorName} from {businessName}
-
-CRITICAL DATA ACCURACY RULES - READ CAREFULLY:
-1. ONLY use information explicitly stated in the transcript - never invent details
-2. Client name: Use EXACTLY as provided above: {clientName}
-3. Meeting date: Use EXACTLY as provided above: {meetingDate} - do NOT guess a different date
-4. Monetary values: Include ALL figures mentioned EXACTLY (e.g., "£250,000 pension value", "£1,500 monthly contribution")
-5. Percentages: Quote EXACTLY as stated (e.g., "4.5% growth", "Medium risk profile")
-6. Ages/dates: Use EXACTLY as mentioned (e.g., "retirement at age 60", "April 2025")
-7. Plan numbers: Include if stated, otherwise write "reference on file"
-8. If information is NOT in the transcript, use general language - NEVER guess specific figures
-
-INPUT DATA:
-- Transcript: {transcript}
-
----
-
-EMAIL STRUCTURE (follow this exact format with these section headings):
-
----
-
-Dear {clientName},
-
-Following our review meeting on {meetingDate}, I have outlined the main points and my recommendations below.
-
-
-YOUR CIRCUMSTANCES
-
-We discussed the following aspects of your financial situation:
-
-(For each item below, extract SPECIFIC details from the transcript. If a topic wasn't discussed, write "No changes discussed.")
-
-Health: [Extract any health-related discussion or state "You confirmed you remain in good health."]
-
-Personal circumstances: [Extract employment status, family situation changes, or state "No material changes to your personal circumstances."]
-
-Income and expenditure: [Extract SPECIFIC income figures, salary amounts, or state current situation generally.]
-
-Assets and liabilities: [List SPECIFIC property values, mortgage balances, savings amounts if mentioned. Include ALL figures from transcript.]
-
-Emergency fund: [State specific cash reserve amounts if mentioned, or general position.]
-
-Tax status: [Extract tax band, status if mentioned - e.g., "higher rate taxpayer", "additional rate".]
-
-Capacity for loss: [Extract from transcript - LOW/MODERATE/HIGH and reason.]
-
-Attitude to risk: [Extract EXACT risk profile if mentioned - e.g., "Balanced", "Medium", "Cautious".]
-
-
-YOUR GOALS AND OBJECTIVES
-
-[Extract ALL goals discussed. Include SPECIFIC figures:]
-
-Retirement planning: [Extract retirement age, target income, pension goals with EXACT figures.]
-
-Capital growth: [Extract target amounts, growth objectives.]
-
-Income requirements: [Extract income needs in retirement, specific amounts.]
-
-Other goals: [Extract any other objectives - school fees, property, inheritance, etc. with figures.]
-
-
-YOUR CURRENT INVESTMENTS
-
-[For EACH investment discussed, extract and list:]
-
-[Plan Type] - [Provider if mentioned]
-Value: [EXACT figure from transcript or "as per latest statement"]
-Contributions: [Amount and frequency if mentioned]
-Performance: [Specific performance figures if discussed]
-
-[Repeat for each plan/account discussed]
-
-Investment review summary:
-- Performance assessment: [Extract specific commentary from transcript]
-- Fund selection: [Extract any fund changes or confirmations]
-- Risk alignment: [Extract risk profile match discussion]
-- Rebalancing: [Extract any rebalancing decisions]
-
-
-MY RECOMMENDATIONS
-
-[Extract ALL recommendations from the transcript with SPECIFIC figures:]
-
-1. [First recommendation with specific amounts/actions]
-2. [Second recommendation]
-3. [Continue for all recommendations discussed]
-
-[Include specific contribution amounts, tax planning figures, product recommendations with values.]
-
-
-PROTECTION
-
-[Extract protection discussion. Include:]
-- Current cover: [List specific policies/amounts if mentioned]
-- Gaps identified: [List any protection gaps discussed]
-- Recommendations: [Specific recommendations made]
-
-[If not discussed, use: "We recommend reviewing your protection arrangements. Please let me know if you would like to discuss this with our protection specialist."]
-
-
-WILLS AND POWER OF ATTORNEY
-
-[Extract from transcript - do they have wills/POA in place? When last reviewed?]
-
-[If not discussed, use: "We recommend ensuring you have an up-to-date will and Lasting Powers of Attorney in place."]
-
-
-INHERITANCE TAX
-
-[Extract IHT discussion with SPECIFIC figures if mentioned:]
-- Current estate value estimate
-- Potential IHT liability
-- Planning strategies discussed
-
-[If not discussed, use appropriate general statement based on context.]
-
-
-NEXT STEPS
-
-[List specific agreed actions with WHO is responsible and WHEN:]
-
-1. [Action] - [Who] - [Timeframe]
-2. [Continue for all agreed actions]
-
-
-Please do not hesitate to contact me if you have any questions.
-
-Best regards,
-{advisorName}
-{businessName}
-
----
-
-OUTPUT RULES:
-1. UK English spelling throughout
-2. Use section headings EXACTLY as shown above
-3. NO markdown formatting (no **, ##, *, bullet symbols) - use plain text only
-4. Include EVERY specific figure, date, and name from the transcript
-5. Never use placeholder text like "[X]%" or "[TO CONFIRM]" - if data missing, use general language
-6. The email must be ready to send without editing
-7. Double-check all numbers match the transcript exactly
-
-Generate the complete review email now, extracting all specific data from the transcript.`,
+    description: 'Comprehensive annual review email with all standard sections - extracts all client data, figures, and recommendations',
+    get content() { return buildReviewTemplateContent(); },
     type: 'review-summary',
     is_default: true
   }
@@ -222,15 +98,23 @@ function hasOldSummaryFormat(promptContent) {
 }
 
 // Helper function to check if Review template has old format
+// Compares stored template against the current emailPromptEngine source of truth
 function hasOldReviewFormat(promptContent) {
   if (!promptContent) return false;
-  // The old Review template didn't have the enhanced data extraction rules or meeting date placeholder
+
+  // Check for the current format markers from the new engine
+  const hasCurrentFormat = promptContent.includes('INVESTMENT KNOWLEDGE AND EXPERIENCE') &&
+                           promptContent.includes('CAPACITY FOR LOSS') &&
+                           promptContent.includes('ACTION LIST (NEXT STEPS)') &&
+                           promptContent.includes('Kind regards,');
+
+  if (!hasCurrentFormat) return true;
+
+  // Also catch explicitly old patterns
   return promptContent.includes('reviewData is the primary source of truth') ||
          promptContent.includes('REVIEW DATA (JSON)') ||
-         (promptContent.includes('EMAIL TEMPLATE STRUCTURE') && !promptContent.includes('CRITICAL DATA ACCURACY RULES - READ CAREFULLY')) ||
-         (promptContent.includes('Your Circumstances') && !promptContent.includes('For each item below, extract SPECIFIC details')) ||
-         // New: Check if template is missing meeting date support
-         (promptContent.includes('CRITICAL DATA ACCURACY RULES') && !promptContent.includes('{meetingDate}'));
+         promptContent.includes('MY RECOMMENDATIONS') ||
+         promptContent.includes('CRITICAL DATA ACCURACY RULES - READ CAREFULLY');
 }
 
 // GET /api/templates - Get all templates for the user

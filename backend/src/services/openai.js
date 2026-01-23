@@ -127,45 +127,33 @@ async function generateUnifiedMeetingSummary(transcriptText, options = {}) {
       maxActionItems = 7
     } = options;
 
-    const unifiedPrompt = `You are Advicly's meeting assistant.
+    const unifiedPrompt = `You are Advicly's meeting assistant for UK financial advisers.
 
 You will be given a full financial advice meeting transcript.
-Your job is to produce ALL of the following in ONE response, as strict JSON:
+Your job is to produce the following in ONE response, as strict JSON:
 
-1) quickSummary: a single-sentence overview of the meeting for the advisor's internal view.
-2) emailSummary: a short, plain-text follow-up email body (NO markdown symbols) suitable to send to the client.
-3) actionPoints: an array of concrete action items (strings) for the advisor and/or client.
-4) detailedSummary (optional): a more structured, advisor-facing summary, only if includeDetailedSummary is true.
+1) quickSummary: a single-sentence overview of the meeting for the advisor's internal dashboard.
+2) actionPoints: an array of concrete action items extracted from the discussion.
 
 Rules for quickSummary:
 - Exactly ONE sentence.
 - Maximum 150 characters.
-- Professional, concise, and focused on the main outcome or purpose.
-
-Rules for emailSummary:
-- Address the client as "${clientName}" in the greeting.
-- No markdown (no **, ##, *, bullet symbols, or headings).
-- Maximum ~200 words.
-- Professional but warm tone.
-- Clearly summarise key points and next steps.
-- End with a suitable sign-off (e.g. "Best regards," plus adviser name if available in transcript, otherwise keep it generic).
+- Professional, concise, and focused on the main topics discussed.
+- Include the client's name if clearly identifiable.
 
 Rules for actionPoints:
 - Return an array of strings.
-- Each string must be a specific, concrete task (e.g. "Send updated suitability report", "Schedule follow-up in 6 months").
-- Only include 3 to ${maxActionItems} of the MOST IMPORTANT client-facing actions.
+- Each string must be a specific, concrete task (e.g. "Send updated suitability report to client", "Schedule follow-up review in 6 months").
+- Include 3 to ${maxActionItems} of the MOST IMPORTANT actions discussed.
+- Make it clear who is responsible (adviser or client) within each action.
+- Include any deadlines or timeframes mentioned.
 - Do NOT include vague discussion topics or internal prep work.
+- Actions should be extracted directly from what was discussed or agreed in the meeting.
 
-Rules for detailedSummary (if requested):
-- Advisor-facing summary that can include brief bullet-style structure in plain text.
-- It is fine if this is slightly longer and more detailed.
-
-Output JSON format (keys are required, values as described above):
+Output JSON format:
 {
   "quickSummary": string,
-  "emailSummary": string,
-  "actionPoints": string[],
-  "detailedSummary": string
+  "actionPoints": string[]
 }
 
 Transcript:
@@ -182,7 +170,7 @@ Return ONLY valid JSON, no markdown, no explanations.`;
         }
       ],
       temperature: 0.4,
-      max_tokens: 1200,
+      max_tokens: 800,
       response_format: { type: 'json_object' }
     });
 
@@ -198,8 +186,6 @@ Return ONLY valid JSON, no markdown, no explanations.`;
 
     // Ensure required fields exist with sane fallbacks
     const quickSummary = typeof parsed.quickSummary === 'string' ? parsed.quickSummary : '';
-    const emailSummary = typeof parsed.emailSummary === 'string' ? parsed.emailSummary : '';
-    const detailedSummary = typeof parsed.detailedSummary === 'string' ? parsed.detailedSummary : emailSummary;
 
     let actionPointsArray = Array.isArray(parsed.actionPoints) ? parsed.actionPoints : [];
     actionPointsArray = actionPointsArray
@@ -209,8 +195,6 @@ Return ONLY valid JSON, no markdown, no explanations.`;
 
     return {
       quickSummary,
-      emailSummary,
-      detailedSummary,
       actionPointsArray
     };
   } catch (error) {
