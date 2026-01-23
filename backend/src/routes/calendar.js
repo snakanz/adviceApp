@@ -1030,8 +1030,10 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
       .from('meetings')
       .update({
         quick_summary: quickSummary,
-        detailed_summary: emailSummary,
+        email_summary_draft: emailSummary,
         action_points: actionPoints,
+        email_template_id: 'auto-template',
+        last_summarized_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
       .eq('external_id', meetingId)
@@ -1498,40 +1500,56 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
 
         const clientName = fullMeeting.clients?.name || 'Client';
 
-
-        // Use unified generator to get quick summary, email summary, detailed summary, and action points
+        // Use unified generator for quick summary and action points only
         const unified = await openai.generateUnifiedMeetingSummary(transcript, {
           clientName,
           includeDetailedSummary: false,
           maxActionItems: 7
         });
 
-        let { quickSummary, emailSummary, detailedSummary, actionPointsArray } = unified;
+        let { quickSummary, actionPointsArray } = unified;
 
-        // Apply GPT-4 polish to the email summary for all users
-        if (emailSummary) {
-          try {
-            const polishPrompt = 'Please refine this client follow-up email to improve clarity, tone, and professionalism without changing the factual content or adding any placeholders. Keep it in plain text with no markdown.';
-            emailSummary = await openai.adjustMeetingSummary(emailSummary, polishPrompt);
-          } catch (polishError) {
-            console.warn('⚠️  Email polish failed, falling back to base email summary:', polishError.message);
-          }
+        // Generate email using the Advicly Summary prompt engine
+        const emailPromptEngine = require('../services/emailPromptEngine');
+        const OpenAILib = require('openai');
+        const openaiClient = new OpenAILib({ apiKey: process.env.OPENAI_API_KEY });
+
+        const prepared = await emailPromptEngine.prepareEmailGeneration({
+          supabase: req.supabase,
+          userId,
+          meetingId: fullMeeting.id,
+          transcript,
+          templateType: 'auto-summary'
+        });
+
+        const emailResponse = await openaiClient.chat.completions.create({
+          model: "gpt-4o",
+          messages: prepared.messages,
+          temperature: 0.4,
+          max_tokens: 3000
+        });
+
+        const emailBody = emailResponse.choices[0]?.message?.content || '';
+        let emailSummary;
+        if (prepared.sectionConfig.includeGreetingSignOff) {
+          emailSummary = emailBody.trim();
+        } else {
+          emailSummary = `${prepared.greeting}\n\n${emailBody.trim()}\n\n${prepared.signOff}`;
         }
 
-        // Build actionPoints bullet string for storage (for backward compatibility)
+        // Build actionPoints string for storage
         let actionPoints = '';
         if (Array.isArray(actionPointsArray) && actionPointsArray.length > 0) {
-          actionPoints = '• ' + actionPointsArray.join('\n• ');
+          actionPoints = actionPointsArray.map((item, i) => `${i + 1}. ${item}`).join('\n');
         } else {
           actionPointsArray = [];
         }
 
-        // SAVE SUMMARIES TO DATABASE - This was missing and caused quick_summary to not persist!
+        // Save summaries to database
         const { error: summaryUpdateError } = await req.supabase
           .from('meetings')
           .update({
             quick_summary: quickSummary,
-            detailed_summary: detailedSummary || emailSummary,
             email_summary_draft: emailSummary,
             action_points: actionPoints,
             email_template_id: 'auto-template',

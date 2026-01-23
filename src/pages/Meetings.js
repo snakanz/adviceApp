@@ -3106,6 +3106,13 @@ export default function Meetings() {
                     {/* Show email draft - either from streaming completion or from database */}
                     {!isStreaming && (streamingComplete || selectedMeeting?.email_summary_draft) && (
                       <div className="space-y-3">
+                        {/* Template name indicator */}
+                        <div className="flex items-center gap-2 px-1">
+                          <Mail className="w-3.5 h-3.5 text-primary" />
+                          <span className="text-xs font-medium text-primary">
+                            {currentSummaryTemplate?.title || selectedTemplate?.title || 'Advicly Summary'}
+                          </span>
+                        </div>
                         {/* Header with view toggle and actions */}
                         <div className="flex items-center justify-between flex-wrap gap-2">
                           <div className="flex items-center gap-2">

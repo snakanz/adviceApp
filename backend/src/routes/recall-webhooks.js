@@ -3,7 +3,8 @@ const router = express.Router();
 const crypto = require('crypto');
 const axios = require('axios');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
-const { generateUnifiedMeetingSummary, adjustMeetingSummary } = require('../services/openai');
+const { generateUnifiedMeetingSummary } = require('../services/openai');
+const emailPromptEngine = require('../services/emailPromptEngine');
 
 /**
  * SVIX Webhook Verification (Correct Implementation)
@@ -380,29 +381,46 @@ async function handleTranscriptComplete(botId, data, userId) {
       }
 
 
-      // Use unified generator to get quick summary, email summary, detailed summary, and action points
+      // Use unified generator for quick summary and action points only
       const unified = await generateUnifiedMeetingSummary(transcriptText, {
         clientName,
-        includeDetailedSummary: true,
+        includeDetailedSummary: false,
         maxActionItems: 7
       });
 
-      let { quickSummary, emailSummary, detailedSummary, actionPointsArray } = unified;
+      let { quickSummary, actionPointsArray } = unified;
 
-      // Apply GPT-4 polish to the email summary for all users
-      if (emailSummary) {
-        try {
-          const polishPrompt = 'Please refine this client follow-up email to improve clarity, tone, and professionalism without changing the factual content or adding any placeholders. Keep it in plain text with no markdown.';
-          emailSummary = await adjustMeetingSummary(emailSummary, polishPrompt);
-        } catch (polishError) {
-          console.warn('⚠️  Premium polish failed, falling back to base email summary:', polishError.message);
-        }
+      // Generate email using the Advicly Summary prompt engine (same as manual generate)
+      const OpenAI = require('openai');
+      const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+      const prepared = await emailPromptEngine.prepareEmailGeneration({
+        supabase,
+        userId: meeting.user_id,
+        meetingId: meeting.id,
+        transcript: transcriptText,
+        templateType: 'auto-summary'
+      });
+
+      const emailResponse = await openaiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: prepared.messages,
+        temperature: 0.4,
+        max_tokens: 3000
+      });
+
+      const emailBody = emailResponse.choices[0]?.message?.content || '';
+      let emailSummary;
+      if (prepared.sectionConfig.includeGreetingSignOff) {
+        emailSummary = emailBody.trim();
+      } else {
+        emailSummary = `${prepared.greeting}\n\n${emailBody.trim()}\n\n${prepared.signOff}`;
       }
 
-      // Build actionPoints bullet string for storage (for backward compatibility)
+      // Build actionPoints string for storage
       let actionPoints = '';
       if (Array.isArray(actionPointsArray) && actionPointsArray.length > 0) {
-        actionPoints = '• ' + actionPointsArray.join('\n• ');
+        actionPoints = actionPointsArray.map((item, i) => `${i + 1}. ${item}`).join('\n');
       } else {
         actionPointsArray = [];
       }
@@ -411,10 +429,9 @@ async function handleTranscriptComplete(botId, data, userId) {
       const { error: updateError } = await supabase
         .from('meetings')
         .update({
-          quick_summary: quickSummary,           // Single sentence for Clients page
-          detailed_summary: detailedSummary,     // Structured format for Meetings page
-          email_summary_draft: emailSummary,     // Email format (possibly premium polished)
-          action_points: actionPoints,           // Action items for user
+          quick_summary: quickSummary,
+          email_summary_draft: emailSummary,
+          action_points: actionPoints,
           last_summarized_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
