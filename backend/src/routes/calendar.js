@@ -987,102 +987,73 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
       });
     }
 
-    const emailPromptEngine = require('../services/emailPromptEngine');
-
-    // Build context using the new engine
-    const context = await emailPromptEngine.buildMeetingContext(req.supabase, userId, meeting.id, meeting.transcript);
-    const clientName = context.client.name || 'Client';
-
-    // Generate quick summary + action items via unified generator
-    const unified = await openai.generateUnifiedMeetingSummary(meeting.transcript, {
-      clientName,
-      includeDetailedSummary: false,
-      maxActionItems: 7
-    });
-
-    let { quickSummary, actionPointsArray } = unified;
-
-    // Generate email summary using the new prompt engine (non-streaming)
-    const prepared = await emailPromptEngine.prepareEmailGeneration({
+    // STEP 1: Generate core outputs (quick summary, action items, client summary, pipeline)
+    // This ALWAYS runs independently of email generation
+    const { generateMeetingOutputs } = require('../services/meetingSummaryService');
+    const summaryResults = await generateMeetingOutputs({
       supabase: req.supabase,
       userId,
       meetingId: meeting.id,
       transcript: meeting.transcript,
-      templateType: 'auto-summary'
+      meeting
     });
 
-    const OpenAI = require('openai');
-    const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-    const emailResponse = await openaiClient.chat.completions.create({
-      model: "gpt-4o",
-      messages: prepared.messages,
-      temperature: 0.4,
-      max_tokens: 3000
-    });
-
-    const emailBody = emailResponse.choices[0]?.message?.content || '';
-
-    // Assemble complete email - include greeting/sign-off only if mode doesn't produce them
-    let emailSummary;
-    if (prepared.sectionConfig.includeGreetingSignOff) {
-      emailSummary = emailBody.trim();
-    } else {
-      emailSummary = `${prepared.greeting}\n\n${emailBody.trim()}\n\n${prepared.signOff}`;
+    if (summaryResults.errors.length > 0) {
+      console.warn('⚠️ Some summary outputs had errors:', summaryResults.errors);
     }
 
-    // Build actionPoints for storage
-    let actionPoints = '';
-    if (Array.isArray(actionPointsArray) && actionPointsArray.length > 0) {
-      actionPoints = actionPointsArray.map((item, i) => `${i + 1}. ${item}`).join('\n');
-    } else {
-      actionPointsArray = [];
-    }
+    const { quickSummary, actionPointsArray } = summaryResults;
 
-    // Save summaries to database (use the DB primary key for reliable updates)
-    const { error: updateError } = await req.supabase
-      .from('meetings')
-      .update({
-        quick_summary: quickSummary,
-        email_summary_draft: emailSummary,
-        action_points: actionPoints,
-        email_template_id: 'auto-template',
-        last_summarized_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', meeting.id)
-      .eq('user_id', userId);
+    // STEP 2: Generate email draft (SECONDARY - failure does not affect step 1)
+    let emailSummary = '';
+    try {
+      const emailPromptEngine = require('../services/emailPromptEngine');
 
-    if (updateError) {
-      console.error('Error saving summaries:', updateError);
-      return res.status(500).json({ error: 'Failed to save summaries' });
-    }
+      const prepared = await emailPromptEngine.prepareEmailGeneration({
+        supabase: req.supabase,
+        userId,
+        meetingId: meeting.id,
+        transcript: meeting.transcript,
+        templateType: 'auto-summary'
+      });
 
-    // Save individual action items to PENDING table
-    if (actionPointsArray.length > 0) {
-      await req.supabase
-        .from('pending_transcript_action_items')
-        .delete()
-        .eq('meeting_id', meeting.id);
+      const OpenAI = require('openai');
+      const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-      const actionItemsToInsert = actionPointsArray.map((actionText, index) => ({
-        meeting_id: meeting.id,
-        client_id: meeting.client_id,
-        advisor_id: userId,
-        action_text: actionText,
-        display_order: index
-      }));
+      const emailResponse = await openaiClient.chat.completions.create({
+        model: "gpt-4o",
+        messages: prepared.messages,
+        temperature: 0.4,
+        max_tokens: 3000
+      });
 
-      const { error: actionItemsError } = await req.supabase
-        .from('pending_transcript_action_items')
-        .insert(actionItemsToInsert);
+      const emailBody = emailResponse.choices[0]?.message?.content || '';
 
-      if (actionItemsError) {
-        console.error('Error saving pending action items:', actionItemsError);
+      if (prepared.sectionConfig.includeGreetingSignOff) {
+        emailSummary = emailBody.trim();
       } else {
-        console.log(`✅ Saved ${actionPointsArray.length} PENDING action items for meeting ${meeting.id}`);
+        emailSummary = `${prepared.greeting}\n\n${emailBody.trim()}\n\n${prepared.signOff}`;
       }
+
+      // Save email draft
+      await req.supabase
+        .from('meetings')
+        .update({
+          email_summary_draft: emailSummary,
+          email_template_id: 'auto-template',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', meeting.id)
+        .eq('user_id', userId);
+
+    } catch (emailError) {
+      console.error('⚠️ Email generation failed (non-critical):', emailError.message);
+      // Email failure does not affect the response - quick summary and actions are already saved
     }
+
+    const actionPoints = actionPointsArray.length > 0
+      ? actionPointsArray.map((item, i) => `${i + 1}. ${item}`).join('\n')
+      : '';
 
     res.json({
       quickSummary,
@@ -1091,7 +1062,9 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
       actionItemsCount: actionPointsArray.length,
       templateId: 'auto-template',
       lastSummarizedAt: new Date().toISOString(),
-      generated: true
+      generated: true,
+      clientSummaryUpdated: summaryResults.clientSummaryUpdated,
+      pipelineUpdated: summaryResults.pipelineUpdated
     });
 
   } catch (error) {
@@ -1494,122 +1467,72 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
     // ========================================
 
     if (transcript && transcript.trim()) {
-      console.log(`🤖 Auto-generating summaries for manually uploaded transcript (meeting ${existingMeeting.id})`);
+      console.log(`🤖 Auto-generating outputs for manually uploaded transcript (meeting ${existingMeeting.id})`);
 
       try {
-        // Fetch full meeting with client info
-        const { data: fullMeeting, error: fullMeetingError } = await req.supabase
-          .from('meetings')
-          .select(`
-            *,
-            clients(id, name, email)
-          `)
-          .eq('id', existingMeeting.id)
-          .single();
-
-        if (fullMeetingError || !fullMeeting) {
-          console.error('❌ Error fetching full meeting details:', fullMeetingError);
-          throw fullMeetingError;
-        }
-
-        const clientName = fullMeeting.clients?.name || 'Client';
-
-        // Use unified generator for quick summary and action points only
-        const unified = await openai.generateUnifiedMeetingSummary(transcript, {
-          clientName,
-          includeDetailedSummary: false,
-          maxActionItems: 7
-        });
-
-        let { quickSummary, actionPointsArray } = unified;
-
-        // Generate email using the Advicly Summary prompt engine
-        const emailPromptEngine = require('../services/emailPromptEngine');
-        const OpenAILib = require('openai');
-        const openaiClient = new OpenAILib({ apiKey: process.env.OPENAI_API_KEY });
-
-        const prepared = await emailPromptEngine.prepareEmailGeneration({
+        // STEP 1: Generate core outputs (quick summary, action items, client summary, pipeline)
+        // This ALWAYS runs independently of email generation
+        const { generateMeetingOutputs } = require('../services/meetingSummaryService');
+        const summaryResults = await generateMeetingOutputs({
           supabase: req.supabase,
           userId,
-          meetingId: fullMeeting.id,
-          transcript,
-          templateType: 'auto-summary'
+          meetingId: existingMeeting.id,
+          transcript
         });
 
-        const emailResponse = await openaiClient.chat.completions.create({
-          model: "gpt-4o",
-          messages: prepared.messages,
-          temperature: 0.4,
-          max_tokens: 3000
-        });
-
-        const emailBody = emailResponse.choices[0]?.message?.content || '';
-        let emailSummary;
-        if (prepared.sectionConfig.includeGreetingSignOff) {
-          emailSummary = emailBody.trim();
-        } else {
-          emailSummary = `${prepared.greeting}\n\n${emailBody.trim()}\n\n${prepared.signOff}`;
+        if (summaryResults.errors.length > 0) {
+          console.warn('⚠️ Some summary outputs had errors:', summaryResults.errors);
         }
 
-        // Build actionPoints string for storage
-        let actionPoints = '';
-        if (Array.isArray(actionPointsArray) && actionPointsArray.length > 0) {
-          actionPoints = actionPointsArray.map((item, i) => `${i + 1}. ${item}`).join('\n');
-        } else {
-          actionPointsArray = [];
-        }
+        const { quickSummary, actionPointsArray } = summaryResults;
 
-        // Save summaries to database
-        const { error: summaryUpdateError } = await req.supabase
-          .from('meetings')
-          .update({
-            quick_summary: quickSummary,
-            email_summary_draft: emailSummary,
-            action_points: actionPoints,
-            email_template_id: 'auto-template',
-            last_summarized_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', fullMeeting.id);
+        // STEP 2: Generate email draft (SECONDARY - failure does not affect step 1)
+        let emailSummary = '';
+        try {
+          const emailPromptEngine = require('../services/emailPromptEngine');
+          const OpenAILib = require('openai');
+          const openaiClient = new OpenAILib({ apiKey: process.env.OPENAI_API_KEY });
 
-        if (summaryUpdateError) {
-          console.error('❌ Error saving summaries to database:', summaryUpdateError);
-          // Don't fail the request, just log the error
-        } else {
-          console.log(`✅ Saved quick_summary and email_summary_draft to database for meeting ${fullMeeting.id}`);
-        }
+          const prepared = await emailPromptEngine.prepareEmailGeneration({
+            supabase: req.supabase,
+            userId,
+            meetingId: existingMeeting.id,
+            transcript,
+            templateType: 'auto-summary'
+          });
 
-        // Save individual action items to PENDING table (awaiting approval)
-        if (actionPointsArray.length > 0) {
-          // First, delete existing pending action items for this meeting
-          await req.supabase
-            .from('pending_transcript_action_items')
-            .delete()
-            .eq('meeting_id', fullMeeting.id);
+          const emailResponse = await openaiClient.chat.completions.create({
+            model: "gpt-4o",
+            messages: prepared.messages,
+            temperature: 0.4,
+            max_tokens: 3000
+          });
 
-          // Insert new pending action items
-          const actionItemsToInsert = actionPointsArray.map((actionText, index) => ({
-            meeting_id: fullMeeting.id,
-            client_id: fullMeeting.client_id,
-            advisor_id: userId,
-            action_text: actionText,
-            display_order: index
-          }));
-
-          const { error: actionItemsError } = await req.supabase
-            .from('pending_transcript_action_items')
-            .insert(actionItemsToInsert);
-
-          if (actionItemsError) {
-            console.error('Error saving pending action items:', actionItemsError);
-            // Don't fail the whole request, just log the error
+          const emailBody = emailResponse.choices[0]?.message?.content || '';
+          if (prepared.sectionConfig.includeGreetingSignOff) {
+            emailSummary = emailBody.trim();
           } else {
-            console.log(`✅ Saved ${actionPointsArray.length} PENDING action items for meeting ${fullMeeting.id} (awaiting approval)`);
+            emailSummary = `${prepared.greeting}\n\n${emailBody.trim()}\n\n${prepared.signOff}`;
           }
+
+          // Save email draft
+          await req.supabase
+            .from('meetings')
+            .update({
+              email_summary_draft: emailSummary,
+              email_template_id: 'auto-template',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', existingMeeting.id);
+
+          console.log(`✅ Email draft saved for meeting ${existingMeeting.id}`);
+        } catch (emailError) {
+          console.error('⚠️ Email generation failed (non-critical):', emailError.message);
         }
 
-        // Return response with summaries (matching frontend expectations)
-        console.log(`✅ Auto-generated summaries for manual transcript upload (meeting ${existingMeeting.id})`);
+        const actionPoints = actionPointsArray.length > 0
+          ? actionPointsArray.map((item, i) => `${i + 1}. ${item}`).join('\n')
+          : '';
 
         return res.json({
           message: 'Transcript uploaded and summaries generated successfully',
@@ -1622,17 +1545,17 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
           summaries: {
             quickSummary,
             emailSummary,
-            detailedSummary: emailSummary, // Use email summary as detailed summary
             actionPoints
           },
           actionItemsCount: actionPointsArray.length,
-          autoGenerated: true
+          autoGenerated: true,
+          clientSummaryUpdated: summaryResults.clientSummaryUpdated,
+          pipelineUpdated: summaryResults.pipelineUpdated
         });
 
       } catch (aiError) {
-        console.error('❌ Error generating summaries for manual transcript:', aiError);
+        console.error('❌ Error generating outputs for manual transcript:', aiError);
         // Still return success for transcript upload, just without summaries
-        // This ensures the transcript is saved even if AI generation fails
       }
     }
 

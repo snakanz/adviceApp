@@ -1535,148 +1535,9 @@ router.post('/:clientId/generate-summary', authenticateSupabaseUser, async (req,
       });
     }
 
-    // Get client data
-    const { data: client, error: clientError } = await req.supabase
-      .from('clients')
-      .select('*')
-      .eq('id', clientId)
-      .eq('user_id', userId)
-      .single();
-
-    if (clientError || !client) {
-      return res.status(404).json({ error: 'Client not found' });
-    }
-
-    // Get client's meetings with transcripts
-    const { data: meetings, error: meetingsError } = await req.supabase
-      .from('meetings')
-      .select('*')
-      .eq('client_id', clientId)
-      .eq('user_id', userId)
-      .order('starttime', { ascending: false })
-      .limit(5); // Get last 5 meetings
-
-    if (meetingsError) {
-      console.error('Error fetching meetings:', meetingsError);
-    }
-
-    // Check if we have any meetings with transcripts or summaries
-    const meetingsWithContent = meetings?.filter(m =>
-      m.transcript || m.detailed_summary || m.quick_summary
-    ) || [];
-
-    // Get business types
-    const { data: businessTypes } = await req.supabase
-      .from('client_business_types')
-      .select('*')
-      .eq('client_id', clientId);
-
-    // Get action items for this client
-    const { data: actionItems } = await req.supabase
-      .from('transcript_action_items')
-      .select('*, meetings!inner(client_id)')
-      .eq('meetings.client_id', clientId)
-      .eq('completed', false);
-
-    // Get client todos (standalone action items)
-    const { data: clientTodos } = await req.supabase
-      .from('client_todos')
-      .select('*')
-      .eq('client_id', clientId)
-      .eq('status', 'pending');
-
-    // Calculate meeting stats
-    const now = new Date();
-    const totalMeetings = meetings?.length || 0;
-    const upcomingMeetings = meetings?.filter(m => new Date(m.starttime) > now) || [];
-    const hasUpcomingMeeting = upcomingMeetings.length > 0;
-    const nextMeetingDate = hasUpcomingMeeting ? upcomingMeetings.sort((a, b) => new Date(a.starttime) - new Date(b.starttime))[0].starttime : null;
-
-    // Prepare context for OpenAI
-    const meetingContext = meetingsWithContent.map(m => ({
-      date: m.starttime,
-      title: m.title,
-      summary: m.detailed_summary || m.quick_summary || 'No summary available',
-      transcript: m.transcript ? m.transcript.substring(0, 1000) : null // Limit transcript length
-    }));
-
-    const businessContext = businessTypes?.map(bt => ({
-      type: bt.business_type,
-      amount: bt.business_amount,
-      iaf: bt.iaf_expected,
-      method: bt.contribution_method
-    })) || [];
-
-    // Combine action items
-    const pendingActionItems = [
-      ...(actionItems || []).map(ai => ai.action_text),
-      ...(clientTodos || []).map(t => t.title)
-    ];
-
-    // Generate summary using OpenAI
-    const OpenAI = require('openai');
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
-    });
-
-    const prompt = `You are a financial advisor's assistant. Generate a brief, professional summary (2-3 sentences) of where we're at with this client based on their recent meetings and business information.
-
-Client: ${client.name}
-
-Meeting Stats:
-- Total meetings: ${totalMeetings}
-- Has upcoming meeting: ${hasUpcomingMeeting ? `Yes (${new Date(nextMeetingDate).toLocaleDateString()})` : 'No - CONSIDER BOOKING A MEETING'}
-
-Recent Meetings:
-${meetingContext.length > 0 ? meetingContext.map(m => `- ${new Date(m.date).toLocaleDateString()}: ${m.title}\n  ${m.summary}`).join('\n') : 'No recent meetings with content'}
-
-Business Types:
-${businessContext.length > 0 ? businessContext.map(bt => `- ${bt.type}: £${bt.amount?.toLocaleString() || 0} (IAF: £${bt.iaf?.toLocaleString() || 0})`).join('\n') : 'No business types set'}
-
-Pending Action Items (${pendingActionItems.length}):
-${pendingActionItems.length > 0 ? pendingActionItems.slice(0, 5).map(ai => `- ${ai}`).join('\n') : 'None'}
-
-Generate a concise summary that captures:
-1. Current relationship status and engagement level
-2. Key business opportunities or progress
-3. Immediate next steps (prioritize pending action items and meeting scheduling if needed)
-
-${!hasUpcomingMeeting ? 'IMPORTANT: Suggest booking a meeting since there is no upcoming meeting scheduled.' : ''}
-${pendingActionItems.length > 0 ? 'IMPORTANT: Mention the pending action items that need attention.' : ''}
-
-Keep it professional, factual, and under 100 words.`;
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a professional financial advisor assistant. Generate concise, factual client summaries.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 200
-    });
-
-    const summary = completion.choices[0].message.content.trim();
-
-    // Store summary in database (add ai_summary column if it doesn't exist)
-    const { error: updateError } = await req.supabase
-      .from('clients')
-      .update({
-        ai_summary: summary,
-        ai_summary_generated_at: new Date().toISOString()
-      })
-      .eq('id', clientId);
-
-    if (updateError) {
-      console.error('Error storing summary:', updateError);
-      // Don't fail the request, just return the summary
-    }
+    // Use the centralized meetingSummaryService which aggregates across ALL meetings
+    const { updateClientSummary } = require('../services/meetingSummaryService');
+    const summary = await updateClientSummary(req.supabase, userId, clientId);
 
     res.json({
       summary,
@@ -1704,7 +1565,7 @@ router.post('/:clientId/generate-pipeline-summary', authenticateSupabaseUser, as
       });
     }
 
-    // Get client data with pipeline information
+    // Get client data to check for cached summary
     const { data: client, error: clientError } = await req.supabase
       .from('clients')
       .select('*')
@@ -1716,25 +1577,12 @@ router.post('/:clientId/generate-pipeline-summary', authenticateSupabaseUser, as
       return res.status(404).json({ error: 'Client not found' });
     }
 
-    // Get business types with expected close dates
+    // Check if client has business types
     const { data: businessTypes } = await req.supabase
       .from('client_business_types')
-      .select('*')
+      .select('id')
       .eq('client_id', clientId);
 
-    // Get recent meetings
-    const { data: meetings } = await req.supabase
-      .from('meetings')
-      .select('*')
-      .eq('client_id', clientId)
-      .eq('user_id', userId)
-      .order('starttime', { ascending: false })
-      .limit(3);
-
-    // Get action points from recent meetings
-    const actionPoints = meetings?.filter(m => m.action_points).map(m => m.action_points).join('\n') || 'None';
-
-    // Check if we have enough context
     if (!businessTypes || businessTypes.length === 0) {
       return res.json({
         summary: 'No pipeline information available yet. Add at least one business type to get AI-generated next steps.',
@@ -1743,27 +1591,13 @@ router.post('/:clientId/generate-pipeline-summary', authenticateSupabaseUser, as
       });
     }
 
-    // SMART REGENERATION: Check if summary exists and if data has changed since last generation
+    // SMART REGENERATION: Check if summary exists and if data has changed
     const summaryExists = client.pipeline_next_steps && client.pipeline_next_steps_generated_at;
     const dataUpdatedAt = client.pipeline_data_updated_at ? new Date(client.pipeline_data_updated_at) : null;
     const summaryGeneratedAt = client.pipeline_next_steps_generated_at ? new Date(client.pipeline_next_steps_generated_at) : null;
 
-    console.log('📊 Pipeline summary check:', {
-      clientId,
-      clientName: client.name,
-      summaryExists,
-      dataUpdatedAt: dataUpdatedAt?.toISOString(),
-      summaryGeneratedAt: summaryGeneratedAt?.toISOString(),
-      pipelineDataColumnExists: client.pipeline_data_updated_at !== undefined,
-      needsRegeneration: dataUpdatedAt && summaryGeneratedAt ? dataUpdatedAt > summaryGeneratedAt : true
-    });
-
-    // If summary exists and data hasn't changed since generation, return cached summary
     if (summaryExists && summaryGeneratedAt) {
-      // If pipeline_data_updated_at column doesn't exist (migration not run), treat as if data never changed
-      // This means we'll use the cache until the migration is run
       if (client.pipeline_data_updated_at === undefined) {
-        console.log('⚠️  Warning: pipeline_data_updated_at column not found - using cached summary (migration 032 may not be deployed)');
         return res.json({
           summary: client.pipeline_next_steps,
           generated_at: client.pipeline_next_steps_generated_at,
@@ -1772,21 +1606,7 @@ router.post('/:clientId/generate-pipeline-summary', authenticateSupabaseUser, as
         });
       }
 
-      // If pipeline_data_updated_at is NULL, it means no tracked changes have occurred yet
-      // Use the summary generation time as the baseline
-      if (dataUpdatedAt === null) {
-        console.log('✅ Using cached pipeline summary - no tracked data changes (pipeline_data_updated_at is NULL)');
-        return res.json({
-          summary: client.pipeline_next_steps,
-          generated_at: client.pipeline_next_steps_generated_at,
-          cached: true,
-          reason: 'No tracked data changes since generation'
-        });
-      }
-
-      // Check if data changed since summary generation
-      if (dataUpdatedAt <= summaryGeneratedAt) {
-        console.log('✅ Using cached pipeline summary - no data changes detected');
+      if (dataUpdatedAt === null || dataUpdatedAt <= summaryGeneratedAt) {
         return res.json({
           summary: client.pipeline_next_steps,
           generated_at: client.pipeline_next_steps_generated_at,
@@ -1794,88 +1614,22 @@ router.post('/:clientId/generate-pipeline-summary', authenticateSupabaseUser, as
           reason: 'No data changes since last generation'
         });
       }
-
-      // Data changed after summary - regenerate
-      console.log('🔄 Regenerating pipeline summary - data changed since last generation');
-    } else {
-      console.log('🤖 Generating new pipeline summary - no existing summary');
     }
 
-    // Prepare context for OpenAI
-    const businessContext = businessTypes?.map(bt => ({
-      type: bt.business_type,
-      amount: bt.business_amount,
-      iaf: bt.iaf_expected,
-      expectedClose: bt.expected_close_date,
-      notes: bt.notes
-    })) || [];
+    // Use the centralized service which aggregates across ALL meetings
+    const { updatePipelineNextSteps } = require('../services/meetingSummaryService');
+    await updatePipelineNextSteps(req.supabase, userId, clientId);
 
-    // Generate "Next Steps to Close" summary using OpenAI
-    const OpenAI = require('openai');
-    const openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY
-    });
-
-    const prompt = `You are a financial advisor's assistant. Generate a brief, actionable summary (2-3 sentences maximum) explaining what needs to happen to finalize this business deal.
-
-Client: ${client.name}
-Total Expected Fees (IAF): £${client.iaf_expected?.toLocaleString() || 0}
-
-Business Types:
-${businessContext.map(bt => `- ${bt.type}: £${bt.amount?.toLocaleString() || 0} (IAF: £${bt.iaf?.toLocaleString() || 0})
-  Expected Close: ${bt.expectedClose || 'Not set'}
-  ${bt.notes ? 'Notes: ' + bt.notes : ''}`).join('\n')}
-
-Recent Action Points:
-${actionPoints}
-
-Pipeline Notes:
-${client.pipeline_notes || 'None'}
-
-Generate a concise, actionable summary that explains:
-1. What specific actions or documents are needed to close this deal
-2. Any blockers or pending items that need attention
-3. The immediate next step the advisor should take
-
-Be specific and actionable. Focus on what needs to happen NOW to move this forward. Maximum 3 sentences.`;
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a professional financial advisor assistant. Generate concise, actionable next steps for closing business deals.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.7,
-      max_tokens: 150
-    });
-
-    const summary = completion.choices[0].message.content.trim();
-
-    // Store summary in database
-    const { error: updateError } = await req.supabase
+    // Fetch the updated summary
+    const { data: updatedClient } = await req.supabase
       .from('clients')
-      .update({
-        pipeline_next_steps: summary,
-        pipeline_next_steps_generated_at: new Date().toISOString()
-      })
-      .eq('id', clientId);
-
-    if (updateError) {
-      console.error('Error storing pipeline summary:', updateError);
-      // Don't fail the request, just return the summary
-    }
-
-    console.log('✅ Pipeline summary generated and saved successfully');
+      .select('pipeline_next_steps, pipeline_next_steps_generated_at')
+      .eq('id', clientId)
+      .single();
 
     res.json({
-      summary,
-      generated_at: new Date().toISOString(),
+      summary: updatedClient?.pipeline_next_steps || 'Unable to generate summary.',
+      generated_at: updatedClient?.pipeline_next_steps_generated_at || new Date().toISOString(),
       cached: false,
       reason: 'New summary generated'
     });

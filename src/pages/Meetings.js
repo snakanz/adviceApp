@@ -30,7 +30,8 @@ import {
   AlertCircle,
   Copy,
   Eye,
-  Send
+  Send,
+  MapPin
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -978,21 +979,12 @@ export default function Meetings() {
       setSelectedTemplate(adviclyTemplate);
     }
 
-    // Auto-generate summaries if transcript exists but summaries don't
-    // Only generate if we don't have BOTH quick summary AND email summary
-    const hasQuickSummary = meeting.quickSummary && meeting.quickSummary.trim();
-    const hasEmailSummary = meeting.emailSummary && meeting.emailSummary.trim();
+    // Auto-generate if transcript exists but quick summary is missing
+    // Quick summary is the primary independent output - always runs
+    const hasQuickSummary = (meeting.quick_summary || meeting.quickSummary || '').trim();
 
-    console.log('Summary check:', {
-      hasTranscript: !!meeting.transcript,
-      hasQuickSummary,
-      hasEmailSummary,
-      quickSummary: meeting.quickSummary,
-      emailSummary: meeting.emailSummary
-    }); // Debug log
-
-    if (meeting.transcript && (!hasQuickSummary || !hasEmailSummary)) {
-      console.log('Auto-generating summaries...'); // Debug log
+    if (meeting.transcript && !hasQuickSummary) {
+      console.log('Auto-generating summaries (no quick summary found)...');
       // Pass external_id or DB id - backend handles both
       await autoGenerateSummaries(meeting.external_id || meeting.id);
     }
@@ -3605,6 +3597,28 @@ export default function Meetings() {
                             </Card>
                           )}
                         </div>
+
+                        {/* Location Section */}
+                        {(selectedMeeting?.location || selectedMeeting?.location_type || selectedMeeting?.location_details) && (
+                          <div className="space-y-2">
+                            <h3 className="text-sm font-semibold text-foreground">Location</h3>
+                            <Card className="border-border/50">
+                              <CardContent className="p-3">
+                                <div className="flex items-center gap-2 text-sm text-foreground">
+                                  <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                  <span>
+                                    {selectedMeeting.location_details ||
+                                     selectedMeeting.location ||
+                                     (selectedMeeting.location_type === 'video' ? 'Video Call' :
+                                      selectedMeeting.location_type === 'phone' ? 'Phone Call' :
+                                      selectedMeeting.location_type === 'in_person' ? 'In Person' :
+                                      selectedMeeting.location_type || 'Not specified')}
+                                  </span>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <Card className="border-border/50">
