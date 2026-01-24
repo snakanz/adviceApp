@@ -475,10 +475,6 @@ export default function Meetings() {
   // Add import dialog state
   const [showImportDialog, setShowImportDialog] = useState(false);
 
-  // Add action items state
-  const [actionItems, setActionItems] = useState([]);
-  const [loadingActionItems, setLoadingActionItems] = useState(false);
-
   // Add pending action items state (for approval workflow)
   const [pendingActionItems, setPendingActionItems] = useState([]);
   const [loadingPendingItems, setLoadingPendingItems] = useState(false);
@@ -1086,10 +1082,8 @@ export default function Meetings() {
       setCurrentSummaryTemplate(template);
       setSelectedTemplate(template);
 
-      // Refresh action items to show newly generated action points
-      // This ensures the action points section updates immediately
+      // Refresh pending action items to show newly generated action points
       if (selectedMeetingId) {
-        await fetchActionItems(selectedMeetingId);
         await fetchPendingActionItems(selectedMeetingId);
       }
 
@@ -1214,10 +1208,8 @@ export default function Meetings() {
       // This prevents the transcript from disappearing on auto-refresh
       await fetchMeetings();
 
-      // Refresh action items to show newly generated action points
-      // This ensures the action points section updates without requiring panel close/reopen
+      // Refresh pending action items to show newly generated action points
       if (selectedMeetingId) {
-        await fetchActionItems(selectedMeetingId);
         await fetchPendingActionItems(selectedMeetingId);
       }
 
@@ -1458,34 +1450,6 @@ export default function Meetings() {
 
 
   // Fetch action items for a meeting
-  const fetchActionItems = async (meetingId) => {
-    if (!meetingId) return;
-
-    setLoadingActionItems(true);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const response = await fetch(`${API_URL}/api/transcript-action-items/meetings/${meetingId}/action-items`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch action items');
-      }
-
-      const data = await response.json();
-      setActionItems(data.actionItems || []);
-    } catch (error) {
-      console.error('Error fetching action items:', error);
-      setActionItems([]);
-    } finally {
-      setLoadingActionItems(false);
-    }
-  };
-
   // Fetch pending action items for a meeting (awaiting approval)
   const fetchPendingActionItems = async (meetingId) => {
     if (!meetingId) return;
@@ -1819,7 +1783,6 @@ export default function Meetings() {
       // Refresh both pending and approved action items
       if (selectedMeetingId) {
         await fetchPendingActionItems(selectedMeetingId);
-        await fetchActionItems(selectedMeetingId);
       }
     } catch (error) {
       console.error('Error approving action items:', error);
@@ -1897,50 +1860,11 @@ export default function Meetings() {
     }
   };
 
-  // Toggle action item completion
-  const toggleActionItem = async (actionItemId) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      const response = await fetch(`${API_URL}/api/transcript-action-items/action-items/${actionItemId}/toggle`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to toggle action item');
-      }
-
-      const data = await response.json();
-
-      // Update local state
-      setActionItems(prevItems =>
-        prevItems.map(item =>
-          item.id === actionItemId ? data.actionItem : item
-        )
-      );
-
-      setShowSnackbar(true);
-      setSnackbarMessage(data.actionItem.completed ? 'Action item completed' : 'Action item reopened');
-      setSnackbarSeverity('success');
-    } catch (error) {
-      console.error('Error toggling action item:', error);
-      setShowSnackbar(true);
-      setSnackbarMessage('Failed to update action item');
-      setSnackbarSeverity('error');
-    }
-  };
-
-  // Fetch action items and pending items when selected meeting changes
+  // Fetch pending action items when selected meeting changes
   useEffect(() => {
     if (selectedMeetingId) {
-      fetchActionItems(selectedMeetingId);
       fetchPendingActionItems(selectedMeetingId);
     } else {
-      setActionItems([]);
       setPendingActionItems([]);
       setSelectedPendingItems([]);
     }
