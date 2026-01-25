@@ -204,8 +204,9 @@ Return ONLY valid JSON, no markdown, no explanations.`;
 }
 
 /**
- * Generate a comprehensive detailed meeting summary (1000+ words)
- * This provides a thorough categorized breakdown of everything discussed in the meeting
+ * Generate a comprehensive detailed meeting summary - the "Master Record" Source of Truth
+ * This is the primary document that captures EVERYTHING from the transcript
+ * Uses Markdown formatting for professional UI rendering
  */
 async function generateDetailedMeetingSummary(transcriptText, options = {}) {
   try {
@@ -215,88 +216,88 @@ async function generateDetailedMeetingSummary(transcriptText, options = {}) {
 
     const { clientName = 'the client' } = options;
 
-    const detailedPrompt = `You are Advicly's expert meeting analyst for UK financial advisers.
+    const detailedPrompt = `### ROLE
+You are a Lead Financial Analyst. Your task is to produce a "Master Record" of the provided transcript. This is the absolute Source of Truth for the meeting.
 
-Analyse the following financial advice meeting transcript and produce a COMPREHENSIVE, DETAILED summary.
+### MISSION
+Document every nuance, figure, and technical detail. This must be so comprehensive that reading the transcript becomes unnecessary. Use UK English spelling throughout.
 
-This summary is for the adviser's internal records and should capture EVERYTHING of importance discussed.
+### OUTPUT FORMAT
+Generate a dense, structured, and indexed breakdown using Markdown formatting for professional display. Include ALL specific figures, dates, percentages, fund names, and details mentioned.
 
-REQUIREMENTS:
-- Minimum 800 words, aim for 1000-1500 words
-- Use UK English spelling throughout
-- Write in clear, professional prose (not bullet points for main content)
-- Organise into logical sections based on what was actually discussed
-- Include ALL specific figures, dates, names, and details mentioned
-- Capture nuances, concerns raised, and context around decisions
+### REQUIRED STRUCTURE (Markdown)
 
-STRUCTURE YOUR SUMMARY WITH THESE SECTIONS (include only sections that apply):
+# 1. STRATEGIC OVERVIEW
+- **Meeting Objective:** (Clear statement of the call's purpose)
+- **Attendees:** (Who was present)
+- **Sentiment & Tone:** (How did the client feel? What was the energy of the call?)
+- **Primary Outcome:** (The #1 takeaway from this meeting)
 
-MEETING OVERVIEW
-Brief context: who attended, purpose of meeting, overall tone/outcome.
+# 2. THEMATIC DEEP-DIVE
+(Organise by topic, NOT chronologically. Provide 2-3 paragraphs of substantive depth for each topic discussed.)
 
-CLIENT CIRCUMSTANCES
-Any updates to personal situation, health, family, employment, income, assets, liabilities discussed.
+### [Topic Name - e.g., Retirement Planning]
+Context, details of the exchange, specific figures mentioned, and any logic or reasoning provided by the advisor or client. Include direct quotes where impactful.
 
-FINANCIAL POSITION
-Current investments, pensions, ISAs, cash holdings. Include specific values, fund names, platforms mentioned.
+### [Topic Name - e.g., Investment Performance]
+Full details of what was discussed, performance figures, fund names, platforms, any concerns raised.
 
-RISK PROFILE & CAPACITY FOR LOSS
-Any discussion of attitude to risk, capacity for loss, investment experience.
+(Continue for ALL topics meaningfully discussed - typical meetings cover 3-8 major topics)
 
-GOALS & OBJECTIVES
-Short-term and long-term goals discussed. Retirement plans, income needs, capital targets.
+# 3. QUANTITATIVE DATA VAULT
+| Financial Category | Detail / Figure | Contextual Note |
+| :--- | :--- | :--- |
+| (e.g., Total Portfolio Value) | £XXX,XXX | (As of date, platform) |
+| (e.g., Pension Fund A) | £XX,XXX | (Growth of X% mentioned) |
+| (e.g., ISA Contribution) | £XX,XXX | (Tax year, allowance status) |
+| (e.g., Monthly Income Need) | £X,XXX | (Retirement target) |
 
-INVESTMENT REVIEW
-Performance discussed, rebalancing decisions, fund switches, market commentary.
+(Include ALL numerical data mentioned: values, percentages, dates, ages, contribution amounts, fees, etc.)
 
-PENSIONS & RETIREMENT
-State pension, workplace pensions, SIPPs, drawdown, annuities discussed.
+# 4. OBJECTIONS & UNRESOLVED ITEMS
+- Document specific hesitations, concerns, or "no" responses from the client
+- Areas requiring further research or follow-up
+- Questions that couldn't be answered in the meeting
+- Risk concerns or compliance matters flagged
 
-PROTECTION & INSURANCE
-Life cover, income protection, critical illness, any gaps identified.
+# 5. DECISIONS MADE
+- List every formal agreement, approval, or "yes" captured in the call
+- Include what was decided, by whom, and any conditions attached
+- Note any documentation or next steps triggered by these decisions
 
-TAX PLANNING
-ISA allowances, CGT, IHT planning, pension contributions, tax efficiency discussed.
-
-ESTATE PLANNING
-Wills, powers of attorney, trusts, beneficiary nominations.
-
-COMPLIANCE & SUITABILITY
-Any suitability discussions, risk warnings given, regulatory matters.
-
-KEY DECISIONS & AGREEMENTS
-Specific decisions made or agreed during the meeting.
-
-ACTION ITEMS
-All tasks and follow-ups mentioned with who is responsible.
-
-ADVISER NOTES
-Any observations, concerns, or points to note for future reference.
+# 6. ACTION ITEMS
+| Action | Owner | Deadline/Timeframe |
+| :--- | :--- | :--- |
+| (Specific task) | (Adviser/Client) | (When mentioned) |
 
 ---
 
-TRANSCRIPT:
+### TRANSCRIPT TO ANALYSE:
 ${transcriptText}
 
 ---
 
-Write the detailed summary now. Be thorough and capture all relevant information discussed.`;
+Generate the complete Master Record now. Be exhaustive - this document should make reading the original transcript unnecessary.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
+          role: "system",
+          content: "You are Advicly's expert meeting analyst. Generate comprehensive, professionally-formatted Markdown documents that serve as the definitive Source of Truth for financial advice meetings."
+        },
+        {
           role: "user",
           content: detailedPrompt
         }
       ],
-      temperature: 0.3,
-      max_tokens: 4000 // Allow for long detailed output
+      temperature: 0.1, // Low temperature for accuracy and consistency
+      max_tokens: 6000 // Allow for comprehensive output
     });
 
     const detailedSummary = response.choices[0].message.content;
 
-    console.log(`✅ Generated detailed summary: ${detailedSummary.length} characters`);
+    console.log(`✅ Generated detailed summary (Master Record): ${detailedSummary.length} characters`);
 
     return detailedSummary;
   } catch (error) {

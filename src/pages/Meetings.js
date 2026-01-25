@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
@@ -34,7 +36,9 @@ import {
   Send,
   MapPin,
   CheckSquare,
-  Loader2
+  Loader2,
+  Shield,
+  ClipboardCheck
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -3629,14 +3633,55 @@ export default function Meetings() {
                           </div>
                         )}
 
-                        {/* Detailed Meeting Summary - Comprehensive analysis from transcript */}
+                        {/* Detailed Meeting Summary - Master Record Source of Truth */}
                         {selectedMeeting?.detailed_summary && (
                           <div className="space-y-2">
-                            <h3 className="text-sm font-semibold text-foreground">Meeting Summary</h3>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <h3 className="text-sm font-semibold text-foreground">Detailed Meeting Breakdown</h3>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                  <Shield className="w-3 h-3" />
+                                  Source of Truth
+                                </span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(selectedMeeting.detailed_summary);
+                                  // Show a brief toast/feedback
+                                  const btn = document.getElementById('copy-summary-btn');
+                                  if (btn) {
+                                    btn.innerHTML = '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Copied!';
+                                    setTimeout(() => {
+                                      btn.innerHTML = '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>Copy';
+                                    }, 2000);
+                                  }
+                                }}
+                                id="copy-summary-btn"
+                              >
+                                <ClipboardCheck className="w-3 h-3 mr-1" />
+                                Copy
+                              </Button>
+                            </div>
                             <Card className="border-border/50">
-                              <CardContent className="p-3">
-                                <div className="text-sm text-foreground whitespace-pre-line">
-                                  {selectedMeeting.detailed_summary}
+                              <CardContent className="p-4">
+                                <div className="prose prose-sm dark:prose-invert max-w-none
+                                  prose-headings:text-foreground prose-headings:font-semibold
+                                  prose-h1:text-lg prose-h1:mt-4 prose-h1:mb-2 prose-h1:border-b prose-h1:border-border/50 prose-h1:pb-1
+                                  prose-h2:text-base prose-h2:mt-3 prose-h2:mb-2
+                                  prose-h3:text-sm prose-h3:mt-2 prose-h3:mb-1 prose-h3:text-muted-foreground
+                                  prose-p:text-sm prose-p:text-foreground prose-p:my-1.5
+                                  prose-ul:my-1 prose-ul:text-sm prose-li:my-0.5
+                                  prose-table:text-xs prose-table:my-2
+                                  prose-th:bg-muted/50 prose-th:px-2 prose-th:py-1 prose-th:text-left prose-th:font-medium
+                                  prose-td:px-2 prose-td:py-1 prose-td:border-t prose-td:border-border/30
+                                  prose-strong:text-foreground prose-strong:font-semibold
+                                  prose-hr:my-3 prose-hr:border-border/50">
+                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                    {selectedMeeting.detailed_summary}
+                                  </ReactMarkdown>
                                 </div>
                               </CardContent>
                             </Card>
