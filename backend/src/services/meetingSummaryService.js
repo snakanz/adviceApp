@@ -11,7 +11,7 @@
  * Email generation is SECONDARY and handled separately by emailPromptEngine.
  */
 
-const { generateUnifiedMeetingSummary } = require('./openai');
+const { generateUnifiedMeetingSummary, generateDetailedMeetingSummary } = require('./openai');
 
 /**
  * Helper: wrap a promise with a timeout to prevent hanging requests.
@@ -46,6 +46,7 @@ async function generateMeetingOutputs({ supabase, userId, meetingId, transcript,
   const results = {
     quickSummary: null,
     actionPointsArray: [],
+    detailedSummary: null,
     clientSummaryUpdated: false,
     pipelineUpdated: false,
     errors: []
@@ -163,6 +164,43 @@ async function generateMeetingOutputs({ supabase, userId, meetingId, transcript,
       } else {
         console.log(`✅ Saved ${results.actionPointsArray.length} pending action items for meeting ${meetingId}`);
       }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // STEP 2.5: Generate Detailed Meeting Summary (1000+ words)
+    // This provides the comprehensive breakdown for the Summary tab
+    // ═══════════════════════════════════════════════════════
+    console.log(`🤖 [MeetingSummaryService] Generating detailed summary for meeting ${meetingId}...`);
+    try {
+      const detailedSummary = await withTimeout(
+        generateDetailedMeetingSummary(transcript, { clientName }),
+        60000, // 60 second timeout for longer summary
+        'generateDetailedMeetingSummary'
+      );
+
+      if (detailedSummary) {
+        results.detailedSummary = detailedSummary;
+
+        // Save detailed summary to meetings table
+        const { error: detailedError } = await supabase
+          .from('meetings')
+          .update({
+            detailed_summary: detailedSummary,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', meetingId);
+
+        if (detailedError) {
+          console.error(`❌ Error saving detailed summary for meeting ${meetingId}:`, detailedError);
+          results.errors.push('Failed to save detailed summary');
+        } else {
+          console.log(`✅ Detailed summary saved for meeting ${meetingId} (${detailedSummary.length} chars)`);
+        }
+      }
+    } catch (detailedError) {
+      console.error(`❌ Error generating detailed summary for meeting ${meetingId}:`, detailedError.message);
+      results.errors.push(`Detailed summary generation failed: ${detailedError.message}`);
+      // Don't rethrow - detailed summary is non-critical
     }
 
   } catch (error) {

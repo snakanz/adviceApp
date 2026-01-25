@@ -31,7 +31,9 @@ import {
   Copy,
   Eye,
   Send,
-  MapPin
+  MapPin,
+  CheckSquare,
+  Loader2
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -474,6 +476,10 @@ export default function Meetings() {
 
   // Add import dialog state
   const [showImportDialog, setShowImportDialog] = useState(false);
+
+  // Approved action items state
+  const [actionItems, setActionItems] = useState([]);
+  const [loadingActionItems, setLoadingActionItems] = useState(false);
 
   // Add pending action items state (for approval workflow)
   const [pendingActionItems, setPendingActionItems] = useState([]);
@@ -1082,9 +1088,10 @@ export default function Meetings() {
       setCurrentSummaryTemplate(template);
       setSelectedTemplate(template);
 
-      // Refresh pending action items to show newly generated action points
+      // Refresh action items to show newly generated action points
       if (selectedMeetingId) {
         await fetchPendingActionItems(selectedMeetingId);
+        await fetchActionItems(selectedMeetingId);
       }
 
       if (data.generated && data.quickSummary) {
@@ -1208,9 +1215,10 @@ export default function Meetings() {
       // This prevents the transcript from disappearing on auto-refresh
       await fetchMeetings();
 
-      // Refresh pending action items to show newly generated action points
+      // Refresh action items to show newly generated action points
       if (selectedMeetingId) {
         await fetchPendingActionItems(selectedMeetingId);
+        await fetchActionItems(selectedMeetingId);
       }
 
       setShowSnackbar(true);
@@ -1449,7 +1457,35 @@ export default function Meetings() {
 
 
 
-  // Fetch action items for a meeting
+  // Fetch approved action items for a meeting
+  const fetchActionItems = async (meetingId) => {
+    if (!meetingId) return;
+
+    setLoadingActionItems(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const response = await fetch(`${API_URL}/api/transcript-action-items/meetings/${meetingId}/action-items`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch action items');
+      }
+
+      const data = await response.json();
+      setActionItems(data.actionItems || []);
+    } catch (error) {
+      console.error('Error fetching action items:', error);
+      setActionItems([]);
+    } finally {
+      setLoadingActionItems(false);
+    }
+  };
+
   // Fetch pending action items for a meeting (awaiting approval)
   const fetchPendingActionItems = async (meetingId) => {
     if (!meetingId) return;
@@ -1783,6 +1819,7 @@ export default function Meetings() {
       // Refresh both pending and approved action items
       if (selectedMeetingId) {
         await fetchPendingActionItems(selectedMeetingId);
+        await fetchActionItems(selectedMeetingId);
       }
     } catch (error) {
       console.error('Error approving action items:', error);
@@ -1840,6 +1877,43 @@ export default function Meetings() {
     }
   };
 
+  // Toggle completion status of an approved action item
+  const toggleActionItemCompletion = async (actionItemId) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const response = await fetch(`${API_URL}/api/transcript-action-items/action-items/${actionItemId}/toggle`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle action item');
+      }
+
+      const data = await response.json();
+
+      // Update local state
+      setActionItems(prevItems =>
+        prevItems.map(item =>
+          item.id === actionItemId ? data.actionItem : item
+        )
+      );
+
+      setShowSnackbar(true);
+      setSnackbarMessage(data.actionItem.completed ? 'Action item completed' : 'Action item reopened');
+      setSnackbarSeverity('success');
+    } catch (error) {
+      console.error('Error toggling action item:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to update action item');
+      setSnackbarSeverity('error');
+    }
+  };
+
   // Toggle selection of a pending action item
   const togglePendingItemSelection = (itemId) => {
     setSelectedPendingItems(prev => {
@@ -1860,11 +1934,13 @@ export default function Meetings() {
     }
   };
 
-  // Fetch pending action items when selected meeting changes
+  // Fetch action items and pending items when selected meeting changes
   useEffect(() => {
     if (selectedMeetingId) {
+      fetchActionItems(selectedMeetingId);
       fetchPendingActionItems(selectedMeetingId);
     } else {
+      setActionItems([]);
       setPendingActionItems([]);
       setSelectedPendingItems([]);
     }
@@ -3504,14 +3580,62 @@ export default function Meetings() {
                           </div>
                         )}
 
-                        {/* AI Meeting Notes - Full action points text from transcript analysis */}
-                        {selectedMeeting?.action_points && (
+                        {/* Approved Action Items - Items that have been approved from pending */}
+                        {actionItems.length > 0 && (
                           <div className="space-y-2">
-                            <h3 className="text-sm font-semibold text-foreground">Meeting Notes</h3>
+                            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                              <CheckSquare className="w-4 h-4 text-green-600" />
+                              Action Items ({actionItems.length})
+                            </h3>
+                            <Card className="border-border/50">
+                              <CardContent className="p-3 space-y-2">
+                                {loadingActionItems ? (
+                                  <div className="flex items-center justify-center py-4">
+                                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                                  </div>
+                                ) : (
+                                  actionItems.map((item) => (
+                                    <div
+                                      key={item.id}
+                                      className={`flex items-start gap-3 p-2 rounded-lg transition-colors ${
+                                        item.completed ? 'bg-green-50 dark:bg-green-950/20' : 'bg-muted/30'
+                                      }`}
+                                    >
+                                      <Checkbox
+                                        checked={item.completed}
+                                        onCheckedChange={() => toggleActionItemCompletion(item.id)}
+                                        className="mt-0.5"
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <p className={`text-sm ${item.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                                          {item.action_text}
+                                        </p>
+                                        {item.priority && item.priority !== 3 && (
+                                          <span className={`text-xs px-1.5 py-0.5 rounded mt-1 inline-block ${
+                                            item.priority === 1 ? 'bg-red-100 text-red-700' :
+                                            item.priority === 2 ? 'bg-orange-100 text-orange-700' :
+                                            'bg-blue-100 text-blue-700'
+                                          }`}>
+                                            {item.priority === 1 ? 'Urgent' : item.priority === 2 ? 'High' : 'Low'}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                              </CardContent>
+                            </Card>
+                          </div>
+                        )}
+
+                        {/* Detailed Meeting Summary - Comprehensive analysis from transcript */}
+                        {selectedMeeting?.detailed_summary && (
+                          <div className="space-y-2">
+                            <h3 className="text-sm font-semibold text-foreground">Meeting Summary</h3>
                             <Card className="border-border/50">
                               <CardContent className="p-3">
                                 <div className="text-sm text-foreground whitespace-pre-line">
-                                  {selectedMeeting.action_points}
+                                  {selectedMeeting.detailed_summary}
                                 </div>
                               </CardContent>
                             </Card>

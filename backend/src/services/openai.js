@@ -203,6 +203,108 @@ Return ONLY valid JSON, no markdown, no explanations.`;
   }
 }
 
+/**
+ * Generate a comprehensive detailed meeting summary (1000+ words)
+ * This provides a thorough categorized breakdown of everything discussed in the meeting
+ */
+async function generateDetailedMeetingSummary(transcriptText, options = {}) {
+  try {
+    if (!isOpenAIAvailable()) {
+      throw new Error('OpenAI service is not available. Please check your API key configuration.');
+    }
+
+    const { clientName = 'the client' } = options;
+
+    const detailedPrompt = `You are Advicly's expert meeting analyst for UK financial advisers.
+
+Analyse the following financial advice meeting transcript and produce a COMPREHENSIVE, DETAILED summary.
+
+This summary is for the adviser's internal records and should capture EVERYTHING of importance discussed.
+
+REQUIREMENTS:
+- Minimum 800 words, aim for 1000-1500 words
+- Use UK English spelling throughout
+- Write in clear, professional prose (not bullet points for main content)
+- Organise into logical sections based on what was actually discussed
+- Include ALL specific figures, dates, names, and details mentioned
+- Capture nuances, concerns raised, and context around decisions
+
+STRUCTURE YOUR SUMMARY WITH THESE SECTIONS (include only sections that apply):
+
+MEETING OVERVIEW
+Brief context: who attended, purpose of meeting, overall tone/outcome.
+
+CLIENT CIRCUMSTANCES
+Any updates to personal situation, health, family, employment, income, assets, liabilities discussed.
+
+FINANCIAL POSITION
+Current investments, pensions, ISAs, cash holdings. Include specific values, fund names, platforms mentioned.
+
+RISK PROFILE & CAPACITY FOR LOSS
+Any discussion of attitude to risk, capacity for loss, investment experience.
+
+GOALS & OBJECTIVES
+Short-term and long-term goals discussed. Retirement plans, income needs, capital targets.
+
+INVESTMENT REVIEW
+Performance discussed, rebalancing decisions, fund switches, market commentary.
+
+PENSIONS & RETIREMENT
+State pension, workplace pensions, SIPPs, drawdown, annuities discussed.
+
+PROTECTION & INSURANCE
+Life cover, income protection, critical illness, any gaps identified.
+
+TAX PLANNING
+ISA allowances, CGT, IHT planning, pension contributions, tax efficiency discussed.
+
+ESTATE PLANNING
+Wills, powers of attorney, trusts, beneficiary nominations.
+
+COMPLIANCE & SUITABILITY
+Any suitability discussions, risk warnings given, regulatory matters.
+
+KEY DECISIONS & AGREEMENTS
+Specific decisions made or agreed during the meeting.
+
+ACTION ITEMS
+All tasks and follow-ups mentioned with who is responsible.
+
+ADVISER NOTES
+Any observations, concerns, or points to note for future reference.
+
+---
+
+TRANSCRIPT:
+${transcriptText}
+
+---
+
+Write the detailed summary now. Be thorough and capture all relevant information discussed.`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "user",
+          content: detailedPrompt
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 4000 // Allow for long detailed output
+    });
+
+    const detailedSummary = response.choices[0].message.content;
+
+    console.log(`✅ Generated detailed summary: ${detailedSummary.length} characters`);
+
+    return detailedSummary;
+  } catch (error) {
+    console.error('Error generating detailed meeting summary:', error);
+    throw error;
+  }
+}
+
 async function adjustMeetingSummary(originalSummary, adjustmentPrompt) {
   try {
     if (!isOpenAIAvailable()) {
@@ -324,6 +426,7 @@ async function generateChatResponse(userMessage, systemPrompt, maxTokens = 1200)
 module.exports = {
   generateMeetingSummary,
   generateUnifiedMeetingSummary,
+  generateDetailedMeetingSummary,
   adjustMeetingSummary,
   improveTemplate,
   generateChatResponse,
