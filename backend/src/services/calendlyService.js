@@ -3,6 +3,10 @@ const axios = require('axios');
 const clientExtractionService = require('./clientExtraction');
 const { checkUserHasTranscriptionAccess } = require('../utils/subscriptionCheck');
 
+// Recall.ai region configuration - EU Frankfurt for GDPR compliance
+const RECALL_REGION = process.env.RECALL_REGION || 'eu-central-1';
+const RECALL_BASE_URL = `https://${RECALL_REGION}.recall.ai/api/v1`;
+
 /**
  * Calendly API v2 Service
  * Handles fetching meetings from Calendly API v2 and syncing with database
@@ -722,16 +726,15 @@ class CalendlyService {
       }
 
       // Create Recall bot
-      const axios = require('axios');
       const apiKey = process.env.RECALL_API_KEY;
-      const baseUrl = 'https://us-west-2.recall.ai/api/v1';
 
       if (!apiKey) {
         console.warn('⚠️  RECALL_API_KEY not configured');
         return;
       }
 
-      const response = await axios.post(`${baseUrl}/bot/`, {
+      console.log(`🤖 Creating Recall bot in ${RECALL_REGION} region...`);
+      const response = await axios.post(`${RECALL_BASE_URL}/bot/`, {
         meeting_url: meetingUrl,
         recording_config: {
           transcript: {
@@ -880,7 +883,7 @@ class CalendlyService {
       console.log(`🤖 Canceling Recall bot ${recallBotId} for canceled Calendly meeting ${meetingId}...`);
 
       // Call Recall API to delete/stop the bot
-      await axios.delete(`https://us-west-2.recall.ai/api/v1/bot/${recallBotId}/`, {
+      await axios.delete(`${RECALL_BASE_URL}/bot/${recallBotId}/`, {
         headers: {
           'Authorization': `Token ${apiKey}`
         }

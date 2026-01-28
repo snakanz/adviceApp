@@ -5,6 +5,10 @@ const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 const { checkUserHasTranscriptionAccess } = require('../utils/subscriptionCheck');
 
+// Recall.ai region configuration - EU Frankfurt for GDPR compliance
+const RECALL_REGION = process.env.RECALL_REGION || 'eu-central-1';
+const RECALL_BASE_URL = `https://${RECALL_REGION}.recall.ai/api/v1`;
+
 /**
  * Extract meeting URL from calendar event
  */
@@ -36,14 +40,13 @@ function extractMeetingUrl(event) {
 async function createRecallBot(meetingUrl, meetingId, userId) {
   try {
     const apiKey = process.env.RECALL_API_KEY;
-    const baseUrl = 'https://us-west-2.recall.ai/api/v1';
 
     if (!apiKey) {
       console.error('❌ RECALL_API_KEY not configured');
       return null;
     }
 
-    const response = await axios.post(`${baseUrl}/bot/`, {
+    const response = await axios.post(`${RECALL_BASE_URL}/bot/`, {
       meeting_url: meetingUrl,
       recording_config: {
         transcript: {
@@ -151,13 +154,12 @@ router.get('/bot/:botId', authenticateSupabaseUser, async (req, res) => {
   try {
     const { botId } = req.params;
     const apiKey = process.env.RECALL_API_KEY;
-    const baseUrl = 'https://us-west-2.recall.ai/api/v1';
 
     if (!apiKey) {
       return res.status(500).json({ error: 'Recall API not configured' });
     }
 
-    const response = await axios.get(`${baseUrl}/bot/${botId}`, {
+    const response = await axios.get(`${RECALL_BASE_URL}/bot/${botId}`, {
       headers: {
         'Authorization': `Token ${apiKey}`,
         'Content-Type': 'application/json'
@@ -179,13 +181,12 @@ router.get('/transcript/:botId', authenticateSupabaseUser, async (req, res) => {
   try {
     const { botId } = req.params;
     const apiKey = process.env.RECALL_API_KEY;
-    const baseUrl = 'https://us-west-2.recall.ai/api/v1';
 
     if (!apiKey) {
       return res.status(500).json({ error: 'Recall API not configured' });
     }
 
-    const response = await axios.get(`${baseUrl}/transcript/${botId}`, {
+    const response = await axios.get(`${RECALL_BASE_URL}/transcript/${botId}`, {
       headers: {
         'Authorization': `Token ${apiKey}`,
         'Content-Type': 'application/json'

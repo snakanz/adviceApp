@@ -6,6 +6,10 @@ const WebhookHealthService = require('./webhookHealthService');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 const { checkUserHasTranscriptionAccess } = require('../utils/subscriptionCheck');
 
+// Recall.ai region configuration - EU Frankfurt for GDPR compliance
+const RECALL_REGION = process.env.RECALL_REGION || 'eu-central-1';
+const RECALL_BASE_URL = `https://${RECALL_REGION}.recall.ai/api/v1`;
+
 /**
  * Sync Scheduler Service
  * Handles automatic periodic syncing of Calendly meetings and webhook renewals
@@ -530,14 +534,14 @@ class SyncScheduler {
           // Call the Recall API to create a bot
           const axios = require('axios');
           const apiKey = process.env.RECALL_API_KEY;
-          const baseUrl = 'https://us-west-2.recall.ai/api/v1';
 
           if (!apiKey) {
             console.warn('  ⚠️  RECALL_API_KEY not configured, cannot schedule bots');
             return;
           }
 
-          const response = await axios.post(`${baseUrl}/bot/`, {
+          console.log(`  🌍 Using Recall region: ${RECALL_REGION}`);
+          const response = await axios.post(`${RECALL_BASE_URL}/bot/`, {
             meeting_url: meeting.meeting_url,
             recording_config: {
               transcript: {

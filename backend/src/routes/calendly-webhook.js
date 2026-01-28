@@ -5,6 +5,10 @@ const CalendlyService = require('../services/calendlyService');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 const clientExtractionService = require('../services/clientExtraction');
 
+// Recall.ai region configuration - EU Frankfurt for GDPR compliance
+const RECALL_REGION = process.env.RECALL_REGION || 'eu-central-1';
+const RECALL_BASE_URL = `https://${RECALL_REGION}.recall.ai/api/v1`;
+
 const router = express.Router();
 
 console.log('🔄 Calendly webhook-only route loaded (for raw body handling)');
@@ -559,7 +563,7 @@ async function cancelRecallBot(recallBotId, meetingId) {
 
     // Call Recall API to delete/stop the bot
     // DELETE /api/v1/bot/{id}/ removes a scheduled bot
-    await axios.delete(`https://us-west-2.recall.ai/api/v1/bot/${recallBotId}/`, {
+    await axios.delete(`${RECALL_BASE_URL}/bot/${recallBotId}/`, {
       headers: {
         'Authorization': `Token ${apiKey}`
       }

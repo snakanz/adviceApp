@@ -4,6 +4,10 @@ const crypto = require('crypto');
 const clientExtractionService = require('./clientExtraction');
 const { checkUserHasTranscriptionAccess } = require('../utils/subscriptionCheck');
 
+// Recall.ai region configuration - EU Frankfurt for GDPR compliance
+const RECALL_REGION = process.env.RECALL_REGION || 'eu-central-1';
+const RECALL_BASE_URL = `https://${RECALL_REGION}.recall.ai/api/v1`;
+
 /**
  * Google Calendar Webhook Service
  * Handles Google Calendar Push Notifications (Watch API)
@@ -435,14 +439,14 @@ class GoogleCalendarWebhookService {
       // Create Recall bot
       const axios = require('axios');
       const apiKey = process.env.RECALL_API_KEY;
-      const baseUrl = 'https://us-west-2.recall.ai/api/v1';
 
       if (!apiKey) {
         console.warn('⚠️  RECALL_API_KEY not configured');
         return;
       }
 
-      const response = await axios.post(`${baseUrl}/bot/`, {
+      console.log(`🤖 Creating Recall bot in ${RECALL_REGION} region...`);
+      const response = await axios.post(`${RECALL_BASE_URL}/bot/`, {
         meeting_url: meetingUrl,
         recording_config: {
           transcript: {

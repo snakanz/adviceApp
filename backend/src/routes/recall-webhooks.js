@@ -5,6 +5,10 @@ const axios = require('axios');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 const emailPromptEngine = require('../services/emailPromptEngine');
 
+// Recall.ai region configuration - EU Frankfurt for GDPR compliance
+const RECALL_REGION = process.env.RECALL_REGION || 'eu-central-1';
+const RECALL_BASE_URL = `https://${RECALL_REGION}.recall.ai/api/v1`;
+
 /**
  * SVIX Webhook Verification (Correct Implementation)
  * Recall.ai uses Svix for webhook delivery
@@ -125,11 +129,11 @@ function formatTimestamp(seconds) {
 async function fetchTranscriptFromRecall(botId) {
   try {
     const apiKey = process.env.RECALL_API_KEY;
-    const baseUrl = 'https://us-west-2.recall.ai/api/v1';
 
     console.log(`\n📥 FETCHING TRANSCRIPT FROM RECALL.AI`);
     console.log(`=====================================`);
     console.log(`Bot ID: ${botId}`);
+    console.log(`Region: ${RECALL_REGION}`);
     console.log(`API Key: ${apiKey ? '✅ Present' : '❌ MISSING'}`);
 
     if (!apiKey) {
@@ -139,7 +143,7 @@ async function fetchTranscriptFromRecall(botId) {
 
     // Fetch bot details first
     console.log(`\n🔍 Step 1: Fetching bot details...`);
-    const botResponse = await axios.get(`${baseUrl}/bot/${botId}/`, {
+    const botResponse = await axios.get(`${RECALL_BASE_URL}/bot/${botId}/`, {
       headers: { 'Authorization': `Token ${apiKey}` }
     });
 

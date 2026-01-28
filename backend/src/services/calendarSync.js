@@ -1,6 +1,10 @@
 const { google } = require('googleapis');
 const { getSupabase } = require('../lib/supabase');
 
+// Recall.ai region configuration - EU Frankfurt for GDPR compliance
+const RECALL_REGION = process.env.RECALL_REGION || 'eu-central-1';
+const RECALL_BASE_URL = `https://${RECALL_REGION}.recall.ai/api/v1`;
+
 /**
  * Comprehensive Calendar Sync Service
  * Handles additions, updates, and DELETIONS from Google Calendar
@@ -872,14 +876,14 @@ class CalendarSyncService {
       // Create Recall bot
       const axios = require('axios');
       const apiKey = process.env.RECALL_API_KEY;
-      const baseUrl = 'https://us-west-2.recall.ai/api/v1';
 
       if (!apiKey) {
         console.warn('⚠️  RECALL_API_KEY not configured');
         return;
       }
 
-      const response = await axios.post(`${baseUrl}/bot/`, {
+      console.log(`🤖 Creating Recall bot in ${RECALL_REGION} region...`);
+      const response = await axios.post(`${RECALL_BASE_URL}/bot/`, {
         meeting_url: meetingUrl,
         bot_name: 'Advicly Notetaker',
         recording_config: {

@@ -3,7 +3,9 @@ const axios = require('axios');
 class RecallService {
     constructor() {
         this.apiKey = process.env.RECALL_API_KEY;
-        this.baseUrl = 'https://us-west-2.recall.ai/api/v1';
+        // EU Frankfurt region for GDPR compliance - configurable via env var
+        const region = process.env.RECALL_REGION || 'eu-central-1';
+        this.baseUrl = `https://${region}.recall.ai/api/v1`;
         this.client = axios.create({
             baseURL: this.baseUrl,
             headers: {
