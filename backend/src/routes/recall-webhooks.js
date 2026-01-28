@@ -10,29 +10,36 @@ const RECALL_REGION = process.env.RECALL_REGION || 'eu-central-1';
 const RECALL_BASE_URL = `https://${RECALL_REGION}.recall.ai/api/v1`;
 
 /**
- * SVIX Webhook Verification (Correct Implementation)
- * Recall.ai uses Svix for webhook delivery
+ * Webhook Signature Verification
+ * Supports both SVIX format (svix-* headers) and standard webhook format (webhook-* headers)
+ * Recall.ai EU region uses webhook-id/webhook-signature format
  */
-function verifySvixSignature(rawBody, headers, webhookSecret) {
+function verifyWebhookSignature(rawBody, headers, webhookSecret) {
   try {
-    console.log('\n🔐 SVIX SIGNATURE VERIFICATION');
+    console.log('\n🔐 WEBHOOK SIGNATURE VERIFICATION');
     console.log('================================');
 
-    // Extract SVIX headers
-    const svixId = headers['svix-id'];
-    const svixTimestamp = headers['svix-timestamp'];
-    const svixSignature = headers['svix-signature'];
+    // Check for both SVIX and standard webhook header formats
+    // EU Recall uses: webhook-id, webhook-timestamp, webhook-signature
+    // US Recall uses: svix-id, svix-timestamp, svix-signature
+    const webhookId = headers['webhook-id'] || headers['svix-id'];
+    const webhookTimestamp = headers['webhook-timestamp'] || headers['svix-timestamp'];
+    const webhookSignature = headers['webhook-signature'] || headers['svix-signature'];
 
-    console.log(`📋 Headers received:`);
-    console.log(`   svix-id: ${svixId}`);
-    console.log(`   svix-timestamp: ${svixTimestamp}`);
-    console.log(`   svix-signature: ${svixSignature}`);
+    const headerFormat = headers['webhook-id'] ? 'webhook-*' : 'svix-*';
+
+    console.log(`📋 Headers received (format: ${headerFormat}):`);
+    console.log(`   id: ${webhookId}`);
+    console.log(`   timestamp: ${webhookTimestamp}`);
+    console.log(`   signature: ${webhookSignature}`);
     console.log(`   webhook-secret: ${webhookSecret ? '✅ Present' : '❌ MISSING'}`);
 
     // Validate headers exist
-    if (!svixId || !svixTimestamp || !svixSignature) {
-      console.error('❌ Missing SVIX headers!');
-      console.error(`   Available headers:`, Object.keys(headers).filter(h => h.includes('svix') || h.includes('x-recall')));
+    if (!webhookId || !webhookTimestamp || !webhookSignature) {
+      console.error('❌ Missing webhook headers!');
+      console.error(`   Available headers:`, Object.keys(headers).filter(h =>
+        h.includes('svix') || h.includes('webhook') || h.includes('x-recall')
+      ));
       return false;
     }
 
@@ -41,8 +48,7 @@ function verifySvixSignature(rawBody, headers, webhookSecret) {
       return false;
     }
 
-    // Construct signed content (Svix format)
-    // CRITICAL: Convert rawBody Buffer to string, otherwise it becomes "[object Object]"
+    // Convert rawBody Buffer to string
     console.log(`\n🔍 DEBUG: rawBody type: ${typeof rawBody}, isBuffer: ${Buffer.isBuffer(rawBody)}`);
     console.log(`🔍 DEBUG: rawBody length: ${rawBody.length}`);
 
@@ -55,7 +61,8 @@ function verifySvixSignature(rawBody, headers, webhookSecret) {
       bodyString = String(rawBody);
     }
 
-    const signedContent = `${svixId}.${svixTimestamp}.${bodyString}`;
+    // Construct signed content: id.timestamp.body
+    const signedContent = `${webhookId}.${webhookTimestamp}.${bodyString}`;
     console.log(`\n📝 Signed content (first 100 chars): ${signedContent.substring(0, 100)}...`);
 
     // Extract base64 secret (after 'whsec_' prefix)
@@ -80,30 +87,43 @@ function verifySvixSignature(rawBody, headers, webhookSecret) {
 
     console.log(`\n✅ Computed signature: ${computedSignature}`);
 
-    // Parse received signature (format: v1,<signature>)
-    const signatureParts = svixSignature.split(',');
-    if (signatureParts.length < 2) {
-      console.error('❌ Invalid signature format. Expected: v1,<signature>');
-      return false;
+    // Parse received signature (format: v1,<signature> or v1,g/<signature>)
+    // The signature might have multiple versions separated by spaces
+    const signatureVersions = webhookSignature.split(' ');
+
+    for (const sigVersion of signatureVersions) {
+      const signatureParts = sigVersion.split(',');
+      if (signatureParts.length >= 2) {
+        const [version, ...sigParts] = signatureParts;
+        const receivedSignature = sigParts.join(','); // Handle signatures with commas
+
+        console.log(`📌 Checking version: ${version}, signature: ${receivedSignature}`);
+
+        try {
+          // Compare signatures (constant-time comparison)
+          const isValid = crypto.timingSafeEqual(
+            Buffer.from(computedSignature),
+            Buffer.from(receivedSignature)
+          );
+
+          if (isValid) {
+            console.log(`\n✅ SIGNATURE VALID (version: ${version})`);
+            console.log('================================\n');
+            return true;
+          }
+        } catch (compareError) {
+          // Length mismatch, try next signature version
+          console.log(`   ⚠️ Signature length mismatch, trying next...`);
+        }
+      }
     }
 
-    const [version, receivedSignature] = signatureParts;
-    console.log(`📌 Received signature: ${receivedSignature}`);
-    console.log(`📌 Version: ${version}`);
-
-    // Compare signatures (constant-time comparison)
-    const isValid = crypto.timingSafeEqual(
-      Buffer.from(computedSignature),
-      Buffer.from(receivedSignature)
-    );
-
-    console.log(`\n${isValid ? '✅ SIGNATURE VALID' : '❌ SIGNATURE INVALID'}`);
+    console.log(`\n❌ SIGNATURE INVALID - No matching signature found`);
     console.log('================================\n');
-
-    return isValid;
+    return false;
 
   } catch (error) {
-    console.error('❌ Error verifying SVIX signature:', error.message);
+    console.error('❌ Error verifying webhook signature:', error.message);
     console.error(error.stack);
     return false;
   }
@@ -530,7 +550,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
     // Verify SVIX signature
     console.log(`\n🔐 Verifying SVIX signature...`);
-    if (!verifySvixSignature(req.body, req.headers, webhookSecret)) {
+    if (!verifyWebhookSignature(req.body, req.headers, webhookSecret)) {
       console.error('❌ SIGNATURE VERIFICATION FAILED - Rejecting webhook');
       return res.status(401).json({ error: 'Invalid signature' });
     }
