@@ -3104,7 +3104,8 @@ export default function Meetings() {
                     )}
 
                     {/* Email Draft Section - Premium Inline Layout */}
-                    {selectedMeeting?.transcript ? (
+                    {/* Hide during streaming - the streaming card above shows progress */}
+                    {!isStreaming && selectedMeeting?.transcript ? (
                       <Card className="border-border/50">
                         <CardContent className="p-0">
                           {/* Header */}
