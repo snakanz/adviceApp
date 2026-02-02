@@ -20,7 +20,12 @@ import {
   ArrowUp,
   ArrowDown,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  RefreshCw,
+  PoundSterling,
+  Target,
+  MessageCircle,
+  FileText
 } from 'lucide-react';
 import { api } from '../services/api';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -65,7 +70,9 @@ export default function Clients() {
   const [clientTodos, setClientTodos] = useState([]);
   const [newActionItemText, setNewActionItemText] = useState('');
   const [addingActionItem, setAddingActionItem] = useState(false);
-  const [meetingHistoryCollapsed, setMeetingHistoryCollapsed] = useState(false);
+  const [meetingHistoryCollapsed, setMeetingHistoryCollapsed] = useState(true); // Default collapsed
+  const [askAdviclyCollapsed, setAskAdviclyCollapsed] = useState(true); // Default collapsed
+  const [documentsCollapsed, setDocumentsCollapsed] = useState(true); // Default collapsed
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -304,10 +311,27 @@ export default function Clients() {
   }, [fetchClients, clientFilter]);
 
   // Fetch action items and todos when client is selected
+  // Also auto-generate summary if client has data but no summary (like pipeline pattern)
   useEffect(() => {
     if (selectedClient?.id) {
       fetchClientActionItems(selectedClient.id);
       fetchClientTodos(selectedClient.id);
+
+      // Auto-generate client summary if:
+      // 1. Client has no AI summary yet
+      // 2. Client has meetings or business types (data to summarize)
+      // 3. Not already generating
+      const hasMeetings = selectedClient.meeting_count > 0 || selectedClient.meetings?.length > 0;
+      const hasBusinessTypes = selectedClient.business_types_data?.length > 0;
+      const hasNoSummary = !selectedClient.ai_summary;
+
+      if (hasNoSummary && (hasMeetings || hasBusinessTypes) && !generatingSummary) {
+        // Small delay to avoid UI flash
+        const autoGenerateTimer = setTimeout(() => {
+          handleGenerateSummary(selectedClient.id);
+        }, 500);
+        return () => clearTimeout(autoGenerateTimer);
+      }
     } else {
       setClientActionItems([]);
       setClientTodos([]);
@@ -466,6 +490,7 @@ export default function Clients() {
   const handleSaveBusinessTypes = async (businessTypes) => {
     if (!editingClient) return;
 
+    const clientIdToRegenerate = editingClient.id;
     setSavingBusinessTypes(true);
     try {
       await api.request(`/clients/${editingClient.id}/business-types`, {
@@ -482,6 +507,10 @@ export default function Clients() {
 
       // Show success message
       showSuccess('Business types updated successfully!');
+
+      // Auto-regenerate client summary since business data changed (like pipeline pattern)
+      // This ensures the summary reflects the latest business information
+      handleGenerateSummary(clientIdToRegenerate);
     } catch (error) {
       console.error('Error saving business types:', error);
       showSuccess('Failed to save business types. Please try again.');
@@ -960,372 +989,423 @@ export default function Clients() {
 
             {/* Panel Content - Scrollable */}
             <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-              {/* Client Summary - Full Width at Top */}
-              <Card className="border-border/50 bg-blue-50/50 dark:bg-blue-950/20">
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <Sparkles className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-sm font-semibold text-foreground">Client Summary</h3>
+
+              {/* ═══════════════════════════════════════════════════════════════════
+                  CLIENT OVERVIEW ZONE - Dominant summary at top
+                  ═══════════════════════════════════════════════════════════════════ */}
+
+              {/* Client Summary Card - High Contrast, Dominant Element */}
+              <Card className="border-0 bg-gradient-to-br from-slate-900 to-slate-800 dark:from-slate-800 dark:to-slate-900 shadow-lg">
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 bg-blue-500/20 rounded-lg">
+                        <Sparkles className="w-4 h-4 text-blue-400" />
+                      </div>
+                      <h3 className="text-sm font-semibold text-white/90">Client Summary</h3>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleGenerateSummary(selectedClient.id)}
+                      disabled={generatingSummary}
+                      className="h-7 text-xs text-white/70 hover:text-white hover:bg-white/10"
+                    >
+                      {generatingSummary ? (
+                        <>
+                          <RefreshCw className="w-3 h-3 mr-1.5 animate-spin" />
+                          Generating...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw className="w-3 h-3 mr-1.5" />
+                          {selectedClient.ai_summary ? 'Regenerate' : 'Generate'}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  {selectedClient.ai_summary ? (
+                    <p className="text-sm text-white/80 leading-relaxed">
+                      {selectedClient.ai_summary}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-white/50 italic">
+                      Click "Generate" to create an AI-powered client summary from meeting history and business data.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* KPI Blocks - Compact grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {/* Business Types Count */}
+                <div className="bg-card border border-border/50 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Building2 className="w-3.5 h-3.5 text-blue-500" />
+                    <span className="text-xs text-muted-foreground">Business Types</span>
+                  </div>
+                  <div className="text-xl font-bold text-foreground">
+                    {selectedClient.business_types_data?.filter(bt => !bt.not_proceeding).length || 0}
+                  </div>
+                </div>
+
+                {/* Expected Fees Total */}
+                <div className="bg-card border border-border/50 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <PoundSterling className="w-3.5 h-3.5 text-green-500" />
+                    <span className="text-xs text-muted-foreground">Expected Fees</span>
+                  </div>
+                  <div className="text-xl font-bold text-foreground">
+                    £{(selectedClient.business_types_data?.reduce((sum, bt) => {
+                      if (bt.not_proceeding) return sum;
+                      return sum + (parseFloat(bt.iaf_expected) || 0);
+                    }, 0) || 0).toLocaleString()}
+                  </div>
+                </div>
+
+                {/* Earliest Close Date */}
+                <div className="bg-card border border-border/50 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Target className="w-3.5 h-3.5 text-orange-500" />
+                    <span className="text-xs text-muted-foreground">Next Close</span>
+                  </div>
+                  <div className="text-lg font-bold text-foreground">
+                    {(() => {
+                      const dates = selectedClient.business_types_data
+                        ?.filter(bt => bt.expected_close_date && !bt.not_proceeding)
+                        .map(bt => new Date(bt.expected_close_date))
+                        .sort((a, b) => a - b);
+                      if (dates && dates.length > 0) {
+                        return dates[0].toLocaleDateString('en-GB', { month: 'short', year: '2-digit' });
+                      }
+                      return '—';
+                    })()}
+                  </div>
+                </div>
+
+                {/* Meetings Count */}
+                <div className="bg-card border border-border/50 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Calendar className="w-3.5 h-3.5 text-purple-500" />
+                    <span className="text-xs text-muted-foreground">Meetings</span>
+                  </div>
+                  <div className="text-xl font-bold text-foreground">
+                    {selectedClient.meeting_count || 0}
+                  </div>
+                  {selectedClient.has_upcoming_meetings && (
+                    <div className="text-xs text-green-600 mt-0.5">
+                      {selectedClient.upcoming_meetings_count} upcoming
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* ═══════════════════════════════════════════════════════════════════
+                  OPERATIONAL SECTIONS - Business Details & Action Items
+                  ═══════════════════════════════════════════════════════════════════ */}
+
+              {/* Business Details Card */}
+              <Card className="border-border/50">
+                <CardContent className="p-0">
+                  <div className="flex items-center justify-between p-4 border-b border-border/50">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-muted-foreground" />
+                      <h3 className="text-sm font-semibold text-foreground">Business Details</h3>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEditBusinessTypes(selectedClient)}
+                      className="h-7 text-xs"
+                    >
+                      <Edit3 className="w-3 h-3 mr-1.5" />
+                      Manage
+                    </Button>
+                  </div>
+                  <div className="p-4">
+                    {selectedClient.business_types_data && selectedClient.business_types_data.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedClient.business_types_data.map((bt, idx) => (
+                          <div
+                            key={idx}
+                            className={`p-3 rounded-lg border ${bt.not_proceeding ? 'bg-muted/30 border-border/30 opacity-60' : 'bg-muted/50 border-border/50'}`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300 cursor-pointer hover:bg-blue-200 dark:hover:bg-blue-900 transition-colors"
+                                  onClick={() => navigate(`/pipeline?businessType=${encodeURIComponent(bt.business_type)}`)}
+                                  title={`View ${bt.business_type} in Pipeline`}
+                                >
+                                  {bt.business_type}
+                                </span>
+                                {bt.not_proceeding && (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300">
+                                    Not Proceeding
+                                  </span>
+                                )}
+                              </div>
+                              {bt.expected_close_date && (
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(bt.expected_close_date).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex gap-4">
+                              {bt.iaf_expected && (
+                                <div>
+                                  <span className="text-xs text-muted-foreground">Fees</span>
+                                  <div className="text-sm font-semibold text-foreground">
+                                    £{parseFloat(bt.iaf_expected).toLocaleString()}
+                                  </div>
+                                </div>
+                              )}
+                              {bt.business_type === 'Investment' && bt.business_amount && (
+                                <div>
+                                  <span className="text-xs text-muted-foreground">Investment</span>
+                                  <div className="text-sm font-semibold text-foreground">
+                                    £{parseFloat(bt.business_amount).toLocaleString()}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            {bt.notes && (
+                              <p className="text-xs text-muted-foreground mt-2 line-clamp-2">{bt.notes}</p>
+                            )}
+                            {bt.not_proceeding && bt.not_proceeding_reason && (
+                              <p className="text-xs text-orange-600 mt-2">Reason: {bt.not_proceeding_reason}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6">
+                        <Building2 className="w-8 h-8 text-muted-foreground/50 mx-auto mb-2" />
+                        <p className="text-sm text-muted-foreground mb-3">No business types configured</p>
                         <Button
-                          variant="ghost"
+                          variant="outline"
                           size="sm"
-                          onClick={() => handleGenerateSummary(selectedClient.id)}
-                          disabled={generatingSummary}
-                          className="h-7 text-xs"
+                          onClick={() => handleEditBusinessTypes(selectedClient)}
                         >
-                          {generatingSummary ? (
-                            <>
-                              <div className="w-3 h-3 border-2 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mr-1" />
-                              Generating...
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="w-3 h-3 mr-1" />
-                              {selectedClient.ai_summary ? 'Refresh' : 'Generate'}
-                            </>
-                          )}
+                          <Plus className="w-3 h-3 mr-1.5" />
+                          Add Business Type
                         </Button>
                       </div>
-                      {selectedClient.ai_summary ? (
-                        <p className="text-sm text-foreground/80 leading-relaxed">
-                          {selectedClient.ai_summary}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground italic">
-                          No summary available - click "Generate" to create AI insights from meeting notes
-                        </p>
-                      )}
-                    </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Business Types */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-semibold text-foreground">Business Types</h3>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEditBusinessTypes(selectedClient)}
-                  >
-                    <Building2 className="w-4 h-4 mr-2" />
-                    Manage
-                  </Button>
-                </div>
-                {selectedClient.business_types_data && selectedClient.business_types_data.length > 0 ? (
-                  <div className="space-y-3">
-                    {selectedClient.business_types_data.map((bt, idx) => (
-                      <Card key={idx} className={`border-border/50 ${bt.not_proceeding ? 'bg-gray-50 opacity-75' : ''}`}>
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="inline-flex items-center px-2.5 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors"
-                                onClick={() => navigate(`/pipeline?businessType=${encodeURIComponent(bt.business_type)}`)}
-                                title={`View ${bt.business_type} in Pipeline`}
-                              >
-                                {bt.business_type}
-                              </span>
-                              {bt.not_proceeding && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-300">
-                                  Not Proceeding
-                                </span>
-                              )}
-                            </div>
-                            {bt.expected_close_date && (
-                              <span className="text-sm font-medium text-muted-foreground">
-                                Close: {new Date(bt.expected_close_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex gap-4 mb-3">
-                            {bt.iaf_expected && (
-                              <div>
-                                <span className="text-xs text-muted-foreground">Expected Fees</span>
-                                <div className="text-lg font-semibold text-foreground">
-                                  £{parseFloat(bt.iaf_expected).toLocaleString()}
-                                </div>
-                              </div>
-                            )}
-                            {bt.business_type === 'Investment' && bt.business_amount && (
-                              <div>
-                                <span className="text-xs text-muted-foreground">Investment Amount</span>
-                                <div className="text-lg font-semibold text-foreground">
-                                  £{parseFloat(bt.business_amount).toLocaleString()}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                          {bt.notes && (
-                            <div className="pt-3 border-t border-border/50">
-                              <span className="text-xs text-muted-foreground">Notes:</span>
-                              <p className="text-sm mt-1 text-foreground/80">{bt.notes}</p>
-                            </div>
-                          )}
-                          {bt.not_proceeding && bt.not_proceeding_reason && (
-                            <div className="pt-3 border-t border-border/50 mt-3">
-                              <span className="text-xs text-muted-foreground">Not Proceeding Reason:</span>
-                              <p className="text-sm mt-1 text-orange-700">{bt.not_proceeding_reason}</p>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
+              {/* Action Items Card */}
+              <Card className="border-border/50">
+                <CardContent className="p-0">
+                  <div className="flex items-center justify-between p-4 border-b border-border/50">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
+                      <h3 className="text-sm font-semibold text-foreground">Action Items</h3>
+                      {(() => {
+                        const pendingCount = (clientTodos?.filter(t => t.status !== 'completed').length || 0) +
+                          (clientActionItems?.reduce((sum, m) => sum + m.actionItems.filter(i => !i.completed).length, 0) || 0);
+                        return pendingCount > 0 ? (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300">
+                            {pendingCount} pending
+                          </span>
+                        ) : null;
+                      })()}
+                    </div>
                   </div>
-                ) : (
-                  <Card className="border-border/50">
-                    <CardContent className="p-6 text-center">
-                      <Building2 className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground mb-3">No business types set</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEditBusinessTypes(selectedClient)}
-                      >
-                        Add Business Type
-                      </Button>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
+                  <div className="p-4">
+                    {/* Add New Action Item Form */}
+                    <div className="mb-4">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Add new action item..."
+                          value={newActionItemText}
+                          onChange={(e) => setNewActionItemText(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleAddActionItem()}
+                          className="flex-1 h-9 text-sm"
+                        />
+                        <Button
+                          onClick={handleAddActionItem}
+                          disabled={!newActionItemText.trim() || addingActionItem}
+                          size="sm"
+                          className="h-9"
+                        >
+                          {addingActionItem ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <Plus className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
 
-              {/* Action Items Section */}
-              <div>
-                <h3 className="text-lg font-semibold text-foreground mb-3">Action Items</h3>
-
-                {/* Add New Action Item Form */}
-                <div className="mb-4">
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Add new action item..."
-                      value={newActionItemText}
-                      onChange={(e) => setNewActionItemText(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && handleAddActionItem()}
-                      className="flex-1"
-                    />
-                    <Button
-                      onClick={handleAddActionItem}
-                      disabled={!newActionItemText.trim() || addingActionItem}
-                      size="sm"
-                    >
-                      {addingActionItem ? (
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : (
-                        <Plus className="w-4 h-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Manual Todos (standalone action items) */}
-                {clientTodos && clientTodos.length > 0 && (
-                  <div className="space-y-2 mb-4">
-                    <p className="text-xs font-medium text-muted-foreground">Manual Action Items</p>
-                    {clientTodos.filter(t => t.status !== 'completed').map((todo) => (
-                      <Card key={todo.id} className="border-border/50">
-                        <CardContent className="p-3">
-                          <div className="flex items-start gap-3">
+                    {/* Manual Todos */}
+                    {clientTodos && clientTodos.length > 0 && (
+                      <div className="space-y-2 mb-4">
+                        <p className="text-xs font-medium text-muted-foreground">Manual Tasks</p>
+                        {clientTodos.filter(t => t.status !== 'completed').map((todo) => (
+                          <div key={todo.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/30">
                             <input
                               type="checkbox"
                               checked={false}
                               onChange={() => toggleTodoCompletion(todo.id, todo.status)}
-                              className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
+                              className="mt-0.5 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
                             />
-                            <div className="flex-1">
-                              <p className="text-sm text-foreground">{todo.title}</p>
-                            </div>
+                            <p className="text-sm text-foreground flex-1">{todo.title}</p>
                           </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                    {clientTodos.filter(t => t.status === 'completed').map((todo) => (
-                      <Card key={todo.id} className="border-border/50 bg-muted/30">
-                        <CardContent className="p-3">
-                          <div className="flex items-start gap-3">
+                        ))}
+                        {clientTodos.filter(t => t.status === 'completed').map((todo) => (
+                          <div key={todo.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/20 opacity-60">
                             <input
                               type="checkbox"
                               checked={true}
                               onChange={() => toggleTodoCompletion(todo.id, todo.status)}
-                              className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
+                              className="mt-0.5 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
                             />
-                            <div className="flex-1">
-                              <p className="text-sm line-through text-muted-foreground">{todo.title}</p>
-                            </div>
+                            <p className="text-sm line-through text-muted-foreground flex-1">{todo.title}</p>
                           </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                )}
+                        ))}
+                      </div>
+                    )}
 
-                {/* Meeting-extracted Action Items */}
-                {clientActionItems && clientActionItems.length > 0 && clientActionItems.some(m => m.actionItems.length > 0) ? (
-                  <div className="space-y-3">
-                    {clientActionItems.map(meeting => {
-                      const pendingItems = meeting.actionItems.filter(item => !item.completed);
-                      const completedItems = meeting.actionItems.filter(item => item.completed);
+                    {/* Meeting-extracted Action Items */}
+                    {clientActionItems && clientActionItems.length > 0 && clientActionItems.some(m => m.actionItems.length > 0) ? (
+                      <div className="space-y-3">
+                        {clientActionItems.map(meeting => {
+                          const pendingItems = meeting.actionItems.filter(item => !item.completed);
+                          const completedItems = meeting.actionItems.filter(item => item.completed);
+                          if (meeting.actionItems.length === 0) return null;
 
-                      if (meeting.actionItems.length === 0) return null;
-
-                      return (
-                        <div key={meeting.meetingId} className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs font-medium text-muted-foreground">
-                              From: {meeting.meetingTitle}
-                            </p>
-                            {pendingItems.length > 0 && (
-                              <span className="text-xs text-orange-600">
-                                {pendingItems.length} pending
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Pending Items */}
-                          {pendingItems.map((item) => (
-                            <Card key={item.id} className="border-border/50">
-                              <CardContent className="p-3">
-                                <div className="flex items-start gap-3">
+                          return (
+                            <div key={meeting.meetingId} className="space-y-2">
+                              <p className="text-xs font-medium text-muted-foreground flex items-center justify-between">
+                                <span>From: {meeting.meetingTitle}</span>
+                                {pendingItems.length > 0 && (
+                                  <span className="text-orange-600">{pendingItems.length} pending</span>
+                                )}
+                              </p>
+                              {pendingItems.map((item) => (
+                                <div key={item.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/30">
                                   <input
                                     type="checkbox"
                                     checked={false}
                                     onChange={() => toggleActionItemCompletion(item.id, item.completed)}
-                                    className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
+                                    className="mt-0.5 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
                                   />
-                                  <div className="flex-1">
-                                    <p className="text-sm text-foreground">
-                                      {item.actionText}
-                                    </p>
-                                  </div>
+                                  <p className="text-sm text-foreground flex-1">{item.actionText}</p>
                                 </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-
-                          {/* Completed Items */}
-                          {completedItems.map((item) => (
-                            <Card key={item.id} className="border-border/50 bg-muted/30">
-                              <CardContent className="p-3">
-                                <div className="flex items-start gap-3">
+                              ))}
+                              {completedItems.map((item) => (
+                                <div key={item.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/20 opacity-60">
                                   <input
                                     type="checkbox"
                                     checked={true}
                                     onChange={() => toggleActionItemCompletion(item.id, item.completed)}
-                                    className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
+                                    className="mt-0.5 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
                                   />
-                                  <div className="flex-1">
-                                    <p className="text-sm line-through text-muted-foreground">
-                                      {item.actionText}
-                                    </p>
-                                  </div>
+                                  <p className="text-sm line-through text-muted-foreground flex-1">{item.actionText}</p>
                                 </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : clientTodos.length === 0 && (
-                  <Card className="border-border/50">
-                    <CardContent className="p-6 text-center">
-                      <CheckCircle2 className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">
-                        No action items yet - add one above or they'll appear when extracted from meeting transcripts
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-
-              {/* Meetings Count Card */}
-              <Card className="border-border/50">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <Calendar className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold text-foreground">
-                        {selectedClient.meeting_count || 0}
+                              ))}
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {selectedClient.has_upcoming_meetings ?
-                          `${selectedClient.upcoming_meetings_count} upcoming` :
-                          'meetings'
-                        }
+                    ) : clientTodos.length === 0 && (
+                      <div className="text-center py-4">
+                        <CheckCircle2 className="w-6 h-6 text-muted-foreground/50 mx-auto mb-2" />
+                        <p className="text-xs text-muted-foreground">
+                          No action items yet. Add one above or they'll appear from meeting transcripts.
+                        </p>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Ask Advicly Inline Chat */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Sparkles className="w-4 h-4 text-primary" />
-                  <h3 className="text-sm font-semibold text-foreground">Ask Advicly</h3>
+              {/* ═══════════════════════════════════════════════════════════════════
+                  SECONDARY SECTIONS - Collapsed by default
+                  ═══════════════════════════════════════════════════════════════════ */}
+
+              {/* Ask Advicly - Collapsible */}
+              <Card className="border-border/50">
+                <div
+                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => setAskAdviclyCollapsed(!askAdviclyCollapsed)}
+                >
+                  <div className="flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4 text-primary" />
+                    <h3 className="text-sm font-semibold text-foreground">Ask Advicly</h3>
+                  </div>
+                  {askAdviclyCollapsed ? (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                  )}
                 </div>
-                <div className="h-[350px] rounded-lg border border-border/50 overflow-hidden">
-                  <InlineChatWidget
-                    contextType="client"
-                    contextData={{
-                      clientId: selectedClient.id,
-                      clientName: selectedClient.name,
-                      clientEmail: selectedClient.email,
-                      meetingCount: selectedClient.meetings?.length || 0,
-                      pipelineStatus: selectedClient.pipeline_stage || 'Unknown',
-                      likelyValue: selectedClient.likely_value || 0
-                    }}
-                    clientId={selectedClient.id}
-                    clientName={selectedClient.name}
-                  />
-                </div>
-              </div>
+                {!askAdviclyCollapsed && (
+                  <div className="border-t border-border/50">
+                    <div className="h-[350px] overflow-hidden">
+                      <InlineChatWidget
+                        contextType="client"
+                        contextData={{
+                          clientId: selectedClient.id,
+                          clientName: selectedClient.name,
+                          clientEmail: selectedClient.email,
+                          meetingCount: selectedClient.meetings?.length || 0,
+                          pipelineStatus: selectedClient.pipeline_stage || 'Unknown',
+                          likelyValue: selectedClient.likely_value || 0
+                        }}
+                        clientId={selectedClient.id}
+                        clientName={selectedClient.name}
+                      />
+                    </div>
+                  </div>
+                )}
+              </Card>
 
               {/* Meeting History - Collapsible */}
-              <div>
+              <Card className="border-border/50">
                 <div
-                  className="flex items-center justify-between mb-4 cursor-pointer group"
+                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/30 transition-colors"
                   onClick={() => setMeetingHistoryCollapsed(!meetingHistoryCollapsed)}
                 >
-                  <h3 className="text-lg font-semibold text-foreground">
-                    Meeting History
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold text-foreground">Meeting History</h3>
                     {selectedClient.meetings && selectedClient.meetings.length > 0 && (
-                      <span className="ml-2 text-sm font-normal text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         ({selectedClient.meetings.length})
                       </span>
                     )}
-                  </h3>
+                  </div>
                   {meetingHistoryCollapsed ? (
-                    <ChevronDown className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
                   ) : (
-                    <ChevronUp className="w-5 h-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    <ChevronUp className="w-4 h-4 text-muted-foreground" />
                   )}
                 </div>
-                {!meetingHistoryCollapsed && selectedClient.meetings && selectedClient.meetings.length > 0 ? (
-                  <div className="space-y-3">
-                    {selectedClient.meetings
-                      .sort((a, b) => new Date(b.starttime) - new Date(a.starttime))
-                      .map(meeting => {
-                        // Find action items for this meeting
-                        const meetingActionItems = clientActionItems.find(m => m.meetingId === meeting.id);
-                        const pendingItems = meetingActionItems?.actionItems.filter(item => !item.completed) || [];
-                        const completedItems = meetingActionItems?.actionItems.filter(item => item.completed) || [];
+                {!meetingHistoryCollapsed && (
+                  <div className="border-t border-border/50 p-4">
+                    {selectedClient.meetings && selectedClient.meetings.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedClient.meetings
+                          .sort((a, b) => new Date(b.starttime) - new Date(a.starttime))
+                          .map(meeting => {
+                            const meetingActionItems = clientActionItems.find(m => m.meetingId === meeting.id);
+                            const pendingItems = meetingActionItems?.actionItems.filter(item => !item.completed) || [];
+                            const completedItems = meetingActionItems?.actionItems.filter(item => item.completed) || [];
 
-                        return (
-                          <Card key={meeting.id} className="border-border/50">
-                            <CardContent className="p-4">
-                              <div className="flex items-start justify-between mb-2">
-                                <h4
-                                  className="font-medium text-foreground cursor-pointer hover:text-primary"
-                                  onClick={() => navigateToMeeting(meeting.googleeventid || meeting.id)}
-                                >
-                                  {meeting.title}
-                                </h4>
-                                <div className="flex items-center gap-2">
+                            return (
+                              <div
+                                key={meeting.id}
+                                className="p-3 rounded-lg bg-muted/30 border border-border/30 hover:bg-muted/50 transition-colors cursor-pointer"
+                                onClick={() => navigateToMeeting(meeting.googleeventid || meeting.id)}
+                              >
+                                <div className="flex items-start justify-between mb-1">
+                                  <h4 className="text-sm font-medium text-foreground hover:text-primary">
+                                    {meeting.title}
+                                  </h4>
                                   {isMeetingComplete(meeting) && (
                                     <div className="flex items-center gap-1 text-blue-600">
                                       <CheckCircle2 className="w-3 h-3" />
@@ -1333,76 +1413,68 @@ export default function Clients() {
                                     </div>
                                   )}
                                 </div>
-                              </div>
-                              <div className="text-xs text-muted-foreground mb-2">
-                                {formatDate(meeting.starttime)} • {new Date(meeting.starttime).toLocaleTimeString([], {
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </div>
-                              {meeting.quick_summary && (
-                                <div className="text-sm text-foreground mb-3">
-                                  {meeting.quick_summary}
+                                <div className="text-xs text-muted-foreground mb-2">
+                                  {formatDate(meeting.starttime)} • {new Date(meeting.starttime).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
                                 </div>
-                              )}
-
-                              {/* Action Items Summary */}
-                              {meetingActionItems && meetingActionItems.actionItems.length > 0 && (
-                                <div className="mt-3 pt-3 border-t border-border/50">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <span className="text-xs font-medium text-muted-foreground">Action Items</span>
-                                    <div className="flex items-center gap-2 text-xs">
-                                      {pendingItems.length > 0 && (
-                                        <span className="text-orange-600 font-medium">
-                                          {pendingItems.length} pending
-                                        </span>
-                                      )}
-                                      {completedItems.length > 0 && (
-                                        <span className="text-green-600">
-                                          {completedItems.length} completed
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className="space-y-1">
-                                    {pendingItems.slice(0, 3).map((item, idx) => (
-                                      <div key={idx} className="text-xs text-foreground flex items-start gap-2">
-                                        <span className="text-orange-600 mt-0.5">•</span>
-                                        <span className="flex-1">{item.actionText}</span>
-                                      </div>
-                                    ))}
-                                    {pendingItems.length > 3 && (
-                                      <div className="text-xs text-muted-foreground italic">
-                                        +{pendingItems.length - 3} more action items
-                                      </div>
+                                {meeting.quick_summary && (
+                                  <p className="text-xs text-foreground/80 line-clamp-2 mb-2">
+                                    {meeting.quick_summary}
+                                  </p>
+                                )}
+                                {meetingActionItems && meetingActionItems.actionItems.length > 0 && (
+                                  <div className="flex items-center gap-2 text-xs">
+                                    {pendingItems.length > 0 && (
+                                      <span className="text-orange-600">{pendingItems.length} pending</span>
+                                    )}
+                                    {completedItems.length > 0 && (
+                                      <span className="text-green-600">{completedItems.length} done</span>
                                     )}
                                   </div>
-                                </div>
-                              )}
-                            </CardContent>
-                          </Card>
-                        );
-                      })
-                    }
+                                )}
+                              </div>
+                            );
+                          })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4">
+                        <Calendar className="w-6 h-6 text-muted-foreground/50 mx-auto mb-2" />
+                        <p className="text-xs text-muted-foreground">No meetings found</p>
+                      </div>
+                    )}
                   </div>
-                ) : !meetingHistoryCollapsed ? (
-                  <Card className="border-border/50">
-                    <CardContent className="p-6 text-center">
-                      <Calendar className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">No meetings found</p>
-                    </CardContent>
-                  </Card>
-                ) : null}
-              </div>
+                )}
+              </Card>
 
-              {/* Documents Section */}
-              <div>
-                <ClientDocumentsSection
-                  clientId={selectedClient.id}
-                  clientName={selectedClient.name}
-                  meetings={selectedClient.meetings || []}
-                />
-              </div>
+              {/* Documents Section - Collapsible */}
+              <Card className="border-border/50">
+                <div
+                  className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => setDocumentsCollapsed(!documentsCollapsed)}
+                >
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold text-foreground">Documents</h3>
+                  </div>
+                  {documentsCollapsed ? (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </div>
+                {!documentsCollapsed && (
+                  <div className="border-t border-border/50 p-4">
+                    <ClientDocumentsSection
+                      clientId={selectedClient.id}
+                      clientName={selectedClient.name}
+                      meetings={selectedClient.meetings || []}
+                    />
+                  </div>
+                )}
+              </Card>
+
             </div>
           </div>
         </>
