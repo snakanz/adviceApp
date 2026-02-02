@@ -312,6 +312,7 @@ export default function Clients() {
 
   // Fetch action items and todos when client is selected
   // Also auto-generate summary if client has data but no summary (like pipeline pattern)
+  // Note: We intentionally only depend on selectedClient.id to avoid re-running on every state change
   useEffect(() => {
     if (selectedClient?.id) {
       fetchClientActionItems(selectedClient.id);
@@ -336,6 +337,7 @@ export default function Clients() {
       setClientActionItems([]);
       setClientTodos([]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedClient?.id]);
 
   // Sorting function

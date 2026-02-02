@@ -32,7 +32,6 @@ import {
   Bot,
   AlertCircle,
   Copy,
-  Eye,
   Send,
   MapPin,
   CheckSquare,
@@ -469,14 +468,13 @@ export default function Meetings() {
   const [emailSummary, setEmailSummary] = useState('');
   const [autoGenerating, setAutoGenerating] = useState(false);
 
-  // Template selection modal state
-  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  // Track which template was used to generate the current email (for state-aware button)
+  const [lastGeneratedTemplateId, setLastGeneratedTemplateId] = useState(null);
 
   // Streaming text state for typewriter effect
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
   const [streamingComplete, setStreamingComplete] = useState(false); // Track when streaming just finished
-  const [emailViewMode, setEmailViewMode] = useState('preview'); // 'preview' or 'plain'
   const [copiedEmail, setCopiedEmail] = useState(false); // For copy feedback
 
   // Add import dialog state
@@ -1442,6 +1440,9 @@ export default function Meetings() {
         setSnackbarSeverity('warning');
         return;
       }
+
+      // Track which template was used for state-aware button styling
+      setLastGeneratedTemplateId(templateToUse?.id || 'auto-template');
 
       setShowSnackbar(true);
       setSnackbarMessage(`✓ Email generated and auto-saved using ${templateToUse?.title || 'Advicly Summary'}`);
@@ -3102,165 +3103,118 @@ export default function Meetings() {
                       </Card>
                     )}
 
-                    {/* Show generate button when no email exists and not streaming */}
-                    {!isStreaming && !streamingComplete && !selectedMeeting?.email_summary_draft && selectedMeeting?.transcript && (
-                      <Card className="border-border/50 bg-gradient-to-br from-blue-500/5 to-blue-500/10">
-                        <CardContent className="p-6 text-center">
-                          <Mail className="w-12 h-12 mx-auto mb-4 text-blue-500" />
-                          <h3 className="text-lg font-semibold text-foreground mb-2">Generate Meeting Email</h3>
-                          <p className="text-sm text-muted-foreground mb-4">
-                            Create a professional email summary of this meeting using your templates.
-                          </p>
-                          <Button
-                            size="lg"
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                            onClick={() => setShowTemplateModal(true)}
-                            disabled={generatingSummary}
-                          >
-                            <Mail className="w-5 h-5 mr-2" />
-                            {generatingSummary ? 'Generating...' : 'Choose Template & Generate'}
-                          </Button>
-                          {selectedTemplate && (
-                            <p className="text-xs text-muted-foreground mt-2">
-                              Using: {selectedTemplate.title || 'Advicly Summary'}
-                            </p>
-                          )}
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {/* No transcript message */}
-                    {!isStreaming && !selectedMeeting?.transcript && (
+                    {/* Email Draft Section - Premium Inline Layout */}
+                    {selectedMeeting?.transcript ? (
                       <Card className="border-border/50">
-                        <CardContent className="p-6 text-center text-muted-foreground">
-                          <Mail className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                          <p>No transcript available. Email generation requires a meeting transcript.</p>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {/* Show email draft - either from streaming completion or from database */}
-                    {!isStreaming && (streamingComplete || selectedMeeting?.email_summary_draft) && (
-                      <div className="space-y-3">
-                        {/* Header with view toggle and actions */}
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                          <div className="flex items-center gap-2">
+                        <CardContent className="p-0">
+                          {/* Header */}
+                          <div className="p-4 border-b border-border/30">
                             <h3 className="text-sm font-semibold text-foreground">Email Draft</h3>
-                            {/* View mode toggle */}
-                            <div className="flex items-center bg-muted rounded-lg p-0.5">
-                              <button
-                                onClick={() => setEmailViewMode('preview')}
-                                className={cn(
-                                  "px-2 py-1 text-xs rounded-md transition-all",
-                                  emailViewMode === 'preview'
-                                    ? "bg-background text-foreground shadow-sm"
-                                    : "text-muted-foreground hover:text-foreground"
-                                )}
+                          </div>
+
+                          {/* Template Selector & Generate Button */}
+                          <div className="p-4 space-y-3 border-b border-border/30 bg-muted/20">
+                            {/* Template Dropdown */}
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-medium text-muted-foreground">Template</label>
+                              <Select
+                                value={selectedTemplate?.id || ''}
+                                onValueChange={(value) => {
+                                  const template = templates.find(t => t.id === value);
+                                  setSelectedTemplate(template);
+                                }}
                               >
-                                <Eye className="w-3 h-3 inline mr-1" />
-                                Preview
-                              </button>
-                              <button
-                                onClick={() => setEmailViewMode('plain')}
-                                className={cn(
-                                  "px-2 py-1 text-xs rounded-md transition-all",
-                                  emailViewMode === 'plain'
-                                    ? "bg-background text-foreground shadow-sm"
-                                    : "text-muted-foreground hover:text-foreground"
-                                )}
-                              >
-                                <FileText className="w-3 h-3 inline mr-1" />
-                                Plain Text
-                              </button>
+                                <SelectTrigger className="w-full h-10 bg-card border-border/50 hover:border-border focus:ring-1 focus:ring-primary/30 transition-colors">
+                                  <SelectValue placeholder="Select template" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {templates.map(template => (
+                                    <SelectItem key={template.id} value={template.id}>
+                                      {template.title}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
-                            {/* Generate New Email button - always visible when transcript exists */}
-                            {selectedMeeting?.transcript && (
-                              <div className="flex items-center gap-2">
-                                {currentSummaryTemplate && (
-                                  <span className="text-xs text-muted-foreground">
-                                    Template: {currentSummaryTemplate.title || 'Advicly Summary'}
-                                  </span>
-                                )}
+
+                            {/* Generate Button - State Aware */}
+                            <Button
+                              className={cn(
+                                "w-full h-10 font-medium transition-all duration-200",
+                                // Blue active state when: no email yet, or different template selected
+                                (!lastGeneratedTemplateId || selectedTemplate?.id !== lastGeneratedTemplateId)
+                                  ? "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                                  : "bg-muted hover:bg-muted/80 text-muted-foreground border border-border/50"
+                              )}
+                              disabled={generatingSummary || isStreaming || !selectedTemplate}
+                              onClick={handleGenerateAISummary}
+                            >
+                              {generatingSummary || isStreaming ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Generating...
+                                </>
+                              ) : (
+                                <>
+                                  <Mail className="w-4 h-4 mr-2" />
+                                  Generate Email
+                                </>
+                              )}
+                            </Button>
+                          </div>
+
+                          {/* Email Preview Section */}
+                          {!isStreaming && (streamingComplete || selectedMeeting?.email_summary_draft) && (
+                            <>
+                              {/* Action Bar */}
+                              <div className="flex items-center gap-2 px-4 py-2 border-b border-border/30 bg-muted/10">
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  onClick={() => setShowTemplateModal(true)}
-                                  disabled={generatingSummary || isStreaming}
-                                  className="h-7 text-xs"
+                                  onClick={() => {
+                                    const content = streamingComplete ? streamingContent : selectedMeeting?.email_summary_draft;
+                                    if (content) {
+                                      navigator.clipboard.writeText(content);
+                                      setCopiedEmail(true);
+                                      setTimeout(() => setCopiedEmail(false), 2000);
+                                      setShowSnackbar(true);
+                                      setSnackbarMessage('Email copied to clipboard');
+                                      setSnackbarSeverity('success');
+                                    }
+                                  }}
+                                  className="h-8 px-3 text-xs font-medium"
                                 >
-                                  <Mail className="w-3 h-3 mr-1" />
-                                  Generate New
+                                  {copiedEmail ? (
+                                    <>
+                                      <Check className="w-3.5 h-3.5 mr-1.5 text-green-500" />
+                                      Copied
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3.5 h-3.5 mr-1.5" />
+                                      Copy
+                                    </>
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const content = streamingComplete ? streamingContent : selectedMeeting?.email_summary_draft;
+                                    const clientEmail = selectedMeeting?.client?.email || '';
+                                    const meetingTitle = selectedMeeting?.title || 'Meeting Follow-up';
+                                    const subject = encodeURIComponent(`Follow-up: ${meetingTitle}`);
+                                    const body = encodeURIComponent(content || '');
+                                    window.location.href = `mailto:${clientEmail}?subject=${subject}&body=${body}`;
+                                  }}
+                                  className="h-8 px-3 text-xs font-medium"
+                                >
+                                  <Send className="w-3.5 h-3.5 mr-1.5" />
+                                  Send
                                 </Button>
                               </div>
-                            )}
-                          </div>
 
-                          {/* Action buttons */}
-                          <div className="flex items-center gap-1">
-                            {/* Copy to clipboard */}
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      const content = streamingComplete ? streamingContent : selectedMeeting?.email_summary_draft;
-                                      if (content) {
-                                        navigator.clipboard.writeText(content);
-                                        setCopiedEmail(true);
-                                        setTimeout(() => setCopiedEmail(false), 2000);
-                                        setShowSnackbar(true);
-                                        setSnackbarMessage('Email copied to clipboard');
-                                        setSnackbarSeverity('success');
-                                      }
-                                    }}
-                                    className="h-8 px-2"
-                                  >
-                                    {copiedEmail ? (
-                                      <Check className="w-4 h-4 text-green-500" />
-                                    ) : (
-                                      <Copy className="w-4 h-4" />
-                                    )}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Copy to clipboard</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-
-                            {/* Open in email client */}
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      const content = streamingComplete ? streamingContent : selectedMeeting?.email_summary_draft;
-                                      const clientEmail = selectedMeeting?.client?.email || '';
-                                      const meetingTitle = selectedMeeting?.title || 'Meeting Follow-up';
-                                      // Create mailto link with pre-filled recipient, subject and body
-                                      const subject = encodeURIComponent(`Follow-up: ${meetingTitle}`);
-                                      const body = encodeURIComponent(content || '');
-                                      window.location.href = `mailto:${clientEmail}?subject=${subject}&body=${body}`;
-                                    }}
-                                    className="h-8 px-2"
-                                  >
-                                    <Send className="w-4 h-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Open in email client</TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-
-                          </div>
-                        </div>
-
-                        {/* Email content card - glassy design */}
-                        <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
-                          <CardContent className="p-0">
-                            {emailViewMode === 'preview' ? (
-                              /* Email Preview Mode - styled like an email */
+                              {/* Email Preview Content */}
                               <div className="p-5">
                                 {/* Email header */}
                                 <div className="border-b border-border/30 pb-3 mb-4">
@@ -3284,17 +3238,28 @@ export default function Meetings() {
                                   {streamingComplete ? streamingContent : selectedMeeting?.email_summary_draft}
                                 </div>
                               </div>
-                            ) : (
-                              /* Plain Text Mode - for easy copying */
-                              <div className="p-4">
-                                <pre className="text-sm text-foreground whitespace-pre-wrap font-mono bg-muted/30 p-4 rounded-lg overflow-x-auto">
-                                  {streamingComplete ? streamingContent : selectedMeeting?.email_summary_draft}
-                                </pre>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </div>
+                            </>
+                          )}
+
+                          {/* Empty state when no email generated yet */}
+                          {!isStreaming && !streamingComplete && !selectedMeeting?.email_summary_draft && (
+                            <div className="p-8 text-center">
+                              <Mail className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
+                              <p className="text-sm text-muted-foreground">
+                                Select a template and click Generate to create your email
+                              </p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      /* No transcript message */
+                      <Card className="border-border/50">
+                        <CardContent className="p-6 text-center text-muted-foreground">
+                          <Mail className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                          <p>No transcript available. Email generation requires a meeting transcript.</p>
+                        </CardContent>
+                      </Card>
                     )}
                   </div>
                 )}
@@ -3905,112 +3870,7 @@ Example:
         currentSummary={summaryContent}
       />
 
-      {/* Template Selection Modal */}
-      {showTemplateModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-md flex items-center justify-center z-50 p-4">
-          <div className="bg-card/95 backdrop-blur-xl rounded-2xl shadow-2xl max-w-2xl w-full border border-border/30 overflow-hidden">
-            {/* Modal Header */}
-            <div className="p-6 border-b border-border/30">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold text-foreground">Select Email Template</h2>
-                  <p className="text-sm text-muted-foreground mt-1">Choose a template to generate your email summary</p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowTemplateModal(false)}
-                  className="h-8 w-8 p-0 hover:bg-white/10"
-                >
-                  <X className="w-5 h-5" />
-                </Button>
-              </div>
-            </div>
-
-            {/* Template List */}
-            <div className="p-6 max-h-[60vh] overflow-y-auto">
-              <div className="space-y-3">
-                {templates.map((template) => (
-                  <button
-                    key={template.id}
-                    onClick={() => setSelectedTemplate(template)}
-                    className={cn(
-                      "w-full text-left p-4 rounded-xl border transition-all duration-200",
-                      selectedTemplate?.id === template.id
-                        ? "border-primary bg-primary/10 shadow-lg shadow-primary/10 ring-1 ring-primary/30"
-                        : "border-border/40 bg-card/50 backdrop-blur-sm hover:bg-card/80 hover:border-border/60"
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Mail className={cn(
-                            "w-4 h-4",
-                            selectedTemplate?.id === template.id ? "text-primary" : "text-muted-foreground"
-                          )} />
-                          <h3 className={cn(
-                            "font-semibold",
-                            selectedTemplate?.id === template.id ? "text-primary" : "text-foreground"
-                          )}>{template.title}</h3>
-                          {selectedTemplate?.id === template.id && (
-                            <div className="ml-auto">
-                              <div className="w-5 h-5 bg-primary rounded-full flex items-center justify-center">
-                                <Check className="w-3 h-3 text-primary-foreground" />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground line-clamp-2">
-                          {template.description || 'Professional email template for meeting summaries'}
-                        </p>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-6 border-t border-border/30 bg-card/50">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">
-                  {selectedTemplate ? `Selected: ${selectedTemplate.title}` : 'Select a template above'}
-                </p>
-                <div className="flex items-center gap-3">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowTemplateModal(false)}
-                    className="border-border/50 hover:bg-card/80"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setShowTemplateModal(false);
-                      // Use standard generation flow with typewriter effect for all templates
-                      handleGenerateAISummary();
-                    }}
-                    disabled={!selectedTemplate || generatingSummary}
-                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
-                  >
-                    {generatingSummary ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin mr-2" />
-                        Generating...
-                      </>
-                    ) : (
-                      <>
-                        <Mail className="w-4 h-4 mr-2" />
-                        Generate Email
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Template Selection Modal - Removed: Now using inline dropdown in sidebar */}
 
 
       {/* Import Dialog */}
