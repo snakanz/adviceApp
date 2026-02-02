@@ -1618,7 +1618,31 @@ router.post('/:clientId/generate-pipeline-summary', authenticateSupabaseUser, as
 
     // Use the centralized service which aggregates across ALL meetings
     const { updatePipelineNextSteps } = require('../services/meetingSummaryService');
-    await updatePipelineNextSteps(req.supabase, userId, clientId);
+    const result = await updatePipelineNextSteps(req.supabase, userId, clientId);
+
+    // Check if generation was successful
+    if (!result.success) {
+      console.warn(`Pipeline summary generation failed for client ${clientId}: ${result.error}`);
+
+      // If there's an existing summary, return it as cached
+      if (client.pipeline_next_steps) {
+        return res.json({
+          summary: client.pipeline_next_steps,
+          generated_at: client.pipeline_next_steps_generated_at,
+          cached: true,
+          reason: `Using cached summary (generation failed: ${result.error})`
+        });
+      }
+
+      // No existing summary, return the error
+      return res.json({
+        summary: result.error || 'Unable to generate summary. Please ensure the client has business types configured.',
+        generated_at: new Date().toISOString(),
+        cached: false,
+        error: true,
+        reason: result.error
+      });
+    }
 
     // Fetch the updated summary
     const { data: updatedClient } = await req.supabase
@@ -1628,7 +1652,7 @@ router.post('/:clientId/generate-pipeline-summary', authenticateSupabaseUser, as
       .single();
 
     res.json({
-      summary: updatedClient?.pipeline_next_steps || 'Unable to generate summary.',
+      summary: updatedClient?.pipeline_next_steps || result.summary,
       generated_at: updatedClient?.pipeline_next_steps_generated_at || new Date().toISOString(),
       cached: false,
       reason: 'New summary generated'

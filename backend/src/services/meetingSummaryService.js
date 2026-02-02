@@ -269,89 +269,103 @@ async function generateMeetingOutputs({ supabase, userId, meetingId, transcript,
  * This provides a rolling, always-current view of the client relationship.
  */
 async function updateClientSummary(supabase, userId, clientId) {
-  if (!process.env.OPENAI_API_KEY) {
-    console.warn('⚠️ OPENAI_API_KEY not set - skipping client summary update');
-    return null;
-  }
-  const OpenAI = require('openai');
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  console.log(`\n👤 CLIENT SUMMARY GENERATION`);
+  console.log(`================================`);
+  console.log(`Client ID: ${clientId}, User ID: ${userId}`);
 
-  // Get client info
-  const { data: client, error: clientError } = await supabase
-    .from('clients')
-    .select('*')
-    .eq('id', clientId)
-    .eq('user_id', userId)
-    .single();
+  try {
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('❌ OPENAI_API_KEY not set');
+      return null;
+    }
+    const OpenAI = require('openai');
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  if (clientError || !client) {
-    throw new Error(`Client ${clientId} not found`);
-  }
+    // Get client info
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('id', clientId)
+      .eq('user_id', userId)
+      .single();
 
-  // Get ALL meetings for this client (most recent first, limit 10 for context)
-  const { data: meetings } = await supabase
-    .from('meetings')
-    .select('id, title, starttime, quick_summary, action_points, transcript')
-    .eq('client_id', clientId)
-    .eq('user_id', userId)
-    .order('starttime', { ascending: false })
-    .limit(10);
+    if (clientError || !client) {
+      console.error('❌ Client not found:', clientError?.message || 'No data returned');
+      throw new Error(`Client ${clientId} not found`);
+    }
 
-  const meetingsWithContent = (meetings || []).filter(m =>
-    m.quick_summary || m.action_points || m.transcript
-  );
+    console.log(`📋 Generating summary for: ${client.name}`);
 
-  // Get business types
-  const { data: businessTypes } = await supabase
-    .from('client_business_types')
-    .select('*')
-    .eq('client_id', clientId);
+    // Get ALL meetings for this client (most recent first, limit 10 for context)
+    const { data: meetings, error: meetingsError } = await supabase
+      .from('meetings')
+      .select('id, title, starttime, quick_summary, action_points, transcript')
+      .eq('client_id', clientId)
+      .eq('user_id', userId)
+      .order('starttime', { ascending: false })
+      .limit(10);
 
-  // Get pending action items across all meetings (guard against empty array)
-  let actionItems = [];
-  const meetingIds = (meetings || []).map(m => m.id).filter(Boolean);
-  if (meetingIds.length > 0) {
-    const { data: fetchedItems } = await supabase
-      .from('transcript_action_items')
-      .select('action_text, completed')
-      .eq('advisor_id', userId)
-      .in('meeting_id', meetingIds)
-      .eq('completed', false);
-    actionItems = fetchedItems || [];
-  }
+    if (meetingsError) {
+      console.warn('⚠️ Error fetching meetings:', meetingsError.message);
+    }
 
-  // Get client todos
-  const { data: clientTodos } = await supabase
-    .from('client_todos')
-    .select('title, status')
-    .eq('client_id', clientId)
-    .eq('status', 'pending');
+    console.log(`📅 Found ${meetings?.length || 0} meetings for context`);
 
-  // Build meeting context (recency-weighted: more detail for recent meetings)
-  const meetingContext = meetingsWithContent.map((m, idx) => {
-    const isRecent = idx < 3;
-    return `- ${new Date(m.starttime).toLocaleDateString()}: ${m.title}\n  ${isRecent ? (m.quick_summary || 'No summary') : (m.quick_summary?.substring(0, 80) || 'No summary')}${isRecent && m.action_points ? '\n  Actions: ' + m.action_points.substring(0, 200) : ''}`;
-  }).join('\n');
+    const meetingsWithContent = (meetings || []).filter(m =>
+      m.quick_summary || m.action_points || m.transcript
+    );
 
-  const businessContext = (businessTypes || []).map(bt =>
-    `- ${bt.business_type}: £${bt.business_amount?.toLocaleString() || 0} (IAF: £${bt.iaf_expected?.toLocaleString() || 0})`
-  ).join('\n');
+    // Get business types
+    const { data: businessTypes } = await supabase
+      .from('client_business_types')
+      .select('*')
+      .eq('client_id', clientId);
 
-  const pendingActions = [
-    ...actionItems.map(ai => ai.action_text),
-    ...(clientTodos || []).map(t => t.title)
-  ];
+    // Get pending action items across all meetings (guard against empty array)
+    let actionItems = [];
+    const meetingIds = (meetings || []).map(m => m.id).filter(Boolean);
+    if (meetingIds.length > 0) {
+      const { data: fetchedItems } = await supabase
+        .from('transcript_action_items')
+        .select('action_text, completed')
+        .eq('advisor_id', userId)
+        .in('meeting_id', meetingIds)
+        .eq('completed', false);
+      actionItems = fetchedItems || [];
+    }
 
-  // Calculate meeting stats
-  const now = new Date();
-  const totalMeetings = meetings?.length || 0;
-  const upcomingMeetings = (meetings || []).filter(m => new Date(m.starttime) > now);
-  const hasUpcoming = upcomingMeetings.length > 0;
-  const nextMeetingDate = hasUpcoming
-    ? upcomingMeetings.sort((a, b) => new Date(a.starttime) - new Date(b.starttime))[0].starttime
-    : null;
+    // Get client todos
+    const { data: clientTodos } = await supabase
+      .from('client_todos')
+      .select('title, status')
+      .eq('client_id', clientId)
+      .eq('status', 'pending');
 
-  const prompt = `You are a financial advisor's assistant. Generate a brief, professional summary (2-3 sentences) of where we're at with this client based on ALL their meetings and business information.
+    // Build meeting context (recency-weighted: more detail for recent meetings)
+    const meetingContext = meetingsWithContent.map((m, idx) => {
+      const isRecent = idx < 3;
+      return `- ${new Date(m.starttime).toLocaleDateString()}: ${m.title}\n  ${isRecent ? (m.quick_summary || 'No summary') : (m.quick_summary?.substring(0, 80) || 'No summary')}${isRecent && m.action_points ? '\n  Actions: ' + m.action_points.substring(0, 200) : ''}`;
+    }).join('\n');
+
+    const businessContext = (businessTypes || []).map(bt =>
+      `- ${bt.business_type}: £${bt.business_amount?.toLocaleString() || 0} (IAF: £${bt.iaf_expected?.toLocaleString() || 0})`
+    ).join('\n');
+
+    const pendingActions = [
+      ...actionItems.map(ai => ai.action_text),
+      ...(clientTodos || []).map(t => t.title)
+    ];
+
+    // Calculate meeting stats
+    const now = new Date();
+    const totalMeetings = meetings?.length || 0;
+    const upcomingMeetings = (meetings || []).filter(m => new Date(m.starttime) > now);
+    const hasUpcoming = upcomingMeetings.length > 0;
+    const nextMeetingDate = hasUpcoming
+      ? upcomingMeetings.sort((a, b) => new Date(a.starttime) - new Date(b.starttime))[0].starttime
+      : null;
+
+    const prompt = `You are a financial advisor's assistant. Generate a brief, professional summary (2-3 sentences) of where we're at with this client based on ALL their meetings and business information.
 
 Client: ${client.name}
 
@@ -376,34 +390,50 @@ ${pendingActions.length > 0 ? 'IMPORTANT: Mention the most critical pending acti
 
 Keep it professional, factual, and under 100 words. This should represent the OVERALL client relationship, not just the latest meeting.`;
 
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      {
-        role: 'system',
-        content: 'You are a professional financial advisor assistant. Generate concise, factual client summaries that aggregate information across all meetings.'
-      },
-      {
-        role: 'user',
-        content: prompt
-      }
-    ],
-    temperature: 0.5,
-    max_tokens: 200
-  });
+    console.log(`🤖 Calling OpenAI API...`);
 
-  const summary = completion.choices[0].message.content.trim();
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a professional financial advisor assistant. Generate concise, factual client summaries that aggregate information across all meetings.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.5,
+      max_tokens: 200
+    });
 
-  // Store updated summary
-  await supabase
-    .from('clients')
-    .update({
-      ai_summary: summary,
-      ai_summary_generated_at: new Date().toISOString()
-    })
-    .eq('id', clientId);
+    const summary = completion.choices[0].message.content.trim();
+    console.log(`✅ Generated summary: ${summary.substring(0, 80)}...`);
 
-  return summary;
+    // Store updated summary
+    const { error: updateError } = await supabase
+      .from('clients')
+      .update({
+        ai_summary: summary,
+        ai_summary_generated_at: new Date().toISOString()
+      })
+      .eq('id', clientId);
+
+    if (updateError) {
+      console.error('❌ Error saving summary:', updateError.message);
+    } else {
+      console.log(`✅ Client summary saved successfully`);
+    }
+
+    console.log(`================================\n`);
+    return summary;
+
+  } catch (error) {
+    console.error('❌ Error in updateClientSummary:', error.message);
+    console.error(error.stack);
+    throw error;
+  }
 }
 
 /**
@@ -412,63 +442,88 @@ Keep it professional, factual, and under 100 words. This should represent the OV
  * Returns true if updated, false if skipped.
  */
 async function updatePipelineNextSteps(supabase, userId, clientId) {
-  // Check if client has business types (pipeline entries)
-  const { data: businessTypes } = await supabase
-    .from('client_business_types')
-    .select('*')
-    .eq('client_id', clientId);
+  console.log(`\n📊 PIPELINE NEXT STEPS GENERATION`);
+  console.log(`================================`);
+  console.log(`Client ID: ${clientId}, User ID: ${userId}`);
 
-  if (!businessTypes || businessTypes.length === 0) {
-    return false; // No pipeline entries, skip
-  }
+  try {
+    // Check if client has business types (pipeline entries)
+    const { data: businessTypes, error: btError } = await supabase
+      .from('client_business_types')
+      .select('*')
+      .eq('client_id', clientId);
 
-  if (!process.env.OPENAI_API_KEY) {
-    console.warn('⚠️ OPENAI_API_KEY not set - skipping pipeline update');
-    return false;
-  }
-  const OpenAI = require('openai');
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    if (btError) {
+      console.error('❌ Error fetching business types:', btError.message);
+      return { success: false, error: 'Failed to fetch business types' };
+    }
 
-  // Get client info
-  const { data: client } = await supabase
-    .from('clients')
-    .select('name, pipeline_notes')
-    .eq('id', clientId)
-    .single();
+    if (!businessTypes || businessTypes.length === 0) {
+      console.log('⏭️ No business types found - skipping pipeline summary');
+      return { success: false, error: 'No business types configured for this client' };
+    }
 
-  if (!client) return false;
+    console.log(`✅ Found ${businessTypes.length} business types`);
 
-  // Get ALL meetings for context (limit to 5 most recent)
-  const { data: meetings } = await supabase
-    .from('meetings')
-    .select('title, starttime, quick_summary, action_points')
-    .eq('client_id', clientId)
-    .eq('user_id', userId)
-    .order('starttime', { ascending: false })
-    .limit(5);
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('❌ OPENAI_API_KEY not set');
+      return { success: false, error: 'OpenAI API key not configured' };
+    }
 
-  // Aggregate action points from all meetings
-  const allActionPoints = (meetings || [])
-    .filter(m => m.action_points)
-    .map(m => m.action_points)
-    .join('\n');
+    const OpenAI = require('openai');
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  // Build meeting summaries context
-  const meetingSummaries = (meetings || [])
-    .filter(m => m.quick_summary)
-    .map(m => `- ${new Date(m.starttime).toLocaleDateString()}: ${m.quick_summary}`)
-    .join('\n');
+    // Get client info
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('name, pipeline_notes')
+      .eq('id', clientId)
+      .single();
 
-  const businessContext = businessTypes.map(bt => ({
-    type: bt.business_type,
-    amount: bt.business_amount,
-    iaf: bt.iaf_expected,
-    expectedClose: bt.expected_close_date,
-    stage: bt.stage,
-    notes: bt.notes
-  }));
+    if (clientError || !client) {
+      console.error('❌ Client not found:', clientError?.message || 'No data returned');
+      return { success: false, error: 'Client not found' };
+    }
 
-  const prompt = `You are a financial advisor's assistant. Generate a brief, actionable summary (2-3 sentences maximum) explaining what needs to happen to finalize this business deal.
+    console.log(`📋 Generating summary for: ${client.name}`);
+
+    // Get ALL meetings for context (limit to 5 most recent)
+    const { data: meetings, error: meetingsError } = await supabase
+      .from('meetings')
+      .select('title, starttime, quick_summary, action_points')
+      .eq('client_id', clientId)
+      .eq('user_id', userId)
+      .order('starttime', { ascending: false })
+      .limit(5);
+
+    if (meetingsError) {
+      console.warn('⚠️ Error fetching meetings:', meetingsError.message);
+    }
+
+    console.log(`📅 Found ${meetings?.length || 0} meetings for context`);
+
+    // Aggregate action points from all meetings
+    const allActionPoints = (meetings || [])
+      .filter(m => m.action_points)
+      .map(m => m.action_points)
+      .join('\n');
+
+    // Build meeting summaries context
+    const meetingSummaries = (meetings || [])
+      .filter(m => m.quick_summary)
+      .map(m => `- ${new Date(m.starttime).toLocaleDateString()}: ${m.quick_summary}`)
+      .join('\n');
+
+    const businessContext = businessTypes.map(bt => ({
+      type: bt.business_type,
+      amount: bt.business_amount,
+      iaf: bt.iaf_expected,
+      expectedClose: bt.expected_close_date,
+      stage: bt.stage,
+      notes: bt.notes
+    }));
+
+    const prompt = `You are a financial advisor's assistant. Generate a brief, actionable summary (2-3 sentences maximum) explaining what needs to happen to finalize this business deal.
 
 Client: ${client.name}
 
@@ -493,34 +548,50 @@ Generate a concise, actionable summary that explains:
 
 Be specific and actionable. Focus on what needs to happen NOW to move this forward. Maximum 3 sentences.`;
 
-  const completion = await openai.chat.completions.create({
-    model: 'gpt-4o-mini',
-    messages: [
-      {
-        role: 'system',
-        content: 'You are a professional financial advisor assistant. Generate concise, actionable next steps for closing business deals, incorporating context from all client meetings.'
-      },
-      {
-        role: 'user',
-        content: prompt
-      }
-    ],
-    temperature: 0.5,
-    max_tokens: 150
-  });
+    console.log(`🤖 Calling OpenAI API...`);
 
-  const summary = completion.choices[0].message.content.trim();
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a professional financial advisor assistant. Generate concise, actionable next steps for closing business deals, incorporating context from all client meetings.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.5,
+      max_tokens: 150
+    });
 
-  // Store updated pipeline summary
-  await supabase
-    .from('clients')
-    .update({
-      pipeline_next_steps: summary,
-      pipeline_next_steps_generated_at: new Date().toISOString()
-    })
-    .eq('id', clientId);
+    const summary = completion.choices[0].message.content.trim();
+    console.log(`✅ Generated summary: ${summary.substring(0, 80)}...`);
 
-  return true;
+    // Store updated pipeline summary
+    const { error: updateError } = await supabase
+      .from('clients')
+      .update({
+        pipeline_next_steps: summary,
+        pipeline_next_steps_generated_at: new Date().toISOString()
+      })
+      .eq('id', clientId);
+
+    if (updateError) {
+      console.error('❌ Error saving summary:', updateError.message);
+      return { success: false, error: 'Failed to save summary', summary };
+    }
+
+    console.log(`✅ Pipeline summary saved successfully`);
+    console.log(`================================\n`);
+    return { success: true, summary };
+
+  } catch (error) {
+    console.error('❌ Error in updatePipelineNextSteps:', error.message);
+    console.error(error.stack);
+    return { success: false, error: error.message };
+  }
 }
 
 module.exports = {
