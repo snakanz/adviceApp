@@ -1624,7 +1624,18 @@ router.post('/:clientId/generate-pipeline-summary', authenticateSupabaseUser, as
     if (!result.success) {
       console.warn(`Pipeline summary generation failed for client ${clientId}: ${result.error}`);
 
-      // If there's an existing summary, return it as cached
+      // If OpenAI succeeded but save failed, we still have the summary
+      if (result.summary) {
+        console.log(`Returning generated summary despite save failure`);
+        return res.json({
+          summary: result.summary,
+          generated_at: new Date().toISOString(),
+          cached: false,
+          reason: `Summary generated (save failed: ${result.error})`
+        });
+      }
+
+      // If there's an existing cached summary, return it
       if (client.pipeline_next_steps) {
         return res.json({
           summary: client.pipeline_next_steps,
@@ -1634,7 +1645,7 @@ router.post('/:clientId/generate-pipeline-summary', authenticateSupabaseUser, as
         });
       }
 
-      // No existing summary, return the error
+      // No summary available at all, return error
       return res.json({
         summary: result.error || 'Unable to generate summary. Please ensure the client has business types configured.',
         generated_at: new Date().toISOString(),

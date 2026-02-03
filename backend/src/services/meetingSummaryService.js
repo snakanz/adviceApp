@@ -569,14 +569,15 @@ Be specific and actionable. Focus on what needs to happen NOW to move this forwa
     const summary = completion.choices[0].message.content.trim();
     console.log(`✅ Generated summary: ${summary.substring(0, 80)}...`);
 
-    // Store updated pipeline summary
+    // Store updated pipeline summary (include user_id for RLS)
     const { error: updateError } = await supabase
       .from('clients')
       .update({
         pipeline_next_steps: summary,
         pipeline_next_steps_generated_at: new Date().toISOString()
       })
-      .eq('id', clientId);
+      .eq('id', clientId)
+      .eq('user_id', userId);
 
     if (updateError) {
       console.error('❌ Error saving summary:', updateError.message);
