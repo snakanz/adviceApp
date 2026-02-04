@@ -18,10 +18,7 @@ import {
   Sparkles,
   CheckCircle,
   Calendar,
-  Clock,
-  FileText,
-  PenTool,
-  Loader2
+  Clock
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -316,48 +313,6 @@ export default function Pipeline() {
       .slice(0, 2);
   };
 
-
-  // Calculate pipeline status breakdown for the selected month
-  // Shows: In Progress, Completed, Not Written, Waiting to Sign
-  const statusBreakdown = useMemo(() => {
-    const monthKey = `${currentMonth.getFullYear()}-${String(currentMonth.getMonth() + 1).padStart(2, '0')}`;
-
-    // Get clients for the selected month
-    const monthClients = clients.filter(client => client.expectedMonth === monthKey);
-
-    // Initialize breakdown with the 4 statuses from STAGE_OPTIONS
-    const breakdown = {
-      'In Progress': { count: 0, total: 0, color: 'blue', icon: Loader2 },
-      'Completed': { count: 0, total: 0, color: 'green', icon: CheckCircle },
-      'Not Written': { count: 0, total: 0, color: 'gray', icon: FileText },
-      'Waiting to Sign': { count: 0, total: 0, color: 'yellow', icon: PenTool }
-    };
-
-    // Track unique clients per stage (to avoid double-counting when client has multiple business types)
-    const clientsPerStage = {
-      'In Progress': new Set(),
-      'Completed': new Set(),
-      'Not Written': new Set(),
-      'Waiting to Sign': new Set()
-    };
-
-    monthClients.forEach(client => {
-      const stage = client.stage || 'Not Written';
-      const value = parseFloat(client.expectedFees) || 0;
-
-      if (breakdown[stage]) {
-        // Count unique clients
-        if (!clientsPerStage[stage].has(client.clientId)) {
-          clientsPerStage[stage].add(client.clientId);
-          breakdown[stage].count += 1;
-        }
-        // Sum total value (can include multiple business types)
-        breakdown[stage].total += value;
-      }
-    });
-
-    return breakdown;
-  }, [clients, currentMonth]);
 
   const handleClientClick = async (client) => {
     // Normalize client data for the detail panel
@@ -841,34 +796,36 @@ export default function Pipeline() {
               <div style={{ minWidth: '1200px' }}>
                 {/* Loading Table Header */}
                 <div className="bg-card/95 border-b border-border/50 px-4 lg:px-6 py-3">
-                  <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4">
-                    {[...Array(5)].map((_, i) => (
-                      <div key={i} className="h-4 bg-muted rounded animate-pulse"></div>
-                    ))}
+                  <div className="grid grid-cols-12 gap-4">
+                    <div className="col-span-4 h-4 bg-muted rounded animate-pulse"></div>
+                    <div className="col-span-2 h-4 bg-muted rounded animate-pulse"></div>
+                    <div className="col-span-2 h-4 bg-muted rounded animate-pulse"></div>
+                    <div className="col-span-2 h-4 bg-muted rounded animate-pulse"></div>
+                    <div className="col-span-2 h-4 bg-muted rounded animate-pulse"></div>
                   </div>
                 </div>
 
                 {/* Loading Table Body */}
                 <div className="px-4 lg:px-6">
                   {[...Array(8)].map((_, i) => (
-                    <div key={i} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 py-3 border-b border-border/30">
-                      <div className="flex items-center gap-2">
+                    <div key={i} className="grid grid-cols-12 gap-4 py-3 border-b border-border/30">
+                      <div className="col-span-4 flex items-center gap-2">
                         <div className="w-8 h-8 bg-muted rounded-full animate-pulse flex-shrink-0"></div>
                         <div className="flex-1 space-y-1.5">
                           <div className="h-4 bg-muted rounded animate-pulse w-3/4"></div>
                           <div className="h-3 bg-muted rounded animate-pulse w-1/2"></div>
                         </div>
                       </div>
-                      <div className="flex items-center justify-end">
+                      <div className="col-span-2 flex items-center justify-end">
                         <div className="h-4 bg-muted rounded animate-pulse w-16"></div>
                       </div>
-                      <div className="flex items-center justify-center">
+                      <div className="col-span-2 flex items-center justify-center">
                         <div className="h-6 bg-muted rounded animate-pulse w-20"></div>
                       </div>
-                      <div className="flex items-center justify-end">
+                      <div className="col-span-2 flex items-center justify-end">
                         <div className="h-4 bg-muted rounded animate-pulse w-14"></div>
                       </div>
-                      <div className="flex items-center justify-end">
+                      <div className="col-span-2 flex items-center justify-end">
                         <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
                       </div>
                     </div>
@@ -884,11 +841,11 @@ export default function Pipeline() {
 
   return (
     <div className="bg-background flex" style={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
-      {/* Main Content Area - Flex Column with strict overflow control */}
+      {/* Main Content Area - Locked width, no horizontal overflow */}
       <div className={cn(
         "flex-1 min-w-0 flex flex-col",
         showDetailPanel ? "lg:mr-96" : ""
-      )} style={{ overflow: 'hidden' }}>
+      )} style={{ overflow: 'hidden', maxWidth: 'calc(100vw - 280px)', overflowX: 'hidden' }}>
         {/* Fixed Header Section - flex-shrink-0 keeps it pinned at top */}
         <div className="flex-shrink-0 border-b border-border/50 p-4 lg:p-6 bg-card/50" style={{ overflow: 'hidden' }}>
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
@@ -1068,66 +1025,7 @@ export default function Pipeline() {
         {/* Scrollable Body - Independent vertical scroll zone */}
         <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
           <div className="p-4 lg:p-6">
-            {/* Pipeline Status Breakdown - Responsive Grid */}
-            <div className="mb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-              {/* In Progress */}
-              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <Loader2 className="w-3 h-3 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                    <span className="text-[10px] font-medium text-blue-800 dark:text-blue-200">In Progress</span>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-bold text-blue-700 dark:text-blue-300">{formatCurrency(statusBreakdown['In Progress'].total)}</div>
-                    <div className="text-[9px] text-blue-600 dark:text-blue-400">{statusBreakdown['In Progress'].count}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Waiting to Sign */}
-              <div className="bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <PenTool className="w-3 h-3 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
-                    <span className="text-[10px] font-medium text-yellow-800 dark:text-yellow-200">Waiting</span>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-bold text-yellow-700 dark:text-yellow-300">{formatCurrency(statusBreakdown['Waiting to Sign'].total)}</div>
-                    <div className="text-[9px] text-yellow-600 dark:text-yellow-400">{statusBreakdown['Waiting to Sign'].count}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Not Written */}
-              <div className="bg-gray-50 dark:bg-gray-950/30 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <FileText className="w-3 h-3 text-gray-600 dark:text-gray-400 flex-shrink-0" />
-                    <span className="text-[10px] font-medium text-gray-800 dark:text-gray-200">Not Written</span>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-bold text-gray-700 dark:text-gray-300">{formatCurrency(statusBreakdown['Not Written'].total)}</div>
-                    <div className="text-[9px] text-gray-600 dark:text-gray-400">{statusBreakdown['Not Written'].count}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Completed */}
-              <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5">
-                    <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400 flex-shrink-0" />
-                    <span className="text-[10px] font-medium text-green-800 dark:text-green-200">Completed</span>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm font-bold text-green-700 dark:text-green-300">{formatCurrency(statusBreakdown['Completed'].total)}</div>
-                    <div className="text-[9px] text-green-600 dark:text-green-400">{statusBreakdown['Completed'].count}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          {/* Overdue/No Date Section - Moved Below Monthly Tabs */}
+          {/* Overdue/No Date Section - Below Month Tabs */}
           {(() => {
             const overdueClients = getOverdueOrNoDateClients();
             if (overdueClients.length === 0) return null;
@@ -1283,14 +1181,14 @@ export default function Pipeline() {
           {/* Pipeline Table - ONLY this div scrolls horizontally */}
           <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <div style={{ minWidth: '1200px' }}>
-              {/* Table Header - Fixed Grid Widths */}
+              {/* Table Header - Strict grid-cols-12 */}
               <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-3 z-10">
-                <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  <div className="px-2">Client & Business Type</div>
-                  <div className="px-2 text-right">Amount</div>
-                  <div className="px-2 text-center">Stage</div>
-                  <div className="px-2 text-right">Fee</div>
-                  <div className="px-2 text-right">Next Meeting</div>
+                <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  <div className="col-span-4 px-2">Client & Business Type</div>
+                  <div className="col-span-2 px-2 text-right">Amount</div>
+                  <div className="col-span-2 px-2 text-center">Stage</div>
+                  <div className="col-span-2 px-2 text-right">Fee</div>
+                  <div className="col-span-2 px-2 text-right">Next Meeting</div>
                 </div>
               </div>
 
@@ -1300,10 +1198,10 @@ export default function Pipeline() {
                   <div
                     key={client.id}
                     onClick={() => handleClientClick({ ...client.fullClient, ...client, fullClient: client.fullClient })}
-                    className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 py-3 border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-all duration-200 group"
+                    className="grid grid-cols-12 gap-4 py-3 border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-all duration-200 group"
                   >
                     {/* Client Information & Business Type */}
-                    <div className="px-2 flex items-center gap-2">
+                    <div className="col-span-4 px-2 flex items-center gap-2">
                       <Avatar className="w-8 h-8 flex-shrink-0">
                         <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
                           {getInitials(client.name, client.email)}
@@ -1334,7 +1232,7 @@ export default function Pipeline() {
                     </div>
 
                     {/* Amount (Investment/Business Amount) */}
-                    <div className="px-2 flex items-center justify-end">
+                    <div className="col-span-2 px-2 flex items-center justify-end">
                       <div className="text-right">
                         <div className="text-sm font-semibold text-foreground">
                           {client.investmentAmount > 0 ? formatCurrency(client.investmentAmount) : '-'}
@@ -1344,7 +1242,7 @@ export default function Pipeline() {
                     </div>
 
                     {/* Stage Dropdown */}
-                    <div className="px-2 flex items-center" onClick={(e) => e.stopPropagation()}>
+                    <div className="col-span-2 px-2 flex items-center" onClick={(e) => e.stopPropagation()}>
                       {client.businessTypeId ? (
                         <Select
                           value={client.stage || 'Not Written'}
@@ -1377,7 +1275,7 @@ export default function Pipeline() {
                     </div>
 
                     {/* Fee (IAF Expected) */}
-                    <div className="px-2 flex items-center justify-end">
+                    <div className="col-span-2 px-2 flex items-center justify-end">
                       <div className="text-right">
                         <div className="text-sm font-semibold text-foreground">
                           {client.expectedFees > 0 ? formatCurrency(client.expectedFees) : '-'}
@@ -1387,7 +1285,7 @@ export default function Pipeline() {
                     </div>
 
                     {/* Next Meeting */}
-                    <div className="px-2 flex items-center justify-end gap-1">
+                    <div className="col-span-2 px-2 flex items-center justify-end gap-1">
                       <div className={cn(
                         "flex-shrink-0 w-2 h-2 rounded-full",
                         client.nextMeetingDate ? "bg-green-500" : "bg-red-500"
