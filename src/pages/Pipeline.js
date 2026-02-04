@@ -728,8 +728,8 @@ export default function Pipeline() {
   if (loading) {
     return (
       <div className="bg-background flex" style={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
-        {/* Main Content Area */}
-        <div className="flex-1 min-w-0 flex flex-col" style={{ overflow: 'hidden' }}>
+        {/* Main Content Area - Same width lock as loaded state */}
+        <div className="flex-1 min-w-0 flex flex-col" style={{ overflow: 'hidden', maxWidth: 'calc(100vw - 280px)', overflowX: 'hidden' }}>
           {/* Fixed Header Section */}
           <div className="flex-shrink-0 border-b border-border/50 p-4 lg:p-6 bg-card/50" style={{ overflow: 'hidden' }}>
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
@@ -769,24 +769,6 @@ export default function Pipeline() {
           {/* Scrollable Body */}
           <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
             <div className="p-4 lg:p-6">
-              {/* Loading Status Cards */}
-              <div className="mb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                {[...Array(4)].map((_, i) => (
-                  <div key={i} className="bg-muted/30 border border-border rounded-lg p-3 animate-pulse">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-muted"></div>
-                        <div className="h-3 bg-muted rounded w-16"></div>
-                      </div>
-                      <div className="text-right">
-                        <div className="h-5 bg-muted rounded w-20 mb-1"></div>
-                        <div className="h-3 bg-muted rounded w-8"></div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
               {/* Loading Search */}
               <div className="h-10 bg-muted rounded animate-pulse mb-4"></div>
             </div>
