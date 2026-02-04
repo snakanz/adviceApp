@@ -791,9 +791,9 @@ export default function Pipeline() {
               <div className="h-10 bg-muted rounded animate-pulse mb-4"></div>
             </div>
 
-            {/* Loading Table - Only this scrolls horizontally */}
-            <div style={{ overflowX: 'auto' }}>
-              <div style={{ minWidth: '1200px' }}>
+            {/* Loading Table - No horizontal scroll */}
+            <div style={{ overflowX: 'hidden' }}>
+              <div>
                 {/* Loading Table Header */}
                 <div className="bg-card/95 border-b border-border/50 px-4 lg:px-6 py-3">
                   <div className="grid grid-cols-12 gap-4">
@@ -1178,9 +1178,9 @@ export default function Pipeline() {
             </div>
           </div>
 
-          {/* Pipeline Table - ONLY this div scrolls horizontally */}
-          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <div style={{ minWidth: '1200px' }}>
+          {/* Pipeline Table - No horizontal scroll */}
+          <div style={{ overflowX: 'hidden' }}>
+            <div>
               {/* Table Header - Strict grid-cols-12 */}
               <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-3 z-10">
                 <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
