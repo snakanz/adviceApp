@@ -772,11 +772,12 @@ export default function Pipeline() {
 
   if (loading) {
     return (
-      <div className="bg-background min-h-screen w-full max-w-[100vw] overflow-x-hidden box-border">
-        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 w-full min-w-0 overflow-hidden box-border">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+      <div className="bg-background h-screen w-full overflow-hidden flex flex-col">
+        {/* Fixed Header Section */}
+        <div className="flex-shrink-0 border-b border-border/50 p-4 lg:p-6 bg-card/50">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-foreground mb-2">Client Pipeline</h1>
+              <h1 className="text-2xl font-bold text-foreground mb-1">Client Pipeline</h1>
               <div className="h-4 bg-muted rounded w-64 animate-pulse"></div>
             </div>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
@@ -785,7 +786,7 @@ export default function Pipeline() {
             </div>
           </div>
 
-          {/* Loading Month Navigation Header */}
+          {/* Loading Month Navigation */}
           <div className="flex items-center justify-between mb-3">
             <div className="h-4 bg-muted rounded w-24 animate-pulse"></div>
             <div className="flex items-center gap-2">
@@ -794,71 +795,83 @@ export default function Pipeline() {
             </div>
           </div>
 
-          {/* Loading Monthly Tabs */}
-          <div className="mb-6">
-            <div className="flex gap-1 overflow-x-auto pb-2">
-              {[...Array(12)].map((_, i) => (
-                <div key={i} className="flex-shrink-0 h-16 bg-muted rounded min-w-[120px] animate-pulse"></div>
-              ))}
-            </div>
-          </div>
-
-          {/* Loading Status Breakdown Cards */}
-          <div className="mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 max-w-full overflow-hidden">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="bg-muted/30 border border-border rounded-lg p-4 animate-pulse">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-8 h-8 rounded-full bg-muted"></div>
-                    <div className="h-4 bg-muted rounded w-20"></div>
-                  </div>
-                  <div className="h-8 bg-muted rounded w-24 mb-1"></div>
-                  <div className="h-3 bg-muted rounded w-16"></div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Loading Search */}
-          <div className="h-10 bg-muted rounded animate-pulse"></div>
-        </div>
-
-        <div>
-          <div>
-            {/* Loading Table Header */}
-            <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-3 z-10">
-              <div className="grid grid-cols-12 gap-3 lg:gap-4">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="h-4 bg-muted rounded animate-pulse col-span-2"></div>
+          {/* Loading Monthly Tabs Carousel */}
+          <div className="flex items-center gap-2">
+            <div className="h-10 w-10 bg-muted rounded animate-pulse flex-shrink-0"></div>
+            <div className="flex-1 overflow-hidden">
+              <div className="flex gap-2">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className="flex-shrink-0 h-14 bg-muted rounded w-24 animate-pulse"></div>
                 ))}
               </div>
             </div>
+            <div className="h-10 w-10 bg-muted rounded animate-pulse flex-shrink-0"></div>
+          </div>
+        </div>
 
-            {/* Loading Table Body */}
-            <div className="px-4 lg:px-6 space-y-4 py-4">
-              {[...Array(8)].map((_, i) => (
-                <div key={i} className="grid grid-cols-12 gap-3 lg:gap-4 py-4">
-                  <div className="col-span-3 flex items-center gap-3">
-                    <div className="w-10 h-10 bg-muted rounded-full animate-pulse flex-shrink-0"></div>
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-muted rounded animate-pulse"></div>
-                      <div className="h-3 bg-muted rounded w-3/4 animate-pulse"></div>
-                      <div className="flex gap-1">
-                        <div className="h-5 bg-muted rounded w-16 animate-pulse"></div>
-                        <div className="h-5 bg-muted rounded w-12 animate-pulse"></div>
-                      </div>
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="p-4 lg:p-6">
+            {/* Loading Status Cards */}
+            <div className="mb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="bg-muted/30 border border-border rounded-lg p-3 animate-pulse">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-muted"></div>
+                      <div className="h-3 bg-muted rounded w-16"></div>
                     </div>
-                  </div>
-                  {[...Array(5)].map((_, j) => (
-                    <div key={j} className="col-span-2 flex items-center">
-                      <div className="h-4 bg-muted rounded animate-pulse w-full"></div>
+                    <div className="text-right">
+                      <div className="h-5 bg-muted rounded w-20 mb-1"></div>
+                      <div className="h-3 bg-muted rounded w-8"></div>
                     </div>
-                  ))}
-                  <div className="col-span-1 flex items-center justify-center">
-                    <div className="h-6 w-12 bg-muted rounded-full animate-pulse"></div>
                   </div>
                 </div>
               ))}
+            </div>
+
+            {/* Loading Search */}
+            <div className="h-10 bg-muted rounded animate-pulse mb-4"></div>
+          </div>
+
+          {/* Loading Table */}
+          <div className="overflow-x-auto">
+            <div className="min-w-[1000px]">
+              {/* Loading Table Header */}
+              <div className="bg-card/95 border-b border-border/50 px-4 lg:px-6 py-3">
+                <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1.5fr] gap-4">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className="h-4 bg-muted rounded animate-pulse"></div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Loading Table Body */}
+              <div className="px-4 lg:px-6">
+                {[...Array(8)].map((_, i) => (
+                  <div key={i} className="grid grid-cols-[2fr_1fr_1fr_1fr_1.5fr] gap-4 py-3 border-b border-border/30">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-muted rounded-full animate-pulse flex-shrink-0"></div>
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-4 bg-muted rounded animate-pulse w-3/4"></div>
+                        <div className="h-3 bg-muted rounded animate-pulse w-1/2"></div>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-end">
+                      <div className="h-4 bg-muted rounded animate-pulse w-16"></div>
+                    </div>
+                    <div className="flex items-center">
+                      <div className="h-6 bg-muted rounded animate-pulse w-20"></div>
+                    </div>
+                    <div className="flex items-center justify-end">
+                      <div className="h-4 bg-muted rounded animate-pulse w-14"></div>
+                    </div>
+                    <div className="flex items-center justify-end">
+                      <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -867,17 +880,17 @@ export default function Pipeline() {
   }
 
   return (
-    <div className="bg-background min-h-screen w-full max-w-[100vw] overflow-x-hidden box-border">
-      {/* Main Content - Locked width container with sidebar offset */}
+    <div className="bg-background h-screen w-full overflow-hidden flex flex-col">
+      {/* Main Content - View Container with sidebar offset */}
       <div className={cn(
-        "pb-8 min-w-0 box-border",
-        showDetailPanel ? "w-[calc(100vw-384px)] mr-0 lg:mr-96" : "w-full"
+        "flex flex-col h-full min-w-0",
+        showDetailPanel ? "lg:mr-96" : ""
       )}>
-        {/* Header */}
-        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 w-full min-w-0 overflow-hidden box-border">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+        {/* Fixed Header Section - flex-shrink-0 keeps it pinned */}
+        <div className="flex-shrink-0 border-b border-border/50 p-4 lg:p-6 bg-card/50">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-foreground mb-2">Client Pipeline</h1>
+              <h1 className="text-2xl font-bold text-foreground mb-1">Client Pipeline</h1>
               <p className="text-sm text-muted-foreground">
                 Manage your client pipeline and track business opportunities
               </p>
@@ -890,7 +903,7 @@ export default function Pipeline() {
                 <Plus className="w-4 h-4" />
                 Create Client
               </Button>
-              <div className="text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg">
+              <div className="text-sm text-muted-foreground bg-muted/50 px-3 py-2 rounded-lg whitespace-nowrap">
                 Total Pipeline Value: <span className="font-semibold text-foreground">
                   {formatCurrency(clients.reduce((total, client) => total + (client.expectedFees || 0), 0))}
                 </span>
@@ -898,8 +911,8 @@ export default function Pipeline() {
             </div>
           </div>
 
-          {/* Month Navigation */}
-          <div className="mb-6">
+          {/* Month Navigation - Independent Carousel */}
+          <div className="mb-0">
             {/* Month Selector Header with Jump to Month */}
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
@@ -979,13 +992,13 @@ export default function Pipeline() {
               </div>
             </div>
 
-            {/* Compact Month Slider - True Isolated horizontal scroll */}
-            <div className="w-full max-w-full relative flex items-center gap-2 overflow-hidden">
-              {/* Left Scroll Button - Always visible */}
+            {/* Compact Month Slider - Independent Carousel */}
+            <div className="w-full relative flex items-center gap-2">
+              {/* Left Scroll Button */}
               <Button
                 variant="outline"
                 size="sm"
-                className="flex-shrink-0 h-10 w-10 p-0 z-10"
+                className="flex-shrink-0 h-10 w-10 p-0"
                 onClick={() => {
                   const container = document.getElementById('month-tabs-container');
                   if (container) container.scrollBy({ left: -200, behavior: 'smooth' });
@@ -994,12 +1007,11 @@ export default function Pipeline() {
                 <ChevronLeft className="w-4 h-4" />
               </Button>
 
-              {/* Month Tabs - True isolated scroll container */}
-              <div className="flex-1 min-w-0 max-w-full overflow-hidden">
+              {/* Month Tabs - Carousel with isolated horizontal scroll */}
+              <div className="flex-1 min-w-0 overflow-x-auto whitespace-nowrap" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
                 <div
                   id="month-tabs-container"
-                  className="flex flex-nowrap gap-2 overflow-x-auto whitespace-nowrap scroll-smooth max-w-full"
-                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
+                  className="inline-flex gap-2"
                 >
                   {months.map((month) => {
                     const monthTotal = getMonthlyTotal(month);
@@ -1033,7 +1045,7 @@ export default function Pipeline() {
                 </div>
               </div>
 
-              {/* Right Scroll Button - Always visible */}
+              {/* Right Scroll Button */}
               <Button
                 variant="outline"
                 size="sm"
@@ -1047,65 +1059,69 @@ export default function Pipeline() {
               </Button>
             </div>
           </div>
+        </div>
 
-          {/* Pipeline Status Breakdown - Responsive Grid with xl breakpoint */}
-          <div className="mb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-1 max-w-full overflow-hidden">
-            {/* In Progress */}
-            <div className="min-w-0 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2 overflow-hidden">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                  <Loader2 className="w-3 h-3 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                  <span className="text-[10px] font-medium text-blue-800 dark:text-blue-200 truncate">In Progress</span>
+        {/* Scrollable Body - Contains status cards, search, and table */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="p-4 lg:p-6">
+            {/* Pipeline Status Breakdown - Responsive Grid */}
+            <div className="mb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              {/* In Progress */}
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <Loader2 className="w-3 h-3 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                    <span className="text-[10px] font-medium text-blue-800 dark:text-blue-200">In Progress</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-blue-700 dark:text-blue-300">{formatCurrency(statusBreakdown['In Progress'].total)}</div>
+                    <div className="text-[9px] text-blue-600 dark:text-blue-400">{statusBreakdown['In Progress'].count}</div>
+                  </div>
                 </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-sm font-bold text-blue-700 dark:text-blue-300 truncate">{formatCurrency(statusBreakdown['In Progress'].total)}</div>
-                  <div className="text-[9px] text-blue-600 dark:text-blue-400 truncate">{statusBreakdown['In Progress'].count}</div>
+              </div>
+
+              {/* Waiting to Sign */}
+              <div className="bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <PenTool className="w-3 h-3 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
+                    <span className="text-[10px] font-medium text-yellow-800 dark:text-yellow-200">Waiting</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-yellow-700 dark:text-yellow-300">{formatCurrency(statusBreakdown['Waiting to Sign'].total)}</div>
+                    <div className="text-[9px] text-yellow-600 dark:text-yellow-400">{statusBreakdown['Waiting to Sign'].count}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Not Written */}
+              <div className="bg-gray-50 dark:bg-gray-950/30 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <FileText className="w-3 h-3 text-gray-600 dark:text-gray-400 flex-shrink-0" />
+                    <span className="text-[10px] font-medium text-gray-800 dark:text-gray-200">Not Written</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-gray-700 dark:text-gray-300">{formatCurrency(statusBreakdown['Not Written'].total)}</div>
+                    <div className="text-[9px] text-gray-600 dark:text-gray-400">{statusBreakdown['Not Written'].count}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Completed */}
+              <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400 flex-shrink-0" />
+                    <span className="text-[10px] font-medium text-green-800 dark:text-green-200">Completed</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-bold text-green-700 dark:text-green-300">{formatCurrency(statusBreakdown['Completed'].total)}</div>
+                    <div className="text-[9px] text-green-600 dark:text-green-400">{statusBreakdown['Completed'].count}</div>
+                  </div>
                 </div>
               </div>
             </div>
-
-            {/* Waiting to Sign */}
-            <div className="min-w-0 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg px-3 py-2 overflow-hidden">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                  <PenTool className="w-3 h-3 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
-                  <span className="text-[10px] font-medium text-yellow-800 dark:text-yellow-200 truncate">Waiting</span>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-sm font-bold text-yellow-700 dark:text-yellow-300 truncate">{formatCurrency(statusBreakdown['Waiting to Sign'].total)}</div>
-                  <div className="text-[9px] text-yellow-600 dark:text-yellow-400 truncate">{statusBreakdown['Waiting to Sign'].count}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Not Written */}
-            <div className="min-w-0 bg-gray-50 dark:bg-gray-950/30 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 overflow-hidden">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                  <FileText className="w-3 h-3 text-gray-600 dark:text-gray-400 flex-shrink-0" />
-                  <span className="text-[10px] font-medium text-gray-800 dark:text-gray-200 truncate">Not Written</span>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-sm font-bold text-gray-700 dark:text-gray-300 truncate">{formatCurrency(statusBreakdown['Not Written'].total)}</div>
-                  <div className="text-[9px] text-gray-600 dark:text-gray-400 truncate">{statusBreakdown['Not Written'].count}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Completed */}
-            <div className="min-w-0 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2 overflow-hidden">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
-                  <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400 flex-shrink-0" />
-                  <span className="text-[10px] font-medium text-green-800 dark:text-green-200 truncate">Completed</span>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-sm font-bold text-green-700 dark:text-green-300 truncate">{formatCurrency(statusBreakdown['Completed'].total)}</div>
-                  <div className="text-[9px] text-green-600 dark:text-green-400 truncate">{statusBreakdown['Completed'].count}</div>
-                </div>
-              </div>
-            </div>
-          </div>
 
           {/* Overdue/No Date Section - Moved Below Monthly Tabs */}
           {(() => {
@@ -1231,162 +1247,162 @@ export default function Pipeline() {
             );
           })()}
 
-          {/* Search and Filters */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search clients by name, email, or stage..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-            {/* Business Type Filter Badge */}
-            {businessTypeFilter && (
-              <div className="flex items-center gap-2 bg-blue-100 text-blue-800 px-3 py-2 rounded-lg">
-                <span className="text-sm font-medium">
-                  Filtered by: {businessTypeFilter}
-                </span>
-                <button
-                  onClick={() => setSearchParams({})}
-                  className="hover:bg-blue-200 rounded-full p-0.5 transition-colors"
-                  title="Clear filter"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+            {/* Search and Filters */}
+            <div className="flex flex-col sm:flex-row gap-3 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search clients by name, email, or stage..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="pl-10"
+                />
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Pipeline Table - True scroll-container pattern */}
-        <div className="w-full max-w-full overflow-x-auto overflow-y-visible box-border" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div className="min-w-[900px] w-max">
-            {/* Table Header */}
-            <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-3 z-10">
-              <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                <div className="col-span-3 px-2">Client & Business Type</div>
-                <div className="col-span-2 px-2 text-right">Amount</div>
-                <div className="col-span-2 px-2">Stage</div>
-                <div className="col-span-2 px-2 text-right">Fee</div>
-                <div className="col-span-3 px-2 text-right">Next Meeting</div>
-              </div>
-            </div>
-
-            {/* Table Body */}
-            <div className="px-4 lg:px-6">
-              {filteredClients.map((client) => (
-                <div
-                  key={client.id}
-                  onClick={() => handleClientClick({ ...client.fullClient, ...client, fullClient: client.fullClient })}
-                  className="grid grid-cols-12 gap-4 py-3 border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-all duration-200 group rounded-lg hover:shadow-sm"
-                >
-                  {/* Client Information & Business Type */}
-                  <div className="col-span-3 px-2 flex items-center gap-2">
-                    <Avatar className="w-8 h-8 flex-shrink-0">
-                      <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
-                        {getInitials(client.name, client.email)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-semibold text-sm text-foreground truncate">
-                        {client.name || client.email}
-                      </div>
-                      {/* Business Type Badges */}
-                      <div className="flex flex-wrap gap-1 mt-0.5">
-                        {client.allBusinessTypes && client.allBusinessTypes.length > 0 ? (
-                          client.allBusinessTypes.slice(0, 2).map((bt, index) => (
-                            <Badge key={index} className={cn("text-[10px] px-1.5 py-0", getBusinessTypeColor(bt.business_type))}>
-                              {bt.business_type}
-                            </Badge>
-                          ))
-                        ) : (
-                          <Badge className={cn("text-[10px] px-1.5 py-0", getBusinessTypeColor(client.businessType))}>
-                            {client.businessType}
-                          </Badge>
-                        )}
-                        {client.allBusinessTypes && client.allBusinessTypes.length > 2 && (
-                          <span className="text-[10px] text-muted-foreground">+{client.allBusinessTypes.length - 2}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Amount (Investment/Business Amount) */}
-                  <div className="col-span-2 px-2 flex items-center justify-end">
-                    <div className="text-right">
-                      <div className="text-sm font-semibold text-foreground">
-                        {client.investmentAmount > 0 ? formatCurrency(client.investmentAmount) : '-'}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">Amount</div>
-                    </div>
-                  </div>
-
-                  {/* Stage Dropdown */}
-                  <div className="col-span-2 px-2 flex items-center" onClick={(e) => e.stopPropagation()}>
-                    {client.businessTypeId ? (
-                      <Select
-                        value={client.stage || 'Not Written'}
-                        onValueChange={(value) => handleStageChange(client.businessTypeId, value)}
-                      >
-                        <SelectTrigger className="h-7 text-xs w-full max-w-[120px]">
-                          <SelectValue>
-                            <span className={cn(
-                              "px-1.5 py-0.5 rounded text-[10px]",
-                              client.stage === 'Signed' ? 'bg-yellow-500/20 text-yellow-400' :
-                              STAGE_OPTIONS.find(opt => opt.value === client.stage)?.color || 'bg-gray-500/20 text-gray-300'
-                            )}>
-                              {client.stage || 'Not Written'}
-                            </span>
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent>
-                          {STAGE_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                              <span className={cn("px-1.5 py-0.5 rounded text-[10px]", option.color)}>
-                                {option.label}
-                              </span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">-</span>
-                    )}
-                  </div>
-
-                  {/* Fee (IAF Expected) */}
-                  <div className="col-span-2 px-2 flex items-center justify-end">
-                    <div className="text-right">
-                      <div className="text-sm font-semibold text-foreground">
-                        {client.expectedFees > 0 ? formatCurrency(client.expectedFees) : '-'}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">Fee</div>
-                    </div>
-                  </div>
-
-                  {/* Next Meeting */}
-                  <div className="col-span-3 px-2 flex items-center justify-end gap-1">
-                    <div className={cn(
-                      "flex-shrink-0 w-2 h-2 rounded-full",
-                      client.nextMeetingDate ? "bg-green-500" : "bg-red-500"
-                    )} />
-                    <div className="text-right">
-                      <div className={cn(
-                        "text-xs",
-                        client.nextMeetingDate ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
-                      )}>
-                        {client.nextMeetingDate ? formatDate(client.nextMeetingDate) : 'No meeting'}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">
-                        {client.pastMeetingCount} past
-                      </div>
-                    </div>
-                  </div>
+              {/* Business Type Filter Badge */}
+              {businessTypeFilter && (
+                <div className="flex items-center gap-2 bg-blue-100 text-blue-800 px-3 py-2 rounded-lg">
+                  <span className="text-sm font-medium">
+                    Filtered by: {businessTypeFilter}
+                  </span>
+                  <button
+                    onClick={() => setSearchParams({})}
+                    className="hover:bg-blue-200 rounded-full p-0.5 transition-colors"
+                    title="Clear filter"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-              ))}
+              )}
             </div>
+          </div>
+
+          {/* Pipeline Table - Isolated horizontal scroll container */}
+          <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+            <div className="min-w-[1000px]">
+              {/* Table Header - Rigid Grid */}
+              <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-3 z-10">
+                <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1.5fr] gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  <div className="px-2">Client & Business Type</div>
+                  <div className="px-2 text-right">Amount</div>
+                  <div className="px-2">Stage</div>
+                  <div className="px-2 text-right">Fee</div>
+                  <div className="px-2 text-right">Next Meeting</div>
+                </div>
+              </div>
+
+              {/* Table Body */}
+              <div className="px-4 lg:px-6">
+                {filteredClients.map((client) => (
+                  <div
+                    key={client.id}
+                    onClick={() => handleClientClick({ ...client.fullClient, ...client, fullClient: client.fullClient })}
+                    className="grid grid-cols-[2fr_1fr_1fr_1fr_1.5fr] gap-4 py-3 border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-all duration-200 group"
+                  >
+                    {/* Client Information & Business Type */}
+                    <div className="px-2 flex items-center gap-2">
+                      <Avatar className="w-8 h-8 flex-shrink-0">
+                        <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
+                          {getInitials(client.name, client.email)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-sm text-foreground truncate">
+                          {client.name || client.email}
+                        </div>
+                        {/* Business Type Badges */}
+                        <div className="flex flex-wrap gap-1 mt-0.5">
+                          {client.allBusinessTypes && client.allBusinessTypes.length > 0 ? (
+                            client.allBusinessTypes.slice(0, 2).map((bt, index) => (
+                              <Badge key={index} className={cn("text-[10px] px-1.5 py-0", getBusinessTypeColor(bt.business_type))}>
+                                {bt.business_type}
+                              </Badge>
+                            ))
+                          ) : (
+                            <Badge className={cn("text-[10px] px-1.5 py-0", getBusinessTypeColor(client.businessType))}>
+                              {client.businessType}
+                            </Badge>
+                          )}
+                          {client.allBusinessTypes && client.allBusinessTypes.length > 2 && (
+                            <span className="text-[10px] text-muted-foreground">+{client.allBusinessTypes.length - 2}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Amount (Investment/Business Amount) */}
+                    <div className="px-2 flex items-center justify-end">
+                      <div className="text-right">
+                        <div className="text-sm font-semibold text-foreground">
+                          {client.investmentAmount > 0 ? formatCurrency(client.investmentAmount) : '-'}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">Amount</div>
+                      </div>
+                    </div>
+
+                    {/* Stage Dropdown */}
+                    <div className="px-2 flex items-center" onClick={(e) => e.stopPropagation()}>
+                      {client.businessTypeId ? (
+                        <Select
+                          value={client.stage || 'Not Written'}
+                          onValueChange={(value) => handleStageChange(client.businessTypeId, value)}
+                        >
+                          <SelectTrigger className="h-7 text-xs w-full max-w-[120px]">
+                            <SelectValue>
+                              <span className={cn(
+                                "px-1.5 py-0.5 rounded text-[10px]",
+                                client.stage === 'Signed' ? 'bg-yellow-500/20 text-yellow-400' :
+                                STAGE_OPTIONS.find(opt => opt.value === client.stage)?.color || 'bg-gray-500/20 text-gray-300'
+                              )}>
+                                {client.stage || 'Not Written'}
+                              </span>
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STAGE_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                <span className={cn("px-1.5 py-0.5 rounded text-[10px]", option.color)}>
+                                  {option.label}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </div>
+
+                    {/* Fee (IAF Expected) */}
+                    <div className="px-2 flex items-center justify-end">
+                      <div className="text-right">
+                        <div className="text-sm font-semibold text-foreground">
+                          {client.expectedFees > 0 ? formatCurrency(client.expectedFees) : '-'}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">Fee</div>
+                      </div>
+                    </div>
+
+                    {/* Next Meeting */}
+                    <div className="px-2 flex items-center justify-end gap-1">
+                      <div className={cn(
+                        "flex-shrink-0 w-2 h-2 rounded-full",
+                        client.nextMeetingDate ? "bg-green-500" : "bg-red-500"
+                      )} />
+                      <div className="text-right">
+                        <div className={cn(
+                          "text-xs",
+                          client.nextMeetingDate ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                        )}>
+                          {client.nextMeetingDate ? formatDate(client.nextMeetingDate) : 'No meeting'}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground">
+                          {client.pastMeetingCount} past
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
             {/* Empty State */}
             {filteredClients.length === 0 && (
@@ -1423,6 +1439,7 @@ export default function Pipeline() {
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
 
