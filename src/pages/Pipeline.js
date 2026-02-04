@@ -772,8 +772,8 @@ export default function Pipeline() {
 
   if (loading) {
     return (
-      <div className="bg-background">
-        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50">
+      <div className="bg-background min-h-screen overflow-x-hidden">
+        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 overflow-hidden">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-bold text-foreground mb-2">Client Pipeline</h1>
@@ -867,14 +867,14 @@ export default function Pipeline() {
   }
 
   return (
-    <div className="bg-background">
+    <div className="bg-background min-h-screen overflow-x-hidden">
       {/* Main Content */}
       <div className={cn(
-        "pb-8",
+        "pb-8 max-w-full",
         showDetailPanel ? "mr-0 lg:mr-96" : ""
       )}>
         {/* Header */}
-        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50">
+        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 overflow-hidden">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-bold text-foreground mb-2">Client Pipeline</h1>
@@ -1048,10 +1048,10 @@ export default function Pipeline() {
             </div>
           </div>
 
-          {/* Pipeline Status Breakdown - Inline Compact */}
-          <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+          {/* Pipeline Status Breakdown - Responsive Grid */}
+          <div className="mb-4 grid grid-cols-2 lg:grid-cols-4 gap-2 pb-1">
             {/* In Progress */}
-            <div className="flex-1 min-w-0 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <Loader2 className="w-3 h-3 text-blue-600 dark:text-blue-400 flex-shrink-0" />
@@ -1065,7 +1065,7 @@ export default function Pipeline() {
             </div>
 
             {/* Waiting to Sign */}
-            <div className="flex-1 min-w-0 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg px-3 py-2">
+            <div className="bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg px-3 py-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <PenTool className="w-3 h-3 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
@@ -1079,7 +1079,7 @@ export default function Pipeline() {
             </div>
 
             {/* Not Written */}
-            <div className="flex-1 min-w-0 bg-gray-50 dark:bg-gray-950/30 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
+            <div className="bg-gray-50 dark:bg-gray-950/30 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <FileText className="w-3 h-3 text-gray-600 dark:text-gray-400 flex-shrink-0" />
@@ -1093,7 +1093,7 @@ export default function Pipeline() {
             </div>
 
             {/* Completed */}
-            <div className="flex-1 min-w-0 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
+            <div className="bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400 flex-shrink-0" />
@@ -1261,7 +1261,7 @@ export default function Pipeline() {
         </div>
 
         {/* Pipeline Table */}
-        <div>
+        <div className="overflow-hidden">
           <div>
             {/* Table Header */}
             <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-3 z-10">

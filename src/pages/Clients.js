@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
+import { Checkbox } from '../components/ui/checkbox';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { useDebounce } from '../hooks/useDebounce';
 import {
@@ -156,8 +157,32 @@ export default function Clients() {
 
   // Toggle action item completion
   const toggleActionItemCompletion = async (actionItemId, currentCompleted) => {
+    // Optimistic update - immediately update UI
+    setClientActionItems(prevItems =>
+      prevItems.map(meeting => ({
+        ...meeting,
+        actionItems: meeting.actionItems.map(item =>
+          item.id === actionItemId
+            ? { ...item, completed: !item.completed }
+            : item
+        )
+      }))
+    );
+
     try {
-      const token = localStorage.getItem('jwt');
+      // Use same auth method as fetchClientActionItems for consistency
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        console.error('No auth token available');
+        // Revert optimistic update on auth failure
+        if (selectedClient?.id) {
+          await fetchClientActionItems(selectedClient.id);
+        }
+        return;
+      }
+
       const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com'}/api/transcript-action-items/action-items/${actionItemId}/toggle`, {
         method: 'PATCH',
         headers: {
@@ -167,15 +192,23 @@ export default function Clients() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to toggle action item');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to toggle action item:', response.status, errorData);
+        // Revert optimistic update on API failure
+        if (selectedClient?.id) {
+          await fetchClientActionItems(selectedClient.id);
+        }
+        return;
       }
 
-      // Refresh action items after toggle
+      // Success - the optimistic update is already in place
+      console.log('Action item toggled successfully');
+    } catch (error) {
+      console.error('Error toggling action item:', error);
+      // Revert optimistic update on error
       if (selectedClient?.id) {
         await fetchClientActionItems(selectedClient.id);
       }
-    } catch (error) {
-      console.error('Error toggling action item:', error);
     }
   };
 
@@ -220,20 +253,32 @@ export default function Clients() {
 
   // Toggle todo completion
   const toggleTodoCompletion = async (todoId, currentStatus) => {
+    const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+
+    // Optimistic update - immediately update UI
+    setClientTodos(prevTodos =>
+      prevTodos.map(todo =>
+        todo.id === todoId
+          ? { ...todo, status: newStatus }
+          : todo
+      )
+    );
+
     try {
       await api.request(`/pipeline/todos/${todoId}`, {
         method: 'PUT',
         body: JSON.stringify({
-          status: currentStatus === 'completed' ? 'pending' : 'completed'
+          status: newStatus
         })
       });
 
-      // Refresh todos after toggle
+      console.log('Todo toggled successfully');
+    } catch (error) {
+      console.error('Error toggling todo:', error);
+      // Revert optimistic update on error
       if (selectedClient?.id) {
         await fetchClientTodos(selectedClient.id);
       }
-    } catch (error) {
-      console.error('Error toggling todo:', error);
     }
   };
 
@@ -1247,23 +1292,21 @@ export default function Clients() {
                       <div className="space-y-2 mb-4">
                         <p className="text-xs font-medium text-muted-foreground">Manual Tasks</p>
                         {clientTodos.filter(t => t.status !== 'completed').map((todo) => (
-                          <div key={todo.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/30">
-                            <input
-                              type="checkbox"
+                          <div key={todo.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                            <Checkbox
                               checked={false}
-                              onChange={() => toggleTodoCompletion(todo.id, todo.status)}
-                              className="mt-0.5 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
+                              onCheckedChange={() => toggleTodoCompletion(todo.id, todo.status)}
+                              className="mt-0.5"
                             />
                             <p className="text-sm text-foreground flex-1">{todo.title}</p>
                           </div>
                         ))}
                         {clientTodos.filter(t => t.status === 'completed').map((todo) => (
-                          <div key={todo.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/20 opacity-60">
-                            <input
-                              type="checkbox"
+                          <div key={todo.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/20 opacity-60 hover:opacity-80 transition-opacity">
+                            <Checkbox
                               checked={true}
-                              onChange={() => toggleTodoCompletion(todo.id, todo.status)}
-                              className="mt-0.5 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
+                              onCheckedChange={() => toggleTodoCompletion(todo.id, todo.status)}
+                              className="mt-0.5"
                             />
                             <p className="text-sm line-through text-muted-foreground flex-1">{todo.title}</p>
                           </div>
@@ -1288,23 +1331,21 @@ export default function Clients() {
                                 )}
                               </p>
                               {pendingItems.map((item) => (
-                                <div key={item.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/30">
-                                  <input
-                                    type="checkbox"
+                                <div key={item.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                                  <Checkbox
                                     checked={false}
-                                    onChange={() => toggleActionItemCompletion(item.id, item.completed)}
-                                    className="mt-0.5 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
+                                    onCheckedChange={() => toggleActionItemCompletion(item.id, item.completed)}
+                                    className="mt-0.5"
                                   />
                                   <p className="text-sm text-foreground flex-1">{item.actionText}</p>
                                 </div>
                               ))}
                               {completedItems.map((item) => (
-                                <div key={item.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/20 opacity-60">
-                                  <input
-                                    type="checkbox"
+                                <div key={item.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/20 opacity-60 hover:opacity-80 transition-opacity">
+                                  <Checkbox
                                     checked={true}
-                                    onChange={() => toggleActionItemCompletion(item.id, item.completed)}
-                                    className="mt-0.5 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
+                                    onCheckedChange={() => toggleActionItemCompletion(item.id, item.completed)}
+                                    className="mt-0.5"
                                   />
                                   <p className="text-sm line-through text-muted-foreground flex-1">{item.actionText}</p>
                                 </div>
