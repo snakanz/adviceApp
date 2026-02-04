@@ -772,9 +772,11 @@ export default function Pipeline() {
 
   if (loading) {
     return (
-      <div className="bg-background h-screen w-full overflow-hidden flex flex-col">
-        {/* Fixed Header Section */}
-        <div className="flex-shrink-0 border-b border-border/50 p-4 lg:p-6 bg-card/50">
+      <div className="bg-background flex" style={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
+        {/* Main Content Area */}
+        <div className="flex-1 min-w-0 flex flex-col" style={{ overflow: 'hidden' }}>
+          {/* Fixed Header Section */}
+          <div className="flex-shrink-0 border-b border-border/50 p-4 lg:p-6 bg-card/50" style={{ overflow: 'hidden' }}>
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
             <div>
               <h1 className="text-2xl font-bold text-foreground mb-1">Client Pipeline</h1>
@@ -809,68 +811,69 @@ export default function Pipeline() {
           </div>
         </div>
 
-        {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden">
-          <div className="p-4 lg:p-6">
-            {/* Loading Status Cards */}
-            <div className="mb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="bg-muted/30 border border-border rounded-lg p-3 animate-pulse">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-muted"></div>
-                      <div className="h-3 bg-muted rounded w-16"></div>
-                    </div>
-                    <div className="text-right">
-                      <div className="h-5 bg-muted rounded w-20 mb-1"></div>
-                      <div className="h-3 bg-muted rounded w-8"></div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Loading Search */}
-            <div className="h-10 bg-muted rounded animate-pulse mb-4"></div>
-          </div>
-
-          {/* Loading Table */}
-          <div className="overflow-x-auto">
-            <div className="min-w-[1000px]">
-              {/* Loading Table Header */}
-              <div className="bg-card/95 border-b border-border/50 px-4 lg:px-6 py-3">
-                <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1.5fr] gap-4">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="h-4 bg-muted rounded animate-pulse"></div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Loading Table Body */}
-              <div className="px-4 lg:px-6">
-                {[...Array(8)].map((_, i) => (
-                  <div key={i} className="grid grid-cols-[2fr_1fr_1fr_1fr_1.5fr] gap-4 py-3 border-b border-border/30">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 bg-muted rounded-full animate-pulse flex-shrink-0"></div>
-                      <div className="flex-1 space-y-1.5">
-                        <div className="h-4 bg-muted rounded animate-pulse w-3/4"></div>
-                        <div className="h-3 bg-muted rounded animate-pulse w-1/2"></div>
+          {/* Scrollable Body */}
+          <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+            <div className="p-4 lg:p-6">
+              {/* Loading Status Cards */}
+              <div className="mb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="bg-muted/30 border border-border rounded-lg p-3 animate-pulse">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-muted"></div>
+                        <div className="h-3 bg-muted rounded w-16"></div>
                       </div>
-                    </div>
-                    <div className="flex items-center justify-end">
-                      <div className="h-4 bg-muted rounded animate-pulse w-16"></div>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="h-6 bg-muted rounded animate-pulse w-20"></div>
-                    </div>
-                    <div className="flex items-center justify-end">
-                      <div className="h-4 bg-muted rounded animate-pulse w-14"></div>
-                    </div>
-                    <div className="flex items-center justify-end">
-                      <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
+                      <div className="text-right">
+                        <div className="h-5 bg-muted rounded w-20 mb-1"></div>
+                        <div className="h-3 bg-muted rounded w-8"></div>
+                      </div>
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* Loading Search */}
+              <div className="h-10 bg-muted rounded animate-pulse mb-4"></div>
+            </div>
+
+            {/* Loading Table - Only this scrolls horizontally */}
+            <div style={{ overflowX: 'auto' }}>
+              <div style={{ minWidth: '1200px' }}>
+                {/* Loading Table Header */}
+                <div className="bg-card/95 border-b border-border/50 px-4 lg:px-6 py-3">
+                  <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4">
+                    {[...Array(5)].map((_, i) => (
+                      <div key={i} className="h-4 bg-muted rounded animate-pulse"></div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Loading Table Body */}
+                <div className="px-4 lg:px-6">
+                  {[...Array(8)].map((_, i) => (
+                    <div key={i} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 py-3 border-b border-border/30">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-muted rounded-full animate-pulse flex-shrink-0"></div>
+                        <div className="flex-1 space-y-1.5">
+                          <div className="h-4 bg-muted rounded animate-pulse w-3/4"></div>
+                          <div className="h-3 bg-muted rounded animate-pulse w-1/2"></div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end">
+                        <div className="h-4 bg-muted rounded animate-pulse w-16"></div>
+                      </div>
+                      <div className="flex items-center justify-center">
+                        <div className="h-6 bg-muted rounded animate-pulse w-20"></div>
+                      </div>
+                      <div className="flex items-center justify-end">
+                        <div className="h-4 bg-muted rounded animate-pulse w-14"></div>
+                      </div>
+                      <div className="flex items-center justify-end">
+                        <div className="h-4 bg-muted rounded animate-pulse w-24"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
@@ -880,14 +883,14 @@ export default function Pipeline() {
   }
 
   return (
-    <div className="bg-background h-screen w-full overflow-hidden flex flex-col">
-      {/* Main Content - View Container with sidebar offset */}
+    <div className="bg-background flex" style={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
+      {/* Main Content Area - Flex Column with strict overflow control */}
       <div className={cn(
-        "flex flex-col h-full min-w-0",
+        "flex-1 min-w-0 flex flex-col",
         showDetailPanel ? "lg:mr-96" : ""
-      )}>
-        {/* Fixed Header Section - flex-shrink-0 keeps it pinned */}
-        <div className="flex-shrink-0 border-b border-border/50 p-4 lg:p-6 bg-card/50">
+      )} style={{ overflow: 'hidden' }}>
+        {/* Fixed Header Section - flex-shrink-0 keeps it pinned at top */}
+        <div className="flex-shrink-0 border-b border-border/50 p-4 lg:p-6 bg-card/50" style={{ overflow: 'hidden' }}>
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
             <div>
               <h1 className="text-2xl font-bold text-foreground mb-1">Client Pipeline</h1>
@@ -992,7 +995,7 @@ export default function Pipeline() {
               </div>
             </div>
 
-            {/* Compact Month Slider - Independent Carousel */}
+            {/* Compact Month Slider - Local Scroll Only */}
             <div className="w-full relative flex items-center gap-2">
               {/* Left Scroll Button */}
               <Button
@@ -1007,12 +1010,13 @@ export default function Pipeline() {
                 <ChevronLeft className="w-4 h-4" />
               </Button>
 
-              {/* Month Tabs - Carousel with isolated horizontal scroll */}
-              <div className="flex-1 min-w-0 overflow-x-auto whitespace-nowrap" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                <div
-                  id="month-tabs-container"
-                  className="inline-flex gap-2"
-                >
+              {/* Month Tabs - Local horizontal scroll only */}
+              <div
+                id="month-tabs-container"
+                className="flex-1 min-w-0 overflow-x-auto whitespace-nowrap"
+                style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
+              >
+                <div className="inline-flex flex-nowrap gap-2">
                   {months.map((month) => {
                     const monthTotal = getMonthlyTotal(month);
                     const isActive = month.getMonth() === currentMonth.getMonth() &&
@@ -1061,8 +1065,8 @@ export default function Pipeline() {
           </div>
         </div>
 
-        {/* Scrollable Body - Contains status cards, search, and table */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+        {/* Scrollable Body - Independent vertical scroll zone */}
+        <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
           <div className="p-4 lg:p-6">
             {/* Pipeline Status Breakdown - Responsive Grid */}
             <div className="mb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -1276,15 +1280,15 @@ export default function Pipeline() {
             </div>
           </div>
 
-          {/* Pipeline Table - Isolated horizontal scroll container */}
-          <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-            <div className="min-w-[1000px]">
-              {/* Table Header - Rigid Grid */}
+          {/* Pipeline Table - ONLY this div scrolls horizontally */}
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <div style={{ minWidth: '1200px' }}>
+              {/* Table Header - Fixed Grid Widths */}
               <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-3 z-10">
-                <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1.5fr] gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                   <div className="px-2">Client & Business Type</div>
                   <div className="px-2 text-right">Amount</div>
-                  <div className="px-2">Stage</div>
+                  <div className="px-2 text-center">Stage</div>
                   <div className="px-2 text-right">Fee</div>
                   <div className="px-2 text-right">Next Meeting</div>
                 </div>
@@ -1296,7 +1300,7 @@ export default function Pipeline() {
                   <div
                     key={client.id}
                     onClick={() => handleClientClick({ ...client.fullClient, ...client, fullClient: client.fullClient })}
-                    className="grid grid-cols-[2fr_1fr_1fr_1fr_1.5fr] gap-4 py-3 border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-all duration-200 group"
+                    className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 py-3 border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-all duration-200 group"
                   >
                     {/* Client Information & Business Type */}
                     <div className="px-2 flex items-center gap-2">
