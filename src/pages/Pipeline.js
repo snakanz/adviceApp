@@ -772,8 +772,8 @@ export default function Pipeline() {
 
   if (loading) {
     return (
-      <div className="bg-background min-h-screen w-full max-w-[100vw] overflow-x-hidden">
-        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 w-full min-w-0 overflow-hidden">
+      <div className="bg-background min-h-screen w-full max-w-[100vw] overflow-x-hidden box-border">
+        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 w-full min-w-0 overflow-hidden box-border">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-bold text-foreground mb-2">Client Pipeline</h1>
@@ -805,7 +805,7 @@ export default function Pipeline() {
 
           {/* Loading Status Breakdown Cards */}
           <div className="mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 max-w-full overflow-hidden">
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="bg-muted/30 border border-border rounded-lg p-4 animate-pulse">
                   <div className="flex items-center gap-2 mb-2">
@@ -867,14 +867,14 @@ export default function Pipeline() {
   }
 
   return (
-    <div className="bg-background min-h-screen w-full max-w-[100vw] overflow-x-hidden">
-      {/* Main Content - Locked width container */}
+    <div className="bg-background min-h-screen w-full max-w-[100vw] overflow-x-hidden box-border">
+      {/* Main Content - Locked width container with sidebar offset */}
       <div className={cn(
-        "pb-8 w-full min-w-0",
-        showDetailPanel ? "mr-0 lg:mr-96" : ""
+        "pb-8 min-w-0 box-border",
+        showDetailPanel ? "w-[calc(100vw-384px)] mr-0 lg:mr-96" : "w-full"
       )}>
         {/* Header */}
-        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 w-full min-w-0 overflow-hidden">
+        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 w-full min-w-0 overflow-hidden box-border">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-bold text-foreground mb-2">Client Pipeline</h1>
@@ -979,8 +979,8 @@ export default function Pipeline() {
               </div>
             </div>
 
-            {/* Compact Month Slider - Isolated horizontal scroll */}
-            <div className="w-full max-w-full relative flex items-center gap-2">
+            {/* Compact Month Slider - True Isolated horizontal scroll */}
+            <div className="w-full max-w-full relative flex items-center gap-2 overflow-hidden">
               {/* Left Scroll Button - Always visible */}
               <Button
                 variant="outline"
@@ -994,11 +994,11 @@ export default function Pipeline() {
                 <ChevronLeft className="w-4 h-4" />
               </Button>
 
-              {/* Month Tabs - Isolated scroll container */}
-              <div className="flex-1 min-w-0 overflow-hidden">
+              {/* Month Tabs - True isolated scroll container */}
+              <div className="flex-1 min-w-0 max-w-full overflow-hidden">
                 <div
                   id="month-tabs-container"
-                  className="w-full flex gap-2 overflow-x-auto whitespace-nowrap scroll-smooth"
+                  className="flex flex-nowrap gap-2 overflow-x-auto whitespace-nowrap scroll-smooth max-w-full"
                   style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                 >
                   {months.map((month) => {
@@ -1048,60 +1048,60 @@ export default function Pipeline() {
             </div>
           </div>
 
-          {/* Pipeline Status Breakdown - Responsive Grid */}
-          <div className="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pb-1">
+          {/* Pipeline Status Breakdown - Responsive Grid with xl breakpoint */}
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-1 max-w-full overflow-hidden">
             {/* In Progress */}
-            <div className="min-w-0 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
+            <div className="min-w-0 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2 overflow-hidden">
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                   <Loader2 className="w-3 h-3 text-blue-600 dark:text-blue-400 flex-shrink-0" />
                   <span className="text-[10px] font-medium text-blue-800 dark:text-blue-200 truncate">In Progress</span>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <div className="text-sm font-bold text-blue-700 dark:text-blue-300">{formatCurrency(statusBreakdown['In Progress'].total)}</div>
-                  <div className="text-[9px] text-blue-600 dark:text-blue-400">{statusBreakdown['In Progress'].count}</div>
+                  <div className="text-sm font-bold text-blue-700 dark:text-blue-300 truncate">{formatCurrency(statusBreakdown['In Progress'].total)}</div>
+                  <div className="text-[9px] text-blue-600 dark:text-blue-400 truncate">{statusBreakdown['In Progress'].count}</div>
                 </div>
               </div>
             </div>
 
             {/* Waiting to Sign */}
-            <div className="min-w-0 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg px-3 py-2">
+            <div className="min-w-0 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg px-3 py-2 overflow-hidden">
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                   <PenTool className="w-3 h-3 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
                   <span className="text-[10px] font-medium text-yellow-800 dark:text-yellow-200 truncate">Waiting</span>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <div className="text-sm font-bold text-yellow-700 dark:text-yellow-300">{formatCurrency(statusBreakdown['Waiting to Sign'].total)}</div>
-                  <div className="text-[9px] text-yellow-600 dark:text-yellow-400">{statusBreakdown['Waiting to Sign'].count}</div>
+                  <div className="text-sm font-bold text-yellow-700 dark:text-yellow-300 truncate">{formatCurrency(statusBreakdown['Waiting to Sign'].total)}</div>
+                  <div className="text-[9px] text-yellow-600 dark:text-yellow-400 truncate">{statusBreakdown['Waiting to Sign'].count}</div>
                 </div>
               </div>
             </div>
 
             {/* Not Written */}
-            <div className="min-w-0 bg-gray-50 dark:bg-gray-950/30 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2">
+            <div className="min-w-0 bg-gray-50 dark:bg-gray-950/30 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2 overflow-hidden">
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                   <FileText className="w-3 h-3 text-gray-600 dark:text-gray-400 flex-shrink-0" />
                   <span className="text-[10px] font-medium text-gray-800 dark:text-gray-200 truncate">Not Written</span>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <div className="text-sm font-bold text-gray-700 dark:text-gray-300">{formatCurrency(statusBreakdown['Not Written'].total)}</div>
-                  <div className="text-[9px] text-gray-600 dark:text-gray-400">{statusBreakdown['Not Written'].count}</div>
+                  <div className="text-sm font-bold text-gray-700 dark:text-gray-300 truncate">{formatCurrency(statusBreakdown['Not Written'].total)}</div>
+                  <div className="text-[9px] text-gray-600 dark:text-gray-400 truncate">{statusBreakdown['Not Written'].count}</div>
                 </div>
               </div>
             </div>
 
             {/* Completed */}
-            <div className="min-w-0 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2">
+            <div className="min-w-0 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg px-3 py-2 overflow-hidden">
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                   <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400 flex-shrink-0" />
                   <span className="text-[10px] font-medium text-green-800 dark:text-green-200 truncate">Completed</span>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <div className="text-sm font-bold text-green-700 dark:text-green-300">{formatCurrency(statusBreakdown['Completed'].total)}</div>
-                  <div className="text-[9px] text-green-600 dark:text-green-400">{statusBreakdown['Completed'].count}</div>
+                  <div className="text-sm font-bold text-green-700 dark:text-green-300 truncate">{formatCurrency(statusBreakdown['Completed'].total)}</div>
+                  <div className="text-[9px] text-green-600 dark:text-green-400 truncate">{statusBreakdown['Completed'].count}</div>
                 </div>
               </div>
             </div>
@@ -1260,9 +1260,9 @@ export default function Pipeline() {
           </div>
         </div>
 
-        {/* Pipeline Table - Scrollable container */}
-        <div className="w-full overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div className="min-w-[900px]">
+        {/* Pipeline Table - True scroll-container pattern */}
+        <div className="w-full max-w-full overflow-x-auto overflow-y-visible box-border" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="min-w-[900px] w-max">
             {/* Table Header */}
             <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-3 z-10">
               <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -1319,6 +1319,7 @@ export default function Pipeline() {
                       <div className="text-sm font-semibold text-foreground">
                         {client.investmentAmount > 0 ? formatCurrency(client.investmentAmount) : '-'}
                       </div>
+                      <div className="text-[10px] text-muted-foreground">Amount</div>
                     </div>
                   </div>
 
@@ -1361,6 +1362,7 @@ export default function Pipeline() {
                       <div className="text-sm font-semibold text-foreground">
                         {client.expectedFees > 0 ? formatCurrency(client.expectedFees) : '-'}
                       </div>
+                      <div className="text-[10px] text-muted-foreground">Fee</div>
                     </div>
                   </div>
 
