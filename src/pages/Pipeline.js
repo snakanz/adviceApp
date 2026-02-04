@@ -120,13 +120,6 @@ export default function Pipeline() {
     return currentMonth < actualCurrentMonth;
   }, [currentMonth, actualCurrentMonth]);
 
-  // Get index of current month in the months array for scrolling
-  const currentMonthIndex = useMemo(() => {
-    return months.findIndex(m =>
-      m.getMonth() === actualCurrentMonth.getMonth() &&
-      m.getFullYear() === actualCurrentMonth.getFullYear()
-    );
-  }, [months, actualCurrentMonth]);
 
   const fetchPipelineData = useCallback(async () => {
     setLoading(true);
