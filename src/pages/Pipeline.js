@@ -772,8 +772,8 @@ export default function Pipeline() {
 
   if (loading) {
     return (
-      <div className="bg-background min-h-screen overflow-x-hidden">
-        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 overflow-hidden">
+      <div className="bg-background min-h-screen w-full max-w-full overflow-x-hidden">
+        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 w-full max-w-full overflow-hidden">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-bold text-foreground mb-2">Client Pipeline</h1>
@@ -867,14 +867,14 @@ export default function Pipeline() {
   }
 
   return (
-    <div className="bg-background min-h-screen overflow-x-hidden">
-      {/* Main Content */}
+    <div className="bg-background min-h-screen w-full max-w-full overflow-x-hidden">
+      {/* Main Content - Locked width container */}
       <div className={cn(
-        "pb-8 max-w-full",
+        "pb-8 w-full max-w-full overflow-x-hidden",
         showDetailPanel ? "mr-0 lg:mr-96" : ""
       )}>
         {/* Header */}
-        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 overflow-hidden">
+        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 w-full max-w-full overflow-hidden">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-bold text-foreground mb-2">Client Pipeline</h1>
@@ -979,13 +979,13 @@ export default function Pipeline() {
               </div>
             </div>
 
-            {/* Compact Month Slider */}
-            <div className="relative flex items-center gap-2">
+            {/* Compact Month Slider - Isolated horizontal scroll */}
+            <div className="w-full max-w-full relative flex items-center gap-2">
               {/* Left Scroll Button - Always visible */}
               <Button
                 variant="outline"
                 size="sm"
-                className="flex-shrink-0 h-10 w-10 p-0"
+                className="flex-shrink-0 h-10 w-10 p-0 z-10"
                 onClick={() => {
                   const container = document.getElementById('month-tabs-container');
                   if (container) container.scrollBy({ left: -200, behavior: 'smooth' });
@@ -994,12 +994,12 @@ export default function Pipeline() {
                 <ChevronLeft className="w-4 h-4" />
               </Button>
 
-              {/* Month Tabs - Fixed width container */}
-              <div className="flex-1 overflow-hidden">
+              {/* Month Tabs - Isolated scroll container */}
+              <div className="flex-1 min-w-0 overflow-hidden">
                 <div
                   id="month-tabs-container"
-                  className="flex gap-2 overflow-x-auto scrollbar-none scroll-smooth"
-                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                  className="w-full flex gap-2 overflow-x-auto whitespace-nowrap scroll-smooth"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}
                 >
                   {months.map((month) => {
                     const monthTotal = getMonthlyTotal(month);
@@ -1016,15 +1016,15 @@ export default function Pipeline() {
                         variant={isActive ? 'default' : 'outline'}
                         size="sm"
                         className={cn(
-                          "flex-shrink-0 flex flex-col items-center gap-0.5 h-auto py-2 px-3 min-w-[90px] transition-all",
+                          "flex-shrink-0 flex flex-col items-center gap-0.5 h-auto py-2 px-3 min-w-[90px] transition-all whitespace-nowrap",
                           isPast && !isActive && "opacity-50 hover:opacity-75 border-dashed",
                           isCurrentMonth && !isActive && "ring-2 ring-primary/50"
                         )}
                       >
-                        <span className="font-medium text-xs">
+                        <span className="font-medium text-xs whitespace-nowrap">
                           {month.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                         </span>
-                        <span className="text-[10px] opacity-75 font-semibold">
+                        <span className="text-[10px] opacity-75 font-semibold whitespace-nowrap">
                           {formatCurrency(monthTotal)}
                         </span>
                       </Button>
@@ -1260,17 +1260,17 @@ export default function Pipeline() {
           </div>
         </div>
 
-        {/* Pipeline Table */}
-        <div className="overflow-hidden">
-          <div>
+        {/* Pipeline Table - Scrollable container */}
+        <div className="w-full overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="min-w-[900px]">
             {/* Table Header */}
             <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-3 z-10">
-              <div className="grid grid-cols-12 gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                <div className="col-span-4 min-w-0">Client & Business Type</div>
-                <div className="col-span-2 min-w-0 text-right">Amount</div>
-                <div className="col-span-2 min-w-0">Stage</div>
-                <div className="col-span-2 min-w-0 text-right">Fee</div>
-                <div className="col-span-2 min-w-0 text-right">Next Meeting</div>
+              <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                <div className="col-span-4 px-2">Client & Business Type</div>
+                <div className="col-span-2 px-2 text-right">Amount</div>
+                <div className="col-span-2 px-2">Stage</div>
+                <div className="col-span-2 px-2 text-right">Fee</div>
+                <div className="col-span-2 px-2 text-right">Next Meeting</div>
               </div>
             </div>
 
@@ -1280,10 +1280,10 @@ export default function Pipeline() {
                 <div
                   key={client.id}
                   onClick={() => handleClientClick({ ...client.fullClient, ...client, fullClient: client.fullClient })}
-                  className="grid grid-cols-12 gap-2 py-3 border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-all duration-200 group rounded-lg hover:shadow-sm"
+                  className="grid grid-cols-12 gap-4 py-3 border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-all duration-200 group rounded-lg hover:shadow-sm"
                 >
                   {/* Client Information & Business Type */}
-                  <div className="col-span-4 min-w-0 flex items-center gap-2">
+                  <div className="col-span-4 px-2 flex items-center gap-2">
                     <Avatar className="w-8 h-8 flex-shrink-0">
                       <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
                         {getInitials(client.name, client.email)}
@@ -1314,25 +1314,22 @@ export default function Pipeline() {
                   </div>
 
                   {/* Amount (Investment/Business Amount) */}
-                  <div className="col-span-2 min-w-0 flex items-center justify-end">
+                  <div className="col-span-2 px-2 flex items-center justify-end">
                     <div className="text-right">
-                      <div className="text-sm font-semibold text-foreground truncate">
+                      <div className="text-sm font-semibold text-foreground">
                         {client.investmentAmount > 0 ? formatCurrency(client.investmentAmount) : '-'}
                       </div>
-                      {client.investmentAmount > 0 && (
-                        <div className="text-[10px] text-muted-foreground">Amount</div>
-                      )}
                     </div>
                   </div>
 
                   {/* Stage Dropdown */}
-                  <div className="col-span-2 min-w-0 flex items-center" onClick={(e) => e.stopPropagation()}>
+                  <div className="col-span-2 px-2 flex items-center" onClick={(e) => e.stopPropagation()}>
                     {client.businessTypeId ? (
                       <Select
                         value={client.stage || 'Not Written'}
                         onValueChange={(value) => handleStageChange(client.businessTypeId, value)}
                       >
-                        <SelectTrigger className="h-7 text-xs w-full">
+                        <SelectTrigger className="h-7 text-xs w-full max-w-[120px]">
                           <SelectValue>
                             <span className={cn(
                               "px-1.5 py-0.5 rounded text-[10px]",
@@ -1359,26 +1356,23 @@ export default function Pipeline() {
                   </div>
 
                   {/* Fee (IAF Expected) */}
-                  <div className="col-span-2 min-w-0 flex items-center justify-end">
+                  <div className="col-span-2 px-2 flex items-center justify-end">
                     <div className="text-right">
-                      <div className="text-sm font-semibold text-foreground truncate">
+                      <div className="text-sm font-semibold text-foreground">
                         {client.expectedFees > 0 ? formatCurrency(client.expectedFees) : '-'}
                       </div>
-                      {client.expectedFees > 0 && (
-                        <div className="text-[10px] text-muted-foreground">Fee</div>
-                      )}
                     </div>
                   </div>
 
                   {/* Next Meeting */}
-                  <div className="col-span-2 min-w-0 flex items-center justify-end gap-1">
+                  <div className="col-span-2 px-2 flex items-center justify-end gap-1">
                     <div className={cn(
                       "flex-shrink-0 w-2 h-2 rounded-full",
                       client.nextMeetingDate ? "bg-green-500" : "bg-red-500"
                     )} />
-                    <div className="text-right min-w-0">
+                    <div className="text-right">
                       <div className={cn(
-                        "text-xs truncate",
+                        "text-xs",
                         client.nextMeetingDate ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
                       )}>
                         {client.nextMeetingDate ? formatDate(client.nextMeetingDate) : 'No meeting'}
