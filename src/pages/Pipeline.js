@@ -772,8 +772,8 @@ export default function Pipeline() {
 
   if (loading) {
     return (
-      <div className="bg-background min-h-screen w-full max-w-full overflow-x-hidden">
-        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 w-full max-w-full overflow-hidden">
+      <div className="bg-background min-h-screen w-full max-w-[100vw] overflow-x-hidden">
+        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 w-full min-w-0 overflow-hidden">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-bold text-foreground mb-2">Client Pipeline</h1>
@@ -805,7 +805,7 @@ export default function Pipeline() {
 
           {/* Loading Status Breakdown Cards */}
           <div className="mb-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="bg-muted/30 border border-border rounded-lg p-4 animate-pulse">
                   <div className="flex items-center gap-2 mb-2">
@@ -867,14 +867,14 @@ export default function Pipeline() {
   }
 
   return (
-    <div className="bg-background min-h-screen w-full max-w-full overflow-x-hidden">
+    <div className="bg-background min-h-screen w-full max-w-[100vw] overflow-x-hidden">
       {/* Main Content - Locked width container */}
       <div className={cn(
-        "pb-8 w-full max-w-full overflow-x-hidden",
+        "pb-8 w-full min-w-0",
         showDetailPanel ? "mr-0 lg:mr-96" : ""
       )}>
         {/* Header */}
-        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 w-full max-w-full overflow-hidden">
+        <div className="border-b border-border/50 p-4 lg:p-6 bg-card/50 w-full min-w-0 overflow-hidden">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-bold text-foreground mb-2">Client Pipeline</h1>
@@ -1049,7 +1049,7 @@ export default function Pipeline() {
           </div>
 
           {/* Pipeline Status Breakdown - Responsive Grid */}
-          <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 pb-1">
+          <div className="mb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 pb-1">
             {/* In Progress */}
             <div className="min-w-0 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg px-3 py-2">
               <div className="flex items-center justify-between gap-2">
@@ -1266,11 +1266,11 @@ export default function Pipeline() {
             {/* Table Header */}
             <div className="sticky top-0 bg-card/95 backdrop-blur-sm border-b border-border/50 px-4 lg:px-6 py-3 z-10">
               <div className="grid grid-cols-12 gap-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                <div className="col-span-4 px-2">Client & Business Type</div>
+                <div className="col-span-3 px-2">Client & Business Type</div>
                 <div className="col-span-2 px-2 text-right">Amount</div>
                 <div className="col-span-2 px-2">Stage</div>
                 <div className="col-span-2 px-2 text-right">Fee</div>
-                <div className="col-span-2 px-2 text-right">Next Meeting</div>
+                <div className="col-span-3 px-2 text-right">Next Meeting</div>
               </div>
             </div>
 
@@ -1283,7 +1283,7 @@ export default function Pipeline() {
                   className="grid grid-cols-12 gap-4 py-3 border-b border-border/30 hover:bg-muted/30 cursor-pointer transition-all duration-200 group rounded-lg hover:shadow-sm"
                 >
                   {/* Client Information & Business Type */}
-                  <div className="col-span-4 px-2 flex items-center gap-2">
+                  <div className="col-span-3 px-2 flex items-center gap-2">
                     <Avatar className="w-8 h-8 flex-shrink-0">
                       <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
                         {getInitials(client.name, client.email)}
@@ -1365,7 +1365,7 @@ export default function Pipeline() {
                   </div>
 
                   {/* Next Meeting */}
-                  <div className="col-span-2 px-2 flex items-center justify-end gap-1">
+                  <div className="col-span-3 px-2 flex items-center justify-end gap-1">
                     <div className={cn(
                       "flex-shrink-0 w-2 h-2 rounded-full",
                       client.nextMeetingDate ? "bg-green-500" : "bg-red-500"
