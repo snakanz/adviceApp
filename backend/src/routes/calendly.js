@@ -395,9 +395,8 @@ router.get('/status', authenticateSupabaseUser, async (req, res) => {
 
     // Connection exists - verify the token is still valid by testing it
     try {
-      const CalendlyOAuthService = require('../services/calendlyOAuth');
-      const oauthService = new CalendlyOAuthService();
-      const testResult = await oauthService.testConnection(connection.access_token);
+      const calendlyService = new CalendlyService(connection.access_token);
+      const testResult = await calendlyService.testConnection();
 
       return res.json({
         connected: testResult.connected,
