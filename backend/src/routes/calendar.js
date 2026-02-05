@@ -1520,6 +1520,7 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
           },
           summaries: {
             quickSummary: quickSummary || null,
+            detailedSummary: summaryResults.detailedSummary || null,
             emailSummary: null, // Will be generated async
             actionPoints: actionPoints || null
           },
