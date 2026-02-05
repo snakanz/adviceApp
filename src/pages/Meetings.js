@@ -17,8 +17,6 @@ import {
   Check,
   Mail,
   Edit,
-  List,
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   CheckCircle2,
@@ -429,11 +427,9 @@ export default function Meetings() {
   const { isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [meetingView, setMeetingView] = useState('past');
   const [calendarConnection, setCalendarConnection] = useState(null);
   const [botStatus, setBotStatus] = useState(null);
   const [togglingBot, setTogglingBot] = useState(false);
-  const [viewMode, setViewMode] = useState('calendar'); // 'calendar' or 'list'
   const [editingMeeting, setEditingMeeting] = useState(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
@@ -2143,10 +2139,6 @@ export default function Meetings() {
   };
 
   const renderMeetingsList = (meetings, title) => {
-    if (viewMode === 'table') {
-      return renderMeetingsTable(meetings, title);
-    }
-
     // Determine sort order based on meeting type
     const sortOrder = title.includes('Past') ? 'desc' : 'asc';
     const groupedMeetings = groupMeetingsByDate(meetings, sortOrder);
@@ -2434,153 +2426,11 @@ export default function Meetings() {
         <div className="border-b border-border/50 p-4 sm:p-6 bg-card/50 flex-shrink-0">
           <div className="flex items-center justify-between mb-4 gap-2">
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Meetings</h1>
-            <div className="flex items-center gap-2">
-              {/* View Mode Toggle */}
-              <div className="flex items-center gap-1 border border-border rounded-lg p-1 bg-background">
-                <Button
-                  onClick={() => setViewMode('calendar')}
-                  variant={viewMode === 'calendar' ? 'default' : 'ghost'}
-                  size="sm"
-                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3"
-                >
-                  <CalendarDays className="w-4 h-4" />
-                  <span className="hidden sm:inline">Calendar View</span>
-                </Button>
-                <Button
-                  onClick={() => setViewMode('list')}
-                  variant={viewMode === 'list' ? 'default' : 'ghost'}
-                  size="sm"
-                  className="flex items-center gap-1 sm:gap-2 px-2 sm:px-3"
-                >
-                  <List className="w-4 h-4" />
-                  <span className="hidden sm:inline">List View</span>
-                </Button>
-              </div>
-            </div>
           </div>
-
-          {/* Search Bar */}
-          <div className="relative mb-4">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              placeholder="Search"
-              className="w-full pl-10 pr-4 py-2 border border-border/50 rounded-lg bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30"
-            />
-          </div>
-
-          {/* Segmented Control - Only show in List View */}
-          {viewMode === 'list' && (
-            <div className="flex bg-muted/30 rounded-lg p-1">
-              <button
-                onClick={() => setMeetingView('past')}
-                className={cn(
-                  "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
-                  meetingView === 'past'
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Past
-              </button>
-              <button
-                onClick={() => setMeetingView('today')}
-                className={cn(
-                  "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
-                  meetingView === 'today'
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Today
-              </button>
-              <button
-                onClick={() => setMeetingView('upcoming')}
-                className={cn(
-                  "flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors",
-                  meetingView === 'upcoming'
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Upcoming
-              </button>
-            </div>
-          )}
         </div>
 
-        {/* Meetings List */}
+        {/* Calendar View */}
         <div className="flex-1 overflow-y-auto">
-          {viewMode === 'list' ? (
-            <div className="p-4 sm:p-6">
-          {meetingView === 'past' && (
-            <div className="space-y-6">
-              {meetings.past.length === 0 ? (
-                <div className="text-center py-12">
-                  <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-foreground mb-2">No past meetings found</h3>
-                  <p className="text-muted-foreground mb-4">
-                    {loading ? 'Loading meetings...' : 'No past meetings are currently visible.'}
-                  </p>
-                  {!loading && (
-                    <div className="space-y-2">
-                      <p className="text-sm text-muted-foreground">
-                        If you expect to see meetings here, try:
-                      </p>
-
-                    </div>
-                  )}
-                </div>
-              ) : (
-                renderMeetingsList(meetings.past, 'Past Meetings')
-              )}
-            </div>
-          )}
-
-          {meetingView === 'today' && (
-            <div className="space-y-6">
-              {(() => {
-                const today = new Date();
-                const todayMeetings = meetings.future.filter(meeting => {
-                  const meetingDate = new Date(meeting.start?.dateTime || meeting.startTime || meeting.starttime);
-                  return meetingDate.toDateString() === today.toDateString();
-                });
-
-                if (todayMeetings.length === 0) {
-                  return (
-                    <div className="text-center py-12">
-                      <Calendar className="w-16 h-16 text-primary mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-foreground mb-2">Looks like you don't have any meetings today!</h3>
-                      <p className="text-muted-foreground">Check the <strong>Upcoming</strong> tab to see future meetings, or click <strong>New</strong> to create one.</p>
-                    </div>
-                  );
-                }
-
-                return renderMeetingsList(todayMeetings, 'Today');
-              })()}
-            </div>
-          )}
-
-          {meetingView === 'upcoming' && (
-            <div className="space-y-6">
-              {meetings.future.length === 0 ? (
-                <div className="text-center py-12">
-                  <Calendar className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-foreground mb-2">No upcoming meetings</h3>
-                  <p className="text-muted-foreground">You don't have any upcoming meetings.</p>
-                </div>
-              ) : (
-                renderMeetingsList(meetings.future, 'Upcoming Meetings')
-              )}
-            </div>
-          )}
-          </div>
-          ) : (
-            /* Calendar View */
             <div className="p-4 sm:p-6">
               {/* Calendar Header */}
               <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -2734,7 +2584,6 @@ export default function Meetings() {
                 </div>
               </div>
             </div>
-          )}
         </div>
       </div>
 
