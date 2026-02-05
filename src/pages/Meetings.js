@@ -35,7 +35,8 @@ import {
   CheckSquare,
   Loader2,
   Shield,
-  ClipboardCheck
+  ClipboardCheck,
+  RefreshCw
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
@@ -347,6 +348,7 @@ export default function Meetings() {
   const [deletingTranscript, setDeletingTranscript] = useState(false);
   const [generatingSummary, setGeneratingSummary] = useState(false);
   const [generatingAISummaries, setGeneratingAISummaries] = useState(false);
+  const [syncingMeetings, setSyncingMeetings] = useState(false);
 
   // Add template selection state
   const [templates, setTemplates] = useState([]);
@@ -656,6 +658,33 @@ export default function Meetings() {
       fetchMeetings();
     }
   }, [isAuthenticated, fetchMeetings]);
+
+  // Manual sync for Calendly meetings that may have been missed
+  const handleSyncMeetings = async () => {
+    setSyncingMeetings(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const res = await fetch(`${API_URL}/api/calendly/sync`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Sync failed');
+      const data = await res.json();
+      const added = data.improvement?.meetings_added || 0;
+      await fetchMeetings();
+      setShowSnackbar(true);
+      setSnackbarMessage(added > 0 ? `Synced ${added} new meeting${added !== 1 ? 's' : ''}!` : 'All meetings up to date');
+      setSnackbarSeverity('success');
+    } catch (error) {
+      console.error('Sync error:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to sync meetings. Check your calendar connection in Settings.');
+      setSnackbarSeverity('error');
+    } finally {
+      setSyncingMeetings(false);
+    }
+  };
 
   // Update local state when selectedMeeting changes (e.g., after data refresh)
   useEffect(() => {
@@ -1872,6 +1901,16 @@ export default function Meetings() {
         <div className="border-b border-border/50 p-4 sm:p-6 bg-card/50 flex-shrink-0">
           <div className="flex items-center justify-between mb-4 gap-2">
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Meetings</h1>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncMeetings}
+              disabled={syncingMeetings}
+              className="h-8 px-3 text-xs"
+            >
+              <RefreshCw className={cn("w-3.5 h-3.5 mr-1.5", syncingMeetings && "animate-spin")} />
+              {syncingMeetings ? 'Syncing...' : 'Sync'}
+            </Button>
           </div>
         </div>
 

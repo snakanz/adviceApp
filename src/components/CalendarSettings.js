@@ -834,15 +834,13 @@ export default function CalendarSettings() {
                               hasWebhook={webhookStatus[connection.id]?.has_webhook || false}
                             />
 
-                            {!webhookStatus[connection.id]?.has_webhook && (
-                              <CalendlySyncButton
-                                connectionId={connection.id}
-                                onSyncComplete={() => loadConnections()}
-                                variant="outline"
-                                size="sm"
-                                showEstimate={true}
-                              />
-                            )}
+                            <CalendlySyncButton
+                              connectionId={connection.id}
+                              onSyncComplete={() => loadConnections()}
+                              variant="outline"
+                              size="sm"
+                              showEstimate={true}
+                            />
                           </div>
                         )}
                       </div>
