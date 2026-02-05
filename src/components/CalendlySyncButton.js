@@ -32,6 +32,7 @@ const CalendlySyncButton = ({
   const [syncProgress, setSyncProgress] = useState(0);
 
   const handleSync = async () => {
+    let progressInterval = null;
     try {
       setIsSyncing(true);
       setSyncStatus(null);
@@ -41,7 +42,7 @@ const CalendlySyncButton = ({
       const token = await getAccessToken();
 
       // Simulate progress updates
-      const progressInterval = setInterval(() => {
+      progressInterval = setInterval(() => {
         setSyncProgress(prev => {
           if (prev >= 90) return prev;
           return prev + 10;
@@ -53,7 +54,10 @@ const CalendlySyncButton = ({
       const response = await axios.post(
         `${API_BASE_URL}/api/calendly/sync`,
         {},
-        { headers: { Authorization: `Bearer ${token}` } }
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          timeout: 120000 // 120s timeout to prevent indefinite hang
+        }
       );
 
       clearInterval(progressInterval);
@@ -86,23 +90,30 @@ const CalendlySyncButton = ({
 
     } catch (error) {
       console.error('❌ Sync failed:', error);
-      
+
+      clearInterval(progressInterval);
       setSyncProgress(0);
       setSyncStatus('error');
-      
-      if (error.response?.status === 400) {
-        setSyncMessage('❌ No Calendly connection found. Please reconnect.');
+
+      if (error.code === 'ECONNABORTED') {
+        setSyncMessage('Sync timed out. Your Calendly account may have many events — please try again.');
+      } else if (error.response?.data?.action === 'reconnect') {
+        setSyncMessage(error.response.data.message || 'Please reconnect your Calendly account in Settings.');
+      } else if (error.response?.status === 401 || error.response?.status === 403) {
+        setSyncMessage('Calendly token expired or revoked. Please reconnect in Settings.');
+      } else if (error.response?.status === 400) {
+        setSyncMessage('No Calendly connection found. Please connect in Settings.');
       } else if (error.response?.status === 503) {
-        setSyncMessage('❌ Service temporarily unavailable. Please try again.');
+        setSyncMessage('Service temporarily unavailable. Please try again.');
       } else {
-        setSyncMessage('❌ Sync failed. Please try again.');
+        setSyncMessage(error.response?.data?.message || 'Sync failed. Please try again.');
       }
 
-      // Clear error message after 5 seconds
+      // Clear error message after 8 seconds (longer for actionable messages)
       setTimeout(() => {
         setSyncStatus(null);
         setSyncMessage('');
-      }, 5000);
+      }, 8000);
 
     } finally {
       setIsSyncing(false);

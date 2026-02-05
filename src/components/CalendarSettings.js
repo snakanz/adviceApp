@@ -199,6 +199,7 @@ export default function CalendarSettings() {
   const [isConnecting, setIsConnecting] = useState(false);
   // calendlyAuthMethod removed - now using API token only
   const [webhookStatus, setWebhookStatus] = useState({});
+  const [calendlyHealthIssue, setCalendlyHealthIssue] = useState(null);
 
   // Sync progress state
   const [showSyncProgress, setShowSyncProgress] = useState(false);
@@ -291,6 +292,26 @@ export default function CalendarSettings() {
         }
       }
       setWebhookStatus(statusMap);
+
+      // Check Calendly connection health if connected
+      const calendlyConn = connections.find(c => c.provider === 'calendly' && c.is_active);
+      if (calendlyConn) {
+        try {
+          const healthRes = await axios.get(`${API_BASE_URL}/api/calendly/status`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (healthRes.data.configured && !healthRes.data.connected) {
+            setCalendlyHealthIssue(healthRes.data.message || 'Calendly connection may have expired. Please reconnect.');
+          } else {
+            setCalendlyHealthIssue(null);
+          }
+        } catch (healthErr) {
+          console.warn('Failed to check Calendly health:', healthErr.message);
+          setCalendlyHealthIssue(null);
+        }
+      } else {
+        setCalendlyHealthIssue(null);
+      }
     } catch (err) {
       console.error('Error loading calendar connections:', err);
 
@@ -829,6 +850,18 @@ export default function CalendarSettings() {
 
                         {connection.is_active && connection.provider === 'calendly' && (
                           <div className="mt-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+                            {/* Calendly connection health warning */}
+                            {calendlyHealthIssue && (
+                              <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                                <AlertCircle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <p className="text-xs font-medium text-amber-900 dark:text-amber-100">Connection Issue</p>
+                                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">{calendlyHealthIssue}</p>
+                                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Meetings won't sync until this is resolved. Try reconnecting.</p>
+                                </div>
+                              </div>
+                            )}
+
                             <CalendlyPlanInfo
                               variant="compact"
                               hasWebhook={webhookStatus[connection.id]?.has_webhook || false}

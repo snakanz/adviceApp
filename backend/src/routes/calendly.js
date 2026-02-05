@@ -452,16 +452,29 @@ router.post('/sync', authenticateSupabaseUser, async (req, res) => {
 
     const calendlyService = new CalendlyService(accessToken);
 
-    // ✅ FIX: Get meeting count before sync using direct query instead of RPC
-    // The get_calendly_sync_status RPC function doesn't exist
-    const { data: beforeMeetings } = await req.supabase
+    // Validate token before starting the heavy sync operation
+    try {
+      await calendlyService.getCurrentUser();
+    } catch (healthError) {
+      console.error('❌ Calendly token validation failed:', healthError.message);
+      const is401or403 = healthError.message?.includes('401') || healthError.message?.includes('403');
+      return res.status(is401or403 ? 401 : 400).json({
+        success: false,
+        error: 'Calendly connection issue',
+        message: is401or403
+          ? 'Your Calendly API token may have expired or been revoked. Please reconnect your Calendly account in Settings.'
+          : `Could not reach Calendly: ${healthError.message}`,
+        action: 'reconnect'
+      });
+    }
+
+    // Get meeting count before sync
+    const { count: totalBefore } = await req.supabase
       .from('meetings')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('meeting_source', 'calendly')
       .eq('is_deleted', false);
-
-    const totalBefore = beforeMeetings?.length || 0;
 
     // Perform the sync
     const syncResult = await calendlyService.syncMeetingsToDatabase(userId);

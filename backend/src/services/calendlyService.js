@@ -453,11 +453,9 @@ class CalendlyService {
 
       const transcriptionEnabled = connection?.transcription_enabled === true;
 
-      // ✅ FIX: Don't query for non-existent columns
-      // The users table doesn't have last_calendly_sync column yet
-      // For now, always perform full sync on first connection
-      // This will be improved once database schema is updated
-      const needsInitialSync = options.forceFullSync !== false;
+      // Default to incremental sync (3 months back, 6 months forward) for manual syncs
+      // Full sync (2 years) only when explicitly requested (e.g., initial connection)
+      const needsInitialSync = options.forceFullSync === true;
 
       if (needsInitialSync) {
         console.log('🎯 Performing full sync - will fetch 2 years of historical data');

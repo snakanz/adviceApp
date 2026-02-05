@@ -662,14 +662,27 @@ export default function Meetings() {
   // Manual sync for Calendly meetings that may have been missed
   const handleSyncMeetings = async () => {
     setSyncingMeetings(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
       const res = await fetch(`${API_URL}/api/calendly/sync`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: controller.signal
       });
-      if (!res.ok) throw new Error('Sync failed');
+      clearTimeout(timeoutId);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const errMsg = errorData?.action === 'reconnect'
+          ? (errorData.message || 'Please reconnect your Calendly account in Settings.')
+          : (errorData?.message || 'Failed to sync. Check your calendar connection in Settings.');
+        setShowSnackbar(true);
+        setSnackbarMessage(errMsg);
+        setSnackbarSeverity('error');
+        return;
+      }
       const data = await res.json();
       const added = data.improvement?.meetings_added || 0;
       await fetchMeetings();
@@ -677,9 +690,14 @@ export default function Meetings() {
       setSnackbarMessage(added > 0 ? `Synced ${added} new meeting${added !== 1 ? 's' : ''}!` : 'All meetings up to date');
       setSnackbarSeverity('success');
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error('Sync error:', error);
       setShowSnackbar(true);
-      setSnackbarMessage('Failed to sync meetings. Check your calendar connection in Settings.');
+      if (error.name === 'AbortError') {
+        setSnackbarMessage('Sync timed out. Please try again.');
+      } else {
+        setSnackbarMessage('Failed to sync. Check your calendar connection in Settings.');
+      }
       setSnackbarSeverity('error');
     } finally {
       setSyncingMeetings(false);
