@@ -727,9 +727,9 @@ export default function Pipeline() {
 
   if (loading) {
     return (
-      <div className="bg-background flex w-full overflow-hidden" style={{ height: 'calc(100vh - 5rem)' }}>
+      <div className="bg-background w-full overflow-hidden" style={{ height: 'calc(100vh - 5rem)' }}>
         {/* Main Content Area */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+        <div className="h-full flex flex-col overflow-hidden">
           {/* Fixed Header Section */}
           <div className="flex-shrink-0 border-b border-border/50 p-4 lg:p-6 bg-card/50" style={{ overflow: 'hidden' }}>
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
@@ -822,10 +822,10 @@ export default function Pipeline() {
   }
 
   return (
-    <div className="bg-background flex w-full overflow-hidden" style={{ height: 'calc(100vh - 5rem)' }}>
+    <div className="bg-background w-full overflow-hidden" style={{ height: 'calc(100vh - 5rem)' }}>
       {/* Main Content Area */}
       <div className={cn(
-        "flex-1 min-w-0 flex flex-col overflow-hidden",
+        "h-full flex flex-col overflow-hidden",
         showDetailPanel ? "lg:mr-96" : ""
       )}>
         {/* Fixed Header Section - flex-shrink-0 keeps it pinned at top */}
