@@ -1492,11 +1492,12 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
           supabase: req.supabase,
           userId,
           meetingId: existingMeeting.id,
-          transcript,
-          meeting: existingMeeting
+          transcript
+          // NOTE: Do NOT pass meeting here - let the service re-fetch with clients join
+          // This matches the Recall webhook path and ensures client name is available
         });
 
-        console.log(`🤖 [TranscriptUpload] generateMeetingOutputs returned: quickSummary=${summaryResults.quickSummary ? 'YES' : 'NO'}, actionItems=${summaryResults.actionPointsArray?.length || 0}, errors=${summaryResults.errors?.length || 0}`);
+        console.log(`🤖 [TranscriptUpload] generateMeetingOutputs returned: quickSummary=${summaryResults.quickSummary ? 'YES' : 'NO'}, detailedSummary=${summaryResults.detailedSummary ? 'YES' : 'NO'}, actionItems=${summaryResults.actionPointsArray?.length || 0}, errors=${summaryResults.errors?.length || 0}`);
 
         if (summaryResults.errors.length > 0) {
           console.warn('⚠️ Some summary outputs had errors:', JSON.stringify(summaryResults.errors));
