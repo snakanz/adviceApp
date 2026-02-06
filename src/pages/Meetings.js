@@ -18,6 +18,7 @@ import {
   Edit,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   CheckCircle2,
   X,
   Edit2,
@@ -377,6 +378,10 @@ export default function Meetings() {
   // Approved action items state
   const [actionItems, setActionItems] = useState([]);
   const [loadingActionItems, setLoadingActionItems] = useState(false);
+  const [showMeetingActionItems, setShowMeetingActionItems] = useState(true);
+  const [addingMeetingActionItem, setAddingMeetingActionItem] = useState(false);
+  const [newMeetingActionItemText, setNewMeetingActionItemText] = useState('');
+  const [savingMeetingActionItem, setSavingMeetingActionItem] = useState(false);
 
   // Add pending action items state (for approval workflow)
   const [pendingActionItems, setPendingActionItems] = useState([]);
@@ -1902,6 +1907,54 @@ export default function Meetings() {
     }
   };
 
+  // Add a new action item to the current meeting
+  const handleAddMeetingActionItem = async () => {
+    if (!newMeetingActionItemText.trim() || !selectedMeeting) return;
+
+    try {
+      setSavingMeetingActionItem(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      // Create as a pending action item first (goes through approval workflow)
+      const response = await fetch(`${API_URL}/api/transcript-action-items/pending`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          meetingId: selectedMeeting.id,
+          clientId: selectedMeeting.client_id,
+          actionText: newMeetingActionItemText.trim(),
+          priority: 3
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add action item');
+      }
+
+      // Refresh both pending and approved items
+      await fetchPendingActionItems(selectedMeeting.id);
+      await fetchActionItems(selectedMeeting.id);
+
+      setNewMeetingActionItemText('');
+      setAddingMeetingActionItem(false);
+
+      setShowSnackbar(true);
+      setSnackbarMessage('Action item added! It will appear in Pending Approval.');
+      setSnackbarSeverity('success');
+    } catch (error) {
+      console.error('Error adding action item:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to add action item');
+      setSnackbarSeverity('error');
+    } finally {
+      setSavingMeetingActionItem(false);
+    }
+  };
+
   // Toggle selection of a pending action item
   const togglePendingItemSelection = (itemId) => {
     setSelectedPendingItems(prev => {
@@ -2937,34 +2990,137 @@ export default function Meetings() {
                           </div>
                         )}
 
-                        {/* Approved Action Items - Unified Dark Theme */}
-                        {actionItems.length > 0 && (
-                          <div className="space-y-2">
-                            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
-                              <CheckSquare className="w-4 h-4 text-indigo-400" />
-                              Action Items ({actionItems.length})
-                            </h3>
-                            <div className="space-y-2">
+                        {/* Approved Action Items - Unified Dark Theme (Pipeline Style) */}
+                        <div className="bg-[#1A1C23] border border-[#2D313E] rounded-lg">
+                          <button
+                            onClick={() => setShowMeetingActionItems(!showMeetingActionItems)}
+                            className="w-full p-4 flex items-center justify-between hover:bg-[#252830] transition-colors rounded-t-lg"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-600/20 flex items-center justify-center">
+                                <CheckSquare className="w-4 h-4 text-indigo-400" />
+                              </div>
+                              <div className="text-left">
+                                <h4 className="text-sm font-semibold text-white">Action Items</h4>
+                                <p className="text-xs text-[#94A3B8]">
+                                  {actionItems.filter(item => !item.completed).length} pending, {actionItems.filter(item => item.completed).length} complete
+                                </p>
+                              </div>
+                            </div>
+                            <ChevronDown className={cn(
+                              "w-5 h-5 text-[#94A3B8] transition-transform",
+                              showMeetingActionItems && "transform rotate-180"
+                            )} />
+                          </button>
+
+                          {showMeetingActionItems && (
+                            <div className="p-4 pt-0 space-y-2">
                               {loadingActionItems ? (
                                 <div className="space-y-2">
                                   <div className="h-16 bg-[#252830] rounded-lg animate-pulse" />
                                   <div className="h-16 bg-[#252830] rounded-lg animate-pulse" />
                                 </div>
+                              ) : actionItems.length === 0 ? (
+                                <p className="text-sm text-[#94A3B8] italic text-center py-4">
+                                  No action items for this meeting yet.
+                                </p>
                               ) : (
-                                actionItems.map((item) => (
-                                  <ActionItemCard
-                                    key={item.id}
-                                    id={item.id}
-                                    text={item.action_text}
-                                    completed={item.completed}
-                                    priority={item.priority || 3}
-                                    onToggle={() => toggleActionItemCompletion(item.id)}
-                                  />
-                                ))
+                                <>
+                                  {/* Pending items first */}
+                                  {actionItems.filter(item => !item.completed).map((item) => (
+                                    <ActionItemCard
+                                      key={item.id}
+                                      id={item.id}
+                                      text={item.action_text}
+                                      completed={false}
+                                      priority={item.priority || 3}
+                                      meetingTitle={selectedMeeting?.title}
+                                      onToggle={() => toggleActionItemCompletion(item.id)}
+                                    />
+                                  ))}
+                                  {/* Completed items */}
+                                  {actionItems.filter(item => item.completed).map((item) => (
+                                    <ActionItemCard
+                                      key={item.id}
+                                      id={item.id}
+                                      text={item.action_text}
+                                      completed={true}
+                                      priority={item.priority || 3}
+                                      meetingTitle={selectedMeeting?.title}
+                                      onToggle={() => toggleActionItemCompletion(item.id)}
+                                    />
+                                  ))}
+                                </>
                               )}
+
+                              {/* Add Action Item */}
+                              {addingMeetingActionItem ? (
+                                <div className="bg-[#252830] rounded-lg p-3 space-y-2">
+                                  <input
+                                    type="text"
+                                    value={newMeetingActionItemText}
+                                    onChange={(e) => setNewMeetingActionItemText(e.target.value)}
+                                    placeholder="Enter action item..."
+                                    className="w-full bg-[#1A1C23] border border-[#3D414E] rounded px-3 py-2 text-sm text-white placeholder:text-[#6B7280] focus:outline-none focus:border-indigo-500"
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' && newMeetingActionItemText.trim()) {
+                                        handleAddMeetingActionItem();
+                                      } else if (e.key === 'Escape') {
+                                        setAddingMeetingActionItem(false);
+                                        setNewMeetingActionItemText('');
+                                      }
+                                    }}
+                                  />
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={handleAddMeetingActionItem}
+                                      disabled={!newMeetingActionItemText.trim() || savingMeetingActionItem}
+                                      className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700"
+                                    >
+                                      {savingMeetingActionItem ? (
+                                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                      ) : (
+                                        <>
+                                          <Plus className="w-3 h-3 mr-1" />
+                                          Add
+                                        </>
+                                      )}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        setAddingMeetingActionItem(false);
+                                        setNewMeetingActionItemText('');
+                                      }}
+                                      className="h-7 text-xs text-[#94A3B8] hover:text-white"
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setAddingMeetingActionItem(true)}
+                                  className="w-full py-2 text-xs text-[#94A3B8] hover:text-indigo-400 hover:bg-[#252830] rounded transition-colors flex items-center justify-center gap-1"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  Add Action Item
+                                </button>
+                              )}
+
+                              {/* Link to full action items page */}
+                              <button
+                                onClick={() => navigate('/action-items')}
+                                className="w-full mt-2 text-xs text-indigo-400 hover:text-indigo-300 font-medium text-center py-2 hover:bg-[#252830] rounded transition-colors"
+                              >
+                                View All Action Items →
+                              </button>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
 
                         {/* Detailed Meeting Summary - Master Record Source of Truth */}
                         {selectedMeeting?.detailed_summary && (

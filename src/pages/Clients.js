@@ -74,6 +74,7 @@ export default function Clients() {
   const [meetingHistoryCollapsed, setMeetingHistoryCollapsed] = useState(true); // Default collapsed
   const [askAdviclyCollapsed, setAskAdviclyCollapsed] = useState(true); // Default collapsed
   const [documentsCollapsed, setDocumentsCollapsed] = useState(true); // Default collapsed
+  const [showClientActionItems, setShowClientActionItems] = useState(true); // Default expanded
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -1243,125 +1244,129 @@ export default function Clients() {
                 </CardContent>
               </Card>
 
-              {/* Action Items Card - Unified Dark Theme */}
+              {/* Action Items Card - Unified Dark Theme (Pipeline Style) */}
               <div className="bg-[#1A1C23] border border-[#2D313E] rounded-lg">
-                <div className="flex items-center justify-between p-4 border-b border-[#2D313E]">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-indigo-400" />
-                    <h3 className="text-sm font-semibold text-white">Action Items</h3>
-                    {(() => {
-                      const pendingCount = (clientTodos?.filter(t => t.status !== 'completed').length || 0) +
-                        (clientActionItems?.reduce((sum, m) => sum + m.actionItems.filter(i => !i.completed).length, 0) || 0);
-                      return pendingCount > 0 ? (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-500/10 text-orange-400">
-                          {pendingCount} pending
-                        </span>
-                      ) : null;
-                    })()}
-                  </div>
-                </div>
-                <div className="p-4">
-                  {/* Add New Action Item Form */}
-                  <div className="mb-4">
-                    <div className="flex gap-2">
-                      <Input
-                        placeholder="Add new action item..."
-                        value={newActionItemText}
-                        onChange={(e) => setNewActionItemText(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && handleAddActionItem()}
-                        className="flex-1 h-9 text-sm bg-[#252830] border-[#3D414E] text-white placeholder:text-[#6B7280]"
-                      />
-                      <Button
-                        onClick={handleAddActionItem}
-                        disabled={!newActionItemText.trim() || addingActionItem}
-                        size="sm"
-                        className="h-9 bg-indigo-600 hover:bg-indigo-700"
-                      >
-                        {addingActionItem ? (
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : (
-                          <Plus className="w-4 h-4" />
-                        )}
-                      </Button>
+                <button
+                  onClick={() => setShowClientActionItems(!showClientActionItems)}
+                  className="w-full p-4 flex items-center justify-between hover:bg-[#252830] transition-colors rounded-t-lg"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-600/20 flex items-center justify-center">
+                      <CheckCircle2 className="w-4 h-4 text-indigo-400" />
                     </div>
-                  </div>
-
-                  {/* Manual Todos */}
-                  {clientTodos && clientTodos.length > 0 && (
-                    <div className="space-y-2 mb-4">
-                      <p className="text-xs font-medium text-[#94A3B8]">Manual Tasks</p>
-                      {clientTodos.filter(t => t.status !== 'completed').map((todo) => (
-                        <ActionItemCard
-                          key={todo.id}
-                          id={todo.id}
-                          text={todo.title}
-                          completed={false}
-                          priority={3}
-                          onToggle={() => toggleTodoCompletion(todo.id, todo.status)}
-                        />
-                      ))}
-                      {clientTodos.filter(t => t.status === 'completed').map((todo) => (
-                        <ActionItemCard
-                          key={todo.id}
-                          id={todo.id}
-                          text={todo.title}
-                          completed={true}
-                          priority={3}
-                          onToggle={() => toggleTodoCompletion(todo.id, todo.status)}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Meeting-extracted Action Items */}
-                  {clientActionItems && clientActionItems.length > 0 && clientActionItems.some(m => m.actionItems.length > 0) ? (
-                    <div className="space-y-3">
-                      {clientActionItems.map(meeting => {
-                        const pendingItems = meeting.actionItems.filter(item => !item.completed);
-                        const completedItems = meeting.actionItems.filter(item => item.completed);
-                        if (meeting.actionItems.length === 0) return null;
-
-                        return (
-                          <div key={meeting.meetingId} className="space-y-2">
-                            <p className="text-xs font-medium text-[#94A3B8] flex items-center justify-between">
-                              <span>From: {meeting.meetingTitle}</span>
-                              {pendingItems.length > 0 && (
-                                <span className="text-orange-400">{pendingItems.length} pending</span>
-                              )}
-                            </p>
-                            {pendingItems.map((item) => (
-                              <ActionItemCard
-                                key={item.id}
-                                id={item.id}
-                                text={item.actionText}
-                                completed={false}
-                                priority={item.priority || 3}
-                                onToggle={() => toggleActionItemCompletion(item.id, item.completed)}
-                              />
-                            ))}
-                            {completedItems.map((item) => (
-                              <ActionItemCard
-                                key={item.id}
-                                id={item.id}
-                                text={item.actionText}
-                                completed={true}
-                                priority={item.priority || 3}
-                                onToggle={() => toggleActionItemCompletion(item.id, item.completed)}
-                              />
-                            ))}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : clientTodos.length === 0 && (
-                    <div className="text-center py-4">
-                      <CheckCircle2 className="w-6 h-6 text-[#4D515E] mx-auto mb-2" />
+                    <div className="text-left">
+                      <h4 className="text-sm font-semibold text-white">Action Items</h4>
                       <p className="text-xs text-[#94A3B8]">
-                        No action items yet. Add one above or they'll appear from meeting transcripts.
+                        {(() => {
+                          const pendingCount = (clientTodos?.filter(t => t.status !== 'completed').length || 0) +
+                            (clientActionItems?.reduce((sum, m) => sum + m.actionItems.filter(i => !i.completed).length, 0) || 0);
+                          const completedCount = (clientTodos?.filter(t => t.status === 'completed').length || 0) +
+                            (clientActionItems?.reduce((sum, m) => sum + m.actionItems.filter(i => i.completed).length, 0) || 0);
+                          return `${pendingCount} pending, ${completedCount} complete`;
+                        })()}
                       </p>
                     </div>
-                  )}
-                </div>
+                  </div>
+                  <ChevronDown className={`w-5 h-5 text-[#94A3B8] transition-transform ${showClientActionItems ? 'transform rotate-180' : ''}`} />
+                </button>
+
+                {showClientActionItems && (
+                  <div className="p-4 pt-0 space-y-2">
+                    {/* Manual Todos - Pending first */}
+                    {clientTodos?.filter(t => t.status !== 'completed').map((todo) => (
+                      <ActionItemCard
+                        key={todo.id}
+                        id={todo.id}
+                        text={todo.title}
+                        completed={false}
+                        priority={3}
+                        onToggle={() => toggleTodoCompletion(todo.id, todo.status)}
+                      />
+                    ))}
+
+                    {/* Meeting-extracted Action Items - Pending */}
+                    {clientActionItems?.map(meeting =>
+                      meeting.actionItems.filter(item => !item.completed).map((item) => (
+                        <ActionItemCard
+                          key={item.id}
+                          id={item.id}
+                          text={item.actionText}
+                          completed={false}
+                          priority={item.priority || 3}
+                          meetingTitle={meeting.meetingTitle}
+                          onToggle={() => toggleActionItemCompletion(item.id, item.completed)}
+                        />
+                      ))
+                    )}
+
+                    {/* Manual Todos - Completed */}
+                    {clientTodos?.filter(t => t.status === 'completed').map((todo) => (
+                      <ActionItemCard
+                        key={todo.id}
+                        id={todo.id}
+                        text={todo.title}
+                        completed={true}
+                        priority={3}
+                        onToggle={() => toggleTodoCompletion(todo.id, todo.status)}
+                      />
+                    ))}
+
+                    {/* Meeting-extracted Action Items - Completed */}
+                    {clientActionItems?.map(meeting =>
+                      meeting.actionItems.filter(item => item.completed).map((item) => (
+                        <ActionItemCard
+                          key={item.id}
+                          id={item.id}
+                          text={item.actionText}
+                          completed={true}
+                          priority={item.priority || 3}
+                          meetingTitle={meeting.meetingTitle}
+                          onToggle={() => toggleActionItemCompletion(item.id, item.completed)}
+                        />
+                      ))
+                    )}
+
+                    {/* Empty state */}
+                    {clientTodos?.length === 0 && (!clientActionItems || clientActionItems.length === 0 || !clientActionItems.some(m => m.actionItems.length > 0)) && (
+                      <p className="text-sm text-[#94A3B8] italic text-center py-4">
+                        No action items for this client yet.
+                      </p>
+                    )}
+
+                    {/* Add Action Item */}
+                    <div className="bg-[#252830] rounded-lg p-3 mt-2">
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Add new action item..."
+                          value={newActionItemText}
+                          onChange={(e) => setNewActionItemText(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleAddActionItem()}
+                          className="flex-1 h-9 text-sm bg-[#1A1C23] border-[#3D414E] text-white placeholder:text-[#6B7280]"
+                        />
+                        <Button
+                          onClick={handleAddActionItem}
+                          disabled={!newActionItemText.trim() || addingActionItem}
+                          size="sm"
+                          className="h-9 bg-indigo-600 hover:bg-indigo-700"
+                        >
+                          {addingActionItem ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <Plus className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Link to full action items page */}
+                    <button
+                      onClick={() => navigate('/action-items')}
+                      className="w-full mt-2 text-xs text-indigo-400 hover:text-indigo-300 font-medium text-center py-2 hover:bg-[#252830] rounded transition-colors"
+                    >
+                      View All Action Items →
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* ═══════════════════════════════════════════════════════════════════
