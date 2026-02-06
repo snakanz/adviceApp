@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { Checkbox } from '../components/ui/checkbox';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { useDebounce } from '../hooks/useDebounce';
 import {
@@ -34,6 +33,7 @@ import BusinessTypeManager from '../components/BusinessTypeManager';
 import CreateClientForm from '../components/CreateClientForm';
 import ClientDocumentsSection from '../components/ClientDocumentsSection';
 import InlineChatWidget from '../components/InlineChatWidget';
+import ActionItemCard from '../components/ActionItemCard';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -1243,128 +1243,126 @@ export default function Clients() {
                 </CardContent>
               </Card>
 
-              {/* Action Items Card */}
-              <Card className="border-border/50">
-                <CardContent className="p-0">
-                  <div className="flex items-center justify-between p-4 border-b border-border/50">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
-                      <h3 className="text-sm font-semibold text-foreground">Action Items</h3>
-                      {(() => {
-                        const pendingCount = (clientTodos?.filter(t => t.status !== 'completed').length || 0) +
-                          (clientActionItems?.reduce((sum, m) => sum + m.actionItems.filter(i => !i.completed).length, 0) || 0);
-                        return pendingCount > 0 ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300">
-                            {pendingCount} pending
-                          </span>
-                        ) : null;
-                      })()}
+              {/* Action Items Card - Unified Dark Theme */}
+              <div className="bg-[#1A1C23] border border-[#2D313E] rounded-lg">
+                <div className="flex items-center justify-between p-4 border-b border-[#2D313E]">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-indigo-400" />
+                    <h3 className="text-sm font-semibold text-white">Action Items</h3>
+                    {(() => {
+                      const pendingCount = (clientTodos?.filter(t => t.status !== 'completed').length || 0) +
+                        (clientActionItems?.reduce((sum, m) => sum + m.actionItems.filter(i => !i.completed).length, 0) || 0);
+                      return pendingCount > 0 ? (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-orange-500/10 text-orange-400">
+                          {pendingCount} pending
+                        </span>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
+                <div className="p-4">
+                  {/* Add New Action Item Form */}
+                  <div className="mb-4">
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Add new action item..."
+                        value={newActionItemText}
+                        onChange={(e) => setNewActionItemText(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleAddActionItem()}
+                        className="flex-1 h-9 text-sm bg-[#252830] border-[#3D414E] text-white placeholder:text-[#6B7280]"
+                      />
+                      <Button
+                        onClick={handleAddActionItem}
+                        disabled={!newActionItemText.trim() || addingActionItem}
+                        size="sm"
+                        className="h-9 bg-indigo-600 hover:bg-indigo-700"
+                      >
+                        {addingActionItem ? (
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <Plus className="w-4 h-4" />
+                        )}
+                      </Button>
                     </div>
                   </div>
-                  <div className="p-4">
-                    {/* Add New Action Item Form */}
-                    <div className="mb-4">
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="Add new action item..."
-                          value={newActionItemText}
-                          onChange={(e) => setNewActionItemText(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && handleAddActionItem()}
-                          className="flex-1 h-9 text-sm"
+
+                  {/* Manual Todos */}
+                  {clientTodos && clientTodos.length > 0 && (
+                    <div className="space-y-2 mb-4">
+                      <p className="text-xs font-medium text-[#94A3B8]">Manual Tasks</p>
+                      {clientTodos.filter(t => t.status !== 'completed').map((todo) => (
+                        <ActionItemCard
+                          key={todo.id}
+                          id={todo.id}
+                          text={todo.title}
+                          completed={false}
+                          priority={3}
+                          onToggle={() => toggleTodoCompletion(todo.id, todo.status)}
                         />
-                        <Button
-                          onClick={handleAddActionItem}
-                          disabled={!newActionItemText.trim() || addingActionItem}
-                          size="sm"
-                          className="h-9"
-                        >
-                          {addingActionItem ? (
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          ) : (
-                            <Plus className="w-4 h-4" />
-                          )}
-                        </Button>
-                      </div>
+                      ))}
+                      {clientTodos.filter(t => t.status === 'completed').map((todo) => (
+                        <ActionItemCard
+                          key={todo.id}
+                          id={todo.id}
+                          text={todo.title}
+                          completed={true}
+                          priority={3}
+                          onToggle={() => toggleTodoCompletion(todo.id, todo.status)}
+                        />
+                      ))}
                     </div>
+                  )}
 
-                    {/* Manual Todos */}
-                    {clientTodos && clientTodos.length > 0 && (
-                      <div className="space-y-2 mb-4">
-                        <p className="text-xs font-medium text-muted-foreground">Manual Tasks</p>
-                        {clientTodos.filter(t => t.status !== 'completed').map((todo) => (
-                          <div key={todo.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-                            <Checkbox
-                              checked={false}
-                              onCheckedChange={() => toggleTodoCompletion(todo.id, todo.status)}
-                              className="mt-0.5"
-                            />
-                            <p className="text-sm text-foreground flex-1">{todo.title}</p>
+                  {/* Meeting-extracted Action Items */}
+                  {clientActionItems && clientActionItems.length > 0 && clientActionItems.some(m => m.actionItems.length > 0) ? (
+                    <div className="space-y-3">
+                      {clientActionItems.map(meeting => {
+                        const pendingItems = meeting.actionItems.filter(item => !item.completed);
+                        const completedItems = meeting.actionItems.filter(item => item.completed);
+                        if (meeting.actionItems.length === 0) return null;
+
+                        return (
+                          <div key={meeting.meetingId} className="space-y-2">
+                            <p className="text-xs font-medium text-[#94A3B8] flex items-center justify-between">
+                              <span>From: {meeting.meetingTitle}</span>
+                              {pendingItems.length > 0 && (
+                                <span className="text-orange-400">{pendingItems.length} pending</span>
+                              )}
+                            </p>
+                            {pendingItems.map((item) => (
+                              <ActionItemCard
+                                key={item.id}
+                                id={item.id}
+                                text={item.actionText}
+                                completed={false}
+                                priority={item.priority || 3}
+                                onToggle={() => toggleActionItemCompletion(item.id, item.completed)}
+                              />
+                            ))}
+                            {completedItems.map((item) => (
+                              <ActionItemCard
+                                key={item.id}
+                                id={item.id}
+                                text={item.actionText}
+                                completed={true}
+                                priority={item.priority || 3}
+                                onToggle={() => toggleActionItemCompletion(item.id, item.completed)}
+                              />
+                            ))}
                           </div>
-                        ))}
-                        {clientTodos.filter(t => t.status === 'completed').map((todo) => (
-                          <div key={todo.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/20 opacity-60 hover:opacity-80 transition-opacity">
-                            <Checkbox
-                              checked={true}
-                              onCheckedChange={() => toggleTodoCompletion(todo.id, todo.status)}
-                              className="mt-0.5"
-                            />
-                            <p className="text-sm line-through text-muted-foreground flex-1">{todo.title}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Meeting-extracted Action Items */}
-                    {clientActionItems && clientActionItems.length > 0 && clientActionItems.some(m => m.actionItems.length > 0) ? (
-                      <div className="space-y-3">
-                        {clientActionItems.map(meeting => {
-                          const pendingItems = meeting.actionItems.filter(item => !item.completed);
-                          const completedItems = meeting.actionItems.filter(item => item.completed);
-                          if (meeting.actionItems.length === 0) return null;
-
-                          return (
-                            <div key={meeting.meetingId} className="space-y-2">
-                              <p className="text-xs font-medium text-muted-foreground flex items-center justify-between">
-                                <span>From: {meeting.meetingTitle}</span>
-                                {pendingItems.length > 0 && (
-                                  <span className="text-orange-600">{pendingItems.length} pending</span>
-                                )}
-                              </p>
-                              {pendingItems.map((item) => (
-                                <div key={item.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-                                  <Checkbox
-                                    checked={false}
-                                    onCheckedChange={() => toggleActionItemCompletion(item.id, item.completed)}
-                                    className="mt-0.5"
-                                  />
-                                  <p className="text-sm text-foreground flex-1">{item.actionText}</p>
-                                </div>
-                              ))}
-                              {completedItems.map((item) => (
-                                <div key={item.id} className="flex items-start gap-3 p-2 rounded-lg bg-muted/20 opacity-60 hover:opacity-80 transition-opacity">
-                                  <Checkbox
-                                    checked={true}
-                                    onCheckedChange={() => toggleActionItemCompletion(item.id, item.completed)}
-                                    className="mt-0.5"
-                                  />
-                                  <p className="text-sm line-through text-muted-foreground flex-1">{item.actionText}</p>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : clientTodos.length === 0 && (
-                      <div className="text-center py-4">
-                        <CheckCircle2 className="w-6 h-6 text-muted-foreground/50 mx-auto mb-2" />
-                        <p className="text-xs text-muted-foreground">
-                          No action items yet. Add one above or they'll appear from meeting transcripts.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
+                        );
+                      })}
+                    </div>
+                  ) : clientTodos.length === 0 && (
+                    <div className="text-center py-4">
+                      <CheckCircle2 className="w-6 h-6 text-[#4D515E] mx-auto mb-2" />
+                      <p className="text-xs text-[#94A3B8]">
+                        No action items yet. Add one above or they'll appear from meeting transcripts.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* ═══════════════════════════════════════════════════════════════════
                   SECONDARY SECTIONS - Collapsed by default

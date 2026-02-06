@@ -16,7 +16,7 @@ import {
   ChevronRight,
   AlertCircle,
   Sparkles,
-  CheckCircle,
+  CheckCircle2,
   Calendar,
   Clock
 } from 'lucide-react';
@@ -26,6 +26,7 @@ import { cn } from '../lib/utils';
 import { api } from '../services/api';
 import CreateClientForm from '../components/CreateClientForm';
 import BusinessTypeManager from '../components/BusinessTypeManager';
+import ActionItemCard from '../components/ActionItemCard';
 
 // Stage options for business types - dark theme compatible colors
 // Note: 'Signed' stage removed from dropdown options (but data with 'Signed' will still display correctly)
@@ -485,19 +486,25 @@ export default function Pipeline() {
 
   // Toggle action item completion
   const handleToggleActionItem = async (actionItemId, currentStatus) => {
-    try {
-      await api.request(`/transcript-action-items/${actionItemId}/toggle`, {
-        method: 'POST'
-      });
+    // Optimistic update - update UI immediately
+    setClientActionItems(prev =>
+      prev.map(item =>
+        item.id === actionItemId ? { ...item, completed: !currentStatus } : item
+      )
+    );
 
-      // Update local state
-      setClientActionItems(prev =>
-        prev.map(item =>
-          item.id === actionItemId ? { ...item, completed: !currentStatus } : item
-        )
-      );
+    try {
+      await api.request(`/transcript-action-items/action-items/${actionItemId}/toggle`, {
+        method: 'PATCH'
+      });
     } catch (error) {
       console.error('Error toggling action item:', error);
+      // Revert on error
+      setClientActionItems(prev =>
+        prev.map(item =>
+          item.id === actionItemId ? { ...item, completed: currentStatus } : item
+        )
+      );
     }
   };
 
@@ -1454,29 +1461,29 @@ export default function Pipeline() {
                   </div>
                 </div>
 
-                {/* Action Items Section */}
-                <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/30 dark:to-pink-950/30 border border-purple-200 dark:border-purple-800 rounded-lg">
+                {/* Action Items Section - Unified Dark Theme */}
+                <div className="bg-[#1A1C23] border border-[#2D313E] rounded-lg">
                   <button
                     onClick={() => setShowActionItems(!showActionItems)}
-                    className="w-full p-4 flex items-center justify-between hover:bg-purple-100/50 dark:hover:bg-purple-900/20 transition-colors rounded-t-lg"
+                    className="w-full p-4 flex items-center justify-between hover:bg-[#252830] transition-colors rounded-t-lg"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/50 flex items-center justify-center">
-                        <CheckCircle className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-600/20 flex items-center justify-center">
+                        <CheckCircle2 className="w-4 h-4 text-indigo-400" />
                       </div>
                       <div className="text-left">
-                        <h4 className="text-sm font-semibold text-purple-900 dark:text-purple-100">Action Items</h4>
+                        <h4 className="text-sm font-semibold text-white">Action Items</h4>
                         {loadingActionItems ? (
-                          <p className="text-xs text-purple-700 dark:text-purple-300">Loading...</p>
+                          <p className="text-xs text-[#94A3B8]">Loading...</p>
                         ) : (
-                          <p className="text-xs text-purple-700 dark:text-purple-300">
+                          <p className="text-xs text-[#94A3B8]">
                             {clientActionItems.filter(item => !item.completed).length} pending, {clientActionItems.filter(item => item.completed).length} complete
                           </p>
                         )}
                       </div>
                     </div>
                     <ChevronDown className={cn(
-                      "w-5 h-5 text-purple-600 dark:text-purple-400 transition-transform",
+                      "w-5 h-5 text-[#94A3B8] transition-transform",
                       showActionItems && "transform rotate-180"
                     )} />
                   </button>
@@ -1485,52 +1492,45 @@ export default function Pipeline() {
                     <div className="p-4 pt-0 space-y-2">
                       {loadingActionItems ? (
                         <div className="space-y-2">
-                          <div className="h-8 bg-purple-200/50 dark:bg-purple-800/30 rounded animate-pulse" />
-                          <div className="h-8 bg-purple-200/50 dark:bg-purple-800/30 rounded animate-pulse" />
+                          <div className="h-16 bg-[#252830] rounded-lg animate-pulse" />
+                          <div className="h-16 bg-[#252830] rounded-lg animate-pulse" />
                         </div>
                       ) : clientActionItems.length === 0 ? (
-                        <p className="text-sm text-purple-700 dark:text-purple-300 italic text-center py-4">
+                        <p className="text-sm text-[#94A3B8] italic text-center py-4">
                           No action items for this client yet.
                         </p>
                       ) : (
                         <>
                           {/* Pending Action Items */}
                           {clientActionItems.filter(item => !item.completed).map(item => (
-                            <div key={item.id} className="flex items-start gap-2 p-2 bg-white/50 dark:bg-purple-900/20 rounded-lg hover:bg-white dark:hover:bg-purple-900/30 transition-colors">
-                              <input
-                                type="checkbox"
-                                checked={false}
-                                onChange={() => handleToggleActionItem(item.id, false)}
-                                className="mt-1 w-4 h-4 rounded border-purple-300 text-purple-600 focus:ring-purple-500"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm text-purple-900 dark:text-purple-100">{item.action_item_text || item.title}</p>
-                                {item.meeting_title && (
-                                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">From: {item.meeting_title}</p>
-                                )}
-                              </div>
-                            </div>
+                            <ActionItemCard
+                              key={item.id}
+                              id={item.id}
+                              text={item.action_item_text || item.title}
+                              completed={false}
+                              priority={item.priority || 3}
+                              meetingTitle={item.meeting_title}
+                              onToggle={() => handleToggleActionItem(item.id, false)}
+                            />
                           ))}
 
                           {/* Completed Action Items */}
                           {clientActionItems.filter(item => item.completed).map(item => (
-                            <div key={item.id} className="flex items-start gap-2 p-2 bg-white/30 dark:bg-purple-900/10 rounded-lg opacity-60">
-                              <input
-                                type="checkbox"
-                                checked={true}
-                                onChange={() => handleToggleActionItem(item.id, true)}
-                                className="mt-1 w-4 h-4 rounded border-purple-300 text-purple-600 focus:ring-purple-500"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm text-purple-900 dark:text-purple-100 line-through">{item.action_item_text || item.title}</p>
-                              </div>
-                            </div>
+                            <ActionItemCard
+                              key={item.id}
+                              id={item.id}
+                              text={item.action_item_text || item.title}
+                              completed={true}
+                              priority={item.priority || 3}
+                              meetingTitle={item.meeting_title}
+                              onToggle={() => handleToggleActionItem(item.id, true)}
+                            />
                           ))}
 
                           {/* Link to full action items page */}
                           <button
                             onClick={() => navigate(`/action-items?clientId=${selectedClient.clientId || selectedClient.id}`)}
-                            className="w-full mt-2 text-xs text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300 font-medium text-center py-2 hover:bg-purple-100/50 dark:hover:bg-purple-900/20 rounded transition-colors"
+                            className="w-full mt-2 text-xs text-indigo-400 hover:text-indigo-300 font-medium text-center py-2 hover:bg-[#252830] rounded transition-colors"
                           >
                             View All Action Items →
                           </button>

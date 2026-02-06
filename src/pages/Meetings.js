@@ -5,7 +5,6 @@ import remarkGfm from 'remark-gfm';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
-import { Checkbox } from '../components/ui/checkbox';
 
 import { cn } from '../lib/utils';
 import {
@@ -55,6 +54,7 @@ import InlineChatWidget from '../components/InlineChatWidget';
 import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Switch } from '../components/ui/switch';
+import ActionItemCard from '../components/ActionItemCard';
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
@@ -2937,51 +2937,32 @@ export default function Meetings() {
                           </div>
                         )}
 
-                        {/* Approved Action Items - Items that have been approved from pending */}
+                        {/* Approved Action Items - Unified Dark Theme */}
                         {actionItems.length > 0 && (
                           <div className="space-y-2">
-                            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                              <CheckSquare className="w-4 h-4 text-green-600" />
+                            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                              <CheckSquare className="w-4 h-4 text-indigo-400" />
                               Action Items ({actionItems.length})
                             </h3>
-                            <Card className="border-border/50">
-                              <CardContent className="p-3 space-y-2">
-                                {loadingActionItems ? (
-                                  <div className="flex items-center justify-center py-4">
-                                    <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-                                  </div>
-                                ) : (
-                                  actionItems.map((item) => (
-                                    <div
-                                      key={item.id}
-                                      className={`flex items-start gap-3 p-2 rounded-lg transition-colors ${
-                                        item.completed ? 'bg-green-50 dark:bg-green-950/20' : 'bg-muted/30'
-                                      }`}
-                                    >
-                                      <Checkbox
-                                        checked={item.completed}
-                                        onCheckedChange={() => toggleActionItemCompletion(item.id)}
-                                        className="mt-0.5"
-                                      />
-                                      <div className="flex-1 min-w-0">
-                                        <p className={`text-sm ${item.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                                          {item.action_text}
-                                        </p>
-                                        {item.priority && item.priority !== 3 && (
-                                          <span className={`text-xs px-1.5 py-0.5 rounded mt-1 inline-block ${
-                                            item.priority === 1 ? 'bg-red-100 text-red-700' :
-                                            item.priority === 2 ? 'bg-orange-100 text-orange-700' :
-                                            'bg-blue-100 text-blue-700'
-                                          }`}>
-                                            {item.priority === 1 ? 'Urgent' : item.priority === 2 ? 'High' : 'Low'}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  ))
-                                )}
-                              </CardContent>
-                            </Card>
+                            <div className="space-y-2">
+                              {loadingActionItems ? (
+                                <div className="space-y-2">
+                                  <div className="h-16 bg-[#252830] rounded-lg animate-pulse" />
+                                  <div className="h-16 bg-[#252830] rounded-lg animate-pulse" />
+                                </div>
+                              ) : (
+                                actionItems.map((item) => (
+                                  <ActionItemCard
+                                    key={item.id}
+                                    id={item.id}
+                                    text={item.action_text}
+                                    completed={item.completed}
+                                    priority={item.priority || 3}
+                                    onToggle={() => toggleActionItemCompletion(item.id)}
+                                  />
+                                ))
+                              )}
+                            </div>
                           </div>
                         )}
 

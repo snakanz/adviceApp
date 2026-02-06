@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ActionItemsProvider } from './context/ActionItemsContext';
 import Layout from './Layout';
 import Clients from './pages/Clients';
 import Meetings from './pages/Meetings';
@@ -163,6 +164,7 @@ function RootRedirect() {
 function App() {
   return (
     <AuthProvider>
+      <ActionItemsProvider>
       <Router>
         <Routes>
           {/* Root redirect */}
@@ -196,6 +198,7 @@ function App() {
           <Route path="*" element={<Navigate to="/register" />} />
         </Routes>
       </Router>
+      </ActionItemsProvider>
     </AuthProvider>
   );
 }
