@@ -1249,5 +1249,77 @@ router.delete('/pending', authenticateSupabaseUser, async (req, res) => {
   }
 });
 
+// Get client order for Action Items Dashboard
+router.get('/client-order', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    // Fetch user preferences
+    const { data: preferences, error } = await req.supabase
+      .from('user_preferences')
+      .select('action_items_client_order')
+      .eq('user_id', userId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      // PGRST116 = no rows returned (first time user)
+      console.error('Error fetching client order:', error);
+      return res.status(500).json({ error: 'Failed to fetch client order' });
+    }
+
+    res.json({
+      order: preferences?.action_items_client_order || []
+    });
+  } catch (error) {
+    console.error('Error in get client order:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Save client order for Action Items Dashboard
+router.put('/client-order', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const { order } = req.body;
+    const userId = req.user.id;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    if (!Array.isArray(order)) {
+      return res.status(400).json({ error: 'order must be an array' });
+    }
+
+    console.log(`💾 Saving client order for user ${userId}: ${order.length} clients`);
+
+    // Upsert user preferences
+    const { error } = await req.supabase
+      .from('user_preferences')
+      .upsert({
+        user_id: userId,
+        action_items_client_order: order,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id'
+      });
+
+    if (error) {
+      console.error('Error saving client order:', error);
+      return res.status(500).json({ error: 'Failed to save client order' });
+    }
+
+    console.log(`✅ Successfully saved client order`);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error in save client order:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;
 

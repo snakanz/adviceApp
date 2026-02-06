@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -22,11 +22,29 @@ import {
   Save,
   List,
   Users,
-  Plus
+  Plus,
+  GripVertical
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import ActionItemCard from '../components/ActionItemCard';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  rectSortingStrategy
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
@@ -78,11 +96,44 @@ export default function ActionItems() {
   const [newPendingItemPriority, setNewPendingItemPriority] = useState(3);
   const [savingNewPendingItem, setSavingNewPendingItem] = useState(false);
 
+  // Client order state for drag-and-drop
+  const [clientOrder, setClientOrder] = useState([]);
+  const [activeClientId, setActiveClientId] = useState(null);
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   useEffect(() => {
     fetchActionItems();
     fetchPendingApprovalItems();
+    fetchClientOrder();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Update client order when clients change
+  useEffect(() => {
+    if (clients.length > 0 && clientOrder.length === 0) {
+      // Initialize with default order if no saved order
+      setClientOrder(clients.map(c => c.clientId));
+    } else if (clients.length > 0) {
+      // Merge any new clients into existing order
+      const existingIds = new Set(clientOrder);
+      const newClients = clients.filter(c => !existingIds.has(c.clientId));
+      if (newClients.length > 0) {
+        setClientOrder(prev => [...prev, ...newClients.map(c => c.clientId)]);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clients]);
 
   // Refetch when filters change
   useEffect(() => {
@@ -196,6 +247,67 @@ export default function ActionItems() {
       // Don't show error, just log it
     } finally {
       setLoadingPendingApproval(false);
+    }
+  };
+
+  const fetchClientOrder = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const response = await fetch(`${API_URL}/api/transcript-action-items/client-order`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.order && data.order.length > 0) {
+          setClientOrder(data.order);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching client order:', error);
+      // Non-critical, use default order
+    }
+  };
+
+  const saveClientOrder = async (newOrder) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      await fetch(`${API_URL}/api/transcript-action-items/client-order`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ order: newOrder })
+      });
+    } catch (error) {
+      console.error('Error saving client order:', error);
+      // Non-critical, order still works locally
+    }
+  };
+
+  const handleDragStart = (event) => {
+    setActiveClientId(event.active.id);
+  };
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    setActiveClientId(null);
+
+    if (over && active.id !== over.id) {
+      setClientOrder((items) => {
+        const oldIndex = items.indexOf(active.id);
+        const newIndex = items.indexOf(over.id);
+        const newOrder = arrayMove(items, oldIndex, newIndex);
+        // Persist to backend
+        saveClientOrder(newOrder);
+        return newOrder;
+      });
     }
   };
 
@@ -642,18 +754,147 @@ export default function ActionItems() {
   // Filter clients based on selected filter
   const filteredClients = clients.map(client => {
     let filteredItems = client.actionItems;
-    
+
     if (filter === 'pending') {
       filteredItems = client.actionItems.filter(item => !item.completed);
     } else if (filter === 'completed') {
       filteredItems = client.actionItems.filter(item => item.completed);
     }
-    
+
     return {
       ...client,
       actionItems: filteredItems
     };
   }).filter(client => client.actionItems.length > 0);
+
+  // Order clients based on saved order
+  const orderedClients = useMemo(() => {
+    if (clientOrder.length === 0) return filteredClients;
+
+    const clientMap = new Map(filteredClients.map(c => [c.clientId, c]));
+    const ordered = [];
+
+    // Add clients in saved order
+    clientOrder.forEach(id => {
+      if (clientMap.has(id)) {
+        ordered.push(clientMap.get(id));
+        clientMap.delete(id);
+      }
+    });
+
+    // Add any remaining clients not in saved order
+    clientMap.forEach(client => ordered.push(client));
+
+    return ordered;
+  }, [filteredClients, clientOrder]);
+
+  // SortableClientCard component
+  const SortableClientCard = ({ client, children }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: client.clientId });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+      zIndex: isDragging ? 1000 : 1,
+    };
+
+    const isExpanded = expandedClients.has(client.clientId);
+    const pendingCount = client.actionItems.filter(item => !item.completed).length;
+    const completedCount = client.actionItems.filter(item => item.completed).length;
+
+    return (
+      <div ref={setNodeRef} style={style} className="h-fit">
+        <div className="bg-[#1A1C23] border border-[#2D313E] rounded-lg overflow-hidden">
+          {/* Card Header with drag handle */}
+          <div
+            className="p-3 cursor-pointer hover:bg-[#252830] transition-colors"
+            onClick={() => toggleClientExpanded(client.clientId)}
+          >
+            <div className="flex items-start gap-2">
+              {/* Drag handle */}
+              <button
+                className="flex-shrink-0 p-1 hover:bg-[#3D414E] rounded cursor-grab active:cursor-grabbing"
+                {...attributes}
+                {...listeners}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <GripVertical className="w-4 h-4 text-[#6B7280]" />
+              </button>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-white truncate">{client.clientName}</h3>
+                    <p className="text-xs text-[#94A3B8] truncate">{client.clientEmail}</p>
+                  </div>
+                  {isExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-[#6B7280] flex-shrink-0" />
+                  ) : (
+                    <ChevronUp className="w-4 h-4 text-[#6B7280] flex-shrink-0" />
+                  )}
+                </div>
+
+                {/* Stats badges */}
+                <div className="flex items-center gap-2 mt-2">
+                  {pendingCount > 0 && (
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-orange-500/10 text-orange-400">
+                      {pendingCount} pending
+                    </span>
+                  )}
+                  {completedCount > 0 && (
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-green-500/10 text-green-400">
+                      {completedCount} done
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Expanded content */}
+          {isExpanded && (
+            <div className="border-t border-[#2D313E] p-3 space-y-2">
+              {client.actionItems.map((item) => (
+                <ActionItemCard
+                  key={item.id}
+                  id={item.id}
+                  text={item.actionText}
+                  completed={item.completed}
+                  priority={item.priority}
+                  meetingTitle={item.meeting?.title}
+                  onToggle={(id) => toggleActionItem(id, item.source || 'meeting')}
+                  onEdit={(id, newText) => {
+                    setEditingItemId(id);
+                    setEditingText(newText);
+                  }}
+                />
+              ))}
+
+              {/* View client link */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate(`/clients?client=${encodeURIComponent(client.clientEmail)}`);
+                }}
+                className="w-full mt-2 py-1.5 text-xs text-[#94A3B8] hover:text-white hover:bg-[#2D313E] rounded transition-colors flex items-center justify-center gap-1"
+              >
+                <User className="w-3 h-3" />
+                View Client
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   // Calculate statistics
   const totalItems = clients.reduce((sum, client) => sum + client.actionItems.length, 0);
@@ -1175,187 +1416,48 @@ export default function ActionItems() {
           // Action Items Tab Content
           <>
             {viewMode === 'by-client' ? (
-              // By Client View
+              // By Client View - 5-column responsive grid with drag-and-drop
               <>
-                {filteredClients.length === 0 ? (
-                  <Card className="border-border/50">
-                    <CardContent className="p-12 text-center">
-                      <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-green-500" />
-                      <h3 className="text-lg font-semibold text-foreground mb-2">All Caught Up!</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {filter === 'pending' ? 'No pending action items' :
-                         filter === 'completed' ? 'No completed action items' :
-                         'No action items found'}
-                      </p>
-                    </CardContent>
-                  </Card>
+                {orderedClients.length === 0 ? (
+                  <div className="bg-[#1A1C23] border border-[#2D313E] rounded-lg p-12 text-center">
+                    <CheckCircle2 className="w-12 h-12 mx-auto mb-4 text-green-500" />
+                    <h3 className="text-lg font-semibold text-white mb-2">All Caught Up!</h3>
+                    <p className="text-sm text-[#94A3B8]">
+                      {filter === 'pending' ? 'No pending action items' :
+                       filter === 'completed' ? 'No completed action items' :
+                       'No action items found'}
+                    </p>
+                  </div>
                 ) : (
-                  <div className="space-y-4">
-                    {filteredClients.map((client) => {
-              const isExpanded = expandedClients.has(client.clientId);
-              const pendingCount = client.actionItems.filter(item => !item.completed).length;
-              const completedCount = client.actionItems.filter(item => item.completed).length;
-
-              return (
-                <Card key={client.clientId} className="border-border/50">
-                  <CardHeader
-                    className="cursor-pointer hover:bg-muted/50 transition-colors"
-                    onClick={() => toggleClientExpanded(client.clientId)}
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        {isExpanded ? (
-                          <ChevronDown className="w-5 h-5 text-muted-foreground" />
-                        ) : (
-                          <ChevronUp className="w-5 h-5 text-muted-foreground" />
-                        )}
-                        <div>
-                          <CardTitle className="text-lg">{client.clientName}</CardTitle>
-                          <p className="text-sm text-muted-foreground">{client.clientEmail}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {pendingCount > 0 && (
-                          <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
-                            {pendingCount} pending
-                          </Badge>
-                        )}
-                        {completedCount > 0 && (
-                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                            {completedCount} completed
-                          </Badge>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/clients?client=${encodeURIComponent(client.clientEmail)}`);
-                          }}
-                        >
-                          <User className="w-4 h-4 mr-1" />
-                          View Client
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-
-                  {isExpanded && (
-                    <CardContent className="pt-0">
-                      <div className="space-y-3">
-                        {client.actionItems.map((item) => (
-                          <div key={item.id} className="border border-border/50 rounded-lg p-4 hover:border-primary/30 transition-colors">
-                            <div className="flex items-start gap-3">
-                              <input
-                                type="checkbox"
-                                checked={item.completed || false}
-                                onChange={() => toggleActionItem(item.id, item.source || 'meeting')}
-                                className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
-                              />
-                              <div className="flex-1">
-                                {/* Inline Editing */}
-                                {editingItemId === item.id ? (
-                                  <div className="mb-2">
-                                    <input
-                                      type="text"
-                                      value={editingText}
-                                      onChange={(e) => setEditingText(e.target.value)}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter') saveEdit(item.id);
-                                        if (e.key === 'Escape') cancelEditing();
-                                      }}
-                                      className="w-full px-3 py-2 text-sm border border-primary rounded-md focus:outline-none focus:ring-2 focus:ring-primary"
-                                      autoFocus
-                                      disabled={savingEdit}
-                                    />
-                                    <div className="flex items-center gap-2 mt-2">
-                                      <Button
-                                        onClick={() => saveEdit(item.id)}
-                                        disabled={savingEdit}
-                                        size="sm"
-                                        className="h-7"
-                                      >
-                                        <Save className="w-3 h-3 mr-1" />
-                                        {savingEdit ? 'Saving...' : 'Save'}
-                                      </Button>
-                                      <Button
-                                        onClick={cancelEditing}
-                                        disabled={savingEdit}
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-7"
-                                      >
-                                        <X className="w-3 h-3 mr-1" />
-                                        Cancel
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="group">
-                                    <div className="flex items-start gap-2 mb-2">
-                                      <p className={`text-sm flex-1 ${item.completed ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                                        {item.actionText}
-                                      </p>
-                                      {!item.completed && (
-                                        <Button
-                                          onClick={() => startEditing(item)}
-                                          variant="ghost"
-                                          size="sm"
-                                          className="h-6 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                          <Edit2 className="w-3 h-3" />
-                                        </Button>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
-
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                                  {/* Priority Badge */}
-                                  {item.priority && <PriorityBadge priority={item.priority} />}
-
-                                  {/* Source Badge */}
-                                  {item.source === 'manual' ? (
-                                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
-                                      <Plus className="w-2.5 h-2.5 mr-1" />
-                                      Manual
-                                    </Badge>
-                                  ) : item.meeting ? (
-                                    <>
-                                      <div className="flex items-center gap-1">
-                                        <Calendar className="w-3 h-3" />
-                                        <span
-                                          className="cursor-pointer hover:text-primary hover:underline"
-                                          onClick={() => navigate(`/meetings?selected=${item.meeting.googleEventId || item.meeting.id}`)}
-                                        >
-                                          {item.meeting.title}
-                                        </span>
-                                      </div>
-                                      <span>•</span>
-                                      <span>{formatDate(item.meeting.startTime)}</span>
-                                    </>
-                                  ) : null}
-                                  {item.completedAt && (
-                                    <>
-                                      <span>•</span>
-                                      <div className="flex items-center gap-1 text-green-600">
-                                        <CheckCircle2 className="w-3 h-3" />
-                                        <span>Completed {formatDate(item.completedAt)}</span>
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                    <SortableContext
+                      items={orderedClients.map(c => c.clientId)}
+                      strategy={rectSortingStrategy}
+                    >
+                      {/* Responsive grid: 1 col mobile, 3 col tablet, 5 col desktop */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                        {orderedClients.map((client) => (
+                          <SortableClientCard key={client.clientId} client={client} />
                         ))}
                       </div>
-                    </CardContent>
-                  )}
-                </Card>
-              );
-            })}
-                  </div>
+                    </SortableContext>
+
+                    {/* Drag overlay for smooth animations */}
+                    <DragOverlay>
+                      {activeClientId ? (
+                        <div className="bg-[#1A1C23] border-2 border-indigo-500 rounded-lg p-3 shadow-xl opacity-90">
+                          <div className="text-sm font-semibold text-white">
+                            {orderedClients.find(c => c.clientId === activeClientId)?.clientName}
+                          </div>
+                        </div>
+                      ) : null}
+                    </DragOverlay>
+                  </DndContext>
                 )}
               </>
             ) : (
