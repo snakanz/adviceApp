@@ -17,7 +17,13 @@ import {
   Clock,
   Users,
   CalendarDays,
-  Sparkles
+  Sparkles,
+  Lock,
+  Copy,
+  Check,
+  ExternalLink,
+  RefreshCw,
+  Mail
 } from 'lucide-react';
 import CalendlySyncButton from './CalendlySyncButton';
 import CalendlyPlanInfo from './CalendlyPlanInfo';
@@ -211,6 +217,11 @@ export default function CalendarSettings() {
     error: null
   });
 
+  // Microsoft pending admin consent state
+  const [pendingMicrosoftConsent, setPendingMicrosoftConsent] = useState(null);
+  const [microsoftAdminConsentUrl, setMicrosoftAdminConsentUrl] = useState(null);
+  const [copied, setCopied] = useState(null);
+
   useEffect(() => {
     loadConnections();
 
@@ -311,6 +322,30 @@ export default function CalendarSettings() {
         }
       } else {
         setCalendlyHealthIssue(null);
+      }
+
+      // Check for Microsoft pending admin consent
+      const microsoftConn = connections.find(c =>
+        (c.provider === 'microsoft' || c.provider === 'outlook') && c.pending_admin_consent
+      );
+      if (microsoftConn) {
+        console.log('🔒 Microsoft connection has pending admin consent');
+        setPendingMicrosoftConsent(microsoftConn);
+
+        // Fetch the admin consent URL
+        try {
+          const consentUrlRes = await axios.get(`${API_BASE_URL}/api/auth/microsoft/admin-consent-url`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (consentUrlRes.data.admin_consent_url) {
+            setMicrosoftAdminConsentUrl(consentUrlRes.data);
+          }
+        } catch (urlErr) {
+          console.warn('Failed to fetch admin consent URL:', urlErr.message);
+        }
+      } else {
+        setPendingMicrosoftConsent(null);
+        setMicrosoftAdminConsentUrl(null);
       }
     } catch (err) {
       console.error('Error loading calendar connections:', err);
@@ -680,6 +715,17 @@ export default function CalendarSettings() {
     }
   };
 
+  // Handle copy to clipboard
+  const handleCopy = async (text, type) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(type);
+      setTimeout(() => setCopied(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
   const getProviderIcon = (provider) => {
     const logoUrl = CALENDAR_PROVIDER_LOGOS[provider] || CALENDAR_PROVIDER_LOGOS[provider === 'microsoft' ? 'outlook' : provider];
     if (logoUrl) {
@@ -1000,7 +1046,112 @@ export default function CalendarSettings() {
           )}
 
           {/* Microsoft Calendar */}
-          {!connections.some(c => c.provider === 'microsoft' || c.provider === 'outlook') ? (
+          {pendingMicrosoftConsent ? (
+            // Show pending admin consent status
+            <Card className="border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20 col-span-1 md:col-span-2">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-4">
+                  <div className="flex-shrink-0 p-2 rounded-full bg-amber-100 dark:bg-amber-900/30">
+                    <Lock className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="font-semibold text-foreground">Microsoft Calendar</h4>
+                      <span className="px-2 py-0.5 bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 text-xs font-medium rounded-full">
+                        IT Approval Pending
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {pendingMicrosoftConsent.admin_consent_error || 'Your organization requires IT administrator approval before you can connect.'}
+                    </p>
+
+                    {microsoftAdminConsentUrl && (
+                      <div className="space-y-3">
+                        {/* Admin Consent URL */}
+                        <div>
+                          <label className="text-xs font-medium text-foreground mb-1 block">
+                            Admin Approval Link:
+                          </label>
+                          <div className="flex gap-2">
+                            <div className="flex-1 bg-background rounded px-2 py-1.5 text-xs text-muted-foreground font-mono overflow-hidden border border-border">
+                              <span className="truncate block">{microsoftAdminConsentUrl.admin_consent_url}</span>
+                            </div>
+                            <button
+                              onClick={() => handleCopy(microsoftAdminConsentUrl.admin_consent_url, 'url')}
+                              className="flex-shrink-0 px-3 py-1.5 bg-primary text-primary-foreground rounded text-xs font-medium hover:bg-primary/90 transition-colors flex items-center gap-1"
+                            >
+                              {copied === 'url' ? (
+                                <>
+                                  <Check className="w-3 h-3" />
+                                  Copied
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3" />
+                                  Copy
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Email Template */}
+                        {microsoftAdminConsentUrl.email_template && (
+                          <div>
+                            <label className="text-xs font-medium text-foreground mb-1 block">
+                              Email Template for IT:
+                            </label>
+                            <div className="relative">
+                              <pre className="bg-background rounded p-2 text-xs text-muted-foreground whitespace-pre-wrap max-h-24 overflow-y-auto border border-border">
+                                {microsoftAdminConsentUrl.email_template.body}
+                              </pre>
+                              <button
+                                onClick={() => handleCopy(microsoftAdminConsentUrl.email_template.body, 'email')}
+                                className="absolute top-1 right-1 px-2 py-0.5 bg-background/80 border border-border rounded text-xs font-medium hover:bg-muted transition-colors flex items-center gap-1"
+                              >
+                                {copied === 'email' ? (
+                                  <>
+                                    <Check className="w-3 h-3" />
+                                    Copied
+                                  </>
+                                ) : (
+                                  <>
+                                    <Mail className="w-3 h-3" />
+                                    Copy
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2 pt-2">
+                          <Button
+                            size="sm"
+                            onClick={handleConnectMicrosoft}
+                            className="flex items-center gap-1"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            Try Again
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => window.open(microsoftAdminConsentUrl.admin_consent_url, '_blank')}
+                            className="flex items-center gap-1"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Open Link
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : !connections.some(c => (c.provider === 'microsoft' || c.provider === 'outlook') && !c.pending_admin_consent) ? (
             <Card
               className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer"
               onClick={handleConnectMicrosoft}

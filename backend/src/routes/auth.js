@@ -27,6 +27,108 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_REDIRECT_URI
 );
 
+// Microsoft Azure AD error codes that require special handling
+// See: https://learn.microsoft.com/en-us/azure/active-directory/develop/reference-aadsts-error-codes
+const AADSTS_ERROR_MAP = {
+  'AADSTS65001': {
+    type: 'admin_consent_required',
+    message: 'Your organization requires IT administrator approval before you can connect your calendar.',
+    showAdminUrl: true,
+    userAction: 'Please share the admin approval link with your IT team.'
+  },
+  'AADSTS700016': {
+    type: 'app_not_found_in_tenant',
+    message: 'This application is not available in your organization.',
+    showAdminUrl: true,
+    userAction: 'Your IT admin needs to add this application to your organization.'
+  },
+  'AADSTS50105': {
+    type: 'user_not_assigned',
+    message: 'You have not been granted access to this application.',
+    showAdminUrl: false,
+    userAction: 'Please contact your IT administrator to request access.'
+  },
+  'AADSTS90094': {
+    type: 'admin_consent_required',
+    message: 'Administrator consent is required for the permissions this app needs.',
+    showAdminUrl: true,
+    userAction: 'Please share the admin approval link with your IT team.'
+  },
+  'AADSTS650052': {
+    type: 'app_needs_permissions',
+    message: 'The app needs access to resources in your organization that only an admin can grant.',
+    showAdminUrl: true,
+    userAction: 'Please share the admin approval link with your IT team.'
+  },
+  'AADSTS70011': {
+    type: 'invalid_scope',
+    message: 'The requested permissions are invalid or not supported.',
+    showAdminUrl: false,
+    userAction: 'Please try again or contact support.'
+  }
+};
+
+// Helper to detect AADSTS error codes from Microsoft OAuth error
+function parseAadtsError(errorCode, errorDescription) {
+  // Check if error description contains an AADSTS code
+  const aadtsMatch = errorDescription?.match(/AADSTS(\d+)/);
+  if (aadtsMatch) {
+    const fullCode = `AADSTS${aadtsMatch[1]}`;
+    return AADSTS_ERROR_MAP[fullCode] || null;
+  }
+
+  // Also check the error code itself
+  if (errorCode && AADSTS_ERROR_MAP[errorCode]) {
+    return AADSTS_ERROR_MAP[errorCode];
+  }
+
+  // Check for common OAuth error types that indicate admin consent
+  // Microsoft returns various messages when consent is denied or required
+  if (errorCode === 'access_denied') {
+    const desc = (errorDescription || '').toLowerCase();
+
+    // Check for phrases that indicate admin consent is needed
+    const adminConsentIndicators = [
+      'admin',
+      'administrator',
+      'consent',
+      'approval',
+      'not consented',
+      'requires approval',
+      'organization',
+      'tenant'
+    ];
+
+    // If the description mentions any consent-related phrase, treat as admin consent required
+    if (adminConsentIndicators.some(phrase => desc.includes(phrase))) {
+      return AADSTS_ERROR_MAP['AADSTS65001'];
+    }
+
+    // Even if no specific phrase, "access_denied" from Microsoft during OAuth
+    // often means consent was denied - treat it as admin consent required
+    // so users get the helpful admin consent flow UI
+    console.log('⚠️ access_denied with no recognized consent phrase, treating as admin consent required');
+    console.log('   Error description:', errorDescription);
+    return AADSTS_ERROR_MAP['AADSTS65001'];
+  }
+
+  if (errorCode === 'consent_required') {
+    return AADSTS_ERROR_MAP['AADSTS65001'];
+  }
+
+  return null;
+}
+
+// Generate admin consent URL for Microsoft
+function generateAdminConsentUrl(tenantId = 'common') {
+  const clientId = process.env.MICROSOFT_CLIENT_ID;
+  const redirectUri = process.env.MICROSOFT_REDIRECT_URI ||
+    `${process.env.BACKEND_URL}/api/auth/microsoft/callback`;
+
+  // Admin consent endpoint - IT admins use this to approve the app for the entire organization
+  return `https://login.microsoftonline.com/${tenantId}/adminconsent?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+}
+
 // Get Google OAuth URL
 router.get('/google', authenticateSupabaseUser, (req, res) => {
   const scopes = [
@@ -734,10 +836,75 @@ router.get('/microsoft/status', authenticateSupabaseUser, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/auth/microsoft/admin-consent-url
+ * Get the admin consent URL for IT administrators to approve the app
+ *
+ * This endpoint returns the URL that users can share with their IT team
+ * to request admin consent for the application in their organization.
+ */
+router.get('/microsoft/admin-consent-url', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const MicrosoftCalendarService = require('../services/microsoftCalendar');
+    const microsoftService = new MicrosoftCalendarService();
+
+    if (!microsoftService.isConfigured()) {
+      return res.status(400).json({
+        error: 'Microsoft OAuth not configured',
+        message: 'Microsoft Calendar integration is not available'
+      });
+    }
+
+    // Get tenant ID from query if provided (for organization-specific consent)
+    // Default to 'common' which works for any organization
+    const tenantId = req.query.tenant_id || 'common';
+
+    const adminConsentUrl = generateAdminConsentUrl(tenantId);
+
+    // Generate email template for users to send to IT
+    const emailTemplate = {
+      subject: 'Please approve Advicly for Microsoft 365',
+      body: `Hi IT Team,
+
+I'm trying to use Advicly to manage my client meetings. It needs access to my Microsoft calendar, but requires administrator approval for our organization.
+
+Could you please approve the app using this link?
+${adminConsentUrl}
+
+The app only needs to read calendar events - it won't modify or delete anything.
+
+Permissions requested:
+- Read calendar events (Calendars.Read)
+- Read user profile (User.Read)
+- Offline access for background sync
+
+Thank you!`
+    };
+
+    res.json({
+      success: true,
+      admin_consent_url: adminConsentUrl,
+      email_template: emailTemplate,
+      instructions: [
+        '1. Share this link with your IT administrator',
+        '2. The admin will sign in and approve the app for your organization',
+        '3. After approval, return here and click "Try Again" to connect your calendar'
+      ]
+    });
+
+  } catch (error) {
+    console.error('Error generating admin consent URL:', error);
+    res.status(500).json({
+      error: 'Failed to generate admin consent URL',
+      message: error.message
+    });
+  }
+});
+
 // Handle Microsoft OAuth callback
 router.get('/microsoft/callback', async (req, res) => {
   try {
-    const { code, state } = req.query;
+    const { code, state, error: oauthError, error_description: errorDescription } = req.query;
 
     // Log with timestamp and all request details
     const timestamp = new Date().toISOString();
@@ -746,9 +913,143 @@ router.get('/microsoft/callback', async (req, res) => {
     console.log('='.repeat(80));
     console.log('  - code:', code ? '✅ Present' : '❌ Missing');
     console.log('  - Full query params:', JSON.stringify(req.query));
-    console.log('  - error:', req.query.error || 'none');
-    console.log('  - error_description:', req.query.error_description || 'none');
+    console.log('  - error:', oauthError || 'none');
+    console.log('  - error_description:', errorDescription || 'none');
     console.log('='.repeat(80));
+
+    // ✅ NEW: Check for Microsoft OAuth errors (AADSTS codes) FIRST
+    // This catches admin consent required, app blocked, etc.
+    if (oauthError) {
+      console.log('🔒 Microsoft OAuth error detected:', oauthError);
+      console.log('   Description:', errorDescription);
+
+      // Parse for specific AADSTS error codes
+      const aadtsError = parseAadtsError(oauthError, errorDescription);
+
+      if (aadtsError) {
+        console.log('🔒 Identified AADSTS error type:', aadtsError.type);
+
+        // Generate admin consent URL if needed
+        const adminConsentUrl = aadtsError.showAdminUrl ? generateAdminConsentUrl() : null;
+
+        // Get user ID from state to save pending consent status
+        let authenticatedUserId = null;
+        let isOnboarding = false;
+        if (state) {
+          const stateData = oauthStateStore.get(state);
+          if (stateData) {
+            authenticatedUserId = stateData.user_id;
+            isOnboarding = stateData.onboarding === true;
+            oauthStateStore.delete(state);
+          }
+        }
+
+        // Save pending admin consent status to database if we have a user ID
+        if (authenticatedUserId && aadtsError.type === 'admin_consent_required') {
+          try {
+            console.log('💾 Saving pending admin consent status for user:', authenticatedUserId);
+
+            // Check if a Microsoft connection already exists
+            const { data: existingConn } = await getSupabase()
+              .from('calendar_connections')
+              .select('id')
+              .eq('user_id', authenticatedUserId)
+              .eq('provider', 'microsoft')
+              .maybeSingle();
+
+            if (existingConn) {
+              // Update existing connection with pending status
+              await getSupabase()
+                .from('calendar_connections')
+                .update({
+                  pending_admin_consent: true,
+                  admin_consent_requested_at: new Date().toISOString(),
+                  admin_consent_error: aadtsError.message,
+                  admin_consent_error_type: aadtsError.type,
+                  is_active: false,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', existingConn.id);
+
+              console.log('✅ Updated existing connection with pending admin consent status');
+            } else {
+              // Get user's tenant_id
+              const { data: userData } = await getSupabase()
+                .from('users')
+                .select('tenant_id')
+                .eq('id', authenticatedUserId)
+                .single();
+
+              if (userData?.tenant_id) {
+                // Create new connection record with pending status
+                await getSupabase()
+                  .from('calendar_connections')
+                  .insert({
+                    user_id: authenticatedUserId,
+                    tenant_id: userData.tenant_id,
+                    provider: 'microsoft',
+                    pending_admin_consent: true,
+                    admin_consent_requested_at: new Date().toISOString(),
+                    admin_consent_error: aadtsError.message,
+                    admin_consent_error_type: aadtsError.type,
+                    is_active: false
+                  });
+
+                console.log('✅ Created new connection with pending admin consent status');
+              }
+            }
+          } catch (dbError) {
+            console.error('⚠️ Failed to save pending admin consent status:', dbError.message);
+            // Don't fail the redirect - this is just for UX improvement
+          }
+        }
+
+        // Build error parameters for frontend
+        const errorParams = new URLSearchParams({
+          error: aadtsError.message,
+          error_type: aadtsError.type,
+          provider: 'microsoft',
+          user_action: aadtsError.userAction
+        });
+
+        if (adminConsentUrl) {
+          errorParams.append('admin_consent_url', adminConsentUrl);
+        }
+
+        if (isOnboarding) {
+          errorParams.append('onboarding', 'true');
+        }
+
+        const redirectUrl = `${process.env.FRONTEND_URL}/auth/callback?${errorParams.toString()}`;
+        console.log('🔒 Redirecting to:', redirectUrl);
+        return res.redirect(redirectUrl);
+      }
+
+      // Generic OAuth error (not a specific AADSTS code we recognize)
+      const genericErrorMessage = errorDescription || oauthError || 'Microsoft authorization failed';
+
+      // Check onboarding state
+      let isOnboarding = false;
+      if (state) {
+        const stateData = oauthStateStore.get(state);
+        if (stateData) {
+          isOnboarding = stateData.onboarding === true;
+          oauthStateStore.delete(state);
+        }
+      }
+
+      const errorParams = new URLSearchParams({
+        error: genericErrorMessage,
+        error_type: 'oauth_error',
+        provider: 'microsoft'
+      });
+
+      if (isOnboarding) {
+        errorParams.append('onboarding', 'true');
+      }
+
+      return res.redirect(`${process.env.FRONTEND_URL}/auth/callback?${errorParams.toString()}`);
+    }
 
     // Check if Supabase is available
     if (!isSupabaseAvailable()) {

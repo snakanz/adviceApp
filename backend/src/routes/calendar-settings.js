@@ -87,6 +87,91 @@ router.post('/webhook/health-check', authenticateSupabaseUser, async (req, res) 
 });
 
 /**
+ * POST /api/calendar-connections/microsoft/check-status
+ * Check if Microsoft admin consent has been granted
+ *
+ * This endpoint attempts to verify if the user can now connect their Microsoft calendar.
+ * It's used after IT admin has (potentially) approved the application.
+ *
+ * Returns:
+ * - approved: User can now connect their calendar
+ * - pending_admin_approval: Admin consent still required
+ * - blocked: Organization has blocked the application
+ * - error: Could not determine status
+ */
+router.post('/microsoft/check-status', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    console.log(`🔍 Checking Microsoft admin consent status for user ${userId}...`);
+
+    // Check if Microsoft is configured
+    const MicrosoftCalendarService = require('../services/microsoftCalendar');
+    const microsoftService = new MicrosoftCalendarService();
+
+    if (!microsoftService.isConfigured()) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Microsoft OAuth not configured',
+        can_connect: false
+      });
+    }
+
+    // Check if user already has an active Microsoft connection
+    const { data: existingConnection, error: connError } = await req.supabase
+      .from('calendar_connections')
+      .select('id, is_active, pending_admin_consent, admin_consent_error')
+      .eq('user_id', userId)
+      .eq('provider', 'microsoft')
+      .maybeSingle();
+
+    if (connError) {
+      console.error('Error checking existing connection:', connError);
+    }
+
+    // If user has an active connection, they're already approved
+    if (existingConnection?.is_active) {
+      return res.json({
+        status: 'approved',
+        message: 'Microsoft Calendar is already connected',
+        can_connect: true,
+        has_connection: true
+      });
+    }
+
+    // If we have a pending consent record, return its status
+    if (existingConnection?.pending_admin_consent) {
+      return res.json({
+        status: 'pending_admin_approval',
+        message: 'Still waiting for IT administrator approval',
+        can_connect: false,
+        has_connection: true,
+        last_error: existingConnection.admin_consent_error,
+        instructions: 'Please check with your IT administrator if they have approved the application.'
+      });
+    }
+
+    // No existing connection or pending consent - user can try to connect
+    // This will start the OAuth flow and we'll find out then if consent is needed
+    return res.json({
+      status: 'unknown',
+      message: 'Ready to attempt Microsoft connection',
+      can_connect: true,
+      has_connection: false,
+      instructions: 'Click "Connect Microsoft Calendar" to start the connection process.'
+    });
+
+  } catch (error) {
+    console.error('Error checking Microsoft consent status:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to check consent status',
+      error: error.message,
+      can_connect: false
+    });
+  }
+});
+
+/**
  * DELETE /api/calendar-connections/:id
  * Disconnect a calendar connection
  */
