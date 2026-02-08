@@ -163,6 +163,8 @@ app.get('/api/health', async (req, res) => {
       status: 'ok',
       db: dbStatus ? 'connected' : 'disconnected',
       version: process.env.npm_package_version || '1.0.0',
+      commit: process.env.RENDER_GIT_COMMIT?.substring(0, 7) || 'local',
+      features: ['admin-consent-v1'],
       timestamp: new Date().toISOString()
     };
 

@@ -928,9 +928,11 @@ router.get('/microsoft/callback', async (req, res) => {
 
       if (aadtsError) {
         console.log('🔒 Identified AADSTS error type:', aadtsError.type);
+        console.log('   showAdminUrl:', aadtsError.showAdminUrl);
 
         // Generate admin consent URL if needed
         const adminConsentUrl = aadtsError.showAdminUrl ? generateAdminConsentUrl() : null;
+        console.log('   Generated admin consent URL:', adminConsentUrl ? 'YES' : 'NO');
 
         // Get user ID from state to save pending consent status
         let authenticatedUserId = null;
