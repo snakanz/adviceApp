@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import {
   User,
   Search,
-  Edit3,
   X,
   Plus,
   ChevronDown,
@@ -15,11 +14,8 @@ import {
   ChevronLeft,
   ChevronRight,
   AlertCircle,
-  Sparkles,
-  CheckCircle2,
   Calendar,
   Clock,
-  ExternalLink
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -27,7 +23,7 @@ import { cn } from '../lib/utils';
 import { api } from '../services/api';
 import CreateClientForm from '../components/CreateClientForm';
 import BusinessTypeManager from '../components/BusinessTypeManager';
-import ActionItemCard from '../components/ActionItemCard';
+import ClientDetailSidebar from '../components/ClientDetailSidebar';
 
 // Stage options for business types - dark theme compatible colors
 // Note: 'Signed' stage removed from dropdown options (but data with 'Signed' will still display correctly)
@@ -60,7 +56,6 @@ export default function Pipeline() {
   const [savingNotes, setSavingNotes] = useState(false); // Saving notes state
   const [clientActionItems, setClientActionItems] = useState([]); // Action items for selected client
   const [loadingActionItems, setLoadingActionItems] = useState(false); // Loading state for action items
-  const [showActionItems, setShowActionItems] = useState(true); // Expandable section state
 
   const { isAuthenticated} = useAuth();
   const navigate = useNavigate();
@@ -834,7 +829,7 @@ export default function Pipeline() {
       {/* Main Content Area */}
       <div className={cn(
         "h-full flex flex-col overflow-hidden",
-        showDetailPanel ? "lg:mr-96" : ""
+        showDetailPanel ? "lg:mr-[45%] xl:mr-[40%]" : ""
       )}>
         {/* Fixed Header Section - flex-shrink-0 keeps it pinned at top */}
         <div className="flex-shrink-0 border-b border-border/50 p-4 lg:p-6 bg-card/50" style={{ overflow: 'hidden' }}>
@@ -1335,366 +1330,34 @@ export default function Pipeline() {
         </div>
       </div>
 
-      {/* Detail Panel - Responsive Sidebar */}
-      {showDetailPanel && selectedClient && (
-        <>
-          {/* Mobile Overlay */}
-          <div
-            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-            onClick={() => setShowDetailPanel(false)}
-          />
-
-          {/* Detail Panel */}
-          <div className="fixed right-0 top-0 h-full w-full max-w-md lg:w-96 bg-card border-l border-border shadow-xl z-50 overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="flex-shrink-0 p-4 lg:p-6 border-b border-border bg-card/95 backdrop-blur-sm">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Pipeline Details</h2>
-                  <p className="text-sm text-muted-foreground">Client information and pipeline status</p>
-                </div>
-                <Button
-                  onClick={() => setShowDetailPanel(false)}
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-              {/* Edit Pipeline Button */}
-              <Button
-                onClick={handleEditPipeline}
-                className="w-full flex items-center justify-center gap-2"
-                size="sm"
-              >
-                <Edit3 className="w-4 h-4" />
-                Edit Pipeline
-              </Button>
-            </div>
-
-            {/* Scrollable Content */}
-            <div className="flex-1 overflow-y-auto p-4 lg:p-6">
-              <div className="space-y-6">
-
-                {/* Client Info Header */}
-                <div className="bg-muted/30 rounded-lg p-4 border border-border/50">
-                  <div className="flex items-center gap-4">
-                    <Avatar className="w-14 h-14 flex-shrink-0">
-                      <AvatarFallback className="bg-primary/10 text-primary text-lg font-bold">
-                        {getInitials(selectedClient.name, selectedClient.email)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <h3
-                        className="font-bold text-lg text-foreground truncate hover:text-primary cursor-pointer transition-colors"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/clients?clientId=${selectedClient.clientId}`);
-                        }}
-                        title="View client details"
-                      >
-                        {selectedClient.name || selectedClient.email}
-                      </h3>
-                      <p className="text-sm text-muted-foreground truncate">{selectedClient.email}</p>
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {selectedClient.businessTypes && selectedClient.businessTypes.length > 0 ? (
-                          selectedClient.businessTypes.slice(0, 3).map((type, index) => (
-                            <Badge key={index} className={cn("text-xs", getBusinessTypeColor(type))}>
-                              {type}
-                            </Badge>
-                          ))
-                        ) : (
-                          <Badge className={cn("text-xs", getBusinessTypeColor(selectedClient.businessType))}>
-                            {selectedClient.businessType}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  {/* View Client Button - Prominent placement */}
-                  <Button
-                    onClick={() => navigate(`/clients?clientId=${selectedClient.clientId}`)}
-                    variant="outline"
-                    size="sm"
-                    className="w-full mt-3 flex items-center justify-center gap-2"
-                  >
-                    <User className="w-4 h-4" />
-                    View Client Details
-                    <ExternalLink className="w-3 h-3" />
-                  </Button>
-                </div>
-
-                {/* Quick Stats */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="bg-background border border-border rounded-lg p-3">
-                    <div className="text-xs font-medium text-muted-foreground mb-1">Next Meeting</div>
-                    <div className="text-sm font-semibold text-foreground">
-                      {selectedClient.nextMeetingDate ? formatDate(selectedClient.nextMeetingDate) : 'Not scheduled'}
-                    </div>
-                  </div>
-                  <div className="bg-background border border-border rounded-lg p-3">
-                    <div className="text-xs font-medium text-muted-foreground mb-1">Past Meetings</div>
-                    <div className="text-sm font-semibold text-foreground">
-                      {selectedClient.pastMeetingCount} meeting{selectedClient.pastMeetingCount !== 1 ? 's' : ''}
-                    </div>
-                  </div>
-                </div>
-
-                {/* AI-Generated Next Steps to Close */}
-                <div className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/30 dark:to-cyan-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center">
-                      <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center gap-2">
-                        Next Steps to Close
-                        {generatingPipelineSummary && (
-                          <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                        )}
-                      </h4>
-                      {generatingPipelineSummary ? (
-                        <div className="space-y-2">
-                          <div className="h-3 bg-blue-200/50 dark:bg-blue-800/30 rounded animate-pulse" />
-                          <div className="h-3 bg-blue-200/50 dark:bg-blue-800/30 rounded animate-pulse w-5/6" />
-                          <div className="h-3 bg-blue-200/50 dark:bg-blue-800/30 rounded animate-pulse w-4/6" />
-                        </div>
-                      ) : nextStepsSummary ? (
-                        <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
-                          {nextStepsSummary}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-blue-700 dark:text-blue-300 italic">
-                          Generating next steps...
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Action Items Section - Unified Dark Theme */}
-                <div className="bg-[#1A1C23] border border-[#2D313E] rounded-lg">
-                  <button
-                    onClick={() => setShowActionItems(!showActionItems)}
-                    className="w-full p-4 flex items-center justify-between hover:bg-[#252830] transition-colors rounded-t-lg"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-600/20 flex items-center justify-center">
-                        <CheckCircle2 className="w-4 h-4 text-indigo-400" />
-                      </div>
-                      <div className="text-left">
-                        <h4 className="text-sm font-semibold text-white">Action Items</h4>
-                        {loadingActionItems ? (
-                          <p className="text-xs text-[#94A3B8]">Loading...</p>
-                        ) : (
-                          <p className="text-xs text-[#94A3B8]">
-                            {clientActionItems.filter(item => !item.completed).length} pending, {clientActionItems.filter(item => item.completed).length} complete
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <ChevronDown className={cn(
-                      "w-5 h-5 text-[#94A3B8] transition-transform",
-                      showActionItems && "transform rotate-180"
-                    )} />
-                  </button>
-
-                  {showActionItems && (
-                    <div className="p-4 pt-0 space-y-2">
-                      {loadingActionItems ? (
-                        <div className="space-y-2">
-                          <div className="h-16 bg-[#252830] rounded-lg animate-pulse" />
-                          <div className="h-16 bg-[#252830] rounded-lg animate-pulse" />
-                        </div>
-                      ) : clientActionItems.length === 0 ? (
-                        <p className="text-sm text-[#94A3B8] italic text-center py-4">
-                          No action items for this client yet.
-                        </p>
-                      ) : (
-                        <>
-                          {/* Pending Action Items */}
-                          {clientActionItems.filter(item => !item.completed).map(item => (
-                            <ActionItemCard
-                              key={item.id}
-                              id={item.id}
-                              text={item.action_item_text || item.title}
-                              completed={false}
-                              priority={item.priority || 3}
-                              meetingTitle={item.meeting_title}
-                              onToggle={() => handleToggleActionItem(item.id, false)}
-                            />
-                          ))}
-
-                          {/* Completed Action Items */}
-                          {clientActionItems.filter(item => item.completed).map(item => (
-                            <ActionItemCard
-                              key={item.id}
-                              id={item.id}
-                              text={item.action_item_text || item.title}
-                              completed={true}
-                              priority={item.priority || 3}
-                              meetingTitle={item.meeting_title}
-                              onToggle={() => handleToggleActionItem(item.id, true)}
-                            />
-                          ))}
-
-                          {/* Link to full action items page */}
-                          <button
-                            onClick={() => navigate(`/action-items?clientId=${selectedClient.clientId || selectedClient.id}`)}
-                            className="w-full mt-2 text-xs text-indigo-400 hover:text-indigo-300 font-medium text-center py-2 hover:bg-[#252830] rounded transition-colors"
-                          >
-                            View All Action Items →
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-              {/* Pipeline Financials & Notes (Read Only) */}
-              <div className="space-y-4">
-                {/* Expected Fees (replaces IAF Expected) */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Expected Fees</label>
-                  <div className="mt-2 p-3 bg-muted/30 border border-border rounded-lg">
-                    <span className="text-lg font-bold text-foreground">
-                      {formatCurrency(selectedClient.expectedValue)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Pipeline Notes */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Pipeline Notes</label>
-                    {!editingNotes && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleStartEditNotes}
-                        className="h-6 px-2 text-xs"
-                      >
-                        <Edit3 className="w-3 h-3 mr-1" />
-                        Edit
-                      </Button>
-                    )}
-                  </div>
-                  {editingNotes ? (
-                    <div className="space-y-2">
-                      <textarea
-                        value={pipelineNotes}
-                        onChange={(e) => setPipelineNotes(e.target.value)}
-                        className="w-full p-3 bg-background border border-border rounded-lg min-h-[100px] text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary"
-                        placeholder="Add notes about this pipeline opportunity..."
-                      />
-                      <div className="flex gap-2 justify-end">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setEditingNotes(false)}
-                          disabled={savingNotes}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={handleSaveNotes}
-                          disabled={savingNotes}
-                        >
-                          {savingNotes ? (
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          ) : (
-                            'Save'
-                          )}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="p-3 bg-muted/30 border border-border rounded-lg min-h-[80px]">
-                      <p className={cn("text-sm whitespace-pre-wrap", selectedClient.pipelineNotes ? "text-foreground" : "text-muted-foreground italic")}>
-                        {selectedClient.pipelineNotes || 'No notes added yet. Click Edit to add notes.'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">Business Types & Stages</label>
-                  <div className="mt-1 p-3 bg-background border border-border rounded-md text-sm">
-                    {selectedClient.allBusinessTypesWithStage && selectedClient.allBusinessTypesWithStage.length > 0 ? (
-                      <div className="space-y-3">
-                        {selectedClient.allBusinessTypesWithStage.map((bt, index) => (
-                          <div key={bt.id || index} className="flex items-center justify-between gap-2 p-2 bg-muted/30 rounded-lg">
-                            <Badge className={getBusinessTypeColor(bt.business_type)}>
-                              {bt.business_type}
-                            </Badge>
-                            <Select
-                              value={bt.stage || 'Not Written'}
-                              onValueChange={(value) => handleStageChange(bt.id, value)}
-                            >
-                              <SelectTrigger className="h-7 text-xs w-32">
-                                <SelectValue>
-                                  {/* Show current stage even if it's 'Signed' (legacy) */}
-                                  <span className={cn(
-                                    "px-2 py-0.5 rounded text-xs",
-                                    bt.stage === 'Signed' ? 'bg-yellow-500/20 text-yellow-400' :
-                                    STAGE_OPTIONS.find(opt => opt.value === bt.stage)?.color || 'bg-gray-500/20 text-gray-300'
-                                  )}>
-                                    {bt.stage || 'Not Written'}
-                                  </span>
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                {STAGE_OPTIONS.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    <span className={cn("px-2 py-0.5 rounded text-xs", option.color)}>
-                                      {option.label}
-                                    </span>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        ))}
-                        {selectedClient.totalBusinessAmount > 0 && (
-                          <div className="text-xs text-muted-foreground pt-2 border-t border-border/50">
-                            Total Amount: {formatCurrency(selectedClient.totalBusinessAmount)}
-                          </div>
-                        )}
-                        {selectedClient.totalIafExpected > 0 && (
-                          <div className="text-xs text-muted-foreground">
-                            Total Expected Fees: {formatCurrency(selectedClient.totalIafExpected)}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-between">
-                        <Badge className={getBusinessTypeColor(selectedClient.businessType)}>
-                          {selectedClient.businessType}
-                        </Badge>
-                        <span className="text-xs text-muted-foreground">No stage set</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-                {/* Actions */}
-                <div className="pt-4 border-t border-border space-y-3">
-                  <Button
-                    onClick={() => setShowDetailPanel(false)}
-                    variant="ghost"
-                    className="w-full lg:hidden"
-                  >
-                    Close Details
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      {/* Client Detail Sidebar */}
+      <ClientDetailSidebar
+        open={showDetailPanel}
+        onClose={() => setShowDetailPanel(false)}
+        selectedClient={selectedClient}
+        navigate={navigate}
+        panelWidth="wide"
+        onEditPipeline={() => handleEditPipeline()}
+        onManageBusinessTypes={() => handleEditPipeline()}
+        nextStepsSummary={nextStepsSummary}
+        generatingNextSteps={generatingPipelineSummary}
+        pipelineNotes={pipelineNotes}
+        editingNotes={editingNotes}
+        onStartEditNotes={handleStartEditNotes}
+        onSaveNotes={handleSaveNotes}
+        onCancelEditNotes={() => setEditingNotes(false)}
+        onNotesChange={setPipelineNotes}
+        savingNotes={savingNotes}
+        businessTypesWithStage={selectedClient?.allBusinessTypesWithStage}
+        onStageChange={handleStageChange}
+        formatCurrency={formatCurrency}
+        clientActionItems={clientActionItems}
+        onToggleActionItem={handleToggleActionItem}
+        loadingActionItems={loadingActionItems}
+        showSecondarySection={false}
+        getUserInitials={getInitials}
+        formatDate={formatDate}
+      />
 
       {/* Create Client Form Modal */}
       {showCreateClientForm && (
