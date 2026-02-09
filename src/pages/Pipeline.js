@@ -1390,7 +1390,7 @@ export default function Pipeline() {
                         className="font-bold text-lg text-foreground truncate hover:text-primary cursor-pointer transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/clients?clientId=${selectedClient.id}`);
+                          navigate(`/clients?clientId=${selectedClient.clientId}`);
                         }}
                         title="View client details"
                       >
@@ -1414,7 +1414,7 @@ export default function Pipeline() {
                   </div>
                   {/* View Client Button - Prominent placement */}
                   <Button
-                    onClick={() => navigate(`/clients?clientId=${selectedClient.id}`)}
+                    onClick={() => navigate(`/clients?clientId=${selectedClient.clientId}`)}
                     variant="outline"
                     size="sm"
                     className="w-full mt-3 flex items-center justify-center gap-2"
