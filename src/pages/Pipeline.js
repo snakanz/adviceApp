@@ -18,7 +18,8 @@ import {
   Sparkles,
   CheckCircle2,
   Calendar,
-  Clock
+  Clock,
+  ExternalLink
 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -1386,7 +1387,7 @@ export default function Pipeline() {
                     </Avatar>
                     <div className="min-w-0 flex-1">
                       <h3
-                        className="font-bold text-lg text-foreground truncate hover:text-primary cursor-pointer transition-colors underline decoration-transparent hover:decoration-primary"
+                        className="font-bold text-lg text-foreground truncate hover:text-primary cursor-pointer transition-colors"
                         onClick={(e) => {
                           e.stopPropagation();
                           navigate(`/clients?clientId=${selectedClient.id}`);
@@ -1395,8 +1396,8 @@ export default function Pipeline() {
                       >
                         {selectedClient.name || selectedClient.email}
                       </h3>
-                      <p className="text-sm text-muted-foreground truncate mb-2">{selectedClient.email}</p>
-                      <div className="flex flex-wrap gap-1">
+                      <p className="text-sm text-muted-foreground truncate">{selectedClient.email}</p>
+                      <div className="flex flex-wrap gap-1 mt-2">
                         {selectedClient.businessTypes && selectedClient.businessTypes.length > 0 ? (
                           selectedClient.businessTypes.slice(0, 3).map((type, index) => (
                             <Badge key={index} className={cn("text-xs", getBusinessTypeColor(type))}>
@@ -1411,6 +1412,17 @@ export default function Pipeline() {
                       </div>
                     </div>
                   </div>
+                  {/* View Client Button - Prominent placement */}
+                  <Button
+                    onClick={() => navigate(`/clients?clientId=${selectedClient.id}`)}
+                    variant="outline"
+                    size="sm"
+                    className="w-full mt-3 flex items-center justify-center gap-2"
+                  >
+                    <User className="w-4 h-4" />
+                    View Client Details
+                    <ExternalLink className="w-3 h-3" />
+                  </Button>
                 </div>
 
                 {/* Quick Stats */}
@@ -1670,13 +1682,6 @@ export default function Pipeline() {
 
                 {/* Actions */}
                 <div className="pt-4 border-t border-border space-y-3">
-                  <Button
-                    onClick={() => navigate(`/clients?clientId=${selectedClient.id}`)}
-                    variant="outline"
-                    className="w-full"
-                  >
-                    View in Clients Page
-                  </Button>
                   <Button
                     onClick={() => setShowDetailPanel(false)}
                     variant="ghost"

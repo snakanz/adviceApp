@@ -329,9 +329,20 @@ export default function Clients() {
   // Handle URL parameters for client selection
   useEffect(() => {
     const clientParam = searchParams.get('client');
+    const clientIdParam = searchParams.get('clientId');
 
-    if (clientParam && clients.length > 0) {
-      const client = clients.find(c => c.email === clientParam);
+    if (clients.length > 0) {
+      let client = null;
+
+      // Check for clientId first (from Pipeline page)
+      if (clientIdParam) {
+        client = clients.find(c => c.id === clientIdParam);
+      }
+      // Fall back to email lookup
+      else if (clientParam) {
+        client = clients.find(c => c.email === clientParam);
+      }
+
       if (client) {
         setSelectedClient(client);
         setDetailPanelOpen(true);
