@@ -745,28 +745,30 @@ router.get('/microsoft', authenticateSupabaseUser, async (req, res) => {
     // Check if this is during onboarding (query parameter from frontend)
     const isOnboarding = req.query.onboarding === 'true';
 
-    // Generate a cryptographically secure nonce for CSRF protection
-    const nonce = crypto.randomBytes(32).toString('hex');
-
-    // Store the state data with the nonce as the key
-    const stateData = {
-      user_id: req.user?.id || null,
-      onboarding: isOnboarding,
-      timestamp: Date.now()
-    };
-    oauthStateStore.set(nonce, stateData);
-
     console.log('🔗 Generating Microsoft OAuth URL...');
     console.log('  - Redirect URI:', microsoftService.redirectUri);
     console.log('  - Is onboarding:', isOnboarding);
-    console.log('  - User ID in state:', req.user?.id || 'none');
+    console.log('  - User ID:', req.user?.id || 'none');
 
-    // Pass nonce as state to authorization URL
-    const url = await microsoftService.getAuthorizationUrl(nonce);
+    // Let MSAL generate the URL (and its own state parameter)
+    const url = await microsoftService.getAuthorizationUrl();
+
+    // Extract MSAL's generated state from the URL and store our app context against it.
+    // This ensures the callback can look up user_id/onboarding using the exact state
+    // value that Microsoft will return.
+    const msalState = new URL(url).searchParams.get('state');
+    if (msalState) {
+      const stateData = {
+        user_id: req.user?.id || null,
+        onboarding: isOnboarding,
+        timestamp: Date.now()
+      };
+      oauthStateStore.set(msalState, stateData);
+    }
 
     console.log('✅ Microsoft OAuth URL generated successfully');
     console.log('  - URL length:', url.length);
-    console.log('  - URL starts with:', url.substring(0, 50) + '...');
+    console.log('  - State extracted:', msalState ? 'yes' : 'no');
 
     res.json({ url });
   } catch (error) {

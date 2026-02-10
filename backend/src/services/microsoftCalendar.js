@@ -38,7 +38,7 @@ class MicrosoftCalendarService {
   /**
    * Generate Microsoft OAuth authorization URL
    */
-  getAuthorizationUrl(state = '') {
+  getAuthorizationUrl() {
     const scopes = [
       'User.Read',
       'Calendars.Read',
@@ -49,10 +49,12 @@ class MicrosoftCalendarService {
     const authCodeUrlParameters = {
       scopes: scopes,
       redirectUri: this.redirectUri,
-      state: state,
-      prompt: 'consent' // ✅ FIX: Force consent screen to ensure refresh token is always provided
+      prompt: 'consent' // Force consent screen to ensure refresh token is always provided
     };
 
+    // Let MSAL own state generation entirely — do NOT pass a manual state parameter.
+    // MSAL v3.x adds its own state internally; passing one manually causes a duplicate
+    // state query parameter, triggering AADSTS9000411.
     return this.cca.getAuthCodeUrl(authCodeUrlParameters);
   }
 
