@@ -51,6 +51,7 @@ export default function Pipeline() {
   const [savingBusinessTypes, setSavingBusinessTypes] = useState(false); // Saving state for business types
   const [generatingPipelineSummary, setGeneratingPipelineSummary] = useState(false); // AI summary generation state
   const [nextStepsSummary, setNextStepsSummary] = useState(null); // AI-generated next steps summary
+  const [generatingSummary, setGeneratingSummary] = useState(false); // Client summary generation state
   const [editingNotes, setEditingNotes] = useState(false); // Notes editing state
   const [pipelineNotes, setPipelineNotes] = useState(''); // Notes text
   const [savingNotes, setSavingNotes] = useState(false); // Saving notes state
@@ -364,6 +365,12 @@ export default function Pipeline() {
     } else if (!cachedSummary) {
       setNextStepsSummary('No data available yet. Add meetings or business types to generate insights.');
     }
+
+    // Auto-generate client summary if none exists (backend handles caching)
+    const hasClientSummary = normalizedClient.ai_summary;
+    if (!hasClientSummary && (hasMeetings || hasBusinessTypes)) {
+      handleGenerateSummary(client.clientId || client.id);
+    }
   };
 
   const handleGeneratePipelineSummary = async (clientId) => {
@@ -402,6 +409,30 @@ export default function Pipeline() {
       setNextStepsSummary('Unable to generate summary at this time.');
     } finally {
       setGeneratingPipelineSummary(false);
+    }
+  };
+
+  // Generate AI client summary (separate from pipeline "Next Steps to Close")
+  const handleGenerateSummary = async (clientId) => {
+    setGeneratingSummary(true);
+    try {
+      const response = await api.request(`/clients/${clientId}/generate-summary`, {
+        method: 'POST'
+      });
+
+      if (response.summary) {
+        // Update selected client with the new summary
+        setSelectedClient(prev => prev ? ({ ...prev, ai_summary: response.summary }) : prev);
+
+        // Update in clients list
+        setClients(prev => prev.map(c =>
+          (c.id === clientId || c.clientId === clientId) ? { ...c, ai_summary: response.summary } : c
+        ));
+      }
+    } catch (error) {
+      console.error('Error generating client summary:', error);
+    } finally {
+      setGeneratingSummary(false);
     }
   };
 
@@ -1337,6 +1368,8 @@ export default function Pipeline() {
         selectedClient={selectedClient}
         navigate={navigate}
         panelWidth="wide"
+        onGenerateSummary={handleGenerateSummary}
+        generatingSummary={generatingSummary}
         onEditPipeline={() => handleEditPipeline()}
         onManageBusinessTypes={() => handleEditPipeline()}
         nextStepsSummary={nextStepsSummary}
