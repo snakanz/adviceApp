@@ -37,8 +37,8 @@ const Step2_BusinessProfile = ({ data, onNext, user }) => {
         team_size: data.team_size || 1,
         timezone: data.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
     });
-    const [selectedPlan, setSelectedPlan] = useState(data.selected_plan || null);
-    const [billingCycle, setBillingCycle] = useState('monthly');
+    const [selectedPlan, setSelectedPlan] = useState(data.selected_plan || 'free');
+    const [billingCycle, setBillingCycle] = useState('annual');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
@@ -370,42 +370,40 @@ const Step2_BusinessProfile = ({ data, onNext, user }) => {
                                 </p>
                             </div>
 
-                            {/* Billing Cycle Toggle */}
-                            {selectedPlan === 'professional' && (
-                                <div className="inline-flex items-center bg-muted rounded-full p-1">
-                                    <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setBillingCycle('monthly');
-                                        }}
-                                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                                            billingCycle === 'monthly'
-                                                ? 'bg-background text-foreground shadow-sm'
-                                                : 'text-muted-foreground'
-                                        }`}
-                                    >
-                                        Monthly
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setBillingCycle('annual');
-                                        }}
-                                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                                            billingCycle === 'annual'
-                                                ? 'bg-background text-foreground shadow-sm'
-                                                : 'text-muted-foreground'
-                                        }`}
-                                    >
-                                        Annual
-                                        <Badge className="ml-1 bg-yellow-400 text-black border-0 text-[10px] px-1">
-                                            -20%
-                                        </Badge>
-                                    </button>
-                                </div>
-                            )}
+                            {/* Billing Cycle Toggle - always visible */}
+                            <div className="inline-flex items-center bg-muted rounded-full p-1">
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setBillingCycle('monthly');
+                                    }}
+                                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                                        billingCycle === 'monthly'
+                                            ? 'bg-background text-foreground shadow-sm'
+                                            : 'text-muted-foreground'
+                                    }`}
+                                >
+                                    Monthly
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setBillingCycle('annual');
+                                    }}
+                                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                                        billingCycle === 'annual'
+                                            ? 'bg-background text-foreground shadow-sm'
+                                            : 'text-muted-foreground'
+                                    }`}
+                                >
+                                    Annual
+                                    <Badge className="ml-1 bg-yellow-400 text-black border-0 text-[10px] px-1">
+                                        -20%
+                                    </Badge>
+                                </button>
+                            </div>
                         </CardHeader>
                         <CardContent className="space-y-2">
                             <div className="flex items-start gap-2">
