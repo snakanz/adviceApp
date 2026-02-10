@@ -2733,8 +2733,8 @@ export default function Meetings() {
                           ) : null}
                         </div>
 
-                        {/* Pending Action Items Section - Awaiting Approval */}
-                        {pendingActionItems.length > 0 && (
+                        {/* Pending Action Items - now merged into Action Items section below */}
+                        {false && pendingActionItems.length > 0 && (
                           <div className="space-y-2">
                             <div className="flex items-center justify-between">
                               <h3 className="text-sm font-semibold text-foreground">
@@ -2990,7 +2990,7 @@ export default function Meetings() {
                           </div>
                         )}
 
-                        {/* Approved Action Items - Unified Dark Theme (Pipeline Style) */}
+                        {/* Action Items - Unified Dark Theme (includes pending + approved) */}
                         <div className="bg-[#1A1C23] border border-[#2D313E] rounded-lg">
                           <button
                             onClick={() => setShowMeetingActionItems(!showMeetingActionItems)}
@@ -3004,6 +3004,11 @@ export default function Meetings() {
                                 <h4 className="text-sm font-semibold text-white">Action Items</h4>
                                 <p className="text-xs text-[#94A3B8]">
                                   {actionItems.filter(item => !item.completed).length} pending, {actionItems.filter(item => item.completed).length} complete
+                                  {pendingActionItems.length > 0 && (
+                                    <span className="ml-2 text-orange-400">
+                                      · {pendingActionItems.length} awaiting approval
+                                    </span>
+                                  )}
                                 </p>
                               </div>
                             </div>
@@ -3015,18 +3020,164 @@ export default function Meetings() {
 
                           {showMeetingActionItems && (
                             <div className="p-4 pt-0 space-y-2">
+                              {/* Pending Action Items - awaiting approval */}
+                              {!loadingPendingItems && pendingActionItems.length > 0 && (
+                                <>
+                                  <div className="flex items-center justify-between pt-1 pb-1">
+                                    <span className="text-xs font-medium text-orange-400">
+                                      Awaiting Approval ({pendingActionItems.length})
+                                    </span>
+                                    <button
+                                      onClick={toggleSelectAllPending}
+                                      className="text-xs text-[#94A3B8] hover:text-white transition-colors"
+                                    >
+                                      {selectedPendingItems.length === pendingActionItems.length ? 'Deselect All' : 'Select All'}
+                                    </button>
+                                  </div>
+
+                                  {pendingActionItems.map((item) => (
+                                    <div key={item.id} className="flex items-start gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedPendingItems.includes(item.id)}
+                                        onChange={() => togglePendingItemSelection(item.id)}
+                                        className="mt-3.5 w-4 h-4 rounded border-[#4D515E] bg-[#252830] accent-orange-500 cursor-pointer flex-shrink-0"
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        {editingPendingItemId === item.id ? (
+                                          <div className="bg-[#1A1C23] border border-[#2D313E] rounded-lg p-3 space-y-2">
+                                            <textarea
+                                              value={editingPendingText}
+                                              onChange={(e) => setEditingPendingText(e.target.value)}
+                                              className="w-full text-sm bg-[#252830] border border-[#3D414E] rounded px-2 py-1 text-white focus:outline-none focus:border-indigo-500"
+                                              rows={2}
+                                              autoFocus
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && e.ctrlKey) savePendingItemEdit(item.id);
+                                                else if (e.key === 'Escape') cancelEditingPendingItem();
+                                              }}
+                                            />
+                                            <div className="flex items-center gap-2">
+                                              <Button size="sm" onClick={() => savePendingItemEdit(item.id)} disabled={savingPendingEdit} className="h-7 text-xs bg-orange-600 hover:bg-orange-700">
+                                                {savingPendingEdit ? 'Saving...' : 'Save'}
+                                              </Button>
+                                              <Button size="sm" variant="ghost" onClick={cancelEditingPendingItem} disabled={savingPendingEdit} className="h-7 text-xs text-[#94A3B8]">Cancel</Button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="bg-[#1A1C23] border border-orange-500/30 rounded-lg p-3 transition-all hover:border-[#3D414E] group">
+                                            <div className="flex items-start gap-3">
+                                              <div className="flex-1 min-w-0">
+                                                <p className="text-sm text-white">{item.action_text}</p>
+                                                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                                  <span className="text-xs text-[#94A3B8]">Priority:</span>
+                                                  <Select
+                                                    value={String(pendingItemPriorities[item.id] || 3)}
+                                                    onValueChange={(value) => updatePendingItemPriority(item.id, parseInt(value))}
+                                                  >
+                                                    <SelectTrigger className="w-28 h-6 text-xs bg-[#252830] border-[#3D414E] text-white">
+                                                      <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                      {priorityOptions.map(option => (
+                                                        <SelectItem key={option.value} value={String(option.value)}>
+                                                          <span className="flex items-center gap-1">
+                                                            <span>{option.icon}</span>
+                                                            <span>{option.label}</span>
+                                                          </span>
+                                                        </SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                  </Select>
+                                                </div>
+                                              </div>
+                                              <button
+                                                onClick={() => startEditingPendingItem(item)}
+                                                className="flex-shrink-0 p-1 hover:bg-[#2D313E] rounded transition-colors opacity-0 group-hover:opacity-100"
+                                              >
+                                                <Edit2 className="w-4 h-4 text-[#94A3B8]" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+
+                                  {/* Add new pending action item */}
+                                  {addingPendingItem ? (
+                                    <div className="bg-[#252830] rounded-lg p-3 space-y-2">
+                                      <textarea
+                                        value={newPendingItemText}
+                                        onChange={(e) => setNewPendingItemText(e.target.value)}
+                                        placeholder="Enter action item..."
+                                        className="w-full text-sm bg-[#1A1C23] border border-[#3D414E] rounded px-3 py-2 text-white placeholder:text-[#6B7280] focus:outline-none focus:border-orange-500"
+                                        rows={2}
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' && e.ctrlKey) saveNewPendingItem();
+                                          else if (e.key === 'Escape') cancelAddingPendingItem();
+                                        }}
+                                      />
+                                      <div className="flex items-center gap-2">
+                                        <Button size="sm" onClick={saveNewPendingItem} disabled={savingNewPendingItem} className="h-7 text-xs bg-orange-600 hover:bg-orange-700">
+                                          {savingNewPendingItem ? 'Adding...' : 'Add'}
+                                        </Button>
+                                        <Button size="sm" variant="ghost" onClick={cancelAddingPendingItem} disabled={savingNewPendingItem} className="h-7 text-xs text-[#94A3B8]">Cancel</Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={startAddingPendingItem}
+                                      className="w-full py-2 text-xs text-orange-400 hover:text-orange-300 hover:bg-[#252830] rounded transition-colors flex items-center justify-center gap-1"
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                      Add Action Item
+                                    </button>
+                                  )}
+
+                                  {/* Approve / Reject buttons */}
+                                  <div className="flex items-center gap-2 pt-1">
+                                    <Button
+                                      onClick={approvePendingActionItems}
+                                      disabled={selectedPendingItems.length === 0}
+                                      className="flex-1 h-8 text-xs bg-green-600 hover:bg-green-700 text-white"
+                                      size="sm"
+                                    >
+                                      <Check className="w-3.5 h-3.5 mr-1.5" />
+                                      Approve Selected ({selectedPendingItems.length})
+                                    </Button>
+                                    <Button
+                                      onClick={rejectPendingActionItems}
+                                      disabled={selectedPendingItems.length === 0}
+                                      variant="outline"
+                                      className="flex-1 h-8 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10"
+                                      size="sm"
+                                    >
+                                      <X className="w-3.5 h-3.5 mr-1.5" />
+                                      Reject Selected ({selectedPendingItems.length})
+                                    </Button>
+                                  </div>
+
+                                  {/* Divider between pending and approved */}
+                                  {actionItems.length > 0 && (
+                                    <div className="border-t border-[#2D313E] my-2" />
+                                  )}
+                                </>
+                              )}
+
                               {loadingActionItems ? (
                                 <div className="space-y-2">
                                   <div className="h-16 bg-[#252830] rounded-lg animate-pulse" />
                                   <div className="h-16 bg-[#252830] rounded-lg animate-pulse" />
                                 </div>
-                              ) : actionItems.length === 0 ? (
+                              ) : actionItems.length === 0 && pendingActionItems.length === 0 ? (
                                 <p className="text-sm text-[#94A3B8] italic text-center py-4">
                                   No action items for this meeting yet.
                                 </p>
-                              ) : (
+                              ) : actionItems.length > 0 ? (
                                 <>
-                                  {/* Pending items first */}
+                                  {/* Uncompleted items first */}
                                   {actionItems.filter(item => !item.completed).map((item) => (
                                     <ActionItemCard
                                       key={item.id}
@@ -3051,7 +3202,7 @@ export default function Meetings() {
                                     />
                                   ))}
                                 </>
-                              )}
+                              ) : null}
 
                               {/* Add Action Item */}
                               {addingMeetingActionItem ? (
