@@ -1535,45 +1535,40 @@ router.post('/:clientId/generate-summary', authenticateSupabaseUser, async (req,
       });
     }
 
-    // Get client data to check for cached summary
-    const { data: client, error: clientError } = await req.supabase
-      .from('clients')
-      .select('ai_summary, ai_summary_generated_at, updated_at')
-      .eq('id', clientId)
-      .eq('user_id', userId)
-      .single();
+    // SMART CACHING: Try to return cached summary if data hasn't changed
+    // Wrapped in try-catch so cache check failures don't block generation
+    try {
+      const { data: client } = await req.supabase
+        .from('clients')
+        .select('ai_summary, ai_summary_generated_at, updated_at')
+        .eq('id', clientId)
+        .single();
 
-    if (clientError || !client) {
-      return res.status(404).json({ error: 'Client not found' });
-    }
+      if (client?.ai_summary && client?.ai_summary_generated_at) {
+        const summaryGeneratedAt = new Date(client.ai_summary_generated_at);
+        const clientUpdatedAt = client.updated_at ? new Date(client.updated_at) : null;
+        const clientChanged = clientUpdatedAt && clientUpdatedAt > summaryGeneratedAt;
 
-    // SMART CACHING: Check if summary exists and if data has changed
-    if (client.ai_summary && client.ai_summary_generated_at) {
-      const summaryGeneratedAt = new Date(client.ai_summary_generated_at);
+        const { data: recentMeetings } = await req.supabase
+          .from('meetings')
+          .select('id')
+          .eq('client_id', clientId)
+          .gt('updated_at', client.ai_summary_generated_at)
+          .limit(1);
 
-      // Check if client record was updated after summary was generated
-      const clientUpdatedAt = client.updated_at ? new Date(client.updated_at) : null;
-      const clientChanged = clientUpdatedAt && clientUpdatedAt > summaryGeneratedAt;
+        const meetingsChanged = recentMeetings && recentMeetings.length > 0;
 
-      // Check if any meetings were updated after summary was generated
-      const { data: recentMeetings } = await req.supabase
-        .from('meetings')
-        .select('id')
-        .eq('client_id', clientId)
-        .eq('user_id', userId)
-        .gt('updated_at', client.ai_summary_generated_at)
-        .limit(1);
-
-      const meetingsChanged = recentMeetings && recentMeetings.length > 0;
-
-      if (!clientChanged && !meetingsChanged) {
-        return res.json({
-          summary: client.ai_summary,
-          generated_at: client.ai_summary_generated_at,
-          cached: true,
-          reason: 'No data changes since last generation'
-        });
+        if (!clientChanged && !meetingsChanged) {
+          return res.json({
+            summary: client.ai_summary,
+            generated_at: client.ai_summary_generated_at,
+            cached: true,
+            reason: 'No data changes since last generation'
+          });
+        }
       }
+    } catch (cacheCheckError) {
+      console.warn('⚠️ Cache check failed, proceeding with generation:', cacheCheckError.message);
     }
 
     // Use the centralized meetingSummaryService which aggregates across ALL meetings

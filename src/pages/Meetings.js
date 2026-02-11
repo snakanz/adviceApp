@@ -3305,20 +3305,23 @@ export default function Meetings() {
                                 Copy
                               </Button>
                             </div>
-                            <Card className="border-border/50">
-                              <CardContent className="p-4">
-                                <div className="prose prose-sm dark:prose-invert max-w-none
-                                  prose-headings:text-foreground prose-headings:font-semibold
-                                  prose-h1:text-lg prose-h1:mt-4 prose-h1:mb-2 prose-h1:border-b prose-h1:border-border/50 prose-h1:pb-1
-                                  prose-h2:text-base prose-h2:mt-3 prose-h2:mb-2
-                                  prose-h3:text-sm prose-h3:mt-2 prose-h3:mb-1 prose-h3:text-muted-foreground
-                                  prose-p:text-sm prose-p:text-foreground prose-p:my-1.5
-                                  prose-ul:my-1 prose-ul:text-sm prose-li:my-0.5
-                                  prose-table:text-xs prose-table:my-2
-                                  prose-th:bg-muted/50 prose-th:px-2 prose-th:py-1 prose-th:text-left prose-th:font-medium
-                                  prose-td:px-2 prose-td:py-1 prose-td:border-t prose-td:border-border/30
-                                  prose-strong:text-foreground prose-strong:font-semibold
-                                  prose-hr:my-3 prose-hr:border-border/50">
+                            <Card className="border-border/50 bg-card/80">
+                              <CardContent className="p-5 sm:p-6">
+                                <div className="max-w-none text-sm text-muted-foreground leading-relaxed
+                                  [&_h1]:text-base [&_h1]:font-bold [&_h1]:text-foreground [&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:pb-2 [&_h1]:border-b [&_h1]:border-border/40 [&_h1]:uppercase [&_h1]:tracking-wide first:[&_h1]:mt-0
+                                  [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-foreground [&_h2]:mt-5 [&_h2]:mb-2
+                                  [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-blue-400 [&_h3]:mt-4 [&_h3]:mb-2
+                                  [&_p]:my-2 [&_p]:leading-relaxed
+                                  [&_ul]:my-2 [&_ul]:pl-5 [&_ul]:list-disc [&_li]:my-1
+                                  [&_ol]:my-2 [&_ol]:pl-5 [&_ol]:list-decimal [&_li]:my-1
+                                  [&_strong]:text-foreground [&_strong]:font-semibold
+                                  [&_table]:w-full [&_table]:my-4 [&_table]:border-collapse [&_table]:text-xs [&_table]:rounded-lg [&_table]:overflow-hidden
+                                  [&_thead]:bg-muted/60
+                                  [&_th]:px-3 [&_th]:py-2.5 [&_th]:text-left [&_th]:font-semibold [&_th]:text-foreground [&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wider [&_th]:border-b [&_th]:border-border/50
+                                  [&_td]:px-3 [&_td]:py-2.5 [&_td]:text-muted-foreground [&_td]:border-b [&_td]:border-border/20
+                                  [&_tr:hover_td]:bg-muted/20
+                                  [&_hr]:my-5 [&_hr]:border-border/30
+                                  [&_blockquote]:border-l-2 [&_blockquote]:border-blue-500/50 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground/80 [&_blockquote]:my-3">
                                   <ReactMarkdown remarkPlugins={[remarkGfm]}>
                                     {selectedMeeting.detailed_summary}
                                   </ReactMarkdown>
