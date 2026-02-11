@@ -127,12 +127,13 @@ class ClientExtractionService {
       const email = attendee.email?.toLowerCase();
       if (!email || !email.includes('@')) return false;
       
-      // Skip common advisor/system emails
-      if (email.includes('noreply') || 
-          email.includes('calendar') || 
-          email.includes('google') ||
-          email.includes('outlook') ||
-          email.includes('simon@greenwood.co.nz')) {
+      // Skip system/no-reply emails (be specific to avoid filtering real clients)
+      if (email.includes('noreply') ||
+          email.includes('no-reply') ||
+          email.endsWith('@calendar.google.com') ||
+          email.endsWith('@resource.calendar.google.com') ||
+          email.includes('calendar-notification') ||
+          email === 'simon@greenwood.co.nz') {
         return false;
       }
       
