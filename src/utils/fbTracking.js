@@ -11,9 +11,14 @@
 export function captureFbclid() {
   try {
     const params = new URLSearchParams(window.location.search);
-    const fbclid = params.get('fbclid');
+    let fbclid = params.get('fbclid');
 
-    if (fbclid) {
+    // Fallback: read cross-subdomain cookie set by Framer bridge script
+    if (!fbclid) {
+      fbclid = getCookie('_fbclid');
+    }
+
+    if (fbclid && !localStorage.getItem('_fbclid')) {
       const fbc = `fb.1.${Date.now()}.${fbclid}`;
       localStorage.setItem('_fbc', fbc);
       localStorage.setItem('_fbclid', fbclid);
