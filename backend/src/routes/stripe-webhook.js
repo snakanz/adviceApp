@@ -255,10 +255,65 @@ async function handleSubscriptionCancelled(subscription) {
 
 /**
  * Handle successful payment
+ * Sends Meta CAPI Purchase event on first real payment (trial → paid conversion)
  */
 async function handlePaymentSucceeded(invoice) {
   console.log(`💰 Payment succeeded for invoice ${invoice.id}`);
-  // Additional logic can be added here if needed
+
+  try {
+    // Only fire for subscription invoices
+    if (!invoice.subscription) return;
+
+    // Skip $0 invoices (trial period)
+    if (invoice.amount_paid === 0) {
+      console.log('ℹ️  Skipping $0 invoice (trial period)');
+      return;
+    }
+
+    if (!isSupabaseAvailable()) return;
+
+    // Look up user via stripe_customers
+    const { data: stripeCustomer } = await getSupabase()
+      .from('stripe_customers')
+      .select('user_id')
+      .eq('stripe_customer_id', invoice.customer)
+      .single();
+
+    if (!stripeCustomer) return;
+
+    // Get user data and check deduplication flag
+    const { data: userData } = await getSupabase()
+      .from('users')
+      .select('email, fbc, meta_purchase_sent')
+      .eq('id', stripeCustomer.user_id)
+      .single();
+
+    if (!userData || userData.meta_purchase_sent) {
+      if (userData?.meta_purchase_sent) {
+        console.log('ℹ️  Purchase event already sent for this user — skipping');
+      }
+      return;
+    }
+
+    // Send Purchase event to Meta CAPI
+    const { sendPurchase } = require('../services/metaConversionsApi');
+    const amountInPounds = invoice.amount_paid / 100; // Stripe amounts are in pence
+    await sendPurchase({
+      email: userData.email,
+      fbc: userData.fbc,
+      value: amountInPounds,
+      currency: (invoice.currency || 'gbp').toUpperCase()
+    });
+
+    // Mark as sent to prevent duplicate events on renewals
+    await getSupabase()
+      .from('users')
+      .update({ meta_purchase_sent: true })
+      .eq('id', stripeCustomer.user_id);
+
+  } catch (metaError) {
+    console.error('⚠️  Meta CAPI Purchase failed (non-fatal):', metaError.message);
+  }
 }
 
 /**

@@ -45,61 +45,60 @@ RAISE NOTICE 'Found user: %, tenant: %', v_user_id, v_tenant_id;
 -- ============================================================================
 -- CLIENTS (15 UK-based clients)
 -- ============================================================================
-INSERT INTO clients (id, advisor_id, tenant_id, name, email, phone, date_of_birth, gender, pipeline_stage, priority_level, status, notes, tags, source, last_contact_date, next_follow_up_date, created_at)
+INSERT INTO clients (id, user_id, tenant_id, name, email, date_of_birth, gender, pipeline_stage, priority_level, is_active, notes, tags, source, last_contact_date, next_follow_up_date, created_at)
 VALUES
-  (c1, v_user_id, v_tenant_id, 'James Whitfield', 'james.whitfield@outlook.com', '+44 7700 900123', '1962-03-15', 'Male', 'qualified', 1, 'active', 'Retired headteacher. Large DB pension considering drawdown for tax-free cash. Concerned about IHT for his estate.', ARRAY['high-value','pension','iht'], 'referral', '2026-02-05', '2026-02-12', NOW() - INTERVAL '4 months'),
-  (c2, v_user_id, v_tenant_id, 'Sarah Mitchell', 'sarah.mitchell@gmail.com', '+44 7911 123456', '1970-08-22', 'Female', 'proposal', 2, 'active', 'Business owner selling company. Needs CGT planning and reinvestment strategy. Interested in VCT/EIS for tax relief.', ARRAY['cgt','business-owner','high-value'], 'website', '2026-02-03', '2026-02-14', NOW() - INTERVAL '3 months'),
-  (c3, v_user_id, v_tenant_id, 'David and Patricia Chen', 'david.chen@btinternet.com', '+44 7456 789012', '1958-11-30', 'Male', 'negotiation', 1, 'active', 'Retired couple. Combined pensions over £1.2m. Reviewing drawdown strategy before tax year end. IHT planning for two children.', ARRAY['pension','drawdown','iht','high-value'], 'referral', '2026-02-07', '2026-02-10', NOW() - INTERVAL '6 months'),
-  (c4, v_user_id, v_tenant_id, 'Emma Hartley', 'emma.hartley@yahoo.co.uk', '+44 7823 456789', '1975-05-14', 'Female', 'qualified', 2, 'active', 'GP partner. High earner, annual allowance tapering concerns. Wants to maximise pension contributions before April.', ARRAY['pension','high-earner','annual-allowance'], 'referral', '2026-02-01', '2026-02-15', NOW() - INTERVAL '2 months'),
-  (c5, v_user_id, v_tenant_id, 'Robert Blackwood', 'r.blackwood@hotmail.co.uk', '+44 7934 567890', '1955-01-08', 'Male', 'closed_won', 3, 'active', 'Retired engineer. Already in drawdown. Annual review of withdrawal strategy and fund performance. Estate worth £1.8m, needs IHT mitigation.', ARRAY['drawdown','iht','annual-review'], 'existing', '2026-01-28', '2026-04-15', NOW() - INTERVAL '14 months'),
-  (c6, v_user_id, v_tenant_id, 'Fiona Campbell', 'fiona.campbell@sky.com', '+44 7712 345678', '1968-09-03', 'Female', 'prospecting', 3, 'active', 'Recently divorced. Received pension sharing order. Needs advice on consolidation and investment strategy.', ARRAY['pension','divorce','new-client'], 'cold-call', '2026-01-20', '2026-02-20', NOW() - INTERVAL '1 month'),
-  (c7, v_user_id, v_tenant_id, 'Thomas and Helen Wright', 'tom.wright@icloud.com', '+44 7845 678901', '1960-07-19', 'Male', 'qualified', 2, 'active', 'Both approaching retirement. Want to understand pension freedoms and tax-efficient drawdown. Total pensions circa £800k.', ARRAY['pension','drawdown','retirement-planning'], 'referral', '2026-02-04', '2026-02-18', NOW() - INTERVAL '3 months'),
-  (c8, v_user_id, v_tenant_id, 'Amira Patel', 'amira.patel@gmail.com', '+44 7956 789012', '1980-12-25', 'Female', 'prospecting', 3, 'active', 'Pharmacist. Wants to start pension contributions and ISA savings. First-time investor, relatively straightforward.', ARRAY['new-investor','isa','pension'], 'website', '2026-01-15', '2026-02-25', NOW() - INTERVAL '1 month'),
-  (c9, v_user_id, v_tenant_id, 'George Pemberton', 'george.pemberton@outlook.com', '+44 7867 890123', '1950-04-11', 'Male', 'closed_won', 1, 'active', 'Widower, age 75. Estate worth £2.5m. Urgent IHT planning — new IHT rules on pensions from April 2027. Wants to gift and use trusts.', ARRAY['iht','trusts','high-value','urgent'], 'referral', '2026-02-06', '2026-02-13', NOW() - INTERVAL '18 months'),
-  (c10, v_user_id, v_tenant_id, 'Catherine Lloyd', 'c.lloyd@virginmedia.com', '+44 7678 901234', '1972-02-28', 'Female', 'proposal', 2, 'active', 'Senior solicitor. Maximising pension carry-forward before tax year end. Also wants to use remaining ISA allowance and explore JISA for children.', ARRAY['carry-forward','isa','pension','high-earner'], 'referral', '2026-02-02', '2026-02-16', NOW() - INTERVAL '5 months'),
-  (c11, v_user_id, v_tenant_id, 'Mark and Louise Henderson', 'mark.henderson@gmail.com', '+44 7789 012345', '1965-06-10', 'Male', 'qualified', 2, 'active', 'Both public sector workers. Looking at pension commutation options and whether to take tax-free cash or leave in scheme.', ARRAY['pension','public-sector','tax-free-cash'], 'website', '2026-01-25', '2026-02-22', NOW() - INTERVAL '2 months'),
-  (c12, v_user_id, v_tenant_id, 'Priya Sharma', 'priya.sharma@outlook.com', '+44 7890 123456', '1978-10-17', 'Female', 'prospecting', 4, 'active', 'IT consultant, contractor through limited company. Wants advice on extracting profits tax-efficiently and pension contributions via company.', ARRAY['ltd-company','pension','tax-planning'], 'cold-call', '2026-01-10', '2026-03-01', NOW() - INTERVAL '1 month'),
-  (c13, v_user_id, v_tenant_id, 'William Ashton', 'w.ashton@talktalk.net', '+44 7901 234567', '1948-08-05', 'Male', 'negotiation', 1, 'active', 'Age 77, recently diagnosed health issues. Wants to accelerate IHT planning. Estate includes property portfolio worth £3m. Needs whole-of-estate review.', ARRAY['iht','property','urgent','high-value'], 'referral', '2026-02-08', '2026-02-11', NOW() - INTERVAL '8 months'),
-  (c14, v_user_id, v_tenant_id, 'Olivia Norris', 'olivia.norris@gmail.com', '+44 7012 345678', '1985-03-21', 'Female', 'prospecting', 3, 'active', 'Teacher. Wants to understand Teachers Pension and whether to make additional voluntary contributions before April.', ARRAY['teachers-pension','avc','new-client'], 'website', '2026-01-30', '2026-02-28', NOW() - INTERVAL '3 weeks'),
-  (c15, v_user_id, v_tenant_id, 'Richard and Janet Gallagher', 'richard.gallagher@btinternet.com', '+44 7123 456789', '1957-12-01', 'Male', 'closed_won', 2, 'active', 'Long-standing clients. Annual review due. Drawdown portfolio £650k. Want to discuss new IHT rules impact on their estate plan.', ARRAY['drawdown','iht','annual-review'], 'existing', '2026-02-09', '2026-04-01', NOW() - INTERVAL '24 months');
+  (c1, v_user_id, v_tenant_id, 'James Whitfield', 'james.whitfield@outlook.com', '1962-03-15', 'Male', 'qualified', 1, true, 'Retired headteacher. Large DB pension considering drawdown for tax-free cash. Concerned about IHT for his estate.', ARRAY['high-value','pension','iht'], 'referral', '2026-02-05', '2026-02-12', NOW() - INTERVAL '4 months'),
+  (c2, v_user_id, v_tenant_id, 'Sarah Mitchell', 'sarah.mitchell@gmail.com', '1970-08-22', 'Female', 'proposal', 2, true, 'Business owner selling company. Needs CGT planning and reinvestment strategy. Interested in VCT/EIS for tax relief.', ARRAY['cgt','business-owner','high-value'], 'website', '2026-02-03', '2026-02-14', NOW() - INTERVAL '3 months'),
+  (c3, v_user_id, v_tenant_id, 'David and Patricia Chen', 'david.chen@btinternet.com', '1958-11-30', 'Male', 'negotiation', 1, true, 'Retired couple. Combined pensions over £1.2m. Reviewing drawdown strategy before tax year end. IHT planning for two children.', ARRAY['pension','drawdown','iht','high-value'], 'referral', '2026-02-07', '2026-02-10', NOW() - INTERVAL '6 months'),
+  (c4, v_user_id, v_tenant_id, 'Emma Hartley', 'emma.hartley@yahoo.co.uk', '1975-05-14', 'Female', 'qualified', 2, true, 'GP partner. High earner, annual allowance tapering concerns. Wants to maximise pension contributions before April.', ARRAY['pension','high-earner','annual-allowance'], 'referral', '2026-02-01', '2026-02-15', NOW() - INTERVAL '2 months'),
+  (c5, v_user_id, v_tenant_id, 'Robert Blackwood', 'r.blackwood@hotmail.co.uk', '1955-01-08', 'Male', 'closed_won', 3, true, 'Retired engineer. Already in drawdown. Annual review of withdrawal strategy and fund performance. Estate worth £1.8m, needs IHT mitigation.', ARRAY['drawdown','iht','annual-review'], 'existing', '2026-01-28', '2026-04-15', NOW() - INTERVAL '14 months'),
+  (c6, v_user_id, v_tenant_id, 'Fiona Campbell', 'fiona.campbell@sky.com', '1968-09-03', 'Female', 'prospecting', 3, true, 'Recently divorced. Received pension sharing order. Needs advice on consolidation and investment strategy.', ARRAY['pension','divorce','new-client'], 'cold-call', '2026-01-20', '2026-02-20', NOW() - INTERVAL '1 month'),
+  (c7, v_user_id, v_tenant_id, 'Thomas and Helen Wright', 'tom.wright@icloud.com', '1960-07-19', 'Male', 'qualified', 2, true, 'Both approaching retirement. Want to understand pension freedoms and tax-efficient drawdown. Total pensions circa £800k.', ARRAY['pension','drawdown','retirement-planning'], 'referral', '2026-02-04', '2026-02-18', NOW() - INTERVAL '3 months'),
+  (c8, v_user_id, v_tenant_id, 'Amira Patel', 'amira.patel@gmail.com', '1980-12-25', 'Female', 'prospecting', 3, true, 'Pharmacist. Wants to start pension contributions and ISA savings. First-time investor, relatively straightforward.', ARRAY['new-investor','isa','pension'], 'website', '2026-01-15', '2026-02-25', NOW() - INTERVAL '1 month'),
+  (c9, v_user_id, v_tenant_id, 'George Pemberton', 'george.pemberton@outlook.com', '1950-04-11', 'Male', 'closed_won', 1, true, 'Widower, age 75. Estate worth £2.5m. Urgent IHT planning — new IHT rules on pensions from April 2027. Wants to gift and use trusts.', ARRAY['iht','trusts','high-value','urgent'], 'referral', '2026-02-06', '2026-02-13', NOW() - INTERVAL '18 months'),
+  (c10, v_user_id, v_tenant_id, 'Catherine Lloyd', 'c.lloyd@virginmedia.com', '1972-02-28', 'Female', 'proposal', 2, true, 'Senior solicitor. Maximising pension carry-forward before tax year end. Also wants to use remaining ISA allowance and explore JISA for children.', ARRAY['carry-forward','isa','pension','high-earner'], 'referral', '2026-02-02', '2026-02-16', NOW() - INTERVAL '5 months'),
+  (c11, v_user_id, v_tenant_id, 'Mark and Louise Henderson', 'mark.henderson@gmail.com', '1965-06-10', 'Male', 'qualified', 2, true, 'Both public sector workers. Looking at pension commutation options and whether to take tax-free cash or leave in scheme.', ARRAY['pension','public-sector','tax-free-cash'], 'website', '2026-01-25', '2026-02-22', NOW() - INTERVAL '2 months'),
+  (c12, v_user_id, v_tenant_id, 'Priya Sharma', 'priya.sharma@outlook.com', '1978-10-17', 'Female', 'prospecting', 4, true, 'IT consultant, contractor through limited company. Wants advice on extracting profits tax-efficiently and pension contributions via company.', ARRAY['ltd-company','pension','tax-planning'], 'cold-call', '2026-01-10', '2026-03-01', NOW() - INTERVAL '1 month'),
+  (c13, v_user_id, v_tenant_id, 'William Ashton', 'w.ashton@talktalk.net', '1948-08-05', 'Male', 'negotiation', 1, true, 'Age 77, recently diagnosed health issues. Wants to accelerate IHT planning. Estate includes property portfolio worth £3m. Needs whole-of-estate review.', ARRAY['iht','property','urgent','high-value'], 'referral', '2026-02-08', '2026-02-11', NOW() - INTERVAL '8 months'),
+  (c14, v_user_id, v_tenant_id, 'Olivia Norris', 'olivia.norris@gmail.com', '1985-03-21', 'Female', 'prospecting', 3, true, 'Teacher. Wants to understand Teachers Pension and whether to make additional voluntary contributions before April.', ARRAY['teachers-pension','avc','new-client'], 'website', '2026-01-30', '2026-02-28', NOW() - INTERVAL '3 weeks'),
+  (c15, v_user_id, v_tenant_id, 'Richard and Janet Gallagher', 'richard.gallagher@btinternet.com', '1957-12-01', 'Male', 'closed_won', 2, true, 'Long-standing clients. Annual review due. Drawdown portfolio £650k. Want to discuss new IHT rules impact on their estate plan.', ARRAY['drawdown','iht','annual-review'], 'existing', '2026-02-09', '2026-04-01', NOW() - INTERVAL '24 months');
 
--- Update meeting counts and last contact for clients
-UPDATE clients SET meeting_count = 0, active_meeting_count = 0 WHERE id IN (c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15);
+-- (meeting_count columns removed — not present in current schema)
 
 -- ============================================================================
 -- BUSINESS TYPES for clients
 -- ============================================================================
-INSERT INTO client_business_types (client_id, business_type, business_amount, iaf_expected, expected_close_date, stage, notes)
+INSERT INTO client_business_types (client_id, business_type, business_amount, iaf_expected, expected_close_date, notes)
 VALUES
-  (c1, 'Investment', 450000, 4500, '2026-03-31', 'In Progress', 'DB pension transfer to drawdown'),
-  (c1, 'Protection', 0, 1200, '2026-04-15', 'Not Written', 'Life cover review post-retirement'),
-  (c2, 'Investment', 800000, 8000, '2026-03-15', 'Waiting to Sign', 'CGT reinvestment into VCT/EIS portfolio'),
-  (c3, 'Investment', 1200000, 12000, '2026-03-31', 'In Progress', 'Joint drawdown strategy restructure'),
-  (c3, 'Other', 0, 2500, '2026-04-30', 'Not Written', 'IHT trust setup and gifting strategy'),
-  (c4, 'Investment', 60000, 600, '2026-04-05', 'In Progress', 'Annual pension contribution top-up'),
-  (c5, 'Investment', 750000, 3750, '2026-04-01', 'Completed', 'Annual drawdown review and rebalance'),
-  (c6, 'Investment', 180000, 1800, '2026-05-15', 'Not Written', 'Pension sharing order consolidation'),
-  (c7, 'Investment', 800000, 8000, '2026-03-31', 'In Progress', 'Joint retirement drawdown setup'),
-  (c8, 'Investment', 25000, 250, '2026-06-01', 'Not Written', 'First ISA and pension setup'),
-  (c9, 'Other', 2500000, 15000, '2026-03-15', 'In Progress', 'Whole estate IHT mitigation plan'),
-  (c9, 'Investment', 500000, 5000, '2026-03-31', 'Waiting to Sign', 'Discounted gift trust setup'),
-  (c10, 'Investment', 120000, 1200, '2026-04-05', 'In Progress', 'Pension carry-forward and ISA top-up'),
-  (c11, 'Investment', 350000, 3500, '2026-04-30', 'Not Written', 'Pension commutation analysis'),
-  (c12, 'Investment', 100000, 1000, '2026-05-15', 'Not Written', 'Ltd company pension and extraction strategy'),
-  (c13, 'Other', 3000000, 18000, '2026-03-10', 'Waiting to Sign', 'Accelerated IHT plan with property trusts'),
-  (c13, 'Investment', 400000, 4000, '2026-03-20', 'In Progress', 'Investment portfolio restructure for IHT'),
-  (c14, 'Investment', 15000, 150, '2026-04-05', 'Not Written', 'Teachers pension AVC assessment'),
-  (c15, 'Investment', 650000, 3250, '2026-04-01', 'Completed', 'Annual drawdown review'),
-  (c15, 'Other', 0, 2000, '2026-04-15', 'In Progress', 'IHT plan update for new pension rules');
+  (c1, 'Investment', 450000, 4500, '2026-03-31', 'DB pension transfer to drawdown'),
+  (c1, 'Protection', 0, 1200, '2026-04-15', 'Life cover review post-retirement'),
+  (c2, 'Investment', 800000, 8000, '2026-03-15', 'CGT reinvestment into VCT/EIS portfolio'),
+  (c3, 'Investment', 1200000, 12000, '2026-03-31', 'Joint drawdown strategy restructure'),
+  (c3, 'Other', 0, 2500, '2026-04-30', 'IHT trust setup and gifting strategy'),
+  (c4, 'Investment', 60000, 600, '2026-04-05', 'Annual pension contribution top-up'),
+  (c5, 'Investment', 750000, 3750, '2026-04-01', 'Annual drawdown review and rebalance'),
+  (c6, 'Investment', 180000, 1800, '2026-05-15', 'Pension sharing order consolidation'),
+  (c7, 'Investment', 800000, 8000, '2026-03-31', 'Joint retirement drawdown setup'),
+  (c8, 'Investment', 25000, 250, '2026-06-01', 'First ISA and pension setup'),
+  (c9, 'Other', 2500000, 15000, '2026-03-15', 'Whole estate IHT mitigation plan'),
+  (c9, 'Investment', 500000, 5000, '2026-03-31', 'Discounted gift trust setup'),
+  (c10, 'Investment', 120000, 1200, '2026-04-05', 'Pension carry-forward and ISA top-up'),
+  (c11, 'Investment', 350000, 3500, '2026-04-30', 'Pension commutation analysis'),
+  (c12, 'Investment', 100000, 1000, '2026-05-15', 'Ltd company pension and extraction strategy'),
+  (c13, 'Other', 3000000, 18000, '2026-03-10', 'Accelerated IHT plan with property trusts'),
+  (c13, 'Investment', 400000, 4000, '2026-03-20', 'Investment portfolio restructure for IHT'),
+  (c14, 'Investment', 15000, 150, '2026-04-05', 'Teachers pension AVC assessment'),
+  (c15, 'Investment', 650000, 3250, '2026-04-01', 'Annual drawdown review'),
+  (c15, 'Other', 0, 2000, '2026-04-15', 'IHT plan update for new pension rules');
 
 -- ============================================================================
 -- PAST MEETINGS (30 meetings, spread over last 4 months)
 -- ============================================================================
 
 -- Meeting 1: James Whitfield - Intro Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c1, v_tenant_id, 'Intro Meeting - James Whitfield', 'Intro Meeting',
-  '2025-10-15 10:00:00+00', '2025-10-15 11:00:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c1, v_tenant_id, 'Intro Meeting - James Whitfield',
+  '2025-10-15 10:00:00+00', '2025-10-15 11:00:00+00', 'manual',
   '[{"email":"james.whitfield@outlook.com","name":"James Whitfield"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Good morning James, thanks for joining. I understand you''re looking at your retirement options. Can you tell me about your current situation?
 
@@ -121,7 +120,6 @@ James: Yes please, let''s do that.',
 • Interested in DB pension transfer to drawdown for tax-free cash
 • Aware of upcoming IHT changes to pensions from April 2027
 • Next steps: Full fact-find and DB transfer value quotation',
-  'Initial consultation with James Whitfield regarding DB pension transfer and IHT planning. Client has a Teachers Pension (£28k pa) and a private sector DB scheme with ~£450k transfer value. Estate worth approximately £1.5m. Key drivers: accessing tax-free cash via drawdown and mitigating IHT exposure, particularly given the 2027 pension IHT rule changes.',
   NOW() - INTERVAL '4 months')
 RETURNING id INTO m_id;
 
@@ -132,9 +130,9 @@ VALUES
   (m_id, c1, v_user_id, 'Send IHT planning overview document to James', 3, true, 2);
 
 -- Meeting 2: Sarah Mitchell - Intro Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c2, v_tenant_id, 'Intro Meeting - Sarah Mitchell', 'Intro Meeting',
-  '2025-11-05 14:00:00+00', '2025-11-05 15:00:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c2, v_tenant_id, 'Intro Meeting - Sarah Mitchell',
+  '2025-11-05 14:00:00+00', '2025-11-05 15:00:00+00', 'manual',
   '[{"email":"sarah.mitchell@gmail.com","name":"Sarah Mitchell"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Hi Sarah, welcome. I understand you''re going through quite a significant financial change at the moment.
 
@@ -157,7 +155,6 @@ Sarah: Yes, I want to get as much done before the end of this tax year as possib
 • Minimal pension contributions historically — carry-forward opportunity
 • Wants to act before April 5th tax year end
 • Next steps: Full financial review and VCT/EIS research',
-  'Sarah Mitchell is selling her software consultancy for £2.2m. CGT planning needed — BADR on first £1m, 20% on remainder. Exploring VCT and EIS investments for tax relief, plus pension carry-forward before tax year end.',
   NOW() - INTERVAL '3 months')
 RETURNING id INTO m_id;
 
@@ -168,9 +165,9 @@ VALUES
   (m_id, c2, v_user_id, 'Prepare CGT projection report showing tax savings from VCT/EIS', 2, false, 2);
 
 -- Meeting 3: David & Patricia Chen - Cashflow Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c3, v_tenant_id, 'Cashflow Meeting - David & Patricia Chen', 'Cashflow Meeting',
-  '2025-10-28 09:30:00+00', '2025-10-28 10:30:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c3, v_tenant_id, 'Cashflow Meeting - David & Patricia Chen',
+  '2025-10-28 09:30:00+00', '2025-10-28 10:30:00+00', 'manual',
   '[{"email":"david.chen@btinternet.com","name":"David Chen"},{"email":"patricia.chen@btinternet.com","name":"Patricia Chen"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Good morning David, Patricia. Today I want to walk through the cashflow model I''ve prepared based on the information you gave me last time.
 
@@ -196,7 +193,6 @@ Hannah: Several things. We should consider accelerating your drawdown slightly t
 • IHT concern: total estate ~£2.2m, significant exposure from 2027
 • Strategy: phased drawdown, gift planning, possible whole-of-life cover
 • Next steps: Detailed drawdown schedule and IHT mitigation plan',
-  'Cashflow review for David and Patricia Chen. Combined pensions £1.23m, targeting £65k pa. Cashflow model demonstrates sustainability. Major concern is IHT from 2027 pension inclusion — total estate ~£2.2m. Discussed phased drawdown, gift strategy and possible whole-of-life cover.',
   NOW() - INTERVAL '3 months' - INTERVAL '10 days')
 RETURNING id INTO m_id;
 
@@ -208,9 +204,9 @@ VALUES
   (m_id, c3, v_user_id, 'Draft gifting schedule using annual exemptions and PETs', 2, true, 3);
 
 -- Meeting 4: Emma Hartley - Intro Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c4, v_tenant_id, 'Intro Meeting - Emma Hartley', 'Intro Meeting',
-  '2025-12-03 16:00:00+00', '2025-12-03 16:45:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c4, v_tenant_id, 'Intro Meeting - Emma Hartley',
+  '2025-12-03 16:00:00+00', '2025-12-03 16:45:00+00', 'manual',
   '[{"email":"emma.hartley@yahoo.co.uk","name":"Emma Hartley"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Hi Emma, thanks for making time in what I know is a busy schedule. You mentioned you''re a GP partner?
 
@@ -232,7 +228,6 @@ Hannah: We can look at carry-forward from the previous three tax years too. If y
 • Has savings in current account to deploy
 • Carry-forward opportunity from previous 3 years
 • Next steps: Gather pension statements and calculate available allowance',
-  'Initial meeting with Dr Emma Hartley. GP partner earning £130-140k. Needs annual allowance tapering assessment including NHS pension employer contributions. Wants to maximise pension input before tax year end. Carry-forward calculation needed.',
   NOW() - INTERVAL '2 months' - INTERVAL '5 days')
 RETURNING id INTO m_id;
 
@@ -243,9 +238,9 @@ VALUES
   (m_id, c4, v_user_id, 'Model carry-forward availability and recommend contribution amount', 2, false, 2);
 
 -- Meeting 5: Robert Blackwood - Performance Meeting (Annual Review)
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c5, v_tenant_id, 'Performance Meeting - Robert Blackwood', 'Performance Meeting',
-  '2026-01-28 11:00:00+00', '2026-01-28 12:00:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c5, v_tenant_id, 'Performance Meeting - Robert Blackwood',
+  '2026-01-28 11:00:00+00', '2026-01-28 12:00:00+00', 'manual',
   '[{"email":"r.blackwood@hotmail.co.uk","name":"Robert Blackwood"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Robert, good to see you. Let''s go through your annual review. Your drawdown portfolio is currently valued at £752,000, which is up from £718,000 this time last year, despite your withdrawals.
 
@@ -266,7 +261,6 @@ Hannah: I''d recommend we look at a structured gifting programme. You could gift
 • Estate: ~£1.8m, single + transferred NRB = £650k + potential RNRB
 • IHT exposure significant — needs gifting programme and trust review
 • Next steps: Gifting strategy proposal and trust options',
-  'Annual performance review for Robert Blackwood. Drawdown portfolio at £752k, sustainable withdrawal rate. Main concern is IHT under new 2027 pension rules — estate £1.8m. Recommended structured gifting and trust options.',
   NOW() - INTERVAL '12 days')
 RETURNING id INTO m_id;
 
@@ -277,9 +271,9 @@ VALUES
   (m_id, c5, v_user_id, 'Arrange meeting with Robert''s solicitor to review will', 3, false, 2);
 
 -- Meeting 6: Fiona Campbell - Intro Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c6, v_tenant_id, 'Intro Meeting - Fiona Campbell', 'Intro Meeting',
-  '2026-01-20 13:00:00+00', '2026-01-20 13:45:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c6, v_tenant_id, 'Intro Meeting - Fiona Campbell',
+  '2026-01-20 13:00:00+00', '2026-01-20 13:45:00+00', 'manual',
   '[{"email":"fiona.campbell@sky.com","name":"Fiona Campbell"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Fiona, thank you for getting in touch. You mentioned in your email that you''re going through a divorce and have received a pension sharing order.
 
@@ -299,7 +293,6 @@ Fiona: I''m going back to work full-time — I work in HR — so I''ll be earnin
 • Needs pension credit transfer and consolidation
 • Risk assessment required
 • Next steps: Transfer pension credit, consolidate, and invest for growth',
-  'Intro meeting with Fiona Campbell post-divorce. Pension sharing order credit of £180k plus own workplace pension £45k. Age 57, returning to work. Needs pension credit transfer, consolidation, and growth-oriented investment strategy.',
   NOW() - INTERVAL '20 days')
 RETURNING id INTO m_id;
 
@@ -310,9 +303,9 @@ VALUES
   (m_id, c6, v_user_id, 'Obtain workplace pension transfer value', 2, false, 2);
 
 -- Meeting 7: George Pemberton - Cashflow Meeting (IHT Review)
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c9, v_tenant_id, 'Cashflow Meeting - George Pemberton IHT Review', 'Cashflow Meeting',
-  '2026-01-14 10:00:00+00', '2026-01-14 11:30:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c9, v_tenant_id, 'Cashflow Meeting - George Pemberton IHT Review',
+  '2026-01-14 10:00:00+00', '2026-01-14 11:30:00+00', 'manual',
   '[{"email":"george.pemberton@outlook.com","name":"George Pemberton"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: George, thank you for coming in. As we discussed, the new IHT rules regarding pensions are going to have a significant impact on your estate planning. Let me walk through the updated position.
 
@@ -342,7 +335,6 @@ Hannah: We should also look at drawing down your pension more aggressively and g
 • Annual gifting using £3k exemption plus normal expenditure
 • Urgency: 7-year clock for PETs
 • Next steps: Set up discounted gift trust, draft gifting schedule',
-  'Urgent IHT review for George Pemberton. Estate £2.5m, projected IHT bill £800k under 2027 pension inclusion rules. Recommending £500k discounted gift trust, accelerated pension drawdown with gifting, and annual exemption programme.',
   NOW() - INTERVAL '26 days')
 RETURNING id INTO m_id;
 
@@ -354,9 +346,9 @@ VALUES
   (m_id, c9, v_user_id, 'Liaise with George''s solicitor about updating his will', 2, false, 3);
 
 -- Meeting 8: Catherine Lloyd - Cashflow Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c10, v_tenant_id, 'Cashflow Meeting - Catherine Lloyd Tax Year End', 'Cashflow Meeting',
-  '2026-01-22 17:30:00+00', '2026-01-22 18:15:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c10, v_tenant_id, 'Cashflow Meeting - Catherine Lloyd Tax Year End',
+  '2026-01-22 17:30:00+00', '2026-01-22 18:15:00+00', 'manual',
   '[{"email":"c.lloyd@virginmedia.com","name":"Catherine Lloyd"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Catherine, we''re now just over two months from the end of the tax year, so I wanted to go through your position and make sure we maximise your allowances.
 
@@ -378,7 +370,6 @@ Hannah: The JISA limit is £9,000 per child per tax year. So £18,000 total for 
 • JISAs for two children: £9k each = £18k
 • Total deployment before April: ~£98k
 • Next steps: Execute pension contribution and set up JISAs',
-  'Tax year end planning for Catherine Lloyd. High earner at £155k. Maximising pension via carry-forward (up to £125k available, contributing additional £60k). ISA £20k allocation plus JISAs for two children at £9k each. Total pre-April deployment ~£98k.',
   NOW() - INTERVAL '18 days')
 RETURNING id INTO m_id;
 
@@ -389,9 +380,9 @@ VALUES
   (m_id, c10, v_user_id, 'Invest remaining ISA allowance before April 5th', 2, false, 2);
 
 -- Meeting 9: Thomas & Helen Wright - Intro Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c7, v_tenant_id, 'Intro Meeting - Thomas & Helen Wright', 'Intro Meeting',
-  '2025-11-18 10:30:00+00', '2025-11-18 11:30:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c7, v_tenant_id, 'Intro Meeting - Thomas & Helen Wright',
+  '2025-11-18 10:30:00+00', '2025-11-18 11:30:00+00', 'manual',
   '[{"email":"tom.wright@icloud.com","name":"Thomas Wright"},{"email":"helen.wright@icloud.com","name":"Helen Wright"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Thomas, Helen, lovely to meet you both. You''re both approaching retirement, is that right?
 
@@ -419,7 +410,6 @@ Hannah: That''s one of the most important decisions. Taking 25% tax-free from Th
 • Tax-free cash decision — £130k available from Thomas SIPP
 • Advised caution on crystallising TFC given IHT pension changes
 • Next steps: Drawdown structure options and cashflow model',
-  'Intro meeting with Thomas and Helen Wright. Combined pensions £800k, income target £50k pa. Thomas retiring March, Helen continuing part-time. Key decision around tax-free cash crystallisation vs leaving in pension wrapper given 2027 IHT changes.',
   NOW() - INTERVAL '2 months' - INTERVAL '22 days')
 RETURNING id INTO m_id;
 
@@ -430,9 +420,9 @@ VALUES
   (m_id, c7, v_user_id, 'Schedule follow-up to present drawdown options', 2, true, 2);
 
 -- Meeting 10: William Ashton - Review Meeting (IHT Urgent)
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c13, v_tenant_id, 'Review Meeting - William Ashton Estate Review', 'Review Meeting',
-  '2026-02-08 09:00:00+00', '2026-02-08 10:00:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c13, v_tenant_id, 'Review Meeting - William Ashton Estate Review',
+  '2026-02-08 09:00:00+00', '2026-02-08 10:00:00+00', 'manual',
   '[{"email":"w.ashton@talktalk.net","name":"William Ashton"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: William, thank you for meeting today. I understand there''s been a change in your health situation and you want to accelerate the estate planning.
 
@@ -456,7 +446,6 @@ William: Let''s get started as soon as possible.',
 • Plan: Trust one BTL property, gifting programme, whole-of-life policy in trust
 • Review pension nominations urgently
 • Next steps: Immediate trust setup and solicitor liaison',
-  'Urgent IHT review for William Ashton following health diagnosis. Estate £3m, projected IHT £1m. Recommending property trust, structured gifting, whole-of-life cover, and pension nomination review. Time-sensitive.',
   NOW() - INTERVAL '1 day')
 RETURNING id INTO m_id;
 
@@ -468,9 +457,9 @@ VALUES
   (m_id, c13, v_user_id, 'Draft gifting schedule from rental income', 2, false, 3);
 
 -- Meeting 11: James Whitfield - Cashflow Meeting (follow-up)
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c1, v_tenant_id, 'Cashflow Meeting - James Whitfield DB Transfer Analysis', 'Cashflow Meeting',
-  '2025-11-20 10:00:00+00', '2025-11-20 11:00:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c1, v_tenant_id, 'Cashflow Meeting - James Whitfield DB Transfer Analysis',
+  '2025-11-20 10:00:00+00', '2025-11-20 11:00:00+00', 'manual',
   '[{"email":"james.whitfield@outlook.com","name":"James Whitfield"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: James, I''ve now received the transfer value from your scheme and completed the analysis. The transfer value is £462,000, slightly higher than we estimated. The scheme offers a guaranteed pension of £14,200 per year with 3% annual increases.
 
@@ -491,7 +480,6 @@ Hannah: I''ll prepare the formal recommendation report. We''ll need to discuss y
 • Teachers Pension provides secure income floor
 • Client wants to proceed with transfer
 • Next steps: Suitability report and investment strategy for drawdown',
-  'DB pension transfer analysis for James Whitfield. Transfer value £462k, critical yield 4.8%. Client has secure income via Teachers Pension. Transfer recommended for tax-free cash access and IHT planning flexibility. Formal recommendation to follow.',
   NOW() - INTERVAL '2 months' - INTERVAL '20 days')
 RETURNING id INTO m_id;
 
@@ -501,9 +489,9 @@ VALUES
   (m_id, c1, v_user_id, 'Design drawdown investment portfolio for James', 2, true, 1);
 
 -- Meeting 12: Sarah Mitchell - Signup Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c2, v_tenant_id, 'Signup Meeting - Sarah Mitchell VCT/Pension', 'Signup Meeting',
-  '2025-12-10 14:00:00+00', '2025-12-10 14:45:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c2, v_tenant_id, 'Signup Meeting - Sarah Mitchell VCT/Pension',
+  '2025-12-10 14:00:00+00', '2025-12-10 14:45:00+00', 'manual',
   '[{"email":"sarah.mitchell@gmail.com","name":"Sarah Mitchell"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Sarah, I''ve completed the research on VCT options and your pension carry-forward. Ready to go through the recommendations?
 
@@ -524,7 +512,6 @@ Hannah: I''ll send you the application forms today. We need to move quickly on t
 • Additional benefit: personal allowance restoration if income below £100k
 • Client approved all recommendations
 • Next steps: Submit VCT applications and pension contribution immediately',
-  'Signup meeting with Sarah Mitchell. Agreed VCT portfolio of £180k (30% relief) and pension contribution of £144k using carry-forward (45% relief). Total tax savings exceed £118k. Applications to be submitted urgently before VCT offers close.',
   NOW() - INTERVAL '2 months')
 RETURNING id INTO m_id;
 
@@ -535,9 +522,9 @@ VALUES
   (m_id, c2, v_user_id, 'Confirm personal allowance restoration calculation with accountant', 2, false, 2);
 
 -- Meeting 13: David & Patricia Chen - Signup Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c3, v_tenant_id, 'Signup Meeting - Chen Drawdown Implementation', 'Signup Meeting',
-  '2025-12-18 09:30:00+00', '2025-12-18 10:30:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c3, v_tenant_id, 'Signup Meeting - Chen Drawdown Implementation',
+  '2025-12-18 09:30:00+00', '2025-12-18 10:30:00+00', 'manual',
   '[{"email":"david.chen@btinternet.com","name":"David Chen"},{"email":"patricia.chen@btinternet.com","name":"Patricia Chen"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: David, Patricia, I''ve prepared the drawdown implementation plan based on our cashflow model. Are you ready to go through the details and sign off?
 
@@ -561,7 +548,6 @@ David: Sounds like a solid plan. Let''s sign everything today.',
 • Gifting programme from April: annual exemptions + normal expenditure
 • Clients signed off on implementation
 • Next steps: Execute crystallisation and fund transfers',
-  'Implementation meeting for David and Patricia Chen. Crystallising David''s SIPP £720k, TFC £180k to cash, £540k drawdown. Patricia deferred. Gifting programme starting April using annual exemptions and normal expenditure out of income.',
   NOW() - INTERVAL '53 days')
 RETURNING id INTO m_id;
 
@@ -572,9 +558,9 @@ VALUES
   (m_id, c3, v_user_id, 'Open ISA accounts for both David and Patricia', 2, true, 2);
 
 -- Meeting 14: Amira Patel - Intro Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c8, v_tenant_id, 'Intro Meeting - Amira Patel', 'Intro Meeting',
-  '2026-01-15 12:00:00+00', '2026-01-15 12:45:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c8, v_tenant_id, 'Intro Meeting - Amira Patel',
+  '2026-01-15 12:00:00+00', '2026-01-15 12:45:00+00', 'manual',
   '[{"email":"amira.patel@gmail.com","name":"Amira Patel"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Amira, welcome. You mentioned you''re looking to start investing for the first time?
 
@@ -599,7 +585,6 @@ Hannah: That''s what I''m here for. We''ll do a risk assessment and then I''ll r
 • Increase workplace pension to employer match level
 • Risk assessment needed for ISA portfolio
 • Next steps: Risk questionnaire, pension review, ISA setup',
-  'Intro meeting with Amira Patel. First-time investor with £25k savings. Plan to split: £10k emergency fund, £15k Stocks & Shares ISA. Also increasing workplace pension contributions to employer match. Risk assessment to follow.',
   NOW() - INTERVAL '25 days')
 RETURNING id INTO m_id;
 
@@ -610,9 +595,9 @@ VALUES
   (m_id, c8, v_user_id, 'Prepare ISA investment recommendation based on risk profile', 2, false, 2);
 
 -- Meeting 15: Mark & Louise Henderson - Intro Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c11, v_tenant_id, 'Intro Meeting - Mark & Louise Henderson', 'Intro Meeting',
-  '2026-01-25 14:00:00+00', '2026-01-25 15:00:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c11, v_tenant_id, 'Intro Meeting - Mark & Louise Henderson',
+  '2026-01-25 14:00:00+00', '2026-01-25 15:00:00+00', 'manual',
   '[{"email":"mark.henderson@gmail.com","name":"Mark Henderson"},{"email":"louise.henderson@gmail.com","name":"Louise Henderson"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Mark, Louise, thanks for getting in touch. You''re both in the public sector, is that right?
 
@@ -635,7 +620,6 @@ Hannah: AVCs can be very effective for public sector workers. They grow tax-free
 • Discussing AVC contributions before tax year end
 • Need to model commutation vs keeping full pension
 • Next steps: Obtain pension forecasts and model commutation scenarios',
-  'Intro meeting with Mark and Louise Henderson. Both public sector DB schemes (Civil Service and NHS). Exploring commutation options and AVCs before tax year end. Mark''s 12:1 commutation factor is favourable. Pension forecasts and modelling needed.',
   NOW() - INTERVAL '15 days')
 RETURNING id INTO m_id;
 
@@ -646,9 +630,9 @@ VALUES
   (m_id, c11, v_user_id, 'Calculate AVC contribution benefits before April 5th', 2, false, 2);
 
 -- Meeting 16: Thomas & Helen Wright - Cashflow Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c7, v_tenant_id, 'Cashflow Meeting - Wright Drawdown Options', 'Cashflow Meeting',
-  '2025-12-15 10:30:00+00', '2025-12-15 11:30:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c7, v_tenant_id, 'Cashflow Meeting - Wright Drawdown Options',
+  '2025-12-15 10:30:00+00', '2025-12-15 11:30:00+00', 'manual',
   '[{"email":"tom.wright@icloud.com","name":"Thomas Wright"},{"email":"helen.wright@icloud.com","name":"Helen Wright"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Thomas, Helen, I''ve prepared three drawdown scenarios for your review based on the cashflow modelling.
 
@@ -670,7 +654,6 @@ Hannah: Essentially yes, as long as the drawdown is sustainable. I''d actually r
 • Helen defers drawdown while working part-time
 • Funds last to 92+ in recommended scenario
 • Next steps: Finalise strategy choice and implementation',
-  'Drawdown options presentation for Thomas and Helen Wright. Recommended hybrid: full TFC from Thomas SIPP into ISAs, drawdown £30k pa. Post-2027 IHT changes make extraction and flexible investing more tax-efficient than pension preservation.',
   NOW() - INTERVAL '56 days')
 RETURNING id INTO m_id;
 
@@ -680,9 +663,9 @@ VALUES
   (m_id, c7, v_user_id, 'Set up ISA accounts for Thomas and Helen', 2, false, 1);
 
 -- Meeting 17: Priya Sharma - Intro Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c12, v_tenant_id, 'Intro Meeting - Priya Sharma', 'Intro Meeting',
-  '2026-01-10 11:00:00+00', '2026-01-10 11:45:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c12, v_tenant_id, 'Intro Meeting - Priya Sharma',
+  '2026-01-10 11:00:00+00', '2026-01-10 11:45:00+00', 'manual',
   '[{"email":"priya.sharma@outlook.com","name":"Priya Sharma"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Priya, thanks for getting in touch. You mentioned you''re contracting through a limited company?
 
@@ -704,7 +687,6 @@ Hannah: Potentially, yes. If your company year-end allows it, we could make a si
 • Corporation tax deduction: £60k costs company £45k net
 • Need to assess carry-forward and optimal contribution strategy
 • Next steps: Review carry-forward, plan pension contribution timing',
-  'Intro meeting with Priya Sharma, IT contractor via limited company. Significant retained profits of £140k. No pension contributions from company — major tax planning opportunity using employer contributions (£60k pa + carry-forward).',
   NOW() - INTERVAL '30 days')
 RETURNING id INTO m_id;
 
@@ -714,9 +696,9 @@ VALUES
   (m_id, c12, v_user_id, 'Coordinate with Priya''s accountant on company year-end timing', 2, false, 1);
 
 -- Meeting 18: Richard & Janet Gallagher - Performance Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c15, v_tenant_id, 'Performance Meeting - Gallagher Annual Review', 'Performance Meeting',
-  '2026-02-09 10:00:00+00', '2026-02-09 11:00:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c15, v_tenant_id, 'Performance Meeting - Gallagher Annual Review',
+  '2026-02-09 10:00:00+00', '2026-02-09 11:00:00+00', 'manual',
   '[{"email":"richard.gallagher@btinternet.com","name":"Richard Gallagher"},{"email":"janet.gallagher@btinternet.com","name":"Janet Gallagher"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Richard, Janet, welcome to your annual review. Let me start with the portfolio performance. Your combined drawdown is now valued at £672,000, down slightly from £685,000 last year, but you''ve been withdrawing £36,000 per year so the underlying return was actually positive at 3.4%.
 
@@ -737,7 +719,6 @@ Hannah: The good news is you can mitigate most of it through relatively simple m
 • Mitigation: increase drawdown and gift excess to children
 • Annual exemptions + PETs from income could eliminate most IHT
 • Next steps: Rebalance portfolio and start gifting programme',
-  'Annual review for Richard and Janet Gallagher. Drawdown portfolio £672k, 3.4% real return. IHT exposure of ~£320k under 2027 rules. Recommending portfolio rebalance and structured gifting programme from excess income to mitigate.',
   NOW() - INTERVAL '0 days')
 RETURNING id INTO m_id;
 
@@ -748,9 +729,9 @@ VALUES
   (m_id, c15, v_user_id, 'Update suitability report with new IHT pension rules impact', 2, false, 2);
 
 -- Meeting 19: Olivia Norris - Intro Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c14, v_tenant_id, 'Intro Meeting - Olivia Norris', 'Intro Meeting',
-  '2026-01-30 15:30:00+00', '2026-01-30 16:15:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c14, v_tenant_id, 'Intro Meeting - Olivia Norris',
+  '2026-01-30 15:30:00+00', '2026-01-30 16:15:00+00', 'manual',
   '[{"email":"olivia.norris@gmail.com","name":"Olivia Norris"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Olivia, welcome. You mentioned you''re a teacher and want to understand your pension better?
 
@@ -773,7 +754,6 @@ Olivia: I have about £5,000 I could put in.',
 • AVC gives tax relief + 25% TFC at retirement
 • Could start £100-200/month or lump sum £5k before April
 • Next steps: Set up AVC and recommend investment strategy within AVC',
-  'Intro meeting with Olivia Norris. Teacher with 12 years'' service in TPS. Exploring AVCs for additional retirement provision. Could contribute £5k lump sum before tax year end plus ongoing monthly.',
   NOW() - INTERVAL '10 days')
 RETURNING id INTO m_id;
 
@@ -783,9 +763,9 @@ VALUES
   (m_id, c14, v_user_id, 'Recommend AVC investment fund based on risk profile', 2, false, 1);
 
 -- Meeting 20: George Pemberton - Signup Meeting (Trust)
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c9, v_tenant_id, 'Signup Meeting - Pemberton Trust Implementation', 'Signup Meeting',
-  '2026-02-06 10:00:00+00', '2026-02-06 11:00:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c9, v_tenant_id, 'Signup Meeting - Pemberton Trust Implementation',
+  '2026-02-06 10:00:00+00', '2026-02-06 11:00:00+00', 'manual',
   '[{"email":"george.pemberton@outlook.com","name":"George Pemberton"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: George, I''m pleased to say the discounted gift trust is ready to proceed. The provider has confirmed the terms based on your age and selected income level.
 
@@ -806,7 +786,6 @@ Hannah: I''ve spoken to your solicitor about updating your will. She''s suggeste
 • Pension nominations updated for children
 • Solicitor meeting planned to align will with trust
 • Next steps: Execute trust, fund transfer, and solicitor meeting',
-  'Trust implementation for George Pemberton. £500k discounted gift trust with £165k discount. Immediate PET of £335k. Income of £25k pa tax-deferred. Coordinating with solicitor on will update.',
   NOW() - INTERVAL '3 days')
 RETURNING id INTO m_id;
 
@@ -818,9 +797,9 @@ VALUES
 
 -- Meetings 21-30: Additional past meetings to fill out the 30 total
 -- Meeting 21: James Whitfield - Signup Meeting (DB Transfer)
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c1, v_tenant_id, 'Signup Meeting - Whitfield DB Transfer Execution', 'Signup Meeting',
-  '2026-01-08 10:00:00+00', '2026-01-08 10:45:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c1, v_tenant_id, 'Signup Meeting - Whitfield DB Transfer Execution',
+  '2026-01-08 10:00:00+00', '2026-01-08 10:45:00+00', 'manual',
   '[{"email":"james.whitfield@outlook.com","name":"James Whitfield"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: James, the suitability report is complete and I''m recommending the DB transfer proceeds. Let me walk through the key points. The transfer value of £462,000 will be moved into your new SIPP. We''ll crystallise immediately to take the 25% tax-free cash of £115,500 and the remaining £346,500 goes into drawdown invested in a balanced growth portfolio. I''ve selected a mix of global equity funds at 60%, multi-asset income at 25%, and short-duration bonds at 15%.
 
@@ -834,7 +813,6 @@ James: Let''s sign everything.',
 • Drawdown: £346,500 in balanced growth (60/25/15 equity/multi-asset/bonds)
 • Suitability report signed and filed
 • Next steps: Execute transfer and monitor',
-  'DB transfer execution for James Whitfield. £462k transferred to SIPP, £115.5k TFC taken. £85k gifted to children as PETs for IHT. Drawdown portfolio established.',
   NOW() - INTERVAL '32 days')
 RETURNING id INTO m_id;
 
@@ -845,9 +823,9 @@ VALUES
   (m_id, c1, v_user_id, 'Record PET gifts of £85k for IHT tracking', 2, true, 2);
 
 -- Meeting 22: Emma Hartley - Cashflow Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c4, v_tenant_id, 'Cashflow Meeting - Hartley Pension Contribution Plan', 'Cashflow Meeting',
-  '2026-01-17 16:30:00+00', '2026-01-17 17:15:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c4, v_tenant_id, 'Cashflow Meeting - Hartley Pension Contribution Plan',
+  '2026-01-17 16:30:00+00', '2026-01-17 17:15:00+00', 'manual',
   '[{"email":"emma.hartley@yahoo.co.uk","name":"Emma Hartley"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Emma, I''ve completed the annual allowance calculation. Good news — you''re comfortably within the full £60,000 allowance. Your adjusted income including NHS employer contributions is £178,000, well below the £260,000 tapering threshold. You''ve used £18,000 of this year''s allowance through your NHS pension accrual. Carry-forward from 2022/23 is £22,000, 2023/24 is £25,000, and 2024/25 is £20,000. Total available: £109,000 including current year.
 
@@ -860,7 +838,6 @@ Hannah: At 40% higher rate relief, £60,000 saves you £24,000 in tax. And becau
 • Total available: £109k
 • Contributing £60k — tax saving £24k at 40% HR relief
 • Next steps: Process pension contribution before April 5th',
-  'Pension contribution planning for Emma Hartley. Full £60k allowance confirmed, no tapering. £60k additional contribution planned with £24k tax relief. Carry-forward verified.',
   NOW() - INTERVAL '23 days')
 RETURNING id INTO m_id;
 
@@ -870,9 +847,9 @@ VALUES
   (m_id, c4, v_user_id, 'Confirm contribution with SIPP provider and obtain tax relief', 2, false, 1);
 
 -- Meeting 23: David & Patricia Chen - Review Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c3, v_tenant_id, 'Review Meeting - Chen Drawdown Progress', 'Review Meeting',
-  '2026-02-07 09:30:00+00', '2026-02-07 10:15:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c3, v_tenant_id, 'Review Meeting - Chen Drawdown Progress',
+  '2026-02-07 09:30:00+00', '2026-02-07 10:15:00+00', 'manual',
   '[{"email":"david.chen@btinternet.com","name":"David Chen"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: David, quick update on the drawdown implementation. Everything is now live. Your drawdown fund stands at £538,000 and the first monthly payment of £3,333 was processed on the 1st. The tax-free cash of £180,000 has been split as agreed — £50,000 emergency fund and the first ISA contributions of £20,000 each for you and Patricia are invested. The remaining £90,000 is in a notice account earning 4.8% while we wait for next tax year''s ISA allowances.
 
@@ -884,7 +861,6 @@ Hannah: We''re on track. I''ve prepared the gifting schedule starting April. You
 • Gifting schedule from April: £6k annual exemptions + £12k pa from income
 • Whole-of-life quote: £350/month for £200k cover in trust
 • Next steps: Confirm whole-of-life policy and finalise April gifting',
-  'Progress review for David Chen. Drawdown fully operational. TFC deployed across emergency fund, ISAs, and notice account. Gifting schedule prepared for April start. Whole-of-life insurance quoted at £350/month for £200k.',
   NOW() - INTERVAL '2 days')
 RETURNING id INTO m_id;
 
@@ -894,9 +870,9 @@ VALUES
   (m_id, c3, v_user_id, 'Set up standing orders for April gifting programme', 2, false, 1);
 
 -- Meeting 24: William Ashton - Cashflow Meeting (earlier)
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c13, v_tenant_id, 'Cashflow Meeting - Ashton Estate Valuation', 'Cashflow Meeting',
-  '2025-11-28 09:00:00+00', '2025-11-28 10:00:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c13, v_tenant_id, 'Cashflow Meeting - Ashton Estate Valuation',
+  '2025-11-28 09:00:00+00', '2025-11-28 10:00:00+00', 'manual',
   '[{"email":"w.ashton@talktalk.net","name":"William Ashton"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: William, I''ve been gathering all the valuations we need for the estate plan. Your property portfolio: the family home is now valued at £1.2 million based on recent comparable sales, and the two buy-to-lets are £480,000 and £370,000 respectively. Your investment ISA is at £400,000, pension fund £350,000, and current accounts total £200,000. The total estate is just under £3 million.
 
@@ -908,7 +884,6 @@ Hannah: They have. The positive news is that with careful planning we can signif
 • Property values higher than expected
 • Full estate plan being prepared
 • Next steps: Present detailed IHT mitigation strategy',
-  'Estate valuation session for William Ashton. Total estate confirmed at approximately £3m. Property values higher than expected. Full IHT mitigation plan to follow.',
   NOW() - INTERVAL '73 days')
 RETURNING id INTO m_id;
 
@@ -918,9 +893,9 @@ VALUES
   (m_id, c13, v_user_id, 'Research discretionary trust options for BTL properties', 2, true, 1);
 
 -- Meeting 25: Robert Blackwood - Cashflow Meeting (earlier review)
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c5, v_tenant_id, 'Cashflow Meeting - Blackwood Mid-Year Check', 'Cashflow Meeting',
-  '2025-10-08 11:00:00+00', '2025-10-08 11:45:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c5, v_tenant_id, 'Cashflow Meeting - Blackwood Mid-Year Check',
+  '2025-10-08 11:00:00+00', '2025-10-08 11:45:00+00', 'manual',
   '[{"email":"r.blackwood@hotmail.co.uk","name":"Robert Blackwood"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Robert, this is our six-month check-in. Your drawdown portfolio is at £738,000 as of this week. You''ve withdrawn £21,000 over the last six months. The portfolio returned 4.1% for the period, which is ahead of benchmark. Asset allocation remains within tolerance bands. No rebalancing needed at this point.
 
@@ -934,7 +909,6 @@ Robert: Agreed. Let''s book that in.',
 • Asset allocation within tolerance — no rebalancing needed
 • IHT review flagged for January annual meeting
 • Next steps: Annual review in January with IHT focus',
-  'Mid-year review for Robert Blackwood. Portfolio at £738k, 4.1% half-year return. Sustainable withdrawal rate. Full IHT review planned for January.',
   NOW() - INTERVAL '4 months' - INTERVAL '1 day')
 RETURNING id INTO m_id;
 
@@ -943,9 +917,9 @@ VALUES
   (m_id, c5, v_user_id, 'Schedule comprehensive annual review in January with IHT focus', 2, true, 0);
 
 -- Meeting 26: Catherine Lloyd - Intro Meeting (earlier)
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c10, v_tenant_id, 'Intro Meeting - Catherine Lloyd', 'Intro Meeting',
-  '2025-09-18 17:00:00+00', '2025-09-18 17:45:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c10, v_tenant_id, 'Intro Meeting - Catherine Lloyd',
+  '2025-09-18 17:00:00+00', '2025-09-18 17:45:00+00', 'manual',
   '[{"email":"c.lloyd@virginmedia.com","name":"Catherine Lloyd"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Catherine, thanks for getting in touch. Tell me about your financial situation and what you''re looking for.
 
@@ -966,7 +940,6 @@ Hannah: That''s a solid foundation. At £150,000 salary, your combined pension c
 • Significant annual allowance headroom (£40.5k unused)
 • Wants to maximise pension, ISA, and children''s savings
 • Next steps: Full financial review and recommendations',
-  'Intro meeting with Catherine Lloyd. Senior solicitor earning £150k+. Good pension foundation but significant room to optimise. Plans for ISA and children''s savings. Full review to follow.',
   NOW() - INTERVAL '4 months' - INTERVAL '22 days')
 RETURNING id INTO m_id;
 
@@ -976,9 +949,9 @@ VALUES
   (m_id, c10, v_user_id, 'Research JISA options and providers', 2, true, 1);
 
 -- Meeting 27: Thomas & Helen Wright - Signup Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c7, v_tenant_id, 'Signup Meeting - Wright Drawdown Setup', 'Signup Meeting',
-  '2026-02-04 10:30:00+00', '2026-02-04 11:15:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c7, v_tenant_id, 'Signup Meeting - Wright Drawdown Setup',
+  '2026-02-04 10:30:00+00', '2026-02-04 11:15:00+00', 'manual',
   '[{"email":"tom.wright@icloud.com","name":"Thomas Wright"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Thomas, we''re ready to implement the hybrid drawdown strategy. I have the paperwork here for you to sign. Thomas''s SIPP: full crystallisation of £520,000. TFC of £130,000 to be invested into ISAs over time. Drawdown set to £2,500 per month initially. Investment portfolio: 65% global equity, 20% bonds, 10% alternatives, 5% cash.
 
@@ -991,7 +964,6 @@ Hannah: Perfect. The first payment should come through within 3-4 weeks of the t
 • Portfolio: 65/20/10/5 equity/bonds/alts/cash
 • Both signed off — processing to begin
 • Next steps: Monitor transfer and first payment',
-  'Drawdown implementation for Thomas Wright. £520k crystallised, £130k TFC, £30k pa drawdown. Hybrid strategy with ISA phasing. Paperwork signed.',
   NOW() - INTERVAL '5 days')
 RETURNING id INTO m_id;
 
@@ -1001,9 +973,9 @@ VALUES
   (m_id, c7, v_user_id, 'Open ISA accounts for Thomas and Helen', 2, false, 1);
 
 -- Meeting 28: Sarah Mitchell - Review Meeting
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c2, v_tenant_id, 'Review Meeting - Mitchell VCT/Pension Update', 'Review Meeting',
-  '2026-02-03 14:00:00+00', '2026-02-03 14:30:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c2, v_tenant_id, 'Review Meeting - Mitchell VCT/Pension Update',
+  '2026-02-03 14:00:00+00', '2026-02-03 14:30:00+00', 'manual',
   '[{"email":"sarah.mitchell@gmail.com","name":"Sarah Mitchell"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Sarah, quick update on where things stand. The VCT applications have all been processed. Octopus Titan: £60,000 invested, Maven: £60,000 invested, British Smaller Companies: £60,000 invested. Total VCT: £180,000 with £54,000 income tax relief confirmed. Your pension contribution of £144,000 has been processed and the tax relief claim is submitted to HMRC. You should see the relief in your next self-assessment.
 
@@ -1018,7 +990,6 @@ Sarah: Yes, completion is Thursday. Let''s meet again after the money comes thro
 • Remaining proceeds need investment strategy
 • Consider ISA, GIA, and EIS for further tax relief
 • Next steps: Post-completion meeting to invest remaining funds',
-  'Update meeting with Sarah Mitchell. VCT and pension investments confirmed and processed. Total tax relief of £118.8k. Company sale completing next week — further investment planning needed.',
   NOW() - INTERVAL '6 days')
 RETURNING id INTO m_id;
 
@@ -1028,9 +999,9 @@ VALUES
   (m_id, c2, v_user_id, 'Research EIS opportunities for further tax relief', 2, false, 1);
 
 -- Meeting 29: George Pemberton - Performance Meeting (earlier)
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c9, v_tenant_id, 'Performance Meeting - Pemberton Portfolio Review', 'Performance Meeting',
-  '2025-10-22 10:00:00+00', '2025-10-22 10:45:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c9, v_tenant_id, 'Performance Meeting - Pemberton Portfolio Review',
+  '2025-10-22 10:00:00+00', '2025-10-22 10:45:00+00', 'manual',
   '[{"email":"george.pemberton@outlook.com","name":"George Pemberton"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: George, your investment portfolio stands at £512,000, up from £488,000 at our last review. That''s a return of 4.9% for the period. Your pension fund is at £905,000. Income withdrawals from the portfolio have been £15,000 over the period. Everything is running smoothly.
 
@@ -1045,7 +1016,6 @@ George: Yes, let''s do that urgently please.',
 • Potential additional IHT of £360k+ from pension inclusion
 • Dedicated IHT planning meeting needed urgently
 • Next steps: Schedule comprehensive IHT review',
-  'Performance review for George Pemberton. Portfolio at £512k, 4.9% return. Pension at £905k. Client raised IHT concerns — dedicated planning session scheduled.',
   NOW() - INTERVAL '3 months' - INTERVAL '18 days')
 RETURNING id INTO m_id;
 
@@ -1055,9 +1025,9 @@ VALUES
   (m_id, c9, v_user_id, 'Research discounted gift trust providers and terms', 1, true, 1);
 
 -- Meeting 30: Richard & Janet Gallagher - Cashflow Meeting (earlier)
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, transcript, quick_summary, summary, created_at)
-VALUES (v_user_id, c15, v_tenant_id, 'Cashflow Meeting - Gallagher Drawdown Review', 'Cashflow Meeting',
-  '2025-11-12 10:00:00+00', '2025-11-12 10:45:00+00', 'manual', 'video', 'Zoom Meeting', 'completed',
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, transcript, quick_summary, created_at)
+VALUES (v_user_id, c15, v_tenant_id, 'Cashflow Meeting - Gallagher Drawdown Review',
+  '2025-11-12 10:00:00+00', '2025-11-12 10:45:00+00', 'manual',
   '[{"email":"richard.gallagher@btinternet.com","name":"Richard Gallagher"},{"email":"janet.gallagher@btinternet.com","name":"Janet Gallagher"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb,
   'Hannah: Richard, Janet, welcome to your autumn check-in. Portfolio is at £685,000, you''ve withdrawn £18,000 in the last six months. The underlying return was 2.8% — slightly below target but consistent with the cautious market conditions. Bond allocation has provided stability. I''m satisfied the strategy remains sound.
 
@@ -1072,7 +1042,6 @@ Hannah: The state pension triple lock means it''s likely to increase by around 4
 • Adds ~£920 pa combined
 • Strategy remains sound — no changes needed
 • Next steps: Annual review in February with updated cashflow',
-  'Autumn review for Richard and Janet Gallagher. Portfolio steady at £685k. Withdrawals sustainable. State pension increase in April to be factored into annual review.',
   NOW() - INTERVAL '89 days')
 RETURNING id INTO m_id;
 
@@ -1084,66 +1053,59 @@ VALUES
 -- FUTURE MEETINGS (10 meetings)
 -- ============================================================================
 
-INSERT INTO meetings (userid, client_id, tenant_id, title, type, starttime, endtime, meeting_source, location_type, location_details, status, attendees, created_at)
+INSERT INTO meetings (user_id, client_id, tenant_id, title, starttime, endtime, meeting_source, attendees, created_at)
 VALUES
   -- Future 1: James Whitfield - Performance Review
-  (v_user_id, c1, v_tenant_id, 'Performance Meeting - Whitfield Drawdown Review', 'Performance Meeting',
-   '2026-02-20 10:00:00+00', '2026-02-20 11:00:00+00', 'manual', 'video', 'Zoom Meeting', 'scheduled',
+  (v_user_id, c1, v_tenant_id, 'Performance Meeting - Whitfield Drawdown Review',
+   '2026-02-20 10:00:00+00', '2026-02-20 11:00:00+00', 'manual',
    '[{"email":"james.whitfield@outlook.com","name":"James Whitfield"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb, NOW()),
 
   -- Future 2: Emma Hartley - Signup Meeting
-  (v_user_id, c4, v_tenant_id, 'Signup Meeting - Hartley Pension Contribution', 'Signup Meeting',
-   '2026-02-18 16:00:00+00', '2026-02-18 16:45:00+00', 'manual', 'video', 'Zoom Meeting', 'scheduled',
+  (v_user_id, c4, v_tenant_id, 'Signup Meeting - Hartley Pension Contribution',
+   '2026-02-18 16:00:00+00', '2026-02-18 16:45:00+00', 'manual',
    '[{"email":"emma.hartley@yahoo.co.uk","name":"Emma Hartley"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb, NOW()),
 
   -- Future 3: William Ashton - Signup Meeting (Trust Implementation)
-  (v_user_id, c13, v_tenant_id, 'Signup Meeting - Ashton Trust and Insurance', 'Signup Meeting',
-   '2026-02-14 09:00:00+00', '2026-02-14 10:00:00+00', 'manual', 'video', 'Zoom Meeting', 'scheduled',
+  (v_user_id, c13, v_tenant_id, 'Signup Meeting - Ashton Trust and Insurance',
+   '2026-02-14 09:00:00+00', '2026-02-14 10:00:00+00', 'manual',
    '[{"email":"w.ashton@talktalk.net","name":"William Ashton"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb, NOW()),
 
   -- Future 4: Mark & Louise Henderson - Cashflow Meeting
-  (v_user_id, c11, v_tenant_id, 'Cashflow Meeting - Henderson Commutation Analysis', 'Cashflow Meeting',
-   '2026-02-22 14:00:00+00', '2026-02-22 15:00:00+00', 'manual', 'video', 'Zoom Meeting', 'scheduled',
+  (v_user_id, c11, v_tenant_id, 'Cashflow Meeting - Henderson Commutation Analysis',
+   '2026-02-22 14:00:00+00', '2026-02-22 15:00:00+00', 'manual',
    '[{"email":"mark.henderson@gmail.com","name":"Mark Henderson"},{"email":"louise.henderson@gmail.com","name":"Louise Henderson"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb, NOW()),
 
   -- Future 5: Fiona Campbell - Cashflow Meeting
-  (v_user_id, c6, v_tenant_id, 'Cashflow Meeting - Campbell Investment Strategy', 'Cashflow Meeting',
-   '2026-02-25 13:00:00+00', '2026-02-25 13:45:00+00', 'manual', 'video', 'Zoom Meeting', 'scheduled',
+  (v_user_id, c6, v_tenant_id, 'Cashflow Meeting - Campbell Investment Strategy',
+   '2026-02-25 13:00:00+00', '2026-02-25 13:45:00+00', 'manual',
    '[{"email":"fiona.campbell@sky.com","name":"Fiona Campbell"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb, NOW()),
 
   -- Future 6: Catherine Lloyd - Signup Meeting
-  (v_user_id, c10, v_tenant_id, 'Signup Meeting - Lloyd Tax Year End Actions', 'Signup Meeting',
-   '2026-02-16 17:30:00+00', '2026-02-16 18:15:00+00', 'manual', 'video', 'Zoom Meeting', 'scheduled',
+  (v_user_id, c10, v_tenant_id, 'Signup Meeting - Lloyd Tax Year End Actions',
+   '2026-02-16 17:30:00+00', '2026-02-16 18:15:00+00', 'manual',
    '[{"email":"c.lloyd@virginmedia.com","name":"Catherine Lloyd"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb, NOW()),
 
   -- Future 7: Priya Sharma - Cashflow Meeting
-  (v_user_id, c12, v_tenant_id, 'Cashflow Meeting - Sharma Ltd Company Pension Plan', 'Cashflow Meeting',
-   '2026-03-05 11:00:00+00', '2026-03-05 11:45:00+00', 'manual', 'video', 'Zoom Meeting', 'scheduled',
+  (v_user_id, c12, v_tenant_id, 'Cashflow Meeting - Sharma Ltd Company Pension Plan',
+   '2026-03-05 11:00:00+00', '2026-03-05 11:45:00+00', 'manual',
    '[{"email":"priya.sharma@outlook.com","name":"Priya Sharma"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb, NOW()),
 
   -- Future 8: Olivia Norris - Cashflow Meeting (AVC Setup)
-  (v_user_id, c14, v_tenant_id, 'Cashflow Meeting - Norris AVC Implementation', 'Cashflow Meeting',
-   '2026-02-28 15:30:00+00', '2026-02-28 16:15:00+00', 'manual', 'video', 'Zoom Meeting', 'scheduled',
+  (v_user_id, c14, v_tenant_id, 'Cashflow Meeting - Norris AVC Implementation',
+   '2026-02-28 15:30:00+00', '2026-02-28 16:15:00+00', 'manual',
    '[{"email":"olivia.norris@gmail.com","name":"Olivia Norris"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb, NOW()),
 
   -- Future 9: George Pemberton - Review Meeting (Solicitor coordination)
-  (v_user_id, c9, v_tenant_id, 'Review Meeting - Pemberton Will and Trust Alignment', 'Review Meeting',
-   '2026-03-12 10:00:00+00', '2026-03-12 11:00:00+00', 'manual', 'video', 'Zoom Meeting', 'scheduled',
+  (v_user_id, c9, v_tenant_id, 'Review Meeting - Pemberton Will and Trust Alignment',
+   '2026-03-12 10:00:00+00', '2026-03-12 11:00:00+00', 'manual',
    '[{"email":"george.pemberton@outlook.com","name":"George Pemberton"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb, NOW()),
 
   -- Future 10: Amira Patel - Signup Meeting (ISA Investment)
-  (v_user_id, c8, v_tenant_id, 'Signup Meeting - Patel ISA and Pension Setup', 'Signup Meeting',
-   '2026-03-10 12:00:00+00', '2026-03-10 12:45:00+00', 'manual', 'video', 'Zoom Meeting', 'scheduled',
+  (v_user_id, c8, v_tenant_id, 'Signup Meeting - Patel ISA and Pension Setup',
+   '2026-03-10 12:00:00+00', '2026-03-10 12:45:00+00', 'manual',
    '[{"email":"amira.patel@gmail.com","name":"Amira Patel"},{"email":"hannah@advicly.co.uk","name":"Hannah Central"}]'::jsonb, NOW());
 
--- ============================================================================
--- UPDATE MEETING COUNTS on clients
--- ============================================================================
-UPDATE clients c SET
-  meeting_count = (SELECT COUNT(*) FROM meetings m WHERE m.client_id = c.id AND m.userid = v_user_id),
-  active_meeting_count = (SELECT COUNT(*) FROM meetings m WHERE m.client_id = c.id AND m.userid = v_user_id AND m.status = 'scheduled'),
-  last_meeting_date = (SELECT MAX(starttime) FROM meetings m WHERE m.client_id = c.id AND m.userid = v_user_id AND m.status = 'completed')
-WHERE c.id IN (c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13,c14,c15);
+-- (meeting count updates removed — columns not present in current schema)
 
 RAISE NOTICE '✅ Demo data seeded successfully!';
 RAISE NOTICE '  - 15 clients created';

@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../..
 import { Badge } from '../../components/ui/badge';
 import { Check } from 'lucide-react';
 import axios from 'axios';
+import { getStoredFbc, getStoredFbclid } from '../../utils/fbTracking';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 const STRIPE_PUBLIC_KEY = process.env.REACT_APP_STRIPE_PUBLIC_KEY;
@@ -71,7 +72,11 @@ const Step2_BusinessProfile = ({ data, onNext, user }) => {
             const token = await getAccessToken();
             const response = await axios.post(
                 `${API_BASE_URL}/api/auth/onboarding/business-profile`,
-                formData,
+                {
+                    ...formData,
+                    fbclid: getStoredFbclid(),
+                    fbc: getStoredFbc()
+                },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
 

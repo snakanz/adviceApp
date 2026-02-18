@@ -674,6 +674,82 @@ router.get('/meetings/all', authenticateSupabaseUser, async (req, res) => {
   }
 });
 
+// Batch-generate summaries for all meetings with transcripts but no detailed_summary
+router.post('/meetings/batch-generate-summaries', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({ error: 'Database service unavailable' });
+    }
+
+    if (!openai.isOpenAIAvailable()) {
+      return res.status(503).json({ error: 'OpenAI service not available' });
+    }
+
+    // Find all meetings with transcripts but no detailed_summary
+    const { data: meetings, error: fetchError } = await req.supabase
+      .from('meetings')
+      .select('id, title, transcript, quick_summary, detailed_summary, client_id, clients(id, name, email)')
+      .eq('user_id', userId)
+      .not('transcript', 'is', null)
+      .is('detailed_summary', null)
+      .order('starttime', { ascending: false });
+
+    if (fetchError) {
+      return res.status(500).json({ error: 'Failed to fetch meetings' });
+    }
+
+    if (!meetings || meetings.length === 0) {
+      return res.json({ message: 'No meetings need summary generation', processed: 0 });
+    }
+
+    // Respond immediately with count, process in background
+    res.json({
+      message: `Processing ${meetings.length} meetings in background`,
+      meetingCount: meetings.length,
+      meetingTitles: meetings.map(m => m.title)
+    });
+
+    // Process each meeting in background
+    const { generateMeetingOutputs } = require('../services/meetingSummaryService');
+
+    setImmediate(async () => {
+      let processed = 0;
+      let failed = 0;
+
+      for (const meeting of meetings) {
+        try {
+          console.log(`🤖 [BatchGenerate] Processing ${processed + 1}/${meetings.length}: ${meeting.title}`);
+
+          await generateMeetingOutputs({
+            supabase: req.supabase,
+            userId,
+            meetingId: meeting.id,
+            transcript: meeting.transcript,
+            meeting
+          });
+
+          processed++;
+          console.log(`✅ [BatchGenerate] Done: ${meeting.title}`);
+
+          // Small delay between API calls to avoid rate limiting
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } catch (error) {
+          failed++;
+          console.error(`❌ [BatchGenerate] Failed: ${meeting.title}:`, error.message);
+        }
+      }
+
+      console.log(`🎉 [BatchGenerate] Complete: ${processed} processed, ${failed} failed out of ${meetings.length}`);
+    });
+
+  } catch (error) {
+    console.error('Error in batch generate summaries:', error);
+    res.status(500).json({ error: 'Failed to start batch generation' });
+  }
+});
+
 // Start meeting recording
 router.post('/meetings/:id/record/start', authenticateSupabaseUser, async (req, res) => {
   try {

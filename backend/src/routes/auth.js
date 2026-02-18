@@ -1676,7 +1676,7 @@ router.put('/onboarding/step', authenticateSupabaseUser, async (req, res) => {
 router.post('/onboarding/business-profile', authenticateSupabaseUser, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { business_name, business_type, team_size, timezone } = req.body;
+    const { business_name, business_type, team_size, timezone, fbclid, fbc } = req.body;
 
     if (!business_name) {
       return res.status(400).json({ error: 'Business name is required' });
@@ -1689,6 +1689,8 @@ router.post('/onboarding/business-profile', authenticateSupabaseUser, async (req
       .update({
         business_name,
         timezone: timezone || 'UTC',
+        ...(fbclid && { fbclid }),
+        ...(fbc && { fbc }),
         // onboarding_completed will be set by /onboarding/complete at the end
         updated_at: new Date().toISOString()
       })
@@ -1818,6 +1820,22 @@ router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) =
     }
 
     console.log(`✅ User ${userId} completed onboarding with active subscription`);
+
+    // Fire Meta CAPI StartTrial event (non-fatal)
+    try {
+      const { data: userData } = await getSupabase()
+        .from('users')
+        .select('email, fbc')
+        .eq('id', userId)
+        .single();
+
+      if (userData?.email) {
+        const { sendStartTrial } = require('../services/metaConversionsApi');
+        await sendStartTrial({ email: userData.email, fbc: userData.fbc });
+      }
+    } catch (metaError) {
+      console.error('⚠️  Meta CAPI StartTrial failed (non-fatal):', metaError.message);
+    }
 
     // Trigger calendar sync and webhook setup now that onboarding is complete
     try {

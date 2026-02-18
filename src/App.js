@@ -19,9 +19,13 @@ import AskAdvicly from './pages/AskAdvicly';
 import notificationService from './services/notificationService';
 import axios from 'axios';
 import { initMobileAuthFixes } from './utils/mobileAuthFix';
+import { captureFbclid } from './utils/fbTracking';
 
 // Initialize mobile auth fixes on app load
 initMobileAuthFixes();
+
+// Capture fbclid from URL for Meta CAPI attribution
+captureFbclid();
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
