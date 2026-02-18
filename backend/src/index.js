@@ -75,6 +75,9 @@ const corsOptions = {
   optionsSuccessStatus: 204
 };
 
+// Trust first proxy (Render load balancer) so req.ip returns real client IP
+app.set('trust proxy', 1);
+
 console.log('Setting up CORS...');
 app.use(cors(corsOptions));
 

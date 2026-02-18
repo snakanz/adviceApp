@@ -284,7 +284,7 @@ async function handlePaymentSucceeded(invoice) {
     // Get user data and check deduplication flag
     const { data: userData } = await getSupabase()
       .from('users')
-      .select('email, fbc, meta_purchase_sent')
+      .select('email, fbc, meta_purchase_sent, onboarding_client_ip, onboarding_client_user_agent')
       .eq('id', stripeCustomer.user_id)
       .single();
 
@@ -301,6 +301,8 @@ async function handlePaymentSucceeded(invoice) {
     await sendPurchase({
       email: userData.email,
       fbc: userData.fbc,
+      clientIp: userData.onboarding_client_ip,
+      clientUserAgent: userData.onboarding_client_user_agent,
       value: amountInPounds,
       currency: (invoice.currency || 'gbp').toUpperCase()
     });

@@ -18,7 +18,7 @@ function sha256(value) {
  * Send an event to Meta Conversions API.
  * Fails silently if env vars are missing or API errors occur.
  */
-async function sendEvent({ eventName, email, fbc, customData = {} }) {
+async function sendEvent({ eventName, email, fbc, clientIp, clientUserAgent, customData = {} }) {
   if (!PIXEL_ID || !ACCESS_TOKEN) {
     console.warn(`⚠️  Meta CAPI not configured — skipping ${eventName} event`);
     return null;
@@ -31,7 +31,9 @@ async function sendEvent({ eventName, email, fbc, customData = {} }) {
     event_source_url: 'https://app.advicly.co.uk',
     user_data: {
       em: [sha256(email)],
-      ...(fbc && { fbc })
+      ...(fbc && { fbc }),
+      ...(clientIp && { client_ip_address: clientIp }),
+      ...(clientUserAgent && { client_user_agent: clientUserAgent })
     },
     ...(Object.keys(customData).length > 0 && { custom_data: customData })
   };
@@ -63,20 +65,24 @@ async function sendEvent({ eventName, email, fbc, customData = {} }) {
   }
 }
 
-async function sendStartTrial({ email, fbc }) {
+async function sendStartTrial({ email, fbc, clientIp, clientUserAgent }) {
   return sendEvent({
     eventName: 'StartTrial',
     email,
     fbc,
+    clientIp,
+    clientUserAgent,
     customData: { currency: 'GBP', value: 0 }
   });
 }
 
-async function sendPurchase({ email, fbc, value, currency = 'GBP' }) {
+async function sendPurchase({ email, fbc, clientIp, clientUserAgent, value, currency = 'GBP' }) {
   return sendEvent({
     eventName: 'Purchase',
     email,
     fbc,
+    clientIp,
+    clientUserAgent,
     customData: { currency, value }
   });
 }

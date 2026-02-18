@@ -1691,6 +1691,8 @@ router.post('/onboarding/business-profile', authenticateSupabaseUser, async (req
         timezone: timezone || 'UTC',
         ...(fbclid && { fbclid }),
         ...(fbc && { fbc }),
+        onboarding_client_ip: req.ip,
+        onboarding_client_user_agent: req.headers['user-agent'],
         // onboarding_completed will be set by /onboarding/complete at the end
         updated_at: new Date().toISOString()
       })
@@ -1825,13 +1827,18 @@ router.post('/onboarding/complete', authenticateSupabaseUser, async (req, res) =
     try {
       const { data: userData } = await getSupabase()
         .from('users')
-        .select('email, fbc')
+        .select('email, fbc, onboarding_client_ip, onboarding_client_user_agent')
         .eq('id', userId)
         .single();
 
       if (userData?.email) {
         const { sendStartTrial } = require('../services/metaConversionsApi');
-        await sendStartTrial({ email: userData.email, fbc: userData.fbc });
+        await sendStartTrial({
+          email: userData.email,
+          fbc: userData.fbc,
+          clientIp: userData.onboarding_client_ip,
+          clientUserAgent: userData.onboarding_client_user_agent
+        });
       }
     } catch (metaError) {
       console.error('⚠️  Meta CAPI StartTrial failed (non-fatal):', metaError.message);
