@@ -76,25 +76,17 @@ const defaultTemplates = [
 function hasOldSummaryFormat(promptContent) {
   if (!promptContent) return false;
 
-  // Get the current canonical content from the engine
-  const currentContent = buildAdviclyTemplateContent();
+  // Check for markers from the CURRENT engine format (tone-driven, no rigid word count)
+  const hasCurrentFormat = promptContent.includes('TONE') &&
+                           promptContent.includes('CONTENT:') &&
+                           promptContent.includes('VOICE:');
 
-  // If stored content doesn't match current engine content, it's outdated
-  // Use a key phrase check rather than full equality to handle minor whitespace differences
-  const hasCurrentWritingStyle = promptContent.includes('WRITING STYLE:') &&
-                                  promptContent.includes('QUALITY STANDARDS:') &&
-                                  promptContent.includes('STRUCTURE (use as guidance, not rigid sections)');
-
-  if (!hasCurrentWritingStyle) return true;
+  if (!hasCurrentFormat) return true;
 
   // Also check for explicitly old patterns
   return promptContent.includes('## Key Discussion Points') ||
          promptContent.includes('**1. [Main Topic]**') ||
-         promptContent.includes('Use bolded headings for clarity') ||
-         promptContent.includes('Role: You are a professional financial advisor') ||
-         promptContent.includes('CRITICAL FORMAT RULES') ||
-         (promptContent.includes('EMAIL STRUCTURE:') && promptContent.includes('GREETING (1 line)')) ||
-         (promptContent.includes('CRITICAL DATA ACCURACY RULES') && !promptContent.includes('QUALITY STANDARDS'));
+         promptContent.includes('180-280 words');
 }
 
 // Helper function to check if Review template has old format
