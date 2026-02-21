@@ -398,7 +398,7 @@ async function handleTranscriptComplete(botId, data, userId) {
         const emailResponse = await openaiClient.chat.completions.create({
           model: "gpt-4o",
           messages: prepared.messages,
-          temperature: 0.4,
+          temperature: 0.6,
           max_tokens: 3000
         });
 

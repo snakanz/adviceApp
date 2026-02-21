@@ -16,36 +16,24 @@
 // SYSTEM PROMPT - Fixed role definition and constraints
 // ============================================================================
 
-const SYSTEM_PROMPT = `You are a professional email writer for UK-based financial advisers. You produce client-ready follow-up emails based on meeting transcripts.
+const SYSTEM_PROMPT = `You are ghostwriting a follow-up email for a UK financial adviser to their client after a meeting. Your job is to make the email sound like the adviser actually wrote it — natural, personal, and specific to what happened in this conversation.
 
-CORE PRINCIPLES:
-1. ACCURACY OVER COMPLETENESS - Only include information explicitly stated in the transcript. If something is unclear or insufficiently detailed, omit it entirely rather than guess or partially fill it.
-2. BESPOKE CONTENT - Every email must reflect what was actually discussed in THIS specific meeting. Never include generic sections or boilerplate about topics not covered.
-3. NATURAL LANGUAGE - Write as a real adviser would. Vary your sentence structure, avoid formulaic transitions, and ensure each email reads uniquely.
-4. COMPLIANCE-SAFE - Use neutral language. Say "we discussed", "you mentioned", "I will look into" rather than making guarantees or definitive promises about outcomes.
-5. GRACEFUL OMISSION - If a topic was only briefly mentioned without substantive detail, do NOT create a section for it. Only include topics where the transcript provides enough detail to write something meaningful and accurate.
+READ THE ROOM:
+Before writing, pay close attention to the transcript's tone and emotional texture. Was the client excited about retirement? Worried about market losses? Relieved after resolving something? Frustrated by delays? Let the emotional undercurrent of the conversation shape how you write. An upbeat meeting should produce a warm, positive email. A serious discussion about health or loss should be empathetic and measured. A practical planning session should be clear and action-oriented.
 
-DATA HIERARCHY (when conflicts exist between sources):
-- Transcript wording takes priority over structured metadata
-- If the transcript uses a different name spelling than metadata, follow the transcript
-- Most recent information takes priority over historical data
+Every email you write should feel different because every conversation IS different.
 
-STRICTLY FORBIDDEN:
-- Never invent monetary figures, percentages, dates, names, or plan numbers
-- Never include placeholder text like [X], {variable}, [TO CONFIRM], or [insert here]
-- Never include sections about topics not substantively discussed in this meeting
-- Never use markdown formatting (no **, ##, *, bullet symbols, backticks, or headings)
-- Never include a subject line
-- Never speculate about what "might have been discussed" or "was likely covered"
-- Never pad thin content with generic advisory statements
+ACCURACY (non-negotiable):
+- Every fact, figure, name, percentage, and date must come directly from the transcript. Never invent or guess.
+- Only cover topics discussed with substance. Skip anything barely mentioned.
+- Use neutral language for outcomes — "we discussed", "you mentioned", "I will look into" — never guarantee results.
+- If the transcript conflicts with the metadata provided, follow the transcript.
 
-OUTPUT FORMAT:
-- Plain text only
-- Numbered lists (1. 2. 3.) for action items and recommendations only
-- Natural paragraph breaks between topics
-- Professional but warm and natural tone - not overly formal
-- UK English spelling throughout
-- Write how a real adviser would write, not like a report`;
+FORMAT:
+- Plain text only — no markdown, no bold, no headings, no bullet symbols, no subject line.
+- Numbered lists (1. 2. 3.) for action items only.
+- UK English spelling throughout.
+- Write like a real person — vary your openings, transitions, and closings. Never be formulaic.`;
 
 // ============================================================================
 // SECTION CANDIDATES - Conditional sections the AI may include
@@ -105,49 +93,27 @@ const GENERATION_MODES = {
     id: 'auto-summary',
     label: 'Advicly Summary',
     description: 'Professional follow-up email that extracts key details and action items',
-    target_length: '180-280 words',
+    target_length: 'Match the depth of the conversation',
     sections: ['next_steps'],
     includeGreetingSignOff: true,
-    instructions: `Write a clear, friendly follow-up email to send to the client after a financial planning meeting.
+    instructions: `Write a follow-up email from the adviser to the client after this meeting.
 
-WRITING STYLE:
-- Plain text only (no markdown, no symbols).
-- Professional but warm and natural - not overly formal.
-- Write how a real adviser would write, not like a report.
-- Avoid repetitive or formulaic phrasing.
-- 180-280 words.
+TONE — READ THE TRANSCRIPT:
+Before you write a single word, read the full transcript and identify the emotional texture of the conversation. Was the client enthusiastic? Concerned? Relieved? Practical? Let that guide your tone, word choice, and energy. The email should feel like a natural continuation of the conversation that just happened.
 
-STRUCTURE (use as guidance, not rigid sections):
+CONTENT:
+Cover the key points discussed in a natural, conversational way. Group related topics together. Include specific figures, dates, and names exactly as stated in the transcript. If the client expressed excitement or concern about something specific, acknowledge it — that's what makes the email feel personal rather than generated.
 
-Start with a friendly greeting using the client's name.
+If CLIENT CONTEXT is provided below, use it naturally. Reference previous conversations or ongoing work where it fits — don't force it, but don't ignore it either. A long-standing client should feel like you know them. A new client should feel welcomed.
 
-Briefly thank them for their time and reference the meeting date and the main purpose of the discussion.
+NEXT STEPS:
+End with clear next steps — who needs to do what, and by when if mentioned. Use a numbered list for these.
 
-In a few natural paragraphs, summarise the key points discussed:
-- What was reviewed or explored
-- Any preferences, decisions, or concerns raised
-- Any figures, percentages, or dates mentioned (exactly as stated)
-- Group related topics together and keep the flow conversational
+LENGTH:
+Write as much or as little as the conversation warrants. A quick 15-minute catch-up gets a concise email. A detailed hour-long planning session gets a thorough one. Don't pad thin conversations and don't truncate rich ones.
 
-Include a short "Next steps" section using a numbered list:
-- 3-6 clear actions
-- Make it clear who is responsible for each action (I will / You will / We will)
-- Include any timeframes mentioned in the meeting
-
-Close the email warmly, inviting questions and confirming next contact.
-
-End with:
-Best regards,
-[Adviser name]
-[Business name]
-
-QUALITY STANDARDS:
-- Every figure, date, and name you include MUST come directly from the transcript
-- The email should feel like it was written by a real person who was in the meeting
-- Use UK English spelling throughout (summarise, organise, favour, colour)
-- Do NOT pad with generic financial advice or compliance statements not discussed
-- Do NOT include topic areas that were not meaningfully discussed
-- The level of detail should match the depth of the conversation`
+VOICE:
+Open and close however feels natural for THIS particular conversation. Don't default to the same opening every time — vary it. Write as the adviser would actually write, not as a template would produce.`
   },
   'review-summary': {
     id: 'review-summary',
@@ -316,7 +282,11 @@ async function buildMeetingContext(supabase, userId, meetingId, transcript) {
     },
     client: {
       name: null,
-      name_confidence: 'none'
+      name_confidence: 'none',
+      ai_summary: null,
+      created_at: null,
+      meeting_count: 0,
+      recent_meetings: []
     }
   };
 
@@ -345,7 +315,7 @@ async function buildMeetingContext(supabase, userId, meetingId, transcript) {
     try {
       const { data: meeting } = await supabase
         .from('meetings')
-        .select('client_id, clients(name), start_time, starttime, title')
+        .select('client_id, clients(name, ai_summary, created_at), start_time, starttime, title')
         .eq('id', meetingId)
         .single();
 
@@ -354,6 +324,14 @@ async function buildMeetingContext(supabase, userId, meetingId, transcript) {
         if (meeting.clients?.name && meeting.clients.name !== 'Unknown') {
           context.client.name = meeting.clients.name;
           context.client.name_confidence = 'high';
+        }
+
+        // Client relationship context
+        if (meeting.clients?.ai_summary) {
+          context.client.ai_summary = meeting.clients.ai_summary;
+        }
+        if (meeting.clients?.created_at) {
+          context.client.created_at = meeting.clients.created_at;
         }
 
         // Meeting title
@@ -366,6 +344,41 @@ async function buildMeetingContext(supabase, userId, meetingId, transcript) {
         if (meetingStartTime) {
           context.meeting.date = formatMeetingDate(meetingStartTime);
           context.meeting.date_confidence = 'high';
+        }
+
+        // Fetch client's meeting history for relationship context
+        if (meeting.client_id) {
+          try {
+            // Get total meeting count
+            const { count } = await supabase
+              .from('meetings')
+              .select('id', { count: 'exact', head: true })
+              .eq('client_id', meeting.client_id)
+              .eq('user_id', userId);
+
+            context.client.meeting_count = count || 0;
+
+            // Get quick summaries from last 2 meetings (excluding current)
+            const { data: recentMeetings } = await supabase
+              .from('meetings')
+              .select('quick_summary, starttime, start_time')
+              .eq('client_id', meeting.client_id)
+              .eq('user_id', userId)
+              .neq('id', meetingId)
+              .order('starttime', { ascending: false })
+              .limit(2);
+
+            if (recentMeetings) {
+              context.client.recent_meetings = recentMeetings
+                .filter(m => m.quick_summary)
+                .map(m => ({
+                  summary: m.quick_summary,
+                  date: formatMeetingDate(m.start_time || m.starttime)
+                }));
+            }
+          } catch (histErr) {
+            console.warn('Could not fetch client meeting history:', histErr.message);
+          }
         }
       }
     } catch (err) {
@@ -555,38 +568,76 @@ function buildPromptMessages(context, sectionConfig, transcript) {
 - Client: ${context.client.name || 'Unknown'}${context.client.name_confidence !== 'high' ? ` (${context.client.name_confidence} confidence)` : ''}
 - Adviser: ${context.adviser.name || 'Unknown'}${context.adviser.business ? ` from ${context.adviser.business}` : ''}
 ${context.meeting.title ? `- Meeting title: ${context.meeting.title}` : ''}
-
-GENERATION MODE: ${sectionConfig.label}
-TARGET LENGTH: ${sectionConfig.target_length}
 ${confidenceNotes}`;
 
-  // Build reminders based on whether greeting/sign-off are included
+  // Build client relationship context (only for auto-summary mode)
+  let clientContext = '';
+  if (sectionConfig.mode === 'auto-summary') {
+    const parts = [];
+
+    // Client tenure
+    if (context.client.created_at) {
+      const created = new Date(context.client.created_at);
+      const now = new Date();
+      const months = Math.floor((now - created) / (1000 * 60 * 60 * 24 * 30));
+      if (months < 1) {
+        parts.push('- New client (first meeting or very recent)');
+      } else if (months < 12) {
+        parts.push(`- Client for ${months} month${months === 1 ? '' : 's'}`);
+      } else {
+        const years = Math.floor(months / 12);
+        parts.push(`- Client for ${years} year${years === 1 ? '' : 's'}`);
+      }
+    }
+
+    // Meeting count
+    if (context.client.meeting_count > 1) {
+      parts.push(`- ${context.client.meeting_count} meetings total`);
+    }
+
+    // Recent meeting summaries
+    if (context.client.recent_meetings.length > 0) {
+      parts.push('- Recent meetings:');
+      for (const m of context.client.recent_meetings) {
+        parts.push(`  ${m.date || 'Recent'}: "${m.summary}"`);
+      }
+    }
+
+    // AI summary (rolling client overview)
+    if (context.client.ai_summary) {
+      parts.push(`- Overview: ${context.client.ai_summary}`);
+    }
+
+    if (parts.length > 0) {
+      clientContext = `\nCLIENT CONTEXT (use naturally — reference previous conversations or ongoing work where it fits):\n${parts.join('\n')}`;
+    }
+  }
+
+  // Build reminders — kept concise
   let reminders;
   if (includeGreetingSignOff) {
-    reminders = `IMPORTANT REMINDERS BEFORE YOU WRITE:
-1. Include a friendly greeting using the client's name
-2. Include the sign-off with adviser name and business name
-3. Only include topics with SUBSTANTIVE detail in the transcript
-4. Every figure, date, and name you use MUST exist in the transcript above
-5. Verify: no placeholders, no markdown, no invented data
-6. Use the client name, adviser name, and meeting date from the MEETING DETAILS above
+    reminders = `BEFORE YOU WRITE:
+1. Read the transcript for tone and emotion — match it in your writing.
+2. Every fact must come from the transcript — never invent.
+3. Use the client name, adviser name, and meeting date from MEETING DETAILS.
+4. Include greeting and sign-off with adviser name and business name.
+5. No placeholders, no markdown.
 
-Write the complete email now. Use only information from the transcript.`;
+Write the email now.`;
   } else {
-    reminders = `IMPORTANT REMINDERS BEFORE YOU WRITE:
-1. Do NOT include a greeting line (e.g., "Dear X,") - this is added separately
-2. Do NOT include a sign-off (e.g., "Best regards, Name") - this is added separately
-3. Start directly with the email body content
-4. Only include topics with SUBSTANTIVE detail in the transcript
-5. If a section candidate has insufficient detail in the transcript, OMIT it entirely
-6. Every figure, date, and name you use MUST exist in the transcript above
-7. Verify: no placeholders, no markdown, no invented data
+    reminders = `BEFORE YOU WRITE:
+1. Read the transcript for tone and emotion — match it in your writing.
+2. Every fact must come from the transcript — never invent.
+3. Use the client name, adviser name, and meeting date from MEETING DETAILS.
+4. Do NOT include greeting or sign-off — those are added separately.
+5. No placeholders, no markdown.
 
-Now write the email body content.`;
+Write the email body now.`;
   }
 
   // Build the user message
   const userMessage = `${dataContext}
+${clientContext}
 
 ${sectionConfig.instructions}
 ${sectionGuidance}

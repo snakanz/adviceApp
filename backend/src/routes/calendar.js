@@ -970,7 +970,7 @@ router.post('/generate-summary-stream', authenticateSupabaseUser, async (req, re
     const stream = await openaiClient.chat.completions.create({
       model: "gpt-4o",
       messages,
-      temperature: 0.4,
+      temperature: 0.6,
       max_tokens: 3000,
       stream: true
     });
@@ -1126,7 +1126,7 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
           const emailResponse = await openaiClient.chat.completions.create({
             model: "gpt-4o",
             messages: prepared.messages,
-            temperature: 0.4,
+            temperature: 0.6,
             max_tokens: 3000
           });
 
@@ -1628,7 +1628,7 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
               const emailResponse = await openaiClient.chat.completions.create({
                 model: "gpt-4o",
                 messages: prepared.messages,
-                temperature: 0.4,
+                temperature: 0.6,
                 max_tokens: 3000
               });
 
