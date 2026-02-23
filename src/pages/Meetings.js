@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
+import { useFloatingChatSafe } from '../components/FloatingChat';
 import remarkGfm from 'remark-gfm';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
@@ -413,6 +414,24 @@ export default function Meetings() {
       null
     );
   }, [meetings, selectedMeetingId]);
+
+  // Push meeting context to floating chat widget
+  const floatingChat = useFloatingChatSafe();
+  useEffect(() => {
+    if (floatingChat?.setPageContext) {
+      if (selectedMeeting) {
+        floatingChat.setPageContext({
+          type: 'meeting',
+          meetingId: selectedMeeting.id,
+          meetingTitle: selectedMeeting.summary || selectedMeeting.title,
+          clientName: selectedMeeting.attendees?.[0]?.name || null,
+          hasTranscript: !!selectedMeeting.transcript
+        });
+      } else {
+        floatingChat.setPageContext({ type: 'general' });
+      }
+    }
+  }, [selectedMeeting]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Calendar view helper functions
   const getWeekDays = () => {

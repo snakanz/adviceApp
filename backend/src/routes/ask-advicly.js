@@ -781,4 +781,317 @@ router.patch('/threads/:threadId', authenticateSupabaseUser, async (req, res) =>
 
 
 
+// SSE streaming endpoint for floating widget — sends progress stages + streamed AI response
+router.post('/threads/:threadId/messages/stream', authenticateSupabaseUser, async (req, res) => {
+  const { threadId } = req.params;
+  const advisorId = req.user.id;
+  const { content, contextType, contextData, mentionedClients } = req.body;
+
+  if (!content || !content.trim()) {
+    return res.status(400).json({ error: 'Message content is required' });
+  }
+
+  if (!isSupabaseAvailable()) {
+    return res.status(503).json({ error: 'Database service unavailable' });
+  }
+
+  // Set up SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no'
+  });
+
+  const sendStage = (stage, status, label) => {
+    res.write(`data: ${JSON.stringify({ stage, status, label })}\n\n`);
+  };
+
+  const sendChunk = (chunk) => {
+    res.write(`data: ${JSON.stringify({ stage: 'response', chunk })}\n\n`);
+  };
+
+  const sendDone = (messageId) => {
+    res.write(`data: ${JSON.stringify({ stage: 'done', messageId })}\n\n`);
+    res.end();
+  };
+
+  try {
+    // Verify thread belongs to advisor
+    sendStage('client', 'loading', 'Finding client profile...');
+
+    const { data: thread, error: threadError } = await req.supabase
+      .from('ask_threads')
+      .select('id, client_id, context_type, context_data, meeting_id, clients(name, email)')
+      .eq('id', threadId)
+      .eq('user_id', advisorId)
+      .single();
+
+    if (threadError || !thread) {
+      sendStage('client', 'done', 'Thread not found');
+      res.write(`data: ${JSON.stringify({ stage: 'error', message: 'Thread not found' })}\n\n`);
+      return res.end();
+    }
+
+    // Save user message
+    const { data: userMessage } = await req.supabase
+      .from('ask_messages')
+      .insert({ thread_id: threadId, role: 'user', content: content.trim() })
+      .select()
+      .single();
+
+    const clientName = thread.clients?.name || contextData?.clientName || 'client';
+    sendStage('client', 'done', `Found: ${clientName}`);
+
+    // Smart context loading based on thread type
+    sendStage('meetings', 'loading', 'Loading meeting transcripts...');
+
+    let allMeetings = [];
+    let allClients = [];
+    let specificContext = '';
+    let advisorContext = '';
+
+    if (thread.context_type === 'meeting' && thread.meeting_id) {
+      // Meeting thread: load only this meeting + client's other meetings (max 5)
+      const { data: meetings } = await req.supabase
+        .from('meetings')
+        .select('id, external_id, title, starttime, endtime, transcript, quick_summary, detailed_summary, attendees')
+        .eq('user_id', advisorId)
+        .eq('is_deleted', false)
+        .order('starttime', { ascending: false })
+        .limit(50);
+
+      allMeetings = meetings || [];
+
+      const meetingData = allMeetings.find(m =>
+        String(m.id) === String(thread.meeting_id) || (m.external_id && String(m.external_id) === String(thread.meeting_id))
+      );
+
+      if (meetingData) {
+        sendStage('meetings', 'done', `Loaded: ${meetingData.title}`);
+
+        let meetingContextParts = [
+          '=== SPECIFIC MEETING CONTEXT ===',
+          `Meeting Title: ${meetingData.title}`,
+          `Date: ${new Date(meetingData.starttime).toLocaleDateString()}`,
+          `Attendees: ${meetingData.attendees || 'Not specified'}`,
+          ''
+        ];
+
+        if (meetingData.quick_summary) {
+          meetingContextParts.push('QUICK SUMMARY:', meetingData.quick_summary, '');
+        }
+        if (meetingData.detailed_summary) {
+          meetingContextParts.push('DETAILED SUMMARY:', meetingData.detailed_summary, '');
+        }
+        if (meetingData.transcript) {
+          meetingContextParts.push('FULL MEETING TRANSCRIPT:', `"${meetingData.transcript}"`, '');
+        }
+        meetingContextParts.push('=== END MEETING CONTEXT ===');
+
+        // Find client's other meetings
+        let clientEmail = null;
+        try {
+          const attendeesList = typeof meetingData.attendees === 'string' ? JSON.parse(meetingData.attendees) : meetingData.attendees;
+          if (Array.isArray(attendeesList) && attendeesList.length > 0) {
+            const { data: advisorData } = await req.supabase.from('users').select('email').eq('id', advisorId).single();
+            const advisorEmail = advisorData?.email?.toLowerCase();
+            const clientAttendee = attendeesList.find(a => {
+              const email = typeof a === 'string' ? a : a.email;
+              return email && email.toLowerCase() !== advisorEmail;
+            });
+            if (clientAttendee) {
+              clientEmail = typeof clientAttendee === 'string' ? clientAttendee : clientAttendee.email;
+            }
+          }
+        } catch (e) { /* ignore */ }
+
+        let clientMeetingsContext = '';
+        if (clientEmail) {
+          const clientMeetings = allMeetings.filter(m => {
+            if (!m.attendees || m.id === meetingData.id) return false;
+            try {
+              const al = typeof m.attendees === 'string' ? JSON.parse(m.attendees) : m.attendees;
+              return Array.isArray(al) && al.some(a => (typeof a === 'string' ? a : a.email || '').toLowerCase() === clientEmail.toLowerCase());
+            } catch (e) { return false; }
+          }).slice(0, 5);
+
+          if (clientMeetings.length > 0) {
+            clientMeetingsContext = `\n\n=== CLIENT MEETING HISTORY ===\nRecent meetings:\n${clientMeetings.map(m =>
+              `• ${m.title} (${new Date(m.starttime).toLocaleDateString()})${m.quick_summary ? ` - ${m.quick_summary}` : ''}`
+            ).join('\n')}\n=== END CLIENT MEETING HISTORY ===`;
+          }
+        }
+
+        specificContext = `\n\n${meetingContextParts.join('\n')}${clientMeetingsContext}\n\nCRITICAL: You are discussing the meeting "${meetingData.title}" from ${new Date(meetingData.starttime).toLocaleDateString()}.`;
+      } else {
+        sendStage('meetings', 'done', 'Meeting not found');
+      }
+    } else if (thread.context_type === 'client' && thread.client_id) {
+      // Client thread: load only this client's meetings
+      const { data: meetings } = await req.supabase
+        .from('meetings')
+        .select('id, external_id, title, starttime, endtime, transcript, quick_summary, attendees')
+        .eq('user_id', advisorId)
+        .eq('is_deleted', false)
+        .order('starttime', { ascending: false })
+        .limit(100);
+
+      allMeetings = meetings || [];
+      const clientEmail = thread.clients?.email;
+
+      const clientMeetings = clientEmail ? allMeetings.filter(m => {
+        if (!m.attendees) return false;
+        try {
+          const al = typeof m.attendees === 'string' ? JSON.parse(m.attendees) : m.attendees;
+          return Array.isArray(al) && al.some(a => (typeof a === 'string' ? a : a.email || '').toLowerCase() === clientEmail.toLowerCase());
+        } catch (e) { return false; }
+      }) : [];
+
+      sendStage('meetings', 'done', `Loaded ${clientMeetings.length} meetings`);
+
+      if (clientMeetings.length > 0) {
+        specificContext = `\n\nClient-Specific Context for ${clientName} (${clientEmail}):\n- Total meetings: ${clientMeetings.length}\n- Recent meetings:\n${clientMeetings.slice(0, 10).map(m =>
+          `• ${m.title} (${new Date(m.starttime).toLocaleDateString()})${m.quick_summary ? ` - ${m.quick_summary}` : ''}`
+        ).join('\n')}\n\nIMPORTANT: This conversation is specifically about ${clientName}.`;
+      } else {
+        specificContext = `\n\nClient-Specific Context for ${clientName}:\n- No past meetings found.`;
+      }
+    } else {
+      // General thread: load summaries only, not full transcripts
+      const { data: meetings } = await req.supabase
+        .from('meetings')
+        .select('id, title, starttime, quick_summary, attendees')
+        .eq('user_id', advisorId)
+        .eq('is_deleted', false)
+        .order('starttime', { ascending: false })
+        .limit(100);
+
+      allMeetings = meetings || [];
+
+      const { data: clients } = await req.supabase
+        .from('clients')
+        .select('id, name, email, pipeline_stage')
+        .eq('user_id', advisorId);
+
+      allClients = clients || [];
+
+      sendStage('meetings', 'done', `Loaded ${allMeetings.length} meetings`);
+
+      advisorContext = `\nYour Data: ${allMeetings.length} meetings, ${allClients.length} clients`;
+      specificContext = `\n\nGeneral Advisory Context:\n- You can discuss all ${allClients.length} clients and ${allMeetings.length} meetings\n- Focus on cross-client insights and portfolio-level analysis`;
+    }
+
+    // Load documents
+    sendStage('documents', 'loading', 'Scanning client documents...');
+
+    let documentsContext = '';
+    try {
+      let clientDocuments = [];
+      let meetingDocuments = [];
+
+      if (thread.context_type === 'client' && thread.client_id) {
+        clientDocuments = await clientDocumentsService.getClientDocuments(thread.client_id, advisorId);
+      }
+      if (thread.context_type === 'meeting' && thread.meeting_id) {
+        meetingDocuments = await clientDocumentsService.getMeetingDocuments(thread.meeting_id, advisorId);
+      }
+
+      const totalDocs = (clientDocuments?.length || 0) + (meetingDocuments?.length || 0);
+      sendStage('documents', 'done', totalDocs > 0 ? `Found ${totalDocs} documents` : 'No documents');
+
+      const formatDoc = (doc) => {
+        const parts = [];
+        if (doc.original_name) parts.push(`File: ${doc.original_name}`);
+        if (doc.ai_summary) parts.push(`Summary: ${doc.ai_summary}`);
+        else if (doc.extracted_text) parts.push(`Content: ${doc.extracted_text.substring(0, 600)}`);
+        return parts.join(' | ');
+      };
+
+      if (clientDocuments?.length > 0) {
+        documentsContext += `\n\nClient Documents:\n${clientDocuments.slice(0, 6).map(d => `- ${formatDoc(d)}`).join('\n')}`;
+      }
+      if (meetingDocuments?.length > 0) {
+        documentsContext += `\n\nMeeting Documents:\n${meetingDocuments.slice(0, 6).map(d => `- ${formatDoc(d)}`).join('\n')}`;
+      }
+    } catch (docError) {
+      sendStage('documents', 'done', 'No documents');
+    }
+
+    // Generate AI response
+    sendStage('thinking', 'loading', 'Analysing data...');
+
+    const systemPrompt = `You are Advicly AI, an expert financial advisor assistant.
+
+    INSTRUCTIONS:
+    1. Use the actual data provided below — never give generic responses
+    2. Quote specific details from transcripts and summaries
+    3. Respect scope: client threads = only that client; meeting threads = that meeting; general = all clients
+    4. Reference uploaded documents where helpful
+
+    CONTEXT:
+    ${advisorContext}${specificContext}${documentsContext}
+
+    Be concise, actionable, and reference specific data.`;
+
+    // Load conversation history for context
+    const { data: previousMessages } = await req.supabase
+      .from('ask_messages')
+      .select('role, content')
+      .eq('thread_id', threadId)
+      .order('created_at', { ascending: true })
+      .limit(20);
+
+    const conversationMessages = [
+      { role: 'system', content: systemPrompt },
+      ...(previousMessages || []).map(m => ({ role: m.role, content: m.content })),
+    ];
+
+    // Stream the response
+    const OpenAI = require('openai');
+    const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+    const stream = await openaiClient.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: conversationMessages,
+      temperature: 0.3,
+      max_tokens: 1200,
+      stream: true
+    });
+
+    let fullResponse = '';
+
+    for await (const chunk of stream) {
+      const text = chunk.choices[0]?.delta?.content;
+      if (text) {
+        fullResponse += text;
+        sendChunk(text);
+      }
+    }
+
+    // Save the AI message to database
+    const { data: aiMessage } = await req.supabase
+      .from('ask_messages')
+      .insert({ thread_id: threadId, role: 'assistant', content: fullResponse })
+      .select()
+      .single();
+
+    // Update thread timestamp
+    await req.supabase
+      .from('ask_threads')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', threadId);
+
+    sendDone(aiMessage?.id);
+  } catch (error) {
+    console.error('Error in streaming message:', error);
+    try {
+      res.write(`data: ${JSON.stringify({ stage: 'error', message: 'Something went wrong. Please try again.' })}\n\n`);
+      res.end();
+    } catch (e) {
+      // Response may already be closed
+    }
+  }
+});
+
 module.exports = router;

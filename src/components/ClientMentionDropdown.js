@@ -42,6 +42,7 @@ export default function ClientMentionDropdown({
           );
           break;
         case 'Enter':
+        case 'Tab':
           e.preventDefault();
           if (filteredClients[selectedIndex]) {
             onSelect(filteredClients[selectedIndex]);
@@ -69,7 +70,7 @@ export default function ClientMentionDropdown({
     <div
       ref={dropdownRef}
       data-mention-dropdown
-      className="fixed z-50 w-80 max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-xl animate-in slide-in-from-top-2 duration-200"
+      className="fixed z-50 w-80 max-h-60 overflow-y-auto bg-card border border-border/30 rounded-lg shadow-xl animate-in slide-in-from-top-2 duration-200"
       style={{
         top: position?.top || 'auto',
         left: position?.left || 0,
@@ -78,16 +79,16 @@ export default function ClientMentionDropdown({
       }}
     >
       <div className="p-2">
-        <div className="text-xs text-gray-500 mb-2 px-2 py-1 bg-gray-50 rounded-t-lg border-b border-gray-100">
-          💬 Select a client to mention
+        <div className="text-xs text-muted-foreground mb-2 px-2 py-1 bg-muted/50 rounded-t-lg border-b border-border/20">
+          Select a client · Tab to confirm
         </div>
         {filteredClients.map((client, index) => (
           <div
             key={client.id}
             className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${
-              index === selectedIndex 
-                ? 'bg-blue-50 border border-blue-200' 
-                : 'hover:bg-gray-50'
+              index === selectedIndex
+                ? 'bg-primary/10 border border-primary/20'
+                : 'hover:bg-muted/30'
             }`}
             onClick={() => onSelect(client)}
           >
@@ -97,11 +98,11 @@ export default function ClientMentionDropdown({
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <div className="font-medium text-sm text-gray-900 truncate">
+              <div className="font-medium text-sm text-foreground truncate">
                 {client.name || client.email}
               </div>
               {client.name && (
-                <div className="text-xs text-gray-500 truncate">
+                <div className="text-xs text-muted-foreground truncate">
                   {client.email}
                 </div>
               )}
