@@ -28,14 +28,13 @@ import SidebarCalendarStatus from './components/SidebarCalendarStatus';
 import MeetingLimitIndicator from './components/MeetingLimitIndicator';
 import UpgradeModal from './components/UpgradeModal';
 import { CheckCircle2 } from 'lucide-react';
-import { FloatingChatProvider, FloatingChatButton, FloatingChatPanel, useFloatingChatSafe } from './components/FloatingChat';
 
 const navItems = [
   { label: 'Meetings', icon: <CalendarIcon />, path: '/meetings' },
   { label: 'Clients', icon: <PeopleIcon />, path: '/clients' },
   { label: 'Action Items', icon: <NotificationsIcon />, path: '/action-items' },
   { label: 'Templates', icon: <DescriptionIcon />, path: '/templates' },
-  { label: 'Ask Advicly', icon: <AutoAwesomeIcon />, path: '/ask-advicly', openWidget: true },
+  { label: 'Ask Advicly', icon: <AutoAwesomeIcon />, path: '/ask-advicly' },
   { label: 'Settings', icon: <SettingsIcon />, path: '/settings' },
 ];
 
@@ -43,9 +42,7 @@ const analyticsNav = [
   { label: 'Client Pipeline', icon: <BarChartIcon />, path: '/pipeline' },
 ];
 
-// Inner layout component that has access to FloatingChat context
-function LayoutInner() {
-  const floatingChat = useFloatingChatSafe();
+export default function Layout() {
   const [open, setOpen] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeSuccessMessage, setUpgradeSuccessMessage] = useState('');
@@ -163,37 +160,21 @@ function LayoutInner() {
           <nav className="flex-1 overflow-y-auto py-6">
             <div className="px-4 flex flex-col gap-3">
               {navItems.map((item) => (
-                item.openWidget && floatingChat ? (
-                  <button
-                    key={item.label}
-                    onClick={() => floatingChat.toggleWidget()}
-                    className={cn(
-                      "sidebar-item text-base px-4 py-3 font-medium text-left",
-                      floatingChat.isOpen && "active text-base"
-                    )}
-                  >
-                    <span className="w-5 h-5">
-                      {item.icon}
-                    </span>
-                    {item.label}
-                  </button>
-                ) : (
-                  <NavLink
-                    key={item.label}
-                    to={item.path}
-                    className={({ isActive }) =>
-                      cn(
-                        "sidebar-item text-base px-4 py-3 font-medium",
-                        isActive && "active text-base"
-                      )
-                    }
-                  >
-                    <span className="w-5 h-5">
-                      {item.icon}
-                    </span>
-                    {item.label}
-                  </NavLink>
-                )
+                <NavLink
+                  key={item.label}
+                  to={item.path}
+                  className={({ isActive }) =>
+                    cn(
+                      "sidebar-item text-base px-4 py-3 font-medium",
+                      isActive && "active text-base"
+                    )
+                  }
+                >
+                  <span className="w-5 h-5">
+                    {item.icon}
+                  </span>
+                  {item.label}
+                </NavLink>
               ))}
             </div>
 
@@ -280,41 +261,22 @@ function LayoutInner() {
             <nav className="flex-1 overflow-y-auto py-4">
               <div className="px-4 space-y-2">
                 {navItems.map((item) => (
-                  item.openWidget && floatingChat ? (
-                    <button
-                      key={item.label}
-                      onClick={() => {
-                        setOpen(false);
-                        floatingChat.toggleWidget();
-                      }}
-                      className={cn(
-                        "sidebar-item text-left w-full",
-                        floatingChat.isOpen && "active"
-                      )}
-                    >
-                      <span className="w-5 h-5">
-                        {item.icon}
-                      </span>
-                      {item.label}
-                    </button>
-                  ) : (
-                    <NavLink
-                      key={item.label}
-                      to={item.path}
-                      onClick={() => setOpen(false)}
-                      className={({ isActive }) =>
-                        cn(
-                          "sidebar-item",
-                          isActive && "active"
-                        )
-                      }
-                    >
-                      <span className="w-5 h-5">
-                        {item.icon}
-                      </span>
-                      {item.label}
-                    </NavLink>
-                  )
+                  <NavLink
+                    key={item.label}
+                    to={item.path}
+                    onClick={() => setOpen(false)}
+                    className={({ isActive }) =>
+                      cn(
+                        "sidebar-item",
+                        isActive && "active"
+                      )
+                    }
+                  >
+                    <span className="w-5 h-5">
+                      {item.icon}
+                    </span>
+                    {item.label}
+                  </NavLink>
                 ))}
               </div>
 
@@ -383,18 +345,6 @@ function LayoutInner() {
         </div>
       )}
 
-      {/* Floating Ask Advicly Widget */}
-      <FloatingChatButton />
-      <FloatingChatPanel />
     </div>
-  );
-}
-
-// Exported Layout wraps LayoutInner with FloatingChatProvider
-export default function Layout() {
-  return (
-    <FloatingChatProvider>
-      <LayoutInner />
-    </FloatingChatProvider>
   );
 }

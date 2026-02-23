@@ -361,7 +361,7 @@ async function improveTemplate(template, improvementRequest) {
 }
 
 // Generate AI chat response for Ask Advicly using cheap model + GPT-4 polish
-async function generateChatResponse(userMessage, systemPrompt, maxTokens = 1200) {
+async function generateChatResponse(userMessage, systemPrompt, maxTokens = 1200, conversationHistory = []) {
   try {
     if (!isOpenAIAvailable()) {
       throw new Error('OpenAI service is not available. Please check your API key configuration.');
@@ -369,20 +369,20 @@ async function generateChatResponse(userMessage, systemPrompt, maxTokens = 1200)
 
     console.log('🤖 Generating AI response with context length:', systemPrompt.length);
     console.log('💬 User message:', userMessage.substring(0, 100) + '...');
+    console.log('📜 Conversation history messages:', conversationHistory.length);
+
+    // Build messages array: system prompt + conversation history (which includes the latest user message)
+    const messages = [{ role: 'system', content: systemPrompt }];
+    if (conversationHistory.length > 0) {
+      messages.push(...conversationHistory);
+    } else {
+      messages.push({ role: 'user', content: userMessage });
+    }
 
     // Step 1: use gpt-4o-mini for main reasoning over the rich context
     const baseResponse = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt
-        },
-        {
-          role: "user",
-          content: userMessage
-        }
-      ],
+      messages,
       max_tokens: maxTokens,
       temperature: 0.3, // focused, accurate responses
     });

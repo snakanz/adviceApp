@@ -575,43 +575,119 @@ ${clientMeetings.slice(0, 10).map(m =>
         console.log('❌ No meeting found for thread.meeting_id:', thread.meeting_id);
       }
     } else if (thread.context_type === 'client' && thread.client_id && thread.clients) {
-      // Client-specific context
+      // Client-specific context — load FULL meeting data for this client
       const clientEmail = thread.clients.email;
       const clientName = thread.clients.name;
+
+      // Also get full client record with notes, pipeline info
+      const clientRecord = allClients?.find(c => c.id === thread.client_id);
 
       const clientMeetings = allMeetings?.filter(m => {
         if (!m.attendees) return false;
         try {
           const attendeesList = typeof m.attendees === 'string' ? JSON.parse(m.attendees) : m.attendees;
-          return Array.isArray(attendeesList) && attendeesList.some(attendee =>
-            (typeof attendee === 'string' && attendee.toLowerCase().includes(clientEmail.toLowerCase())) ||
-            (typeof attendee === 'object' && attendee.email && attendee.email.toLowerCase() === clientEmail.toLowerCase())
-          );
+          return Array.isArray(attendeesList) && attendeesList.some(attendee => {
+            const email = typeof attendee === 'string' ? attendee : attendee?.email;
+            return email && email.toLowerCase() === clientEmail.toLowerCase();
+          });
         } catch (e) {
           return String(m.attendees).toLowerCase().includes(clientEmail.toLowerCase());
         }
       }) || [];
 
       if (clientMeetings.length > 0) {
-        specificContext = `\n\nClient-Specific Context for ${clientName} (${clientEmail}):
-        - Total meetings with this client: ${clientMeetings.length}
-        - Recent meetings:
-        ${clientMeetings.slice(0, 5).map(m =>
-          `• ${m.title} (${new Date(m.starttime).toLocaleDateString()})${m.quick_summary ? ` - ${m.quick_summary}` : ''}`
-        ).join('\n')}
+        // Build detailed meeting context — transcripts for recent 3, summaries for all
+        const meetingDetails = clientMeetings.slice(0, 15).map((m, idx) => {
+          let detail = `\n--- Meeting ${idx + 1}: ${m.title} (${new Date(m.starttime).toLocaleDateString()}) ---`;
+          if (m.quick_summary) detail += `\nQuick Summary: ${m.quick_summary}`;
+          if (m.detailed_summary) detail += `\nDetailed Summary: ${m.detailed_summary}`;
+          // Include full transcript for the 3 most recent meetings
+          if (idx < 3 && m.transcript) {
+            detail += `\nFull Transcript: "${m.transcript}"`;
+          }
+          return detail;
+        }).join('\n');
 
-        IMPORTANT: This conversation is specifically about ${clientName}. Do not discuss, compare, or speculate about other clients.`;
+        specificContext = `\n\n=== CLIENT CONTEXT: ${clientName} (${clientEmail}) ===
+Pipeline Stage: ${clientRecord?.pipeline_stage || 'Not set'}
+Notes: ${clientRecord?.notes || 'None'}
+Total meetings: ${clientMeetings.length}
+
+MEETING DATA:${meetingDetails}
+=== END CLIENT CONTEXT ===
+
+CRITICAL: This conversation is specifically about ${clientName}. Use the meeting data above to answer accurately. Do not discuss other clients.`;
       } else {
         specificContext = `\n\nClient-Specific Context for ${clientName} (${clientEmail}):
-        - No past meetings found in the system.
-        - Focus on general planning and questions for this client only.`;
+        Pipeline Stage: ${clientRecord?.pipeline_stage || 'Not set'}
+        Notes: ${clientRecord?.notes || 'None'}
+        - No past meetings found in the system.`;
       }
     } else if (thread.context_type === 'general') {
-      // General / all-clients context
+      // General / all-clients context — include meeting data when client names are mentioned
+      let generalMeetingContext = '';
+
+      // Check if user is asking about a specific client by name
+      const lowerContent = content.toLowerCase();
+      const mentionedClient = allClients?.find(c =>
+        c.name && c.name.length > 2 && lowerContent.includes(c.name.toLowerCase())
+      );
+
+      if (mentionedClient) {
+        // User mentioned a specific client — pull their full meeting data
+        const clientMeetings = allMeetings?.filter(m => {
+          if (!m.attendees) return false;
+          try {
+            const attendeesList = typeof m.attendees === 'string' ? JSON.parse(m.attendees) : m.attendees;
+            return Array.isArray(attendeesList) && attendeesList.some(attendee => {
+              const email = typeof attendee === 'string' ? attendee : attendee?.email;
+              return email && mentionedClient.email && email.toLowerCase() === mentionedClient.email.toLowerCase();
+            });
+          } catch (e) {
+            return mentionedClient.email && String(m.attendees).toLowerCase().includes(mentionedClient.email.toLowerCase());
+          }
+        }) || [];
+
+        const meetingDetails = clientMeetings.slice(0, 10).map((m, idx) => {
+          let detail = `\n--- Meeting ${idx + 1}: ${m.title} (${new Date(m.starttime).toLocaleDateString()}) ---`;
+          if (m.quick_summary) detail += `\nQuick Summary: ${m.quick_summary}`;
+          if (m.detailed_summary) detail += `\nDetailed Summary: ${m.detailed_summary}`;
+          if (idx < 3 && m.transcript) {
+            detail += `\nFull Transcript: "${m.transcript}"`;
+          }
+          return detail;
+        }).join('\n');
+
+        generalMeetingContext = `\n\n=== DATA FOR MENTIONED CLIENT: ${mentionedClient.name} (${mentionedClient.email}) ===
+Pipeline Stage: ${mentionedClient.pipeline_stage || 'Not set'}
+Notes: ${mentionedClient.notes || 'None'}
+Total meetings: ${clientMeetings.length}
+
+MEETING DATA:${meetingDetails}
+=== END CLIENT DATA ===`;
+      }
+
+      // Client overview
+      const clientOverview = allClients?.slice(0, 50).map(c =>
+        `• ${c.name} (${c.email}) — ${c.pipeline_stage || 'No stage'}`
+      ).join('\n') || 'No clients';
+
+      // Recent meetings overview
+      const recentMeetings = allMeetings?.slice(0, 20).map(m =>
+        `• ${m.title} (${new Date(m.starttime).toLocaleDateString()})${m.quick_summary ? ` — ${m.quick_summary}` : ''}`
+      ).join('\n') || 'No meetings';
+
       specificContext = `\n\nGeneral Advisory Context (All Clients):
-      - This is a general advisory conversation covering cross-client insights and portfolio-level analysis
-      - You can use insights from all ${allMeetings?.length || 0} meetings and ${allClients?.length || 0} clients
-      - Focus on broader financial planning, market insights, and business development advice`;
+- Total clients: ${allClients?.length || 0}
+- Total meetings: ${allMeetings?.length || 0}
+
+CLIENT LIST:
+${clientOverview}
+
+RECENT MEETINGS:
+${recentMeetings}${generalMeetingContext}
+
+You may discuss any client or provide cross-client insights.`;
     }
 
     // Add mentioned clients context (used mainly for general threads)
@@ -697,7 +773,17 @@ ${clientMeetings.slice(0, 10).map(m =>
       console.log('  - Specific context length:', specificContext.length);
     }
 
-    const aiResponse = await generateChatResponse(content.trim(), systemPrompt, 1200);
+    // Load conversation history for multi-turn context
+    const { data: previousMessages } = await req.supabase
+      .from('ask_messages')
+      .select('role, content')
+      .eq('thread_id', threadId)
+      .order('created_at', { ascending: true })
+      .limit(20);
+
+    const conversationHistory = (previousMessages || []).map(m => ({ role: m.role, content: m.content }));
+
+    const aiResponse = await generateChatResponse(content.trim(), systemPrompt, 1200, conversationHistory);
 
     const { data: aiMessage, error: aiMessageError } = await req.supabase
       .from('ask_messages')

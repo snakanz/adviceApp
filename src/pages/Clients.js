@@ -18,7 +18,7 @@ import {
   ArrowDown,
 } from 'lucide-react';
 import { api } from '../services/api';
-import { useFloatingChatSafe } from '../components/FloatingChat';
+
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import BusinessTypeManager from '../components/BusinessTypeManager';
 import CreateClientForm from '../components/CreateClientForm';
@@ -44,22 +44,6 @@ export default function Clients() {
   });
   const [saving, setSaving] = useState(false);
 
-  // Push client context to floating chat widget
-  const floatingChat = useFloatingChatSafe();
-  useEffect(() => {
-    if (floatingChat?.setPageContext) {
-      if (selectedClient) {
-        floatingChat.setPageContext({
-          type: 'client',
-          clientId: selectedClient.id,
-          clientName: selectedClient.name,
-          clientEmail: selectedClient.email
-        });
-      } else {
-        floatingChat.setPageContext({ type: 'general' });
-      }
-    }
-  }, [selectedClient]); // eslint-disable-line react-hooks/exhaustive-deps
   const [editingClient, setEditingClient] = useState(null);
   const [extracting, setExtracting] = useState(false);
   const [clientFilter, setClientFilter] = useState('all'); // 'all', 'with-upcoming', 'no-upcoming'
