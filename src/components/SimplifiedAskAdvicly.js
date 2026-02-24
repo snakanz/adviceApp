@@ -1,31 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Button } from './ui/button';
-import { Avatar, AvatarFallback } from './ui/avatar';
+import { PanelLeftOpen } from 'lucide-react';
 import { cn } from '../lib/utils';
-import {
-  User,
-  Bot,
-  Send,
-  MessageSquare,
-  Plus,
-  Edit3,
-  Calendar,
-  Trash2
-} from 'lucide-react';
-import { api } from '../services/api'; // Fixed import path for deployment
-import ContextHeader from './ContextHeader';
-import NewChatModal from './NewChatModal';
+import { api } from '../services/api';
+import ChatSidebar from './AskAdvicly/ChatSidebar';
+import ChatArea from './AskAdvicly/ChatArea';
+import ChatInput from './AskAdvicly/ChatInput';
 
-
-const PROMPT_SUGGESTIONS = [
-  "How many meetings did I have last month?",
-  "What's outstanding for this client before they sign?",
-  "Summarize the key decisions from our last meeting",
-  "What are the next steps for this client?",
-  "Show me this client's meeting history"
-];
-
-
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
 export default function SimplifiedAskAdvicly({
   contextType = 'general',
@@ -34,123 +15,73 @@ export default function SimplifiedAskAdvicly({
   clientName,
   meetingId,
   meetingTitle,
-  meetingDate,
   autoStart = false,
   className = ""
 }) {
+  // Thread state
   const [threads, setThreads] = useState([]);
   const [activeThreadId, setActiveThreadId] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
   const [loadingThreads, setLoadingThreads] = useState(true);
-  const [editingThreadId, setEditingThreadId] = useState(null);
-  const [editingTitle, setEditingTitle] = useState('');
-  const feedRef = useRef(null);
 
-  // Load threads on component mount
+  // Message state
+  const [messages, setMessages] = useState([]);
+
+  // SSE streaming state
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const [streamingResponse, setStreamingResponse] = useState('');
+  const [gatheringStages, setGatheringStages] = useState([]);
+
+  // UI state
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [clients, setClients] = useState([]);
+
+  const didAutoStartRef = useRef(false);
+  const clientsLoadedRef = useRef(false);
+
+  // ─── Load threads on mount ───
   useEffect(() => {
     loadThreads();
-  }, []);
+    loadClients();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Context-aware thread management (auto-select existing threads when possible)
+  // ─── Auto-select thread based on context ───
   useEffect(() => {
     if (threads.length > 0 && !activeThreadId) {
-      // Auto-select appropriate thread based on context
       if (contextType === 'meeting' && meetingId) {
-        const meetingThread = threads.find(t =>
-          t.context_type === 'meeting' && t.meeting_id === meetingId
-        );
-        if (meetingThread) {
-          setActiveThreadId(meetingThread.id);
-          return;
-        }
+        const match = threads.find(t => t.context_type === 'meeting' && t.meeting_id === meetingId);
+        if (match) { setActiveThreadId(match.id); return; }
       } else if (contextType === 'client' && clientId) {
-        const clientThread = threads.find(t =>
-          t.context_type === 'client' && t.client_id === clientId
-        );
-        if (clientThread) {
-          setActiveThreadId(clientThread.id);
-          return;
-        }
+        const match = threads.find(t => t.context_type === 'client' && t.client_id === clientId);
+        if (match) { setActiveThreadId(match.id); return; }
       }
-
-      // Default to most recent general thread
-      const generalThread = threads.find(t => t.context_type === 'general');
-      if (generalThread) {
-        setActiveThreadId(generalThread.id);
-      }
+      const general = threads.find(t => t.context_type === 'general');
+      if (general) setActiveThreadId(general.id);
     }
   }, [threads, contextType, meetingId, clientId, activeThreadId]);
 
-  const didAutoStartRef = useRef(false);
-  const createNewThread = useCallback(async () => {
-    try {
-      // Generate clean thread title based on context
-      let title = 'New Conversation';
-      if (contextType === 'meeting' && contextData.meetingTitle) {
-        title = `${contextData.clientName} - ${contextData.meetingTitle}`;
-      } else if (contextType === 'client' && contextData.clientName) {
-        title = `${contextData.clientName} - Client Discussion`;
-      } else {
-        title = 'General Advisory Chat';
-      }
-
-      const response = await api.request('/ask-advicly/threads', {
-        method: 'POST',
-        body: JSON.stringify({
-          clientId,
-          title,
-          contextType,
-          contextData,
-          meetingId
-        })
-      });
-
-      setThreads(prev => [response, ...prev]);
-      setActiveThreadId(response.id);
-      return response;
-    } catch (error) {
-      console.error('Error creating thread:', error);
-    }
-  }, [clientId, contextType, contextData, meetingId]);
-
-
-  // Auto-create a new thread when navigated with autoStart=true and no active thread yet
+  // ─── Auto-create thread when arriving with autoStart ───
   useEffect(() => {
     if (!autoStart || didAutoStartRef.current) return;
-    if (
-      threads.length === 0 &&
-      !activeThreadId &&
-      (contextType === 'client' || contextType === 'meeting')
-    ) {
+    if (threads.length === 0 && !activeThreadId && (contextType === 'client' || contextType === 'meeting')) {
       didAutoStartRef.current = true;
       createNewThread();
     }
-  }, [autoStart, threads, activeThreadId, contextType, createNewThread]);
+  }, [autoStart, threads, activeThreadId, contextType]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load messages when active thread changes
+  // ─── Load messages when active thread changes ───
   useEffect(() => {
     if (activeThreadId) {
       loadMessages(activeThreadId);
     } else {
       setMessages([]);
     }
-  }, [activeThreadId]);
+  }, [activeThreadId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scroll to bottom when messages change
-  useEffect(() => {
-    if (feedRef.current) {
-      feedRef.current.scrollTop = feedRef.current.scrollHeight;
-    }
-  }, [messages]);
-
+  // ─── Data loaders ───
   const loadThreads = async () => {
     try {
       setLoadingThreads(true);
       const response = await api.request('/ask-advicly/threads');
-
-      // Handle both old format (array) and new format (object with threads array)
       const threadsData = response.threads || response;
       setThreads(threadsData || []);
     } catch (error) {
@@ -171,424 +102,265 @@ export default function SimplifiedAskAdvicly({
     }
   };
 
-
-  const sendMessage = async () => {
-    if (!input.trim()) return;
-
-    let threadId = activeThreadId;
-
-    // Create a new thread if none exists
-    if (!threadId) {
-      const newThread = await createNewThread();
-      threadId = newThread?.id;
-      if (!threadId) return;
-    }
-
-    const userMessage = {
-      id: Date.now(),
-      content: input.trim(),
-      role: 'user',
-      timestamp: new Date().toISOString()
-    };
-
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setLoading(true);
-
+  const loadClients = async () => {
+    if (clientsLoadedRef.current) return;
     try {
-      const response = await api.request(`/ask-advicly/threads/${threadId}/messages`, {
-        method: 'POST',
-        body: JSON.stringify({
-          content: input.trim(),
-          contextType,
-          contextData
-        })
-      });
-
-      // Cross-client hard block: backend may return a special flag when the
-      // question appears to be about a different client than this thread.
-      if (response.crossClientBlock) {
-        setMessages(prev => [...prev, response.aiMessage]);
-      } else {
-        setMessages(prev => [...prev, response.aiMessage || response]);
-      }
+      const response = await api.request('/clients');
+      setClients(response || []);
+      clientsLoadedRef.current = true;
     } catch (error) {
-      console.error('Error sending message:', error);
-      setMessages(prev => [...prev, {
-        id: Date.now() + 1,
-        content: 'Sorry, I encountered an error. Please try again.',
-        role: 'assistant',
-        timestamp: new Date().toISOString()
-      }]);
-    } finally {
-      setLoading(false);
+      console.error('Error loading clients:', error);
     }
   };
 
-  const updateThreadTitle = async (threadId, newTitle) => {
+  // ─── Thread CRUD ───
+  const createNewThread = useCallback(async () => {
     try {
-      await api.request(`/ask-advicly/threads/${threadId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ title: newTitle })
+      let title = 'General Advisory Chat';
+      if (contextType === 'meeting' && contextData.meetingTitle) {
+        title = `${contextData.clientName || 'Client'} - ${contextData.meetingTitle}`;
+      } else if (contextType === 'client' && contextData.clientName) {
+        title = `${contextData.clientName} - Client Discussion`;
+      }
+
+      const response = await api.request('/ask-advicly/threads', {
+        method: 'POST',
+        body: JSON.stringify({ clientId, title, contextType, contextData, meetingId })
       });
 
-      setThreads(prev => prev.map(t =>
-        t.id === threadId ? { ...t, title: newTitle } : t
-      ));
-      setEditingThreadId(null);
-      setEditingTitle('');
+      setThreads(prev => [response, ...prev]);
+      setActiveThreadId(response.id);
+      setMessages([]);
+      return response;
     } catch (error) {
-      console.error('Error updating thread title:', error);
+      console.error('Error creating thread:', error);
+      return null;
     }
+  }, [clientId, contextType, contextData, meetingId]);
+
+  const handleNewChat = () => {
+    setActiveThreadId(null);
+    setMessages([]);
+    setStreamingResponse('');
+    setGatheringStages([]);
   };
 
   const deleteThread = async (threadId) => {
-    if (!window.confirm('Are you sure you want to delete this conversation?')) return;
-
     try {
-      await api.request(`/ask-advicly/threads/${threadId}`, {
-        method: 'DELETE'
-      });
-
+      await api.request(`/ask-advicly/threads/${threadId}`, { method: 'DELETE' });
       setThreads(prev => prev.filter(t => t.id !== threadId));
-      if (activeThreadId === threadId) {
-        setActiveThreadId(null);
-        setMessages([]);
-      }
+      if (activeThreadId === threadId) handleNewChat();
     } catch (error) {
       console.error('Error deleting thread:', error);
     }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+  const updateThreadTitle = async (threadId, title) => {
+    try {
+      await api.request(`/ask-advicly/threads/${threadId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ title })
+      });
+      setThreads(prev => prev.map(t => t.id === threadId ? { ...t, title } : t));
+    } catch (error) {
+      console.error('Error updating thread title:', error);
     }
   };
 
-  const handleSuggestionClick = (suggestion) => {
-    setInput(suggestion);
+  // ─── SSE Streaming Send ───
+  const sendMessage = useCallback(async (content, mentionedClients = []) => {
+    if (!content.trim() || sendingMessage) return;
+
+    let threadId = activeThreadId;
+
+    // Auto-create thread if none active
+    if (!threadId) {
+      const newThread = await createNewThread();
+      if (!newThread) return;
+      threadId = newThread.id;
+    }
+
+    // Optimistic user message
+    const userMessage = {
+      id: `temp-${Date.now()}`,
+      content: content.trim(),
+      role: 'user',
+      created_at: new Date().toISOString()
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setSendingMessage(true);
+    setStreamingResponse('');
+    setGatheringStages([
+      { id: 'client', label: 'Finding client profile...', status: 'pending' },
+      { id: 'meetings', label: 'Loading meeting transcripts...', status: 'pending' },
+      { id: 'documents', label: 'Scanning client documents...', status: 'pending' },
+      { id: 'thinking', label: 'Analysing data...', status: 'pending' }
+    ]);
+
+    try {
+      const token = await api.getToken();
+
+      const response = await fetch(`${API_BASE_URL}/api/ask-advicly/threads/${threadId}/messages/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          content: content.trim(),
+          contextType,
+          contextData,
+          mentionedClients: mentionedClients.map(c => ({ id: c.id, name: c.name, email: c.email }))
+        })
+      });
+
+      if (!response.ok) throw new Error(`Stream request failed: ${response.status}`);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullResponse = '';
+      let buffer = '';
+      let streamDone = false;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6);
+          if (data === '[DONE]') continue;
+
+          try {
+            const event = JSON.parse(data);
+
+            if (event.stage && event.stage !== 'response' && event.stage !== 'done' && event.stage !== 'error') {
+              setGatheringStages(prev => prev.map(s =>
+                s.id === event.stage ? { ...s, status: event.status, label: event.label || s.label } : s
+              ));
+            } else if (event.stage === 'response' && event.chunk) {
+              fullResponse += event.chunk;
+              setStreamingResponse(fullResponse);
+            } else if (event.stage === 'done') {
+              streamDone = true;
+              setMessages(prev => [...prev, {
+                id: event.messageId || `ai-${Date.now()}`,
+                content: fullResponse,
+                role: 'assistant',
+                created_at: new Date().toISOString()
+              }]);
+              setStreamingResponse('');
+              setGatheringStages([]);
+            } else if (event.stage === 'error') {
+              setMessages(prev => [...prev, {
+                id: `error-${Date.now()}`,
+                content: event.message || 'Something went wrong. Please try again.',
+                role: 'assistant',
+                created_at: new Date().toISOString()
+              }]);
+              setStreamingResponse('');
+              setGatheringStages([]);
+              streamDone = true;
+            }
+          } catch (e) { /* skip malformed JSON */ }
+        }
+      }
+
+      // Safety net: if stream ended without done event
+      if (!streamDone && fullResponse) {
+        setMessages(prev => [...prev, {
+          id: `ai-${Date.now()}`,
+          content: fullResponse,
+          role: 'assistant',
+          created_at: new Date().toISOString()
+        }]);
+        setStreamingResponse('');
+        setGatheringStages([]);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+
+      // Fallback to non-streaming endpoint
+      try {
+        const response = await api.request(`/ask-advicly/threads/${threadId}/messages`, {
+          method: 'POST',
+          body: JSON.stringify({ content: content.trim(), contextType, contextData })
+        });
+        const aiMsg = response.aiMessage || response;
+        setMessages(prev => [...prev, aiMsg]);
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+        setMessages(prev => [...prev, {
+          id: `error-${Date.now()}`,
+          content: 'Sorry, I encountered an error. Please try again.',
+          role: 'assistant',
+          created_at: new Date().toISOString()
+        }]);
+      }
+      setStreamingResponse('');
+      setGatheringStages([]);
+    } finally {
+      setSendingMessage(false);
+    }
+  }, [activeThreadId, contextType, contextData, sendingMessage, createNewThread]);
+
+  const handleSuggestionClick = (text) => {
+    sendMessage(text, []);
   };
 
-  const clearContext = () => {
-    // Navigate back to general context
-    window.location.href = '/ask-advicly';
-  };
-
-  const activeThread = threads.find(t => t.id === activeThreadId);
-  const [showNewChatModal, setShowNewChatModal] = useState(false);
-
+  // ─── Render ───
   return (
     <div className={cn("h-full flex bg-background", className)}>
-      {/* Sidebar with threads */}
-      <div className="w-80 border-r border-border/50 flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b border-border/50 flex items-center justify-between">
-          <div>
-            <h2 className="font-semibold text-foreground">Conversations</h2>
-            <p className="text-xs text-muted-foreground mt-1">
-              Client / meeting-specific chats stay scoped. Orange = all-clients.
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowNewChatModal(true)}
-            className="h-8 px-3 text-xs"
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            New chat
-          </Button>
-        </div>
+      {/* Sidebar */}
+      {sidebarOpen && (
+        <ChatSidebar
+          threads={threads}
+          activeThreadId={activeThreadId}
+          loadingThreads={loadingThreads}
+          onSelectThread={setActiveThreadId}
+          onNewChat={handleNewChat}
+          onDeleteThread={deleteThread}
+          onUpdateTitle={updateThreadTitle}
+          onToggleSidebar={() => setSidebarOpen(false)}
+        />
+      )}
 
-        {/* Thread list */}
-        <div className="flex-1 overflow-y-auto">
-          {loadingThreads ? (
-            <div className="p-4 text-center text-muted-foreground">
-              Loading conversations...
-            </div>
-          ) : threads.length === 0 ? (
-            <div className="p-4 text-center text-muted-foreground">
-              No conversations yet
-            </div>
-          ) : (
-            <div className="p-2 space-y-1">
-              {threads.map((thread) => {
-                const isGeneral = thread.context_type === 'general' || thread.context_data?.scope === 'all_clients';
-                return (
-                  <div
-                    key={thread.id}
-                    className={cn(
-                      "group p-3 rounded-lg cursor-pointer transition-colors border",
-                      isGeneral
-                        ? "bg-amber-50/60 border-amber-300/70 hover:bg-amber-50"
-                        : "hover:bg-muted/50 border-transparent",
-                      activeThreadId === thread.id &&
-                        (isGeneral
-                          ? "ring-1 ring-amber-400"
-                          : "bg-primary/10 border-primary/20")
-                    )}
-                    onClick={() => setActiveThreadId(thread.id)}
-                  >
-                    <div className="flex items-center gap-2">
-                      {/* Context-aware icon */}
-                      {thread.context_type === 'meeting' ? (
-                        <Calendar className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                      ) : thread.context_type === 'client' ? (
-                        <User className="w-4 h-4 text-green-600 flex-shrink-0" />
-                      ) : (
-                        <MessageSquare className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                      )}
-
-                      <div className="flex-1 min-w-0">
-                        {editingThreadId === thread.id ? (
-                          <input
-                            value={editingTitle}
-                            onChange={(e) => setEditingTitle(e.target.value)}
-                            onBlur={() => updateThreadTitle(thread.id, editingTitle)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                updateThreadTitle(thread.id, editingTitle);
-                              } else if (e.key === 'Escape') {
-                                setEditingThreadId(null);
-                                setEditingTitle('');
-                              }
-                            }}
-                            className="w-full bg-transparent border-none outline-none text-sm font-medium"
-                            autoFocus
-                          />
-                        ) : (
-                          <div className="text-sm font-medium text-foreground truncate">
-                            {thread.title}
-                          </div>
-                        )}
-
-                        <div className="text-xs text-muted-foreground truncate mt-1">
-                          {thread.context_type === 'meeting' && 'Meeting Discussion'}
-                          {thread.context_type === 'client' && 'Client Discussion'}
-                          {thread.context_type === 'general' && 'General Advisory'}
-                          {thread.updated_at && (
-                            <span className="ml-2">
-                              {new Date(thread.updated_at).toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric'
-                              })}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Thread actions */}
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingThreadId(thread.id);
-                            setEditingTitle(thread.title);
-                          }}
-                          className="h-6 w-6 p-0"
-                        >
-                          <Edit3 className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteThread(thread.id);
-                          }}
-                          className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Main chat area */}
-      <div className="flex-1 flex flex-col">
-        {activeThread ? (
-          <>
-            <ContextHeader
-              contextType={contextType}
-              contextData={contextData}
-              onContextChange={contextType !== 'general' ? clearContext : null}
-            />
-
-            {/* Messages */}
-            <div
-              ref={feedRef}
-              className="flex-1 overflow-y-auto p-6 space-y-4"
+      {/* Main chat */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Sidebar toggle when collapsed */}
+        {!sidebarOpen && (
+          <div className="p-3 flex-shrink-0">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="h-9 w-9 flex items-center justify-center rounded-lg hover:bg-muted/30 text-muted-foreground transition-colors"
             >
-              {messages.length === 0 ? (
-                <div className="text-center py-12">
-                  <Bot className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-foreground mb-2">
-                    Start a conversation
-                  </h3>
-                  <p className="text-muted-foreground mb-6">
-                    Ask me anything about {clientName || 'your clients'}, meetings, or financial advice.
-                  </p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-w-2xl mx-auto">
-                    {PROMPT_SUGGESTIONS.map((suggestion, idx) => (
-                      <Button
-                        key={idx}
-                        variant="outline"
-                        onClick={() => handleSuggestionClick(suggestion)}
-                        className="text-left justify-start h-auto p-3"
-                      >
-                        {suggestion}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                messages.map((message) => (
-                  <div
-                    key={message.id}
-                    className={cn(
-                      "flex gap-3",
-                      message.role === 'user' ? 'justify-end' : 'justify-start'
-                    )}
-                  >
-                    {message.role === 'assistant' && (
-                      <Avatar className="w-8 h-8 flex-shrink-0">
-                        <AvatarFallback className="bg-primary text-primary-foreground">
-                          <Bot className="w-4 h-4" />
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-
-                    <div
-                      className={cn(
-                        "max-w-[80%] rounded-lg px-4 py-2",
-                        message.role === 'user'
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      <div className="text-sm whitespace-pre-wrap">
-                        {message.content}
-                      </div>
-                    </div>
-
-                    {message.role === 'user' && (
-                      <Avatar className="w-8 h-8 flex-shrink-0">
-                        <AvatarFallback className="bg-muted">
-                          <User className="w-4 h-4" />
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-                  </div>
-                ))
-              )}
-
-              {loading && (
-                <div className="flex gap-3 justify-start">
-                  <Avatar className="w-8 h-8 flex-shrink-0">
-                    <AvatarFallback className="bg-primary text-primary-foreground">
-                      <Bot className="w-4 h-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="bg-muted rounded-lg px-4 py-2">
-                    <div className="flex items-center gap-1">
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" />
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Input + upload area */}
-            <div className="border-t border-border/50 p-4 space-y-3">
-              {/* Simple upload button – uses New Chat modal's unified client_documents backend */}
-              {(clientId || meetingId) && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <input
-                    id="ask-advicly-upload"
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={() => {
-                      // Re-use NewChatModal upload flow by opening the modal in client/meeting mode
-                      setShowNewChatModal(true);
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    onClick={() => document.getElementById('ask-advicly-upload')?.click()}
-                    disabled={loading}
-                  >
-                    Upload documents for this {contextType === 'meeting' ? 'meeting' : 'client'}
-                  </Button>
-                  <span>
-                    These files will appear under the client's Documents and be used in Ask Advicly.
-                  </span>
-                </div>
-              )}
-
-              <div className="flex items-end gap-3">
-                <div className="flex-1 relative">
-                  <textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder={clientName ? `Ask about ${clientName}...` : 'Ask about your clients, meetings, or financial advice...'}
-                    className="w-full min-h-[40px] max-h-32 p-3 bg-background text-foreground border border-border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                    disabled={loading}
-                  />
-                </div>
-                <Button
-                  onClick={sendMessage}
-                  disabled={!input.trim() || loading}
-                  className="h-10 w-10 p-0 flex-shrink-0"
-                >
-                  <Send className="w-4 h-4" />
-                </Button>
-              </div>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <MessageSquare className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">
-                No conversation selected
-              </h3>
-              <p className="text-muted-foreground mb-4">
-                Choose a conversation from the sidebar or create a new one
-              </p>
-              <Button onClick={() => setShowNewChatModal(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                New Conversation
-              </Button>
-            </div>
+              <PanelLeftOpen className="w-4 h-4" />
+            </button>
           </div>
         )}
+
+        <ChatArea
+          messages={messages}
+          sendingMessage={sendingMessage}
+          streamingResponse={streamingResponse}
+          gatheringStages={gatheringStages}
+          contextType={contextType}
+          clientName={clientName}
+          onSuggestionClick={handleSuggestionClick}
+        />
+
+        <ChatInput
+          onSend={sendMessage}
+          sendingMessage={sendingMessage}
+          clients={clients}
+          clientName={clientName}
+          contextType={contextType}
+        />
       </div>
-      {/* New chat modal lives at the root so it can be opened from sidebar or empty state */}
-      <NewChatModal
-        open={showNewChatModal}
-        onOpenChange={setShowNewChatModal}
-        onThreadCreated={(thread) => {
-          setThreads(prev => [thread, ...prev]);
-          setActiveThreadId(thread.id);
-        }}
-      />
     </div>
   );
 }
