@@ -651,15 +651,59 @@ router.post('/sync', authenticateSupabaseUser, async (req, res) => {
   }
 });
 
-// Get all meetings for a user
+// Get all meetings for a user (with client join, all fields for frontend)
 router.get('/meetings', authenticateSupabaseUser, async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const meetings = await calendarService.listMeetings(userId);
-        res.json(meetings);
-    } catch (error) {
-        console.error('Error fetching meetings:', error);
-        res.status(500).json({ error: 'Failed to fetch meetings' });
+  try {
+    const userId = req.user.id;
+
+    const { data: meetings, error } = await getSupabase()
+      .from('meetings')
+      .select(`
+        id,
+        title,
+        starttime,
+        endtime,
+        description,
+        location,
+        external_id,
+        attendees,
+        transcript,
+        quick_summary,
+        detailed_summary,
+        email_summary_draft,
+        email_template_id,
+        last_summarized_at,
+        action_points,
+        meeting_source,
+        client_id,
+        recall_bot_id,
+        recall_status,
+        recall_recording_id,
+        skip_transcription_for_meeting,
+        meeting_url,
+        clients(id, name, email)
+      `)
+      .eq('user_id', userId)
+      .or('is_deleted.is.null,is_deleted.eq.false')
+      .order('starttime', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching meetings:', error);
+      return res.status(500).json({ error: 'Failed to fetch meetings' });
+    }
+
+    const processedMeetings = (meetings || []).map(meeting => ({
+      ...meeting,
+      source: meeting.meeting_source || 'google',
+      hasTranscript: !!meeting.transcript,
+      hasSummary: !!meeting.quick_summary || !!meeting.detailed_summary,
+      hasEmailDraft: !!meeting.email_summary_draft,
+    }));
+
+    res.json(processedMeetings);
+  } catch (error) {
+    console.error('Error fetching meetings:', error);
+    res.status(500).json({ error: 'Failed to fetch meetings' });
   }
 });
 
