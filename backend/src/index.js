@@ -57,8 +57,8 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Block requests with no origin (server-to-server, curl, etc.)
-    if (!origin) return callback(new Error('Not allowed by CORS'));
+    // Allow requests with no origin (health checks, server-to-server, mobile apps)
+    if (!origin) return callback(null, true);
 
     if (allowedOrigins.includes(origin)) {
       callback(null, true);

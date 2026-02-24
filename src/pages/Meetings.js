@@ -530,8 +530,7 @@ export default function Meetings() {
         return;
       }
 
-      // 🔥 RESTORED: Use full database endpoint with real meeting data
-      const url = `${API_URL}/api/dev/meetings`;
+      const url = `${API_URL}/api/calendar/meetings`;
       logger.log('🌐 Fetching from URL:', url);
 
       const res = await fetch(url, {
