@@ -1,5 +1,28 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useMemo } from 'react';
 import { cn } from '../lib/utils';
+
+// Parse text into segments of plain text and @mentions
+function parseMentions(text) {
+  if (!text) return [];
+  const parts = [];
+  const regex = /@(\w+(?:\s+\w+)*)/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'text', value: text.slice(lastIndex, match.index) });
+    }
+    parts.push({ type: 'mention', value: match[0] });
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push({ type: 'text', value: text.slice(lastIndex) });
+  }
+
+  return parts;
+}
 
 // Enhanced textarea that shows @ mentions with styling
 export default function MentionInput({
@@ -13,23 +36,8 @@ export default function MentionInput({
 }) {
   const textareaRef = useRef(null);
   const overlayRef = useRef(null);
-  const [highlightedText, setHighlightedText] = useState('');
 
-  // Update highlighted text when value changes
-  useEffect(() => {
-    if (!value) {
-      setHighlightedText('');
-      return;
-    }
-
-    // Replace @ mentions with styled spans
-    const highlighted = value.replace(
-      /@(\w+(?:\s+\w+)*)/g,
-      '<span class="mention-highlight">@$1</span>'
-    );
-    
-    setHighlightedText(highlighted);
-  }, [value]);
+  const segments = useMemo(() => parseMentions(value), [value]);
 
   // Sync scroll between textarea and overlay
   const handleScroll = () => {
@@ -57,10 +65,15 @@ export default function MentionInput({
           wordSpacing: 'inherit'
         }}
       >
-        <div
-          dangerouslySetInnerHTML={{ __html: highlightedText }}
-          className="mention-overlay"
-        />
+        <div className="mention-overlay">
+          {segments.map((seg, i) =>
+            seg.type === 'mention' ? (
+              <span key={i} className="mention-highlight">{seg.value}</span>
+            ) : (
+              <span key={i}>{seg.value}</span>
+            )
+          )}
+        </div>
       </div>
 
       {/* Actual textarea */}

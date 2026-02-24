@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { PanelLeftOpen } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { api } from '../services/api';
+import logger from '../utils/logger';
 import ChatSidebar from './AskAdvicly/ChatSidebar';
 import ChatArea from './AskAdvicly/ChatArea';
 import ChatInput from './AskAdvicly/ChatInput';
@@ -85,7 +86,7 @@ export default function SimplifiedAskAdvicly({
       const threadsData = response.threads || response;
       setThreads(threadsData || []);
     } catch (error) {
-      console.error('Error loading threads:', error);
+      logger.error('Error loading threads:', error);
       setThreads([]);
     } finally {
       setLoadingThreads(false);
@@ -97,7 +98,7 @@ export default function SimplifiedAskAdvicly({
       const response = await api.request(`/ask-advicly/threads/${threadId}/messages`);
       setMessages(response || []);
     } catch (error) {
-      console.error('Error loading messages:', error);
+      logger.error('Error loading messages:', error);
       setMessages([]);
     }
   };
@@ -109,7 +110,7 @@ export default function SimplifiedAskAdvicly({
       setClients(response || []);
       clientsLoadedRef.current = true;
     } catch (error) {
-      console.error('Error loading clients:', error);
+      logger.error('Error loading clients:', error);
     }
   };
 
@@ -133,7 +134,7 @@ export default function SimplifiedAskAdvicly({
       setMessages([]);
       return response;
     } catch (error) {
-      console.error('Error creating thread:', error);
+      logger.error('Error creating thread:', error);
       return null;
     }
   }, [clientId, contextType, contextData, meetingId]);
@@ -151,7 +152,7 @@ export default function SimplifiedAskAdvicly({
       setThreads(prev => prev.filter(t => t.id !== threadId));
       if (activeThreadId === threadId) handleNewChat();
     } catch (error) {
-      console.error('Error deleting thread:', error);
+      logger.error('Error deleting thread:', error);
     }
   };
 
@@ -163,7 +164,7 @@ export default function SimplifiedAskAdvicly({
       });
       setThreads(prev => prev.map(t => t.id === threadId ? { ...t, title } : t));
     } catch (error) {
-      console.error('Error updating thread title:', error);
+      logger.error('Error updating thread title:', error);
     }
   };
 
@@ -283,7 +284,7 @@ export default function SimplifiedAskAdvicly({
         setGatheringStages([]);
       }
     } catch (error) {
-      console.error('Error sending message:', error);
+      logger.error('Error sending message:', error);
 
       // Fallback to non-streaming endpoint
       try {
@@ -294,7 +295,7 @@ export default function SimplifiedAskAdvicly({
         const aiMsg = response.aiMessage || response;
         setMessages(prev => [...prev, aiMsg]);
       } catch (fallbackError) {
-        console.error('Fallback also failed:', fallbackError);
+        logger.error('Fallback also failed:', fallbackError);
         setMessages(prev => [...prev, {
           id: `error-${Date.now()}`,
           content: 'Sorry, I encountered an error. Please try again.',

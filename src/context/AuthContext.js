@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import logger from '../utils/logger';
 
 // ============================================================================
 // AUTH CONTEXT - SUPABASE AUTH VERSION
@@ -18,20 +19,20 @@ export const AuthProvider = ({ children }) => {
 
   // Initialize auth state and listen for changes
   useEffect(() => {
-    console.log('🔄 Initializing Supabase Auth...');
-    console.log('🔍 Current URL:', window.location.href);
-    console.log('🔍 URL Hash:', window.location.hash);
+    logger.log('🔄 Initializing Supabase Auth...');
+    logger.log('🔍 Current URL:', window.location.href);
+    logger.log('🔍 URL Hash:', window.location.hash);
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (error) {
-        console.error('❌ Error getting session:', error);
+        logger.error('❌ Error getting session:', error);
       }
 
-      console.log('📋 Initial session:', session ? 'Found' : 'None');
+      logger.log('📋 Initial session:', session ? 'Found' : 'None');
       if (session) {
-        console.log('✅ Session user:', session.user.email);
-        console.log('✅ Session expires at:', new Date(session.expires_at * 1000).toLocaleString());
+        logger.log('✅ Session user:', session.user.email);
+        logger.log('✅ Session expires at:', new Date(session.expires_at * 1000).toLocaleString());
       }
       setSession(session);
       setUser(session?.user ?? null);
@@ -42,9 +43,9 @@ export const AuthProvider = ({ children }) => {
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('🔔 Auth state changed:', event);
-        console.log('📋 Session:', session ? 'Present' : 'None');
-        console.log('📋 User:', session?.user?.email || 'None');
+        logger.log('🔔 Auth state changed:', event);
+        logger.log('📋 Session:', session ? 'Present' : 'None');
+        logger.log('📋 User:', session?.user?.email || 'None');
 
         setSession(session);
         setUser(session?.user ?? null);
@@ -53,23 +54,23 @@ export const AuthProvider = ({ children }) => {
         // Handle different auth events
         switch (event) {
           case 'SIGNED_IN':
-            console.log('✅ User signed in:', session?.user?.email);
+            logger.log('✅ User signed in:', session?.user?.email);
             // Ensure user exists in public.users (fallback for email/password signups)
             await ensureUserExists(session);
             // Verify webhooks are active on login
             verifyWebhooksOnLogin(session);
             break;
           case 'SIGNED_OUT':
-            console.log('👋 User signed out');
+            logger.log('👋 User signed out');
             break;
           case 'TOKEN_REFRESHED':
-            console.log('🔄 Token refreshed successfully');
+            logger.log('🔄 Token refreshed successfully');
             break;
           case 'USER_UPDATED':
-            console.log('📝 User updated');
+            logger.log('📝 User updated');
             break;
           case 'INITIAL_SESSION':
-            console.log('🎯 Initial session loaded:', session?.user?.email);
+            logger.log('🎯 Initial session loaded:', session?.user?.email);
             // Verify webhooks and ensure user exists on initial session load
             if (session) {
               await ensureUserExists(session);
@@ -77,7 +78,7 @@ export const AuthProvider = ({ children }) => {
             }
             break;
           default:
-            console.log('ℹ️ Auth event:', event);
+            logger.log('ℹ️ Auth event:', event);
         }
       }
     );
@@ -100,16 +101,16 @@ export const AuthProvider = ({ children }) => {
 
       // If token expires in less than 5 minutes, refresh it
       if (timeUntilExpiry < 300) {
-        console.log('🔄 Token expiring soon, refreshing...');
+        logger.log('🔄 Token expiring soon, refreshing...');
         try {
           const { error } = await supabase.auth.refreshSession();
           if (error) {
-            console.error('❌ Error refreshing session:', error);
+            logger.error('❌ Error refreshing session:', error);
           } else {
-            console.log('✅ Session refreshed successfully');
+            logger.log('✅ Session refreshed successfully');
           }
         } catch (error) {
-          console.error('❌ Exception refreshing session:', error);
+          logger.error('❌ Exception refreshing session:', error);
         }
       }
     }, 60000); // Check every minute
@@ -126,13 +127,13 @@ export const AuthProvider = ({ children }) => {
   const ensureUserExists = async (session) => {
     try {
       if (!session?.user?.id || !session?.access_token) {
-        console.log('⚠️ No session available for user check');
+        logger.log('⚠️ No session available for user check');
         return;
       }
 
       const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
-      console.log('🔍 Ensuring user exists in database...');
+      logger.log('🔍 Ensuring user exists in database...');
 
       // Call the /api/users/profile endpoint which will create the user if they don't exist
       const response = await fetch(`${API_BASE_URL}/api/users/profile`, {
@@ -145,11 +146,11 @@ export const AuthProvider = ({ children }) => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ User exists in database:', data.email);
+        logger.log('✅ User exists in database:', data.email);
       } else if (response.status === 404) {
         // User doesn't exist - this shouldn't happen if trigger is in place
         // But we can handle it by calling POST to create
-        console.log('⚠️ User not found, attempting to create...');
+        logger.log('⚠️ User not found, attempting to create...');
 
         const createResponse = await fetch(`${API_BASE_URL}/api/users/profile`, {
           method: 'POST',
@@ -166,15 +167,15 @@ export const AuthProvider = ({ children }) => {
         });
 
         if (createResponse.ok) {
-          console.log('✅ User created successfully');
+          logger.log('✅ User created successfully');
         } else {
-          console.warn('⚠️ Failed to create user:', createResponse.statusText);
+          logger.warn('⚠️ Failed to create user:', createResponse.statusText);
         }
       } else {
-        console.warn('⚠️ Unexpected response checking user:', response.status);
+        logger.warn('⚠️ Unexpected response checking user:', response.status);
       }
     } catch (error) {
-      console.warn('⚠️ Error ensuring user exists:', error.message);
+      logger.warn('⚠️ Error ensuring user exists:', error.message);
       // Don't fail auth if this fails - user might still be able to proceed
     }
   };
@@ -186,13 +187,13 @@ export const AuthProvider = ({ children }) => {
   const verifyWebhooksOnLogin = async (session) => {
     try {
       if (!session?.access_token) {
-        console.log('⚠️ No session token available for webhook verification');
+        logger.log('⚠️ No session token available for webhook verification');
         return;
       }
 
       const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
 
-      console.log('🔍 Verifying calendar webhooks on login...');
+      logger.log('🔍 Verifying calendar webhooks on login...');
       const response = await fetch(`${API_BASE_URL}/api/auth/verify-webhooks`, {
         method: 'POST',
         headers: {
@@ -203,24 +204,24 @@ export const AuthProvider = ({ children }) => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Webhook verification completed:', data.webhooks);
+        logger.log('✅ Webhook verification completed:', data.webhooks);
 
         // Log webhook status for debugging
         if (data.webhooks.google?.status === 'active') {
-          console.log('✅ Google Calendar webhook is active');
+          logger.log('✅ Google Calendar webhook is active');
         }
         if (data.webhooks.calendly?.webhook_active) {
-          console.log('✅ Calendly webhook is active');
+          logger.log('✅ Calendly webhook is active');
         } else if (data.webhooks.calendly?.status === 'not_connected') {
-          console.log('ℹ️ Calendly not connected');
+          logger.log('ℹ️ Calendly not connected');
         } else {
-          console.log('⚠️ Calendly using polling sync (webhook not active)');
+          logger.log('⚠️ Calendly using polling sync (webhook not active)');
         }
       } else {
-        console.warn('⚠️ Failed to verify webhooks:', response.statusText);
+        logger.warn('⚠️ Failed to verify webhooks:', response.statusText);
       }
     } catch (error) {
-      console.warn('⚠️ Error verifying webhooks on login:', error.message);
+      logger.warn('⚠️ Error verifying webhooks on login:', error.message);
       // Don't fail auth if webhook verification fails
     }
   };
@@ -237,10 +238,10 @@ export const AuthProvider = ({ children }) => {
 
       if (error) throw error;
 
-      console.log('✅ Signed in with email:', email);
+      logger.log('✅ Signed in with email:', email);
       return { success: true, data };
     } catch (error) {
-      console.error('❌ Email sign in error:', error);
+      logger.error('❌ Email sign in error:', error);
       return { success: false, error: error.message };
     }
   };
@@ -261,10 +262,10 @@ export const AuthProvider = ({ children }) => {
 
       if (error) throw error;
 
-      console.log('✅ Signed up with email:', email);
+      logger.log('✅ Signed up with email:', email);
       return { success: true, data };
     } catch (error) {
-      console.error('❌ Email sign up error:', error);
+      logger.error('❌ Email sign up error:', error);
       return { success: false, error: error.message };
     }
   };
@@ -289,10 +290,10 @@ export const AuthProvider = ({ children }) => {
 
       if (error) throw error;
 
-      console.log('✅ OAuth sign in initiated:', provider);
+      logger.log('✅ OAuth sign in initiated:', provider);
       return { success: true, data };
     } catch (error) {
-      console.error('❌ OAuth sign in error:', error);
+      logger.error('❌ OAuth sign in error:', error);
       return { success: false, error: error.message };
     }
   };
@@ -306,10 +307,10 @@ export const AuthProvider = ({ children }) => {
 
       if (error) throw error;
 
-      console.log('✅ Signed out successfully');
+      logger.log('✅ Signed out successfully');
       return { success: true };
     } catch (error) {
-      console.error('❌ Sign out error:', error);
+      logger.error('❌ Sign out error:', error);
       return { success: false, error: error.message };
     }
   };
@@ -321,7 +322,7 @@ export const AuthProvider = ({ children }) => {
     const { data: { session }, error } = await supabase.auth.getSession();
 
     if (error) {
-      console.error('❌ Error getting session:', error);
+      logger.error('❌ Error getting session:', error);
       return null;
     }
 
@@ -341,7 +342,7 @@ export const AuthProvider = ({ children }) => {
    * @deprecated Use signInWithEmail or signInWithOAuth instead
    */
   const login = async (token) => {
-    console.warn('⚠️ login() is deprecated. Use signInWithEmail() or signInWithOAuth() instead');
+    logger.warn('⚠️ login() is deprecated. Use signInWithEmail() or signInWithOAuth() instead');
     // This is for backward compatibility during migration
     // In the new system, authentication is handled by Supabase
     return false;
@@ -352,7 +353,7 @@ export const AuthProvider = ({ children }) => {
    * @deprecated Use signOut instead
    */
   const logout = async () => {
-    console.warn('⚠️ logout() is deprecated. Use signOut() instead');
+    logger.warn('⚠️ logout() is deprecated. Use signOut() instead');
     return await signOut();
   };
 

@@ -23,6 +23,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import BusinessTypeManager from '../components/BusinessTypeManager';
 import CreateClientForm from '../components/CreateClientForm';
 import ClientDetailSidebar from '../components/ClientDetailSidebar';
+import logger from '../utils/logger';
 
 export default function Clients() {
   const [clients, setClients] = useState([]);
@@ -97,7 +98,7 @@ export default function Clients() {
         showSuccess(response.message || 'No content available to generate summary');
       }
     } catch (error) {
-      console.error('Error generating summary:', error);
+      logger.error('Error generating summary:', error);
       showSuccess('Failed to generate summary. Please try again.');
     } finally {
       setGeneratingSummary(false);
@@ -137,7 +138,7 @@ export default function Clients() {
       const data = await response.json();
       setClientActionItems(data.meetings || []);
     } catch (error) {
-      console.error('Error fetching client action items:', error);
+      logger.error('Error fetching client action items:', error);
       setClientActionItems([]);
     }
   };
@@ -162,7 +163,7 @@ export default function Clients() {
       const token = session?.access_token;
 
       if (!token) {
-        console.error('No auth token available');
+        logger.error('No auth token available');
         // Revert optimistic update on auth failure
         if (selectedClient?.id) {
           await fetchClientActionItems(selectedClient.id);
@@ -180,7 +181,7 @@ export default function Clients() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('Failed to toggle action item:', response.status, errorData);
+        logger.error('Failed to toggle action item:', response.status, errorData);
         // Revert optimistic update on API failure
         if (selectedClient?.id) {
           await fetchClientActionItems(selectedClient.id);
@@ -189,9 +190,9 @@ export default function Clients() {
       }
 
       // Success - the optimistic update is already in place
-      console.log('Action item toggled successfully');
+      logger.log('Action item toggled successfully');
     } catch (error) {
-      console.error('Error toggling action item:', error);
+      logger.error('Error toggling action item:', error);
       // Revert optimistic update on error
       if (selectedClient?.id) {
         await fetchClientActionItems(selectedClient.id);
@@ -207,7 +208,7 @@ export default function Clients() {
       const todos = await api.request(`/pipeline/client/${clientId}/todos`);
       setClientTodos(todos || []);
     } catch (error) {
-      console.error('Error fetching client todos:', error);
+      logger.error('Error fetching client todos:', error);
       setClientTodos([]);
     }
   };
@@ -231,7 +232,7 @@ export default function Clients() {
       await fetchClientTodos(selectedClient.id);
       showSuccess('Action item added!');
     } catch (error) {
-      console.error('Error adding action item:', error);
+      logger.error('Error adding action item:', error);
       showSuccess('Failed to add action item');
     } finally {
       setAddingActionItem(false);
@@ -259,9 +260,9 @@ export default function Clients() {
         })
       });
 
-      console.log('Todo toggled successfully');
+      logger.log('Todo toggled successfully');
     } catch (error) {
-      console.error('Error toggling todo:', error);
+      logger.error('Error toggling todo:', error);
       // Revert optimistic update on error
       if (selectedClient?.id) {
         await fetchClientTodos(selectedClient.id);
@@ -275,7 +276,7 @@ export default function Clients() {
     try {
       const response = await api.extractClientsFromMeetings();
 
-      console.log('Client extraction result:', response);
+      logger.log('Client extraction result:', response);
 
       // Refresh the clients list
       await fetchClients(clientFilter);
@@ -284,7 +285,7 @@ export default function Clients() {
       alert(`Client extraction completed! ${response.linked} meetings linked, ${response.clientsCreated} new clients created.`);
 
     } catch (error) {
-      console.error('Client extraction failed:', error);
+      logger.error('Client extraction failed:', error);
       alert('Failed to extract clients. Please try again.');
     } finally {
       setExtracting(false);
@@ -341,7 +342,7 @@ export default function Clients() {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        console.log('📱 Page visible - refreshing clients...');
+        logger.log('📱 Page visible - refreshing clients...');
         fetchClients(clientFilter);
       }
     };
@@ -505,7 +506,7 @@ export default function Clients() {
       });
     } catch (err) {
       // Fallback to the passed client if fetch fails
-      console.error('Error fetching fresh client data:', err);
+      logger.error('Error fetching fresh client data:', err);
       setEditingClient(client);
       setEditForm({
         name: client.name || '',
@@ -526,7 +527,7 @@ export default function Clients() {
       setClientBusinessTypes(businessTypes);
       setShowBusinessTypeManager(true);
     } catch (error) {
-      console.error('Error loading business types:', error);
+      logger.error('Error loading business types:', error);
       setClientBusinessTypes([]);
       setShowBusinessTypeManager(true);
     }
@@ -557,7 +558,7 @@ export default function Clients() {
       // This ensures the summary reflects the latest business information
       handleGenerateSummary(clientIdToRegenerate);
     } catch (error) {
-      console.error('Error saving business types:', error);
+      logger.error('Error saving business types:', error);
       showSuccess('Failed to save business types. Please try again.');
     } finally {
       setSavingBusinessTypes(false);
@@ -586,7 +587,7 @@ export default function Clients() {
         showSuccess('Client created successfully!');
       }
     } catch (error) {
-      console.error('Error creating client:', error);
+      logger.error('Error creating client:', error);
       throw error; // Re-throw to let the form handle the error
     } finally {
       setCreatingClient(false);
@@ -625,7 +626,7 @@ export default function Clients() {
       // Show success message
       showSuccess('Client details updated successfully!');
     } catch (err) {
-      console.error('Error updating client:', err);
+      logger.error('Error updating client:', err);
       setSaving(false);
     }
   };

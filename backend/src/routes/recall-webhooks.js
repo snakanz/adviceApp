@@ -697,27 +697,5 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   }
 });
 
-/**
- * Test endpoint to verify webhook is accessible
- */
-router.get('/webhook/test', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Recall.ai webhook endpoint is accessible',
-    url: `${req.protocol}://${req.get('host')}/api/webhooks/webhook`,
-    environment: {
-      webhookSecretConfigured: !!process.env.RECALL_WEBHOOK_SECRET,
-      apiKeyConfigured: !!process.env.RECALL_API_KEY,
-      supabaseConfigured: !!process.env.SUPABASE_URL
-    },
-    instructions: [
-      '1. Go to Recall.ai dashboard → Webhooks',
-      '2. Create new endpoint with URL above',
-      '3. Subscribe to: transcript.done, bot.status_change, recording.done',
-      '4. Recall will send events to this endpoint'
-    ]
-  });
-});
-
 module.exports = router;
 

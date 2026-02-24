@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import logger from '../utils/logger';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
@@ -15,7 +16,7 @@ class ApiService {
 
     // Legacy method for backward compatibility
     setToken(token) {
-        console.warn('setToken() is deprecated. Tokens are now managed by Supabase Auth.');
+        logger.warn('setToken() is deprecated. Tokens are now managed by Supabase Auth.');
         // No-op - tokens are managed by Supabase
     }
 
@@ -41,19 +42,19 @@ class ApiService {
 
             if (!response.ok) {
                 if (response.status === 401) {
-                    console.warn('⚠️ 401 Unauthorized response from:', endpoint);
+                    logger.warn('⚠️ 401 Unauthorized response from:', endpoint);
 
                     // Check if we have a valid session before signing out
                     const { data: { session } } = await supabase.auth.getSession();
 
                     if (!session) {
                         // No session - redirect to login
-                        console.log('❌ No session found, redirecting to login');
+                        logger.log('❌ No session found, redirecting to login');
                         window.location.href = '/login';
                     } else {
                         // We have a session but got 401 - this might be a backend issue
                         // Don't sign out automatically, just log the error
-                        console.error('❌ 401 error despite having valid session. Backend may not recognize token yet.');
+                        logger.error('❌ 401 error despite having valid session. Backend may not recognize token yet.');
                     }
 
                     throw new Error('Unauthorized');
@@ -62,7 +63,7 @@ class ApiService {
                 let errorDetails = '';
                 try {
                     const errorBody = await response.json();
-                    console.error('API error response:', errorBody);
+                    logger.error('API error response:', errorBody);
                     errorDetails = errorBody.details || errorBody.error || '';
                 } catch (e) {
                     // Couldn't parse error body
@@ -73,7 +74,7 @@ class ApiService {
             const data = await response.json();
             return data;
         } catch (error) {
-            console.error('API request failed:', error);
+            logger.error('API request failed:', error);
             throw error;
         }
     }
@@ -267,7 +268,7 @@ export const adjustMeetingSummary = async (originalSummary, adjustmentPrompt) =>
     const data = await response.json();
     return data.adjustedSummary;
   } catch (error) {
-    console.error('Error adjusting summary:', error);
+    logger.error('Error adjusting summary:', error);
     throw error;
   }
 }; 

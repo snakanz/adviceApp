@@ -1055,24 +1055,6 @@ async function processWebhookEvent(event, payload) {
   }
 }
 
-/**
- * Test endpoint for webhook setup
- */
-router.get('/webhook/test', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Calendly webhook endpoint is accessible',
-    url: `${req.protocol}://${req.get('host')}/api/calendly/webhook`,
-    instructions: [
-      '1. Go to Calendly Integrations > Webhooks',
-      '2. Create a new webhook subscription',
-      '3. Set URL to the webhook URL above',
-      '4. Subscribe to events: invitee.created, invitee.canceled',
-      '5. Copy the signing key to CALENDLY_WEBHOOK_SIGNING_KEY env variable'
-    ]
-  });
-});
-
 // =====================================================
 // WEBHOOK EVENT HANDLERS (with idempotency & error handling)
 // =====================================================

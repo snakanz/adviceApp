@@ -2316,23 +2316,6 @@ router.post('/webhook', express.json(), async (req, res) => {
   }
 });
 
-/**
- * Test endpoint for Google Calendar webhook
- */
-router.get('/webhook/test', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Google Calendar webhook endpoint is accessible',
-    url: `${req.protocol}://${req.get('host')}/api/calendar/webhook`,
-    instructions: [
-      '1. Authenticate with Google Calendar',
-      '2. Call POST /api/calendar/webhook/setup to register webhook',
-      '3. Google will send notifications to this endpoint when calendar changes',
-      '4. Webhook will automatically sync changed events to database'
-    ]
-  });
-});
-
 // =====================================================
 // MICROSOFT CALENDAR WEBHOOK ENDPOINTS
 // =====================================================
@@ -2459,23 +2442,6 @@ router.post('/microsoft/webhook', express.json(), async (req, res) => {
     // Still return 202 to Microsoft to avoid retries
     res.status(202).json({ success: false, error: error.message });
   }
-});
-
-/**
- * Test endpoint for Microsoft Calendar webhook
- */
-router.get('/microsoft/webhook/test', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Microsoft Calendar webhook endpoint is accessible',
-    url: `${req.protocol}://${req.get('host')}/api/calendar/microsoft/webhook`,
-    instructions: [
-      '1. Authenticate with Microsoft Calendar',
-      '2. Call POST /api/calendar/microsoft/webhook/setup to register webhook',
-      '3. Microsoft will send notifications to this endpoint when calendar changes',
-      '4. Webhook will automatically sync changed events to database'
-    ]
-  });
 });
 
 // Link a meeting to a client and auto-link other meetings with the same email

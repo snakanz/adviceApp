@@ -12,7 +12,7 @@ const supabase = createClient(
       flowType: 'pkce', // PKCE flow is required for Google OAuth
       storage: window.localStorage,
       storageKey: 'supabase.auth.token',
-      debug: true // Enable debug logging
+      debug: false
     }
   }
 );

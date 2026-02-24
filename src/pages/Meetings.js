@@ -57,6 +57,7 @@ import { Avatar, AvatarFallback } from '../components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Switch } from '../components/ui/switch';
 import ActionItemCard from '../components/ActionItemCard';
+import logger from '../utils/logger';
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
@@ -125,7 +126,7 @@ function extractAttendees(meeting, currentUserEmail) {
         initials: getInitials(attendee.displayName || attendee.name || attendee.email)
       }));
   } catch (e) {
-    console.log('Could not parse attendees for meeting:', meeting.id);
+    logger.log('Could not parse attendees for meeting:', meeting.id);
     return [];
   }
 }
@@ -405,7 +406,7 @@ export default function Meetings() {
   const [showLinkClientDialog, setShowLinkClientDialog] = useState(false);
   const [linkClientMeeting, setLinkClientMeeting] = useState(null);
 
-  console.log('Meetings component render:', { activeTab, selectedMeetingId });
+  logger.log('Meetings component render:', { activeTab, selectedMeetingId });
 
   const selectedMeeting = React.useMemo(() => {
     return (
@@ -497,7 +498,7 @@ export default function Meetings() {
           setSelectedTemplate(fallbackTemplates[0]);
         }
       } catch (error) {
-        console.error('Error fetching templates:', error);
+        logger.error('Error fetching templates:', error);
         // Use fallback templates on error
         setTemplates(fallbackTemplates);
         setSelectedTemplate(fallbackTemplates[0]);
@@ -519,10 +520,10 @@ export default function Meetings() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token;
-      console.log('🔑 Using access token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+      logger.log('🔑 Using access token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
 
       if (!token) {
-        console.error('❌ No access token found in session');
+        logger.error('❌ No access token found in session');
         setShowSnackbar(true);
         setSnackbarMessage('Authentication required. Please log in again.');
         setSnackbarSeverity('error');
@@ -531,7 +532,7 @@ export default function Meetings() {
 
       // 🔥 RESTORED: Use full database endpoint with real meeting data
       const url = `${API_URL}/api/dev/meetings`;
-      console.log('🌐 Fetching from URL:', url);
+      logger.log('🌐 Fetching from URL:', url);
 
       const res = await fetch(url, {
         headers: {
@@ -541,9 +542,9 @@ export default function Meetings() {
       });
 
       if (!res.ok) {
-        console.error('❌ API Error:', res.status, res.statusText);
+        logger.error('❌ API Error:', res.status, res.statusText);
         const errorText = await res.text();
-        console.error('❌ Error details:', errorText);
+        logger.error('❌ Error details:', errorText);
 
         if (res.status === 401) {
           setShowSnackbar(true);
@@ -561,11 +562,11 @@ export default function Meetings() {
       }
 
       const data = await res.json();
-      console.log('✅ Raw meetings data from API:', data);
-      console.log(`📊 API returned ${data.length} meetings`);
+      logger.log('✅ Raw meetings data from API:', data);
+      logger.log(`📊 API returned ${data.length} meetings`);
 
       if (!Array.isArray(data)) {
-        console.error('❌ API returned non-array data:', data);
+        logger.error('❌ API returned non-array data:', data);
         setShowSnackbar(true);
         setSnackbarMessage('Invalid data format received from server');
         setSnackbarSeverity('error');
@@ -583,7 +584,7 @@ export default function Meetings() {
         const date = new Date(startTime);
         return date.getFullYear() === 2025 && date.getMonth() === 8;
       });
-      console.log(`🎯 September 2025 meetings in API response: ${sept2025InAPI.length}`);
+      logger.log(`🎯 September 2025 meetings in API response: ${sept2025InAPI.length}`);
 
       data.forEach(m => {
         // Handle simplified Calendly data structure
@@ -617,8 +618,8 @@ export default function Meetings() {
         const date = new Date(m.startTime);
         return date.getFullYear() === 2025 && date.getMonth() === 8;
       });
-      console.log(`🎯 September 2025 meetings in past array: ${sept2025InPast.length}`);
-      console.log(`🎯 September 2025 meetings in future array: ${sept2025InFuture.length}`);
+      logger.log(`🎯 September 2025 meetings in past array: ${sept2025InPast.length}`);
+      logger.log(`🎯 September 2025 meetings in future array: ${sept2025InFuture.length}`);
 
       // Sort meetings properly:
       // - Future meetings: soonest first (ascending order)
@@ -647,7 +648,7 @@ export default function Meetings() {
       //   }
       // }
     } catch (error) {
-      console.error('❌ Error fetching meetings:', error);
+      logger.error('❌ Error fetching meetings:', error);
       setShowSnackbar(true);
       setSnackbarMessage(`Failed to load meetings: ${error.message}`);
       setSnackbarSeverity('error');
@@ -697,7 +698,7 @@ export default function Meetings() {
       setSnackbarSeverity('success');
     } catch (error) {
       clearTimeout(timeoutId);
-      console.error('Sync error:', error);
+      logger.error('Sync error:', error);
       setShowSnackbar(true);
       if (error.name === 'AbortError') {
         setSnackbarMessage('Sync timed out. Please try again.');
@@ -732,7 +733,7 @@ export default function Meetings() {
         // Only refresh if hidden for more than 60 seconds
         const hiddenDuration = Date.now() - lastVisibleRef.current;
         if (hiddenDuration > 60000) {
-          console.log(`📱 Page visible after ${Math.round(hiddenDuration / 1000)}s - refreshing meetings...`);
+          logger.log(`📱 Page visible after ${Math.round(hiddenDuration / 1000)}s - refreshing meetings...`);
           fetchMeetings();
         }
       }
@@ -763,11 +764,11 @@ export default function Meetings() {
     // Prevent duplicate refreshes for the same meeting
     if (lastRefreshRef.current === selectedMeeting.id) return;
 
-    console.log(`🔄 Meeting ${selectedMeeting.id} has transcript but no summary - will refresh once in 5s`);
+    logger.log(`🔄 Meeting ${selectedMeeting.id} has transcript but no summary - will refresh once in 5s`);
     lastRefreshRef.current = selectedMeeting.id;
 
     const timeoutId = setTimeout(() => {
-      console.log('🔄 Refreshing to check for generated summary...');
+      logger.log('🔄 Refreshing to check for generated summary...');
       fetchMeetings();
       // Reset after refresh so it can trigger again if still missing
       setTimeout(() => {
@@ -836,7 +837,7 @@ export default function Meetings() {
           setCalendarConnection(data);
         }
       } catch (err) {
-        console.error('Error fetching calendar connection:', err);
+        logger.error('Error fetching calendar connection:', err);
       }
     };
 
@@ -918,7 +919,7 @@ export default function Meetings() {
   }, [selectedMeetingId, calendarConnection, meetings]);
 
   const handleMeetingSelect = async (meeting) => {
-    console.log('Meeting selected:', meeting); // Debug log
+    logger.log('Meeting selected:', meeting); // Debug log
     setSelectedMeetingId(meeting.id);
     setActiveTab('summary');
 
@@ -949,7 +950,7 @@ export default function Meetings() {
     const hasQuickSummary = (meeting.quick_summary || meeting.quickSummary || '').trim();
 
     if (meeting.transcript && !hasQuickSummary) {
-      console.log('Auto-generating summaries (no quick summary found)...');
+      logger.log('Auto-generating summaries (no quick summary found)...');
       // Pass external_id or DB id - backend handles both
       await autoGenerateSummaries(meeting.external_id || meeting.id);
     }
@@ -996,7 +997,7 @@ export default function Meetings() {
       }
 
       const data = await response.json();
-      console.log('📥 Auto-generate response:', JSON.stringify(data, null, 2));
+      logger.log('📥 Auto-generate response:', JSON.stringify(data, null, 2));
 
       // Update state with generated summaries (handle null values)
       if (data.quickSummary) {
@@ -1047,7 +1048,7 @@ export default function Meetings() {
         setSnackbarMessage('Summaries generated successfully');
         setSnackbarSeverity('success');
       } else if (data.generationErrors) {
-        console.error('Generation errors:', data.generationErrors);
+        logger.error('Generation errors:', data.generationErrors);
         setShowSnackbar(true);
         setSnackbarMessage('Summary generation had errors - check console');
         setSnackbarSeverity('warning');
@@ -1055,7 +1056,7 @@ export default function Meetings() {
         // Silently use cached data
       }
     } catch (error) {
-      console.error('Error auto-generating summaries:', error);
+      logger.error('Error auto-generating summaries:', error);
       setShowSnackbar(true);
       setSnackbarMessage(error.message || 'Failed to generate summaries');
       setSnackbarSeverity('error');
@@ -1074,7 +1075,7 @@ export default function Meetings() {
       setSnackbarMessage('Summary adjusted successfully');
       setSnackbarSeverity('success');
     } catch (error) {
-      console.error('Error adjusting summary:', error);
+      logger.error('Error adjusting summary:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to adjust summary');
       setSnackbarSeverity('error');
@@ -1100,7 +1101,7 @@ export default function Meetings() {
 
       // Use numeric meeting ID for the API call
       const meetingIdentifier = selectedMeeting.id;
-      console.log('📤 Uploading transcript for meeting:', meetingIdentifier);
+      logger.log('📤 Uploading transcript for meeting:', meetingIdentifier);
 
       const res = await fetch(`${API_URL}/api/calendar/meetings/${meetingIdentifier}/transcript`, {
         method: 'POST',
@@ -1114,7 +1115,7 @@ export default function Meetings() {
       if (!res.ok) throw new Error('Failed to upload transcript');
 
       const responseData = await res.json();
-      console.log('📥 Transcript upload response:', responseData);
+      logger.log('📥 Transcript upload response:', responseData);
 
       // Update local state with transcript and any auto-generated summaries
       const meetingUpdate = {
@@ -1130,7 +1131,7 @@ export default function Meetings() {
         // Include action points if they were generated
         if (responseData.summaries.actionPoints) {
           meetingUpdate.action_points = responseData.summaries.actionPoints;
-          console.log('✅ Action points extracted:', responseData.summaries.actionPoints);
+          logger.log('✅ Action points extracted:', responseData.summaries.actionPoints);
         }
 
         // Also update the local state variables immediately
@@ -1200,7 +1201,7 @@ export default function Meetings() {
       // Re-fetch after a delay to pick up the email once it's ready.
       if (responseData.autoGenerated && !responseData.summaries?.emailSummary) {
         setTimeout(async () => {
-          console.log('🔄 Delayed re-fetch to pick up async email draft...');
+          logger.log('🔄 Delayed re-fetch to pick up async email draft...');
           await fetchMeetings();
         }, 10000);
       }
@@ -1211,7 +1212,7 @@ export default function Meetings() {
       if (responseData.autoGenerated && responseData.summaries?.quickSummary) {
         // Check if detailed summary was also generated
         if (responseData.generationErrors?.length > 0) {
-          console.warn('Some generation steps had errors:', responseData.generationErrors);
+          logger.warn('Some generation steps had errors:', responseData.generationErrors);
           setSnackbarMessage('Transcript uploaded. Quick summary generated but detailed breakdown may still be processing.');
           setSnackbarSeverity('warning');
         } else {
@@ -1219,11 +1220,11 @@ export default function Meetings() {
           setSnackbarSeverity('success');
         }
       } else if (responseData.generationError) {
-        console.error('Generation error from backend:', responseData.generationError);
+        logger.error('Generation error from backend:', responseData.generationError);
         setSnackbarMessage(`Transcript saved but generation failed: ${responseData.generationError}`);
         setSnackbarSeverity('warning');
       } else if (responseData.generationErrors) {
-        console.error('Generation errors from backend:', responseData.generationErrors);
+        logger.error('Generation errors from backend:', responseData.generationErrors);
         setSnackbarMessage('Transcript saved but some generation steps failed');
         setSnackbarSeverity('warning');
       } else {
@@ -1231,7 +1232,7 @@ export default function Meetings() {
         setSnackbarSeverity('success');
       }
     } catch (error) {
-      console.error('Error uploading transcript:', error);
+      logger.error('Error uploading transcript:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to upload transcript');
       setSnackbarSeverity('error');
@@ -1294,7 +1295,7 @@ export default function Meetings() {
       setSnackbarMessage('Transcript and summaries deleted successfully');
       setSnackbarSeverity('success');
     } catch (error) {
-      console.error('Error deleting transcript:', error);
+      logger.error('Error deleting transcript:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to delete transcript');
       setSnackbarSeverity('error');
@@ -1422,7 +1423,7 @@ export default function Meetings() {
         }));
 
       } catch (saveError) {
-        console.error('Error saving template summary:', saveError);
+        logger.error('Error saving template summary:', saveError);
         setShowSnackbar(true);
         setSnackbarMessage(`Email generated but failed to auto-save. Please try again.`);
         setSnackbarSeverity('warning');
@@ -1436,7 +1437,7 @@ export default function Meetings() {
       setSnackbarMessage(`✓ Email generated and auto-saved using ${templateToUse?.title || 'Advicly Summary'}`);
       setSnackbarSeverity('success');
     } catch (error) {
-      console.error('Error generating AI summary:', error);
+      logger.error('Error generating AI summary:', error);
       setShowSnackbar(true);
       setSnackbarMessage(error.message || 'Failed to generate AI summary');
       setSnackbarSeverity('error');
@@ -1473,7 +1474,7 @@ export default function Meetings() {
       const data = await response.json();
       setActionItems(data.actionItems || []);
     } catch (error) {
-      console.error('Error fetching action items:', error);
+      logger.error('Error fetching action items:', error);
       setActionItems([]);
     } finally {
       setLoadingActionItems(false);
@@ -1510,7 +1511,7 @@ export default function Meetings() {
       });
       setPendingItemPriorities(priorities);
     } catch (error) {
-      console.error('Error fetching pending action items:', error);
+      logger.error('Error fetching pending action items:', error);
       setPendingActionItems([]);
       setSelectedPendingItems([]);
     } finally {
@@ -1542,7 +1543,7 @@ export default function Meetings() {
         [itemId]: priority
       }));
     } catch (error) {
-      console.error('Error updating pending item priority:', error);
+      logger.error('Error updating pending item priority:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to update priority');
       setSnackbarSeverity('error');
@@ -1596,7 +1597,7 @@ export default function Meetings() {
       setEditingPendingItemId(null);
       setEditingPendingText('');
     } catch (error) {
-      console.error('Error updating pending item:', error);
+      logger.error('Error updating pending item:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to update action item');
       setSnackbarSeverity('error');
@@ -1658,7 +1659,7 @@ export default function Meetings() {
       setSnackbarMessage(newSkipValue ? 'Advicly Assistant disabled for this meeting' : 'Advicly Assistant enabled for this meeting');
       setSnackbarSeverity('success');
     } catch (error) {
-      console.error('Error toggling bot:', error);
+      logger.error('Error toggling bot:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to toggle Advicly Assistant');
       setSnackbarSeverity('error');
@@ -1711,7 +1712,7 @@ export default function Meetings() {
       setSnackbarMessage(newSkipValue ? 'Advicly Assistant disabled for this meeting' : 'Advicly Assistant enabled for this meeting');
       setSnackbarSeverity('success');
     } catch (error) {
-      console.error('Error toggling bot:', error);
+      logger.error('Error toggling bot:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to toggle Advicly Assistant');
       setSnackbarSeverity('error');
@@ -1765,7 +1766,7 @@ export default function Meetings() {
       setNewPendingItemText('');
       setNewPendingItemPriority(3);
     } catch (error) {
-      console.error('Error creating pending item:', error);
+      logger.error('Error creating pending item:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to add action item');
       setSnackbarSeverity('error');
@@ -1816,7 +1817,7 @@ export default function Meetings() {
         await fetchActionItems(selectedMeetingId);
       }
     } catch (error) {
-      console.error('Error approving action items:', error);
+      logger.error('Error approving action items:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to approve action items');
       setSnackbarSeverity('error');
@@ -1864,7 +1865,7 @@ export default function Meetings() {
         await fetchPendingActionItems(selectedMeetingId);
       }
     } catch (error) {
-      console.error('Error rejecting action items:', error);
+      logger.error('Error rejecting action items:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to reject action items');
       setSnackbarSeverity('error');
@@ -1901,7 +1902,7 @@ export default function Meetings() {
       setSnackbarMessage(data.actionItem.completed ? 'Action item completed' : 'Action item reopened');
       setSnackbarSeverity('success');
     } catch (error) {
-      console.error('Error toggling action item:', error);
+      logger.error('Error toggling action item:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to update action item');
       setSnackbarSeverity('error');
@@ -1947,7 +1948,7 @@ export default function Meetings() {
       setSnackbarMessage('Action item added! It will appear in Pending Approval.');
       setSnackbarSeverity('success');
     } catch (error) {
-      console.error('Error adding action item:', error);
+      logger.error('Error adding action item:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to add action item');
       setSnackbarSeverity('error');
@@ -3323,7 +3324,11 @@ export default function Meetings() {
                                   [&_tr:hover_td]:bg-muted/20
                                   [&_hr]:my-5 [&_hr]:border-border/30
                                   [&_blockquote]:border-l-2 [&_blockquote]:border-blue-500/50 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground/80 [&_blockquote]:my-3">
-                                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    disallowedElements={['script', 'iframe', 'embed', 'object', 'form']}
+                                    unwrapDisallowed
+                                  >
                                     {selectedMeeting.detailed_summary}
                                   </ReactMarkdown>
                                 </div>

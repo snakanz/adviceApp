@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const { google } = require('googleapis');
 const { supabase, isSupabaseAvailable, getSupabase, verifySupabaseToken } = require('./lib/supabase');
@@ -43,27 +45,24 @@ console.log('Creating Express app...');
 const app = express();
 console.log('✅ Express app created');
 
-// CORS configuration - Allow Cloudflare Pages, custom domain, and localhost
+// CORS configuration - explicit allowed origins only
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://app.advicly.co.uk',
+  'https://advicly.co.uk',
+  'https://adviceapp.pages.dev',
+  'http://localhost:3000',
+  'http://localhost:3001'
+].filter(Boolean);
+
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    // Block requests with no origin (server-to-server, curl, etc.)
+    if (!origin) return callback(new Error('Not allowed by CORS'));
 
-    const allowedOrigins = [
-      process.env.FRONTEND_URL,  // Custom domain from env var
-      'https://app.advicly.co.uk',  // Production custom domain
-      'https://advicly.co.uk',  // Root domain
-      'https://adviceapp.pages.dev',
-      'https://adviceapp-pages.dev',  // Cloudflare Pages URL
-      'http://localhost:3000',
-      'http://localhost:3001'
-    ].filter(Boolean);  // Remove undefined values
-
-    // Allow all Cloudflare Pages preview URLs (*.pages.dev) and advicly.co.uk subdomains
-    if (origin.endsWith('.pages.dev') || origin.endsWith('.advicly.co.uk') || allowedOrigins.includes(origin)) {
+    if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      console.warn(`⚠️  CORS blocked origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -80,6 +79,31 @@ app.set('trust proxy', 1);
 
 console.log('Setting up CORS...');
 app.use(cors(corsOptions));
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false,  // CSP handled by frontend/CDN
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+
+// Rate limiting
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' }
+});
+const strictLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' }
+});
+app.use('/api/', generalLimiter);
+app.use('/api/auth/', strictLimiter);
 
 // CRITICAL: Mount webhook routes BEFORE express.json() middleware
 // This ensures the raw body is available for signature verification
@@ -117,12 +141,7 @@ try {
 app.use(express.json({ limit: '10mb' }));
 console.log('✅ CORS and middleware configured (body limit: 10mb)');
 
-// Log all requests for debugging
-app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
-  next();
-});
-console.log('✅ Request logging middleware added');
+// Request logging removed for security (was exposing origins/headers)
 
 // Test routes removed - using proper Calendly integration below
 
@@ -188,30 +207,11 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// Simple test endpoint
-app.get('/api/test-simple', (req, res) => {
-  res.json({ message: 'Simple test working!' });
-});
-
 // Calendly integration moved to routes.js for better reliability
 
 // Google OAuth routes moved to /routes/auth.js
 
 // Google OAuth callback moved to /routes/auth.js
-
-// JWT-protected route example
-app.get('/api/protected', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-  try {
-    const token = auth.split(' ')[1];
-    // SECURITY: Never log JWT secrets - removed console.log that exposed JWT_SECRET
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    res.json({ message: 'Protected data', user: decoded });
-  } catch (e) {
-    res.status(401).json({ error: 'Invalid token' });
-  }
-});
 
 // Auth verify endpoint moved to /routes/auth.js
 
@@ -467,247 +467,7 @@ app.get('/api/calendar/sync-status', async (req, res) => {
   }
 });
 
-// Test endpoint to debug issues (v6 - Custom domain CORS fix)
-app.get('/api/dev/test', (req, res) => {
-  console.log('🧪 Test endpoint called v6');
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    message: 'Backend is working v6 - Custom domain CORS fix',
-    version: '6.0',
-    cors: {
-      origin: req.headers.origin || 'none',
-      allowedOrigins: [
-        'https://app.advicly.co.uk',
-        'https://advicly.co.uk',
-        'https://adviceapp.pages.dev',
-        'https://adviceapp-pages.dev',
-        'http://localhost:3000',
-        'http://localhost:3001'
-      ]
-    }
-  });
-});
-
-// Ultra simple meetings endpoint for debugging
-app.get('/api/dev/meetings-simple', (req, res) => {
-  console.log('🧪 Simple meetings endpoint called');
-  res.json([
-    {
-      id: 1,
-      title: 'Test Meeting',
-      starttime: '2025-01-15T10:00:00Z',
-      endtime: '2025-01-15T11:00:00Z',
-      source: 'calendly'
-    }
-  ]);
-});
-
-// Auth status check endpoint
-app.get('/api/dev/auth-status', (req, res) => {
-  console.log('🔍 Auth status check called');
-  const auth = req.headers.authorization;
-
-  if (!auth) {
-    return res.json({
-      authenticated: false,
-      message: 'No authorization header',
-      hasToken: false
-    });
-  }
-
-  try {
-    const token = auth.split(' ')[1];
-    if (!token) {
-      return res.json({
-        authenticated: false,
-        message: 'No bearer token',
-        hasToken: false
-      });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    return res.json({
-      authenticated: true,
-      message: 'Token valid',
-      hasToken: true,
-      userId: decoded.id,
-      email: decoded.email
-    });
-  } catch (error) {
-    return res.json({
-      authenticated: false,
-      message: `Token invalid: ${error.message}`,
-      hasToken: true,
-      error: error.message
-    });
-  }
-});
-
-// Meetings endpoint with auth and basic database query
-app.get('/api/dev/meetings', async (req, res) => {
-  console.log('🔄 Meetings endpoint called');
-  console.log('📋 Request origin:', req.headers.origin || 'none');
-  console.log('📋 Request headers:', {
-    authorization: req.headers.authorization ? 'Bearer [REDACTED]' : 'MISSING',
-    contentType: req.headers['content-type'],
-    origin: req.headers.origin
-  });
-
-  try {
-    // Check Supabase availability
-    if (!isSupabaseAvailable()) {
-      console.log('❌ Supabase not available');
-      return res.status(503).json({ error: 'Database unavailable' });
-    }
-
-    const auth = req.headers.authorization;
-    if (!auth) {
-      console.log('❌ No authorization header');
-      return res.status(401).json({ error: 'No authorization token provided' });
-    }
-
-    const token = auth.split(' ')[1];
-    if (!token) {
-      console.log('❌ No token in authorization header');
-      return res.status(401).json({ error: 'Invalid authorization header format' });
-    }
-
-    console.log('🔑 Verifying Supabase token...');
-    console.log(`🔍 Token preview: ${token.substring(0, 20)}...`);
-
-    // Use the new verification function
-    const { user, error: authError } = await verifySupabaseToken(token);
-
-    if (authError || !user) {
-      console.log('❌ Token verification failed:', authError?.message || 'No user found');
-      return res.status(401).json({ error: 'Invalid or expired token' });
-    }
-
-    console.log(`✅ Token verified for Supabase user: ${user.id} (${user.email})`);
-
-    // Use the Supabase user ID directly (UUID)
-    const userId = user.id;
-    console.log(`✅ Using Supabase user ID: ${userId}`);
-
-    // Database query with client information
-    console.log('🔍 Querying database for meetings with client info...');
-    const { data: meetings, error } = await getSupabase()
-      .from('meetings')
-      .select(`
-        id,
-        title,
-        starttime,
-        endtime,
-        description,
-        location,
-        external_id,
-        attendees,
-        transcript,
-        quick_summary,
-        detailed_summary,
-        email_summary_draft,
-        email_template_id,
-        last_summarized_at,
-        action_points,
-        meeting_source,
-        client_id,
-        recall_bot_id,
-        recall_status,
-        recall_recording_id,
-        skip_transcription_for_meeting,
-        meeting_url,
-        clients(id, name, email)
-      `)
-      .eq('user_id', userId)
-      .or('is_deleted.is.null,is_deleted.eq.false') // Show meetings where is_deleted is NULL or false
-      .order('starttime', { ascending: false });
-
-    if (error) {
-      console.error('❌ Database query error:', error);
-      return res.status(500).json({ error: 'Database error', details: error.message });
-    }
-
-    console.log(`✅ Query successful: ${meetings?.length || 0} meetings found`);
-
-    // Process meetings data for frontend with all necessary fields
-    const processedMeetings = meetings?.map(meeting => ({
-      ...meeting,
-      // Set default values and flags
-      source: meeting.meeting_source || 'google',
-      hasTranscript: !!meeting.transcript,
-      hasSummary: !!meeting.quick_summary || !!meeting.detailed_summary,
-      hasEmailDraft: !!meeting.email_summary_draft,
-      // Client info is already included from the join
-    })) || [];
-
-    res.json(processedMeetings);
-
-  } catch (error) {
-    console.error('❌ Error in meetings endpoint:', error);
-    res.status(500).json({
-      error: 'Server error',
-      message: error.message
-    });
-  }
-});
-
-// Manual Calendly sync endpoint for testing
-app.post('/api/dev/sync-calendly', async (req, res) => {
-  console.log('🔄 Manual Calendly sync endpoint called');
-  const auth = req.headers.authorization;
-  if (!auth) {
-    console.log('❌ No auth header');
-    return res.status(401).json({ error: 'No token' });
-  }
-
-  try {
-    console.log('🔑 Verifying token...');
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const userId = decoded.id;
-    console.log(`✅ Token verified for user ${userId}`);
-
-    // Check Supabase availability
-    if (!isSupabaseAvailable()) {
-      console.log('❌ Supabase not available');
-      return res.status(503).json({ error: 'Database unavailable' });
-    }
-
-    // Sync Calendly meetings
-    console.log('🔄 Starting manual Calendly sync...');
-
-    // Fetch user's Calendly access token
-    const accessToken = await CalendlyService.getUserAccessToken(userId);
-
-    if (!accessToken) {
-      console.log('⚠️ No Calendly connection found for user');
-      return res.status(400).json({
-        error: 'Calendly not connected',
-        message: 'Please connect your Calendly account in Settings first'
-      });
-    }
-
-    const calendlyService = new CalendlyService(accessToken);
-    console.log('✅ Calendly configured, syncing...');
-    const result = await calendlyService.syncMeetingsToDatabase(userId);
-    console.log('✅ Manual Calendly sync completed');
-
-    res.json({
-      success: true,
-      message: 'Calendly sync completed successfully',
-      result: result || 'Sync completed'
-    });
-
-  } catch (error) {
-    console.error('❌ Error in manual Calendly sync:', error);
-    res.status(500).json({
-      error: 'Sync failed',
-      message: error.message,
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-    });
-  }
-});
+// Debug/dev endpoints removed for security
 
 // Clients endpoint is now handled by the clients router (routes/clients.js)
 

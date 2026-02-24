@@ -1,4 +1,6 @@
 // Advicly Notification Service
+import logger from '../utils/logger';
+
 class NotificationService {
   constructor() {
     this.isSupported = 'serviceWorker' in navigator && 'PushManager' in window;
@@ -10,21 +12,21 @@ class NotificationService {
   // Initialize the service worker and push notifications
   async initialize() {
     if (!this.isSupported) {
-      console.warn('Push notifications are not supported in this browser');
+      logger.warn('Push notifications are not supported in this browser');
       return false;
     }
 
     try {
       // Register service worker
       this.registration = await navigator.serviceWorker.register('/sw.js');
-      console.log('Service Worker registered successfully');
+      logger.log('Service Worker registered successfully');
 
       // Listen for messages from service worker
       navigator.serviceWorker.addEventListener('message', this.handleServiceWorkerMessage.bind(this));
 
       return true;
     } catch (error) {
-      console.error('Service Worker registration failed:', error);
+      logger.error('Service Worker registration failed:', error);
       return false;
     }
   }
@@ -44,7 +46,7 @@ class NotificationService {
     }
 
     const permission = await Notification.requestPermission();
-    console.log('Notification permission:', permission);
+    logger.log('Notification permission:', permission);
     return permission;
   }
 
@@ -59,7 +61,7 @@ class NotificationService {
   // Subscribe to push notifications
   async subscribe() {
     if (!this.registration || !this.vapidPublicKey) {
-      console.error('Service worker not registered or VAPID key missing');
+      logger.error('Service worker not registered or VAPID key missing');
       return null;
     }
 
@@ -70,14 +72,14 @@ class NotificationService {
       });
 
       this.subscription = subscription;
-      console.log('Push subscription successful:', subscription);
+      logger.log('Push subscription successful:', subscription);
 
       // Send subscription to backend
       await this.sendSubscriptionToBackend(subscription);
       
       return subscription;
     } catch (error) {
-      console.error('Push subscription failed:', error);
+      logger.error('Push subscription failed:', error);
       return null;
     }
   }
@@ -92,10 +94,10 @@ class NotificationService {
       await this.subscription.unsubscribe();
       await this.removeSubscriptionFromBackend();
       this.subscription = null;
-      console.log('Push unsubscription successful');
+      logger.log('Push unsubscription successful');
       return true;
     } catch (error) {
-      console.error('Push unsubscription failed:', error);
+      logger.error('Push unsubscription failed:', error);
       return false;
     }
   }
@@ -111,7 +113,7 @@ class NotificationService {
       this.subscription = subscription;
       return subscription;
     } catch (error) {
-      console.error('Error getting subscription:', error);
+      logger.error('Error getting subscription:', error);
       return null;
     }
   }
@@ -120,7 +122,7 @@ class NotificationService {
   async sendSubscriptionToBackend(subscription) {
     const token = localStorage.getItem('token');
     if (!token) {
-      console.error('No auth token found');
+      logger.error('No auth token found');
       return;
     }
 
@@ -140,9 +142,9 @@ class NotificationService {
         throw new Error('Failed to send subscription to backend');
       }
 
-      console.log('Subscription sent to backend successfully');
+      logger.log('Subscription sent to backend successfully');
     } catch (error) {
-      console.error('Error sending subscription to backend:', error);
+      logger.error('Error sending subscription to backend:', error);
     }
   }
 
@@ -161,7 +163,7 @@ class NotificationService {
         }
       });
     } catch (error) {
-      console.error('Error removing subscription from backend:', error);
+      logger.error('Error removing subscription from backend:', error);
     }
   }
 
@@ -205,7 +207,7 @@ class NotificationService {
   async testNotification() {
     const token = localStorage.getItem('token');
     if (!token) {
-      console.error('No auth token found');
+      logger.error('No auth token found');
       return;
     }
 
@@ -218,10 +220,10 @@ class NotificationService {
       });
 
       if (response.ok) {
-        console.log('Test notification sent');
+        logger.log('Test notification sent');
       }
     } catch (error) {
-      console.error('Error sending test notification:', error);
+      logger.error('Error sending test notification:', error);
     }
   }
 }
