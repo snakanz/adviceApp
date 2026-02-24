@@ -218,9 +218,39 @@ export default function SimplifiedAskAdvicly({
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let fullResponse = '';
+      const responseRef = { text: '', done: false };
       let buffer = '';
-      let streamDone = false;
+
+      const processEvent = (event) => {
+        if (event.stage && event.stage !== 'response' && event.stage !== 'done' && event.stage !== 'error') {
+          setGatheringStages(prev => prev.map(s =>
+            s.id === event.stage ? { ...s, status: event.status, label: event.label || s.label } : s
+          ));
+        } else if (event.stage === 'response' && event.chunk) {
+          responseRef.text += event.chunk;
+          setStreamingResponse(responseRef.text);
+        } else if (event.stage === 'done') {
+          responseRef.done = true;
+          setMessages(prev => [...prev, {
+            id: event.messageId || `ai-${Date.now()}`,
+            content: responseRef.text,
+            role: 'assistant',
+            created_at: new Date().toISOString()
+          }]);
+          setStreamingResponse('');
+          setGatheringStages([]);
+        } else if (event.stage === 'error') {
+          responseRef.done = true;
+          setMessages(prev => [...prev, {
+            id: `error-${Date.now()}`,
+            content: event.message || 'Something went wrong. Please try again.',
+            role: 'assistant',
+            created_at: new Date().toISOString()
+          }]);
+          setStreamingResponse('');
+          setGatheringStages([]);
+        }
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -236,45 +266,16 @@ export default function SimplifiedAskAdvicly({
           if (data === '[DONE]') continue;
 
           try {
-            const event = JSON.parse(data);
-
-            if (event.stage && event.stage !== 'response' && event.stage !== 'done' && event.stage !== 'error') {
-              setGatheringStages(prev => prev.map(s =>
-                s.id === event.stage ? { ...s, status: event.status, label: event.label || s.label } : s
-              ));
-            } else if (event.stage === 'response' && event.chunk) {
-              fullResponse += event.chunk;
-              setStreamingResponse(fullResponse);
-            } else if (event.stage === 'done') {
-              streamDone = true;
-              setMessages(prev => [...prev, {
-                id: event.messageId || `ai-${Date.now()}`,
-                content: fullResponse,
-                role: 'assistant',
-                created_at: new Date().toISOString()
-              }]);
-              setStreamingResponse('');
-              setGatheringStages([]);
-            } else if (event.stage === 'error') {
-              setMessages(prev => [...prev, {
-                id: `error-${Date.now()}`,
-                content: event.message || 'Something went wrong. Please try again.',
-                role: 'assistant',
-                created_at: new Date().toISOString()
-              }]);
-              setStreamingResponse('');
-              setGatheringStages([]);
-              streamDone = true;
-            }
+            processEvent(JSON.parse(data));
           } catch (e) { /* skip malformed JSON */ }
         }
       }
 
       // Safety net: if stream ended without done event
-      if (!streamDone && fullResponse) {
+      if (!responseRef.done && responseRef.text) {
         setMessages(prev => [...prev, {
           id: `ai-${Date.now()}`,
-          content: fullResponse,
+          content: responseRef.text,
           role: 'assistant',
           created_at: new Date().toISOString()
         }]);
