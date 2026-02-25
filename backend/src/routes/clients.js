@@ -4,6 +4,8 @@ const multer = require('multer');
 const { supabase, isSupabaseAvailable, getSupabase } = require('../lib/supabase');
 const clientExtractionService = require('../services/clientExtraction');
 const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
+const { clientCreate, clientMerge } = require('../middleware/validators');
+const { logAudit, getClientIp } = require('../services/auditLogger');
 
 const router = express.Router();
 
@@ -276,6 +278,7 @@ router.post('/upsert', authenticateSupabaseUser, async (req, res) => {
         return res.status(500).json({ error: 'Failed to create client' });
       }
 
+      logAudit(userId, 'client.create', 'client', { resourceId: newClient.id, ipAddress: getClientIp(req) });
       res.json({ message: 'Client created successfully', client: newClient });
     }
   } catch (error) {
@@ -284,7 +287,7 @@ router.post('/upsert', authenticateSupabaseUser, async (req, res) => {
   }
 });
 // Minimal client creation for Ask Advicly (name optional, email optional)
-router.post('/create-minimal', authenticateSupabaseUser, async (req, res) => {
+router.post('/create-minimal', authenticateSupabaseUser, ...clientCreate, async (req, res) => {
   try {
     const userId = req.user.id;
     const { name, email, notes } = req.body || {};
@@ -315,6 +318,7 @@ router.post('/create-minimal', authenticateSupabaseUser, async (req, res) => {
       return res.status(500).json({ error: 'Failed to create client' });
     }
 
+    logAudit(userId, 'client.create', 'client', { resourceId: newClient.id, ipAddress: getClientIp(req) });
     res.json({ message: 'Client created successfully', client: newClient });
   } catch (error) {
     console.error('Error creating minimal client:', error);
@@ -1454,7 +1458,7 @@ router.patch('/business-types/:businessTypeId/not-proceeding', authenticateSupab
 });
 
 // Create new client (simplified - only name and email required)
-router.post('/create', authenticateSupabaseUser, async (req, res) => {
+router.post('/create', authenticateSupabaseUser, ...clientCreate, async (req, res) => {
   try {
     const userId = req.user.id;
     const { name, email } = req.body;
@@ -1511,6 +1515,7 @@ router.post('/create', authenticateSupabaseUser, async (req, res) => {
     }
 
     console.log('✅ Client created successfully:', newClient.id);
+    logAudit(userId, 'client.create', 'client', { resourceId: newClient.id, ipAddress: getClientIp(req) });
 
     res.json({
       message: 'Client created successfully',

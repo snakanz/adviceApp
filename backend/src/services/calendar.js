@@ -1,6 +1,7 @@
 const { google } = require('googleapis');
 const recallService = require('./recall');
 const { getSupabase } = require('../lib/supabase');
+const { encrypt, decrypt } = require('../utils/encryption');
 
 class CalendarService {
   constructor() {
@@ -30,19 +31,19 @@ class CalendarService {
     try {
       const { tokens } = await this.oauth2Client.getToken(code);
       
-      // Store tokens in database
+      // Store tokens in database (encrypted at rest)
       await prisma.calendarToken.upsert({
         where: { userId },
         update: {
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token || undefined,
+          accessToken: encrypt(tokens.access_token),
+          refreshToken: tokens.refresh_token ? encrypt(tokens.refresh_token) : undefined,
           expiresAt: new Date(tokens.expiry_date),
           provider: 'google'
         },
         create: {
           userId,
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
+          accessToken: encrypt(tokens.access_token),
+          refreshToken: encrypt(tokens.refresh_token),
           expiresAt: new Date(tokens.expiry_date),
           provider: 'google'
         }
@@ -66,8 +67,8 @@ class CalendarService {
       }
 
       this.oauth2Client.setCredentials({
-        access_token: userTokens.accessToken,
-        refresh_token: userTokens.refreshToken
+        access_token: decrypt(userTokens.accessToken),
+        refresh_token: decrypt(userTokens.refreshToken)
       });
 
       const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
@@ -140,8 +141,8 @@ class CalendarService {
       }
 
       this.oauth2Client.setCredentials({
-        access_token: userTokens.accessToken,
-        refresh_token: userTokens.refreshToken
+        access_token: decrypt(userTokens.accessToken),
+        refresh_token: decrypt(userTokens.refreshToken)
       });
 
       const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
@@ -172,8 +173,8 @@ class CalendarService {
       }
 
       this.oauth2Client.setCredentials({
-        access_token: userTokens.accessToken,
-        refresh_token: userTokens.refreshToken
+        access_token: decrypt(userTokens.accessToken),
+        refresh_token: decrypt(userTokens.refreshToken)
       });
 
       const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
@@ -252,8 +253,8 @@ class CalendarService {
     const expiresAt = connection.token_expires_at ? new Date(connection.token_expires_at).getTime() : null;
 
     this.oauth2Client.setCredentials({
-      access_token: connection.access_token,
-      refresh_token: connection.refresh_token,
+      access_token: decrypt(connection.access_token),
+      refresh_token: decrypt(connection.refresh_token),
       expiry_date: expiresAt
     });
 

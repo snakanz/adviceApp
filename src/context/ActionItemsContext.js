@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import logger from '../utils/logger';
 
 const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
@@ -98,7 +99,7 @@ export const ActionItemsProvider = ({ children }) => {
       const data = await response.json();
       return data;
     } catch (err) {
-      console.error('Error toggling action item:', err);
+      logger.error('Error toggling action item:', err);
       setError(err.message);
 
       // Revert on error
@@ -169,7 +170,7 @@ export const ActionItemsProvider = ({ children }) => {
 
       return items;
     } catch (err) {
-      console.error('Error fetching client action items:', err);
+      logger.error('Error fetching client action items:', err);
       setError(err.message);
       return [];
     } finally {
@@ -215,7 +216,7 @@ export const ActionItemsProvider = ({ children }) => {
 
       return items;
     } catch (err) {
-      console.error('Error fetching meeting action items:', err);
+      logger.error('Error fetching meeting action items:', err);
       setError(err.message);
       return [];
     } finally {
@@ -257,7 +258,7 @@ export const ActionItemsProvider = ({ children }) => {
 
       return await response.json();
     } catch (err) {
-      console.error('Error editing action item:', err);
+      logger.error('Error editing action item:', err);
       setError(err.message);
 
       // Revert

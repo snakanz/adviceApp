@@ -1,6 +1,7 @@
 const express = require('express');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
+const { actionItemCreate } = require('../middleware/validators');
 
 const router = express.Router();
 
@@ -46,7 +47,7 @@ router.get('/dashboard', authenticateSupabaseUser, async (req, res) => {
 });
 
 // Create new ad-hoc task
-router.post('/tasks', authenticateSupabaseUser, async (req, res) => {
+router.post('/tasks', authenticateSupabaseUser, ...actionItemCreate, async (req, res) => {
   try {
     const advisorId = req.user.id;
     const { title, description, priority, due_date } = req.body;
@@ -86,7 +87,7 @@ router.post('/tasks', authenticateSupabaseUser, async (req, res) => {
 });
 
 // Update ad-hoc task
-router.put('/tasks/:taskId', authenticateSupabaseUser, async (req, res) => {
+router.put('/tasks/:taskId', authenticateSupabaseUser, ...actionItemCreate, async (req, res) => {
   try {
     const advisorId = req.user.id;
     const taskId = req.params.taskId;

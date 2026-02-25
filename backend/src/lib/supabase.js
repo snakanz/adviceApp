@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
 
 // ============================================================================
 // SUPABASE CLIENT CONFIGURATION
@@ -26,13 +27,13 @@ try {
         }
       }
     );
-    console.log('✅ Supabase service role client initialized');
+    logger.log('✅ Supabase service role client initialized');
   } else {
-    console.warn('⚠️  Supabase environment variables not found. Database features will be disabled.');
-    console.warn('   Required: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY');
+    logger.warn('⚠️  Supabase environment variables not found. Database features will be disabled.');
+    logger.warn('   Required: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY');
   }
 } catch (error) {
-  console.error('❌ Failed to initialize Supabase service role client:', error.message);
+  logger.error('❌ Failed to initialize Supabase service role client:', error.message);
   serviceRoleClient = null;
 }
 
@@ -91,18 +92,18 @@ const verifySupabaseToken = async (token) => {
     try {
       decoded = jwt.decode(token);
     } catch (decodeError) {
-      console.log('❌ Token decode error:', decodeError.message);
+      logger.log('❌ Token decode error:', decodeError.message);
       return { user: null, error: new Error('Invalid token format') };
     }
 
     if (!decoded) {
-      console.log('❌ Invalid token structure');
+      logger.log('❌ Invalid token structure');
       return { user: null, error: new Error('Invalid token structure') };
     }
 
     // Check if token is expired
     if (decoded.exp && decoded.exp < Date.now() / 1000) {
-      console.log('❌ Token expired');
+      logger.log('❌ Token expired');
       return { user: null, error: new Error('Token expired') };
     }
 
@@ -122,13 +123,13 @@ const verifySupabaseToken = async (token) => {
       || decoded.user_metadata?.preferred_username;
 
     if (!userId) {
-      console.log('❌ No user ID found in token (missing both sub and id fields)');
+      logger.log('❌ No user ID found in token (missing both sub and id fields)');
       return { user: null, error: new Error('Invalid token: no user ID') };
     }
 
     if (!userEmail) {
-      console.log('❌ No email in token');
-      console.log('Token decoded fields:', {
+      logger.log('❌ No email in token');
+      logger.log('Token decoded fields:', {
         email: decoded.email,
         user_metadata: decoded.user_metadata,
         identities: decoded.identities
@@ -136,7 +137,7 @@ const verifySupabaseToken = async (token) => {
       return { user: null, error: new Error('No email in token') };
     }
 
-    console.log('✅ Email extracted from:', decoded.email ? 'email' : 'user_metadata');
+    logger.log('✅ Email extracted from:', decoded.email ? 'email' : 'user_metadata');
 
     // Create a user object that matches Supabase's user structure
     const user = {
@@ -155,10 +156,10 @@ const verifySupabaseToken = async (token) => {
       updated_at: decoded.updated_at
     };
 
-    console.log('✅ Token verified for user:', user.email);
+    logger.log('✅ Token verified for user:', user.email);
     return { user, error: null };
   } catch (error) {
-    console.log('❌ Token verification exception:', error.message);
+    logger.log('❌ Token verification exception:', error.message);
     return { user: null, error };
   }
 };

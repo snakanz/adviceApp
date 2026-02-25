@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const { getSupabase } = require('../lib/supabase');
+const { decrypt } = require('../utils/encryption');
 
 /**
  * Simple Calendar Deletion Detection Service
@@ -48,10 +49,10 @@ class CalendarDeletionSync {
 
       console.log(`🔐 Token status: ${isExpired ? 'EXPIRED' : 'VALID'} (expires: ${expiresAt?.toISOString() || 'unknown'})`);
 
-      // Set up OAuth client
+      // Set up OAuth client (decrypt tokens from database)
       this.oauth2Client.setCredentials({
-        access_token: connection.access_token,
-        refresh_token: connection.refresh_token,
+        access_token: decrypt(connection.access_token),
+        refresh_token: decrypt(connection.refresh_token),
         expiry_date: expiresAt ? expiresAt.getTime() : null
       });
 

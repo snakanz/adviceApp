@@ -12,6 +12,7 @@ const calendarSyncService = require('../services/calendarSync');
 const fileUploadService = require('../services/fileUpload'); // Legacy - kept for backward compatibility
 const clientDocumentsService = require('../services/clientDocuments'); // Unified document system
 const GoogleCalendarWebhookService = require('../services/googleCalendarWebhook');
+const { meetingCreate } = require('../middleware/validators');
 
 // Get Google Calendar auth URL (for popup-based reconnection)
 router.get('/auth/google', async (req, res) => {
@@ -440,7 +441,7 @@ router.get('/auth/google/callback', async (req, res) => {
 });
 
 // Create a new meeting with calendar event
-router.post('/meetings', authenticateSupabaseUser, async (req, res) => {
+router.post('/meetings', authenticateSupabaseUser, ...meetingCreate, async (req, res) => {
   try {
     const { title, description, date, time, duration } = req.body;
 
@@ -1339,7 +1340,7 @@ router.post('/meetings/:id/update-summary', authenticateSupabaseUser, async (req
 // ============================================================================
 
 // Create a manual meeting
-router.post('/meetings/manual', authenticateSupabaseUser, async (req, res) => {
+router.post('/meetings/manual', authenticateSupabaseUser, ...meetingCreate, async (req, res) => {
   try {
     const userId = req.user.id;
     const {

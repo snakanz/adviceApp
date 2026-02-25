@@ -7,43 +7,44 @@ const jwt = require('jsonwebtoken');
 const { google } = require('googleapis');
 const { supabase, isSupabaseAvailable, getSupabase, verifySupabaseToken } = require('./lib/supabase');
 const CalendlyService = require('./services/calendlyService');
+const logger = require('./utils/logger');
 
 // Load route modules with error handling to identify problematic routes
 let clientsRouter, pipelineRouter, actionItemsRouter;
 
 try {
-  console.log('Loading clients router...');
+  logger.log('Loading clients router...');
   clientsRouter = require('./routes/clients');
-  console.log('✅ Clients router loaded');
+  logger.log('✅ Clients router loaded');
 } catch (error) {
-  console.error('❌ Error loading clients router:', error.message);
+  logger.error('❌ Error loading clients router:', error.message);
   throw error;
 }
 
 try {
-  console.log('Loading pipeline router...');
+  logger.log('Loading pipeline router...');
   pipelineRouter = require('./routes/pipeline');
-  console.log('✅ Pipeline router loaded');
+  logger.log('✅ Pipeline router loaded');
 } catch (error) {
-  console.error('❌ Error loading pipeline router:', error.message);
+  logger.error('❌ Error loading pipeline router:', error.message);
   throw error;
 }
 
 try {
-  console.log('Loading actionItems router...');
+  logger.log('Loading actionItems router...');
   actionItemsRouter = require('./routes/actionItems');
-  console.log('✅ ActionItems router loaded');
+  logger.log('✅ ActionItems router loaded');
 } catch (error) {
-  console.error('❌ Error loading actionItems router:', error.message);
+  logger.error('❌ Error loading actionItems router:', error.message);
   throw error;
 }
 
 // DISABLED: Not using routes/index.js anymore - routes are mounted directly
 // const routes = require('./routes/index');
 
-console.log('Creating Express app...');
+logger.log('Creating Express app...');
 const app = express();
-console.log('✅ Express app created');
+logger.log('✅ Express app created');
 
 // CORS configuration - explicit allowed origins only
 const allowedOrigins = [
@@ -77,7 +78,7 @@ const corsOptions = {
 // Trust first proxy (Render load balancer) so req.ip returns real client IP
 app.set('trust proxy', 1);
 
-console.log('Setting up CORS...');
+logger.log('Setting up CORS...');
 app.use(cors(corsOptions));
 
 // Security headers
@@ -108,53 +109,53 @@ app.use('/api/auth/', strictLimiter);
 // CRITICAL: Mount webhook routes BEFORE express.json() middleware
 // This ensures the raw body is available for signature verification
 try {
-  console.log('Mounting Recall V2 webhook routes (BEFORE JSON middleware)...');
+  logger.log('Mounting Recall V2 webhook routes (BEFORE JSON middleware)...');
   const recallWebhooksRouter = require('./routes/recall-webhooks');
   app.use('/api/webhooks', recallWebhooksRouter);
-  console.log('✅ Recall V2 webhook routes mounted successfully');
+  logger.log('✅ Recall V2 webhook routes mounted successfully');
 } catch (error) {
-  console.warn('Failed to mount Recall V2 webhook routes:', error.message);
+  logger.warn('Failed to mount Recall V2 webhook routes:', error.message);
 }
 
 // Mount Stripe webhook route BEFORE express.json() middleware
 // Stripe webhooks need raw body for signature verification
 try {
-  console.log('Mounting Stripe webhook route (BEFORE JSON middleware)...');
+  logger.log('Mounting Stripe webhook route (BEFORE JSON middleware)...');
   const stripeWebhookRouter = require('./routes/stripe-webhook');
   app.use('/api/billing/webhook', stripeWebhookRouter);
-  console.log('✅ Stripe webhook route mounted successfully');
+  logger.log('✅ Stripe webhook route mounted successfully');
 } catch (error) {
-  console.warn('Failed to mount Stripe webhook route:', error.message);
+  logger.warn('Failed to mount Stripe webhook route:', error.message);
 }
 
 // ✅ FIX #2: Mount Calendly webhook route BEFORE express.json() middleware
 // Calendly webhooks need raw body for HMAC signature verification
 try {
-  console.log('Mounting Calendly webhook route (BEFORE JSON middleware)...');
+  logger.log('Mounting Calendly webhook route (BEFORE JSON middleware)...');
   const calendlyWebhookRouter = require('./routes/calendly-webhook');
   app.use('/api/calendly/webhook', calendlyWebhookRouter);
-  console.log('✅ Calendly webhook route mounted successfully');
+  logger.log('✅ Calendly webhook route mounted successfully');
 } catch (error) {
-  console.warn('Failed to mount Calendly webhook route:', error.message);
+  logger.warn('Failed to mount Calendly webhook route:', error.message);
 }
 
 app.use(express.json({ limit: '10mb' }));
-console.log('✅ CORS and middleware configured (body limit: 10mb)');
+logger.log('✅ CORS and middleware configured (body limit: 10mb)');
 
 // Request logging removed for security (was exposing origins/headers)
 
 // Test routes removed - using proper Calendly integration below
 
-console.log('Setting up Google OAuth2...');
+logger.log('Setting up Google OAuth2...');
 // Google OAuth2 setup
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
   process.env.GOOGLE_REDIRECT_URI
 );
-console.log('✅ Google OAuth2 configured');
+logger.log('✅ Google OAuth2 configured');
 
-console.log('Defining inline routes...');
+logger.log('Defining inline routes...');
 // Health check with database connectivity
 app.get('/api/health', async (req, res) => {
   try {
@@ -196,7 +197,7 @@ app.get('/api/health', async (req, res) => {
 
     res.json(response);
   } catch (error) {
-    console.error('Health check failed:', error);
+    logger.error('Health check failed:', error);
     res.status(500).json({
       status: 'error',
       db: 'disconnected',
@@ -260,7 +261,7 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
       .order('starttime', { ascending: true });
 
     if (error) {
-      console.error('Error fetching meetings from database:', error);
+      logger.error('Error fetching meetings from database:', error);
       return res.status(500).json({ error: 'Failed to fetch meetings from database' });
     }
 
@@ -305,15 +306,15 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
 
     res.json({ past, future });
   } catch (error) {
-    console.error('Error fetching or saving meetings:', error);
+    logger.error('Error fetching or saving meetings:', error);
     res.status(500).json({ error: 'Failed to fetch or save meetings' });
   }
 });
 
 // New deletion-aware calendar sync endpoint
 app.post('/api/calendar/sync-with-deletions', async (req, res) => {
-  console.log('🔄 Sync-with-deletions endpoint called');
-  console.log('📋 Request headers:', {
+  logger.log('🔄 Sync-with-deletions endpoint called');
+  logger.log('📋 Request headers:', {
     authorization: req.headers.authorization ? 'Bearer [REDACTED]' : 'MISSING',
     contentType: req.headers['content-type'],
     userAgent: req.headers['user-agent']
@@ -321,28 +322,28 @@ app.post('/api/calendar/sync-with-deletions', async (req, res) => {
 
   const auth = req.headers.authorization;
   if (!auth) {
-    console.error('❌ No authorization header provided');
+    logger.error('❌ No authorization header provided');
     return res.status(401).json({ error: 'No authorization token provided' });
   }
 
   try {
     const token = auth.split(' ')[1];
     if (!token) {
-      console.error('❌ Malformed authorization header');
+      logger.error('❌ Malformed authorization header');
       return res.status(401).json({ error: 'Malformed authorization header' });
     }
 
-    console.log('🔐 Verifying JWT token...');
+    logger.log('🔐 Verifying JWT token...');
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id || decoded.userId; // Handle both formats
 
     if (!userId) {
-      console.error('❌ No user ID found in JWT token:', decoded);
+      logger.error('❌ No user ID found in JWT token:', decoded);
       return res.status(401).json({ error: 'Invalid token: no user ID' });
     }
 
-    console.log(`✅ JWT verified successfully for user ${userId}`);
-    console.log(`🔄 Starting calendar sync for user ${userId}...`);
+    logger.log(`✅ JWT verified successfully for user ${userId}`);
+    logger.log(`🔄 Starting calendar sync for user ${userId}...`);
 
     try {
       const calendarSync = require('./services/calendarSync');
@@ -350,7 +351,7 @@ app.post('/api/calendar/sync-with-deletions', async (req, res) => {
         timeRange: 'extended' // 6 months for comprehensive sync
       });
 
-      console.log(`✅ Calendar sync completed successfully:`, {
+      logger.log(`✅ Calendar sync completed successfully:`, {
         userId,
         added: results.added || 0,
         updated: results.updated || 0,
@@ -363,7 +364,7 @@ app.post('/api/calendar/sync-with-deletions', async (req, res) => {
         userId // Include for debugging
       });
     } catch (syncError) {
-      console.error('❌ Calendar sync service error:', {
+      logger.error('❌ Calendar sync service error:', {
         userId,
         error: syncError.message,
         stack: syncError.stack
@@ -390,7 +391,7 @@ app.post('/api/calendar/sync-with-deletions', async (req, res) => {
       }
     }
   } catch (jwtError) {
-    console.error('❌ JWT verification failed:', {
+    logger.error('❌ JWT verification failed:', {
       error: jwtError.message,
       name: jwtError.name
     });
@@ -424,14 +425,14 @@ app.post('/api/calendar/sync-comprehensive', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
 
-    console.log(`🔄 Starting comprehensive calendar sync for user ${userId}`);
+    logger.log(`🔄 Starting comprehensive calendar sync for user ${userId}`);
 
     const comprehensiveSync = require('./services/comprehensiveCalendarSync');
     const dryRun = req.body.dryRun || false;
 
     const results = await comprehensiveSync.reconcileCalendarData(userId, dryRun);
 
-    console.log(`✅ Comprehensive sync completed:`, results);
+    logger.log(`✅ Comprehensive sync completed:`, results);
     res.json({
       success: true,
       message: `Comprehensive calendar sync ${dryRun ? '(dry run) ' : ''}completed`,
@@ -439,7 +440,7 @@ app.post('/api/calendar/sync-comprehensive', async (req, res) => {
       dryRun
     });
   } catch (error) {
-    console.error('Comprehensive calendar sync error:', error);
+    logger.error('Comprehensive calendar sync error:', error);
     res.status(500).json({ error: 'Failed to perform comprehensive calendar sync' });
   }
 });
@@ -462,7 +463,7 @@ app.get('/api/calendar/sync-status', async (req, res) => {
       status
     });
   } catch (error) {
-    console.error('Sync status error:', error);
+    logger.error('Sync status error:', error);
     res.status(500).json({ error: 'Failed to get sync status' });
   }
 });
@@ -482,40 +483,40 @@ app.get('/api/calendar/sync-status', async (req, res) => {
 
 // Mount Ask Advicly routes FIRST (before general /api routes)
 try {
-  console.log('Mounting Ask Advicly routes...');
+  logger.log('Mounting Ask Advicly routes...');
   const askAdviclyRouter = require('./routes/ask-advicly');
   app.use('/api/ask-advicly', askAdviclyRouter);  // Fixed path to match frontend
-  console.log('Ask Advicly routes mounted successfully');
+  logger.log('Ask Advicly routes mounted successfully');
 } catch (error) {
-  console.warn('Failed to mount Ask Advicly routes:', error.message);
+  logger.warn('Failed to mount Ask Advicly routes:', error.message);
 }
 
 // Mount Recall V2 calendar routes (webhooks already mounted before JSON middleware)
 try {
-  console.log('Mounting Recall V2 calendar routes...');
+  logger.log('Mounting Recall V2 calendar routes...');
   const recallCalendarRouter = require('./routes/recall-calendar');
   app.use('/api/recall', recallCalendarRouter);
-  console.log('Recall V2 calendar routes mounted successfully');
+  logger.log('Recall V2 calendar routes mounted successfully');
 } catch (error) {
-  console.warn('Failed to mount Recall V2 calendar routes:', error.message);
+  logger.warn('Failed to mount Recall V2 calendar routes:', error.message);
 }
 
 // Mount Data Import routes
 try {
-  console.log('Mounting Data Import routes...');
+  logger.log('Mounting Data Import routes...');
   const dataImportRouter = require('./routes/dataImport');
   app.use('/api/data-import', dataImportRouter);
-  console.log('Data Import routes mounted successfully');
+  logger.log('Data Import routes mounted successfully');
 } catch (error) {
-  console.warn('Failed to mount Data Import routes:', error.message);
+  logger.warn('Failed to mount Data Import routes:', error.message);
 }
 
 // Duplicate Calendly routes removed - using proper integration above
 
 // Mount auth routes
-console.log('🔄 Mounting auth routes...');
+logger.log('🔄 Mounting auth routes...');
 app.use('/api/auth', require('./routes/auth'));
-console.log('✅ Auth routes mounted');
+logger.log('✅ Auth routes mounted');
 
 // User profile endpoint (for onboarding check)
 app.get('/api/users/profile', async (req, res) => {
@@ -533,17 +534,17 @@ app.get('/api/users/profile', async (req, res) => {
             });
         }
 
-        console.log('🔑 Verifying Supabase token for /api/users/profile...');
+        logger.log('🔑 Verifying Supabase token for /api/users/profile...');
 
         // Use the new verification function
         const { user: supabaseUser, error: authError } = await verifySupabaseToken(token);
 
         if (authError || !supabaseUser) {
-            console.error('❌ Token verification failed:', authError?.message);
+            logger.error('❌ Token verification failed:', authError?.message);
             return res.status(401).json({ error: 'Invalid or expired token' });
         }
 
-        console.log(`✅ Token verified for Supabase user: ${supabaseUser.email}`);
+        logger.log(`✅ Token verified for Supabase user: ${supabaseUser.email}`);
 
         // Use UserService to get or create user
         const UserService = require('./services/userService');
@@ -557,83 +558,83 @@ app.get('/api/users/profile', async (req, res) => {
             onboarding_completed: user.onboarding_completed || false
         });
     } catch (error) {
-        console.error('Error in /api/users/profile:', error);
+        logger.error('Error in /api/users/profile:', error);
         res.status(500).json({ error: error.message || 'Failed to get user profile' });
     }
 });
 
-console.log('🔄 Mounting clients routes...');
+logger.log('🔄 Mounting clients routes...');
 app.use('/api/clients', clientsRouter);
-console.log('✅ Clients routes mounted');
+logger.log('✅ Clients routes mounted');
 
-console.log('🔄 Mounting pipeline routes...');
+logger.log('🔄 Mounting pipeline routes...');
 app.use('/api/pipeline', pipelineRouter);
-console.log('✅ Pipeline routes mounted');
+logger.log('✅ Pipeline routes mounted');
 
-console.log('🔄 Mounting action-items routes...');
+logger.log('🔄 Mounting action-items routes...');
 app.use('/api/action-items', actionItemsRouter);
-console.log('✅ Action-items routes mounted');
+logger.log('✅ Action-items routes mounted');
 
-console.log('🔄 Mounting transcript-action-items routes...');
+logger.log('🔄 Mounting transcript-action-items routes...');
 app.use('/api/transcript-action-items', require('./routes/transcriptActionItems'));
-console.log('✅ Transcript-action-items routes mounted');
+logger.log('✅ Transcript-action-items routes mounted');
 
-console.log('🔄 Mounting calendar routes...');
+logger.log('🔄 Mounting calendar routes...');
 app.use('/api/calendar', require('./routes/calendar'));
-console.log('✅ Calendar routes mounted');
+logger.log('✅ Calendar routes mounted');
 
-console.log('🔄 Mounting notifications routes...');
+logger.log('🔄 Mounting notifications routes...');
 app.use('/api/notifications', require('./routes/notifications'));
-console.log('✅ Notifications routes mounted');
+logger.log('✅ Notifications routes mounted');
 
-console.log('🔄 Mounting client-documents routes...');
+logger.log('🔄 Mounting client-documents routes...');
 app.use('/api/client-documents', require('./routes/clientDocuments'));
-console.log('✅ Client-documents routes mounted');
+logger.log('✅ Client-documents routes mounted');
 
-console.log('🔄 Mounting Calendly routes...');
+logger.log('🔄 Mounting Calendly routes...');
 app.use('/api/calendly', require('./routes/calendly'));
-console.log('✅ Calendly routes mounted (includes sync, status, and webhook endpoints)');
+logger.log('✅ Calendly routes mounted (includes sync, status, and webhook endpoints)');
 
-console.log('🔄 Mounting calendar-settings routes...');
+logger.log('🔄 Mounting calendar-settings routes...');
 app.use('/api/calendar-connections', require('./routes/calendar-settings'));
-console.log('✅ Calendar-settings routes mounted');
+logger.log('✅ Calendar-settings routes mounted');
 
-console.log('🔄 Mounting billing routes...');
+logger.log('🔄 Mounting billing routes...');
 app.use('/api/billing', require('./routes/billing'));
-console.log('✅ Billing routes mounted');
+logger.log('✅ Billing routes mounted');
 
-console.log('🔄 Mounting admin routes...');
+logger.log('🔄 Mounting admin routes...');
 app.use('/api/admin', require('./routes/admin'));
-console.log('✅ Admin routes mounted');
+logger.log('✅ Admin routes mounted');
 
-console.log('🔄 Mounting admin-tools routes...');
+logger.log('🔄 Mounting admin-tools routes...');
 app.use('/api/admin-tools', require('./routes/admin-tools'));
-console.log('✅ Admin-tools routes mounted');
+logger.log('✅ Admin-tools routes mounted');
 
-console.log('🔄 Mounting templates routes...');
+logger.log('🔄 Mounting templates routes...');
 app.use('/api/templates', require('./routes/templates'));
-console.log('✅ Templates routes mounted');
+logger.log('✅ Templates routes mounted');
 
-console.log('✅ All API routes mounted');
+logger.log('✅ All API routes mounted');
 
 // DISABLED: Routes are already mounted directly above
 // This was causing duplicate route mounting and potential conflicts
-// console.log('🔄 Mounting main routes at /api...');
+// logger.log('🔄 Mounting main routes at /api...');
 // app.use('/api', routes);
-// console.log('✅ Main routes mounted at /api');
+// logger.log('✅ Main routes mounted at /api');
 
 // ✅ ENABLED: Automatic webhook renewal scheduler
 // This handles automatic renewal of Google/Microsoft webhooks before they expire
 // Note: Polling is still disabled - this only runs webhook renewal cron jobs
-console.log('✅ Automatic webhook renewal scheduler ENABLED');
+logger.log('✅ Automatic webhook renewal scheduler ENABLED');
 const syncScheduler = require('./services/syncScheduler');
 setTimeout(() => {
   syncScheduler.start();
-  console.log('✅ Automatic sync scheduler initialized (webhook renewal only)');
+  logger.log('✅ Automatic sync scheduler initialized (webhook renewal only)');
 }, 5000);
 
 const port = process.env.PORT || 8787;
 app.listen(port, () => {
-  console.log(`Backend running on port ${port}`);
-  console.log('📅 Calendly automatic sync: Every 15 minutes');
+  logger.log(`Backend running on port ${port}`);
+  logger.log('📅 Calendly automatic sync: Every 15 minutes');
 });

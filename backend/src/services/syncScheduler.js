@@ -5,6 +5,7 @@ const MicrosoftCalendarService = require('./microsoftCalendar');
 const WebhookHealthService = require('./webhookHealthService');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 const { checkUserHasTranscriptionAccess } = require('../utils/subscriptionCheck');
+const { decrypt } = require('../utils/encryption');
 
 // Recall.ai region configuration - EU Frankfurt for GDPR compliance
 const RECALL_REGION = process.env.RECALL_REGION || 'eu-central-1';

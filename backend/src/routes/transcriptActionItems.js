@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
+const { actionItemCreate, actionItemToggle, actionItemText } = require('../middleware/validators');
 const OpenAI = require('openai');
 
 // Get action items for a specific meeting
@@ -34,7 +35,7 @@ router.get('/meetings/:meetingId/action-items', authenticateSupabaseUser, async 
 });
 
 // Toggle action item completion (supports both meeting-extracted and manual items)
-router.patch('/action-items/:actionItemId/toggle', authenticateSupabaseUser, async (req, res) => {
+router.patch('/action-items/:actionItemId/toggle', authenticateSupabaseUser, ...actionItemToggle, async (req, res) => {
   const { actionItemId } = req.params;
   const { source } = req.body; // 'meeting' or 'manual'
   const userId = req.user.id;
@@ -150,7 +151,7 @@ router.patch('/action-items/:actionItemId/toggle', authenticateSupabaseUser, asy
 });
 
 // Update action item text (inline editing)
-router.patch('/action-items/:actionItemId/text', authenticateSupabaseUser, async (req, res) => {
+router.patch('/action-items/:actionItemId/text', authenticateSupabaseUser, ...actionItemText, async (req, res) => {
   try {
     const { actionItemId } = req.params;
     const { actionText } = req.body;
@@ -1090,7 +1091,7 @@ router.patch('/pending/:pendingItemId/priority', authenticateSupabaseUser, async
 });
 
 // Update text of a pending action item
-router.patch('/pending/:pendingItemId/text', authenticateSupabaseUser, async (req, res) => {
+router.patch('/pending/:pendingItemId/text', authenticateSupabaseUser, ...actionItemText, async (req, res) => {
   try {
     const { pendingItemId } = req.params;
     const { actionText } = req.body;
@@ -1135,7 +1136,7 @@ router.patch('/pending/:pendingItemId/text', authenticateSupabaseUser, async (re
 });
 
 // Create a new pending action item
-router.post('/pending', authenticateSupabaseUser, async (req, res) => {
+router.post('/pending', authenticateSupabaseUser, ...actionItemCreate, async (req, res) => {
   try {
     const { meetingId, clientId, actionText, priority } = req.body;
     const userId = req.user.id;

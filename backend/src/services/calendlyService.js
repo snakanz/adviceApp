@@ -2,6 +2,7 @@ const { getSupabase } = require('../lib/supabase');
 const axios = require('axios');
 const clientExtractionService = require('./clientExtraction');
 const { checkUserHasTranscriptionAccess } = require('../utils/subscriptionCheck');
+const { decrypt, encrypt } = require('../utils/encryption');
 
 // Recall.ai region configuration - EU Frankfurt for GDPR compliance
 const RECALL_REGION = process.env.RECALL_REGION || 'eu-central-1';
@@ -827,14 +828,14 @@ class CalendlyService {
           try {
             const CalendlyOAuthService = require('./calendlyOAuth');
             const oauthService = new CalendlyOAuthService();
-            const refreshedTokens = await oauthService.refreshAccessToken(connection.refresh_token);
+            const refreshedTokens = await oauthService.refreshAccessToken(decrypt(connection.refresh_token));
 
-            // Update tokens in database
+            // Update tokens in database (encrypted at rest)
             const { error: updateError } = await getSupabase()
               .from('calendar_connections')
               .update({
-                access_token: refreshedTokens.access_token,
-                refresh_token: refreshedTokens.refresh_token || connection.refresh_token,
+                access_token: encrypt(refreshedTokens.access_token),
+                refresh_token: refreshedTokens.refresh_token ? encrypt(refreshedTokens.refresh_token) : connection.refresh_token,
                 token_expires_at: refreshedTokens.expires_in
                   ? new Date(Date.now() + refreshedTokens.expires_in * 1000).toISOString()
                   : null,
@@ -854,12 +855,12 @@ class CalendlyService {
           } catch (refreshError) {
             console.error('Error refreshing Calendly token:', refreshError);
             // Fall back to existing token
-            return connection.access_token;
+            return decrypt(connection.access_token);
           }
         }
       }
 
-      return connection.access_token;
+      return decrypt(connection.access_token);
     } catch (error) {
       console.error('Error fetching Calendly access token:', error);
       return null;

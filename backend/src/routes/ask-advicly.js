@@ -3,6 +3,7 @@ const { isSupabaseAvailable, getSupabase } = require('../lib/supabase');
 const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 const { generateMeetingSummary, generateChatResponse } = require('../services/openai');
 const clientDocumentsService = require('../services/clientDocuments');
+const { askAdviclyMessage, conversationUpdate } = require('../middleware/validators');
 
 // Generate proactive insights based on meeting content
 function generateProactiveInsights(meetingData) {
@@ -253,7 +254,7 @@ router.post('/threads', authenticateSupabaseUser, async (req, res) => {
 });
 
 // Send a message to a thread
-router.post('/threads/:threadId/messages', authenticateSupabaseUser, async (req, res) => {
+router.post('/threads/:threadId/messages', authenticateSupabaseUser, ...askAdviclyMessage, async (req, res) => {
   try {
     const advisorId = req.user.id;
     const { threadId } = req.params;
@@ -822,7 +823,7 @@ You may discuss any client or provide cross-client insights.`;
 });
 
 // Update thread title
-router.patch('/threads/:threadId', authenticateSupabaseUser, async (req, res) => {
+router.patch('/threads/:threadId', authenticateSupabaseUser, ...conversationUpdate, async (req, res) => {
   try {
     const advisorId = req.user.id;
     const { threadId } = req.params;
@@ -868,7 +869,7 @@ router.patch('/threads/:threadId', authenticateSupabaseUser, async (req, res) =>
 
 
 // SSE streaming endpoint for floating widget — sends progress stages + streamed AI response
-router.post('/threads/:threadId/messages/stream', authenticateSupabaseUser, async (req, res) => {
+router.post('/threads/:threadId/messages/stream', authenticateSupabaseUser, ...askAdviclyMessage, async (req, res) => {
   const { threadId } = req.params;
   const advisorId = req.user.id;
   const { content, contextType, contextData, mentionedClients } = req.body;

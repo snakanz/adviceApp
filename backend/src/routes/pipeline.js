@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const { isSupabaseAvailable } = require('../lib/supabase');
 const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
+const { pipelineTask, pipelinePriority } = require('../middleware/validators');
 
 // Get pipeline data grouped by month
 router.get('/', authenticateSupabaseUser, async (req, res) => {
@@ -195,7 +196,7 @@ router.get('/', authenticateSupabaseUser, async (req, res) => {
 });
 
 // Update client pipeline data (simplified - only priority level)
-router.put('/client/:clientId', authenticateSupabaseUser, async (req, res) => {
+router.put('/client/:clientId', authenticateSupabaseUser, ...pipelinePriority, async (req, res) => {
   try {
     const userId = req.user.id;
     const { clientId } = req.params;
@@ -308,7 +309,7 @@ router.get('/client/:clientId/todos', authenticateSupabaseUser, async (req, res)
 });
 
 // Create a new todo for a client
-router.post('/client/:clientId/todos', authenticateSupabaseUser, async (req, res) => {
+router.post('/client/:clientId/todos', authenticateSupabaseUser, ...pipelineTask, async (req, res) => {
   try {
     const userId = req.user.id;
     const { clientId } = req.params;
@@ -364,7 +365,7 @@ router.post('/client/:clientId/todos', authenticateSupabaseUser, async (req, res
 });
 
 // Update a todo
-router.put('/todos/:todoId', authenticateSupabaseUser, async (req, res) => {
+router.put('/todos/:todoId', authenticateSupabaseUser, ...pipelineTask, async (req, res) => {
   try {
     const userId = req.user.id;
     const { todoId } = req.params;

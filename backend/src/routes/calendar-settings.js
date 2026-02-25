@@ -3,6 +3,8 @@ const router = express.Router();
 const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 const WebhookHealthService = require('../services/webhookHealthService');
+const { encrypt, decrypt } = require('../utils/encryption');
+const { logAudit, getClientIp } = require('../services/auditLogger');
 
 /**
  * GET /api/calendar-connections
@@ -243,7 +245,7 @@ router.delete('/:id', authenticateSupabaseUser, async (req, res) => {
 
         if (!fullConnError && fullConnection?.access_token && fullConnection?.calendly_organization_uri) {
           const CalendlyService = require('../services/calendlyService');
-          const calendlyService = new CalendlyService(fullConnection.access_token);
+          const calendlyService = new CalendlyService(decrypt(fullConnection.access_token));
           const organizationUri = fullConnection.calendly_organization_uri;
 
           // List all webhook subscriptions for this organization
@@ -319,6 +321,7 @@ router.delete('/:id', authenticateSupabaseUser, async (req, res) => {
     }
 
     console.log(`✅ Calendar connection ${connectionId} (${connection.provider}) disconnected for user ${userId}`);
+    logAudit(userId, 'calendar.disconnect', 'calendar_connection', { resourceId: connectionId, details: { provider: connection.provider }, ipAddress: getClientIp(req) });
 
     res.json({
       success: true,
@@ -459,7 +462,7 @@ router.patch('/:id/toggle-sync', authenticateSupabaseUser, async (req, res) => {
         try {
           console.log('🔄 Triggering Calendly sync in background...');
           const CalendlyService = require('../services/calendlyService');
-          const calendlyService = new CalendlyService(data.access_token);
+          const calendlyService = new CalendlyService(decrypt(data.access_token));
 
           // Don't await - let it run in background
           calendlyService.syncMeetingsToDatabase(userId).then(syncResult => {
@@ -728,7 +731,7 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
     // Note: Column is provider_account_email, not account_email
     // webhook_status will be updated after webhook creation attempt
     const connectionData = {
-      access_token: api_token.trim(),
+      access_token: encrypt(api_token.trim()),
       is_active: true,
       calendly_user_uri: calendlyUserUri,
       calendly_organization_uri: calendlyOrganizationUri,
@@ -790,6 +793,7 @@ router.post('/calendly', authenticateSupabaseUser, async (req, res) => {
       }
 
       console.log(`✅ Calendly connected successfully for user ${userId}`);
+      logAudit(userId, 'calendar.connect', 'calendar_connection', { details: { provider: 'calendly' }, ipAddress: getClientIp(req) });
       connectionResult = data;
     }
 
@@ -927,7 +931,7 @@ router.post('/calendly/test-webhook', authenticateSupabaseUser, async (req, res)
           error: 'No API token provided and no active Calendly connection found'
         });
       }
-      tokenToTest = connection.access_token;
+      tokenToTest = decrypt(connection.access_token);
     }
 
     console.log(`🧪 Testing webhook capability for user ${userId}...`);

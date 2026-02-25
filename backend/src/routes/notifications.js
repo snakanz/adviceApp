@@ -2,11 +2,12 @@ const express = require('express');
 const { getSupabase, isSupabaseAvailable } = require('../lib/supabase');
 const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
 const pushNotificationService = require('../services/pushNotificationService');
+const { notificationSubscribe } = require('../middleware/validators');
 
 const router = express.Router();
 
 // Subscribe to push notifications
-router.post('/subscribe', authenticateSupabaseUser, async (req, res) => {
+router.post('/subscribe', authenticateSupabaseUser, ...notificationSubscribe, async (req, res) => {
   try {
     const userId = req.user.id;
     const { subscription } = req.body;

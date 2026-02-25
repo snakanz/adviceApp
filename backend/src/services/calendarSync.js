@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const { getSupabase } = require('../lib/supabase');
+const { decrypt } = require('../utils/encryption');
 
 // Recall.ai region configuration - EU Frankfurt for GDPR compliance
 const RECALL_REGION = process.env.RECALL_REGION || 'eu-central-1';
@@ -145,10 +146,10 @@ class CalendarSyncService {
   async fetchGoogleCalendarEvents(connection, timeMin, includeDeleted, isExpired) {
     console.log('📅 Fetching events from Google Calendar...');
 
-    // Set up OAuth client
+    // Set up OAuth client (decrypt tokens from database)
     this.oauth2Client.setCredentials({
-      access_token: connection.access_token,
-      refresh_token: connection.refresh_token,
+      access_token: decrypt(connection.access_token),
+      refresh_token: decrypt(connection.refresh_token),
       expiry_date: connection.token_expires_at ? new Date(connection.token_expires_at).getTime() : null
     });
 
@@ -207,7 +208,7 @@ class CalendarSyncService {
     if (isExpired && connection.refresh_token) {
       console.log('🔄 Refreshing expired Microsoft access token...');
       try {
-        const refreshedTokens = await microsoftService.refreshAccessToken(connection.refresh_token);
+        const refreshedTokens = await microsoftService.refreshAccessToken(decrypt(connection.refresh_token));
 
         // Update tokens in database
         await getSupabase()
@@ -230,7 +231,7 @@ class CalendarSyncService {
     }
 
     // Get Microsoft Graph client
-    const client = microsoftService.getGraphClient(connection.access_token);
+    const client = microsoftService.getGraphClient(decrypt(connection.access_token));
 
     console.log(`📅 Fetching Microsoft events from ${timeMin.toISOString()} to future...`);
 

@@ -12,6 +12,7 @@
  */
 
 const { getSupabase } = require('../lib/supabase');
+const logger = require('../utils/logger');
 
 class UserService {
   /**
@@ -29,7 +30,7 @@ class UserService {
       throw new Error('Invalid Supabase user object');
     }
 
-    console.log(`🔍 UserService: Checking if user exists: ${supabaseUser.email}`);
+    logger.log(`🔍 UserService: Checking if user exists: ${supabaseUser.email}`);
 
     // CRITICAL: Use service role client to bypass RLS
     // This allows us to find existing users by email during OAuth flows
@@ -44,18 +45,18 @@ class UserService {
 
     // User exists - return them
     if (existingUser) {
-      console.log(`✅ UserService: Found existing user: ${existingUser.id}`);
+      logger.log(`✅ UserService: Found existing user: ${existingUser.id}`);
       return existingUser;
     }
 
     // Check for other errors (not "no rows found")
     if (findError && findError.code !== 'PGRST116') {
-      console.error('❌ UserService: Database error checking user:', findError);
+      logger.error('❌ UserService: Database error checking user:', findError);
       throw new Error(`Database error: ${findError.message}`);
     }
 
     // User doesn't exist - create them
-    console.log(`📝 UserService: Creating new user: ${supabaseUser.email}`);
+    logger.log(`📝 UserService: Creating new user: ${supabaseUser.email}`);
 
     // For new users from OAuth, we need to get their Supabase Auth UUID
     // Check if this is a Google/Microsoft provider ID (numeric string) vs Supabase UUID
@@ -66,13 +67,13 @@ class UserService {
     if (isProviderID) {
       // This is a provider ID (e.g., Google: "114999123539570830796")
       // We need to get the actual Supabase Auth UUID for this user
-      console.log(`🔍 UserService: Provider ID detected, fetching Supabase Auth UUID for: ${supabaseUser.email}`);
+      logger.log(`🔍 UserService: Provider ID detected, fetching Supabase Auth UUID for: ${supabaseUser.email}`);
 
       // Query Supabase Auth to get the actual user UUID
       const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers();
 
       if (authError) {
-        console.error('❌ UserService: Error fetching auth users:', authError);
+        logger.error('❌ UserService: Error fetching auth users:', authError);
         throw new Error(`Failed to fetch auth user: ${authError.message}`);
       }
 
@@ -81,9 +82,9 @@ class UserService {
 
       if (authUser) {
         actualUserId = authUser.id;
-        console.log(`✅ UserService: Found Supabase Auth UUID: ${actualUserId}`);
+        logger.log(`✅ UserService: Found Supabase Auth UUID: ${actualUserId}`);
       } else {
-        console.error(`❌ UserService: No Supabase Auth user found for email: ${supabaseUser.email}`);
+        logger.error(`❌ UserService: No Supabase Auth user found for email: ${supabaseUser.email}`);
         throw new Error(`No Supabase Auth user found for email: ${supabaseUser.email}`);
       }
     }
@@ -105,11 +106,11 @@ class UserService {
       .single();
 
     if (createError) {
-      console.error('❌ UserService: Error creating user:', createError);
+      logger.error('❌ UserService: Error creating user:', createError);
       throw new Error(`Failed to create user: ${createError.message}`);
     }
 
-    console.log(`✅ UserService: New user created: ${newUser.id}`);
+    logger.log(`✅ UserService: New user created: ${newUser.id}`);
 
     // Ensure user has a tenant
     await this.ensureUserHasTenant(newUser);
@@ -130,11 +131,11 @@ class UserService {
 
     // User already has a tenant
     if (user.tenant_id) {
-      console.log(`✅ UserService: User already has tenant: ${user.tenant_id}`);
+      logger.log(`✅ UserService: User already has tenant: ${user.tenant_id}`);
       return user.tenant_id;
     }
 
-    console.log(`📝 UserService: Creating default tenant for user: ${user.id}`);
+    logger.log(`📝 UserService: Creating default tenant for user: ${user.id}`);
 
     // CRITICAL: Use service role client to bypass RLS
     const supabase = getSupabase();
@@ -152,11 +153,11 @@ class UserService {
       .single();
 
     if (tenantError) {
-      console.error('❌ UserService: Error creating tenant:', tenantError);
+      logger.error('❌ UserService: Error creating tenant:', tenantError);
       throw new Error(`Failed to create tenant: ${tenantError.message}`);
     }
 
-    console.log(`✅ UserService: Tenant created: ${newTenant.id}`);
+    logger.log(`✅ UserService: Tenant created: ${newTenant.id}`);
 
     // Update user with tenant_id
     const { error: updateError } = await supabase
@@ -165,7 +166,7 @@ class UserService {
       .eq('id', user.id);
 
     if (updateError) {
-      console.warn('⚠️ UserService: Warning updating user tenant_id:', updateError);
+      logger.warn('⚠️ UserService: Warning updating user tenant_id:', updateError);
       // Don't throw - tenant was created successfully
     }
 

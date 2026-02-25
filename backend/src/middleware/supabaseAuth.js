@@ -6,6 +6,8 @@
 // ============================================================================
 
 const { createUserClient, verifySupabaseToken } = require('../lib/supabase');
+const logger = require('../utils/logger');
+const { logAudit, getClientIp } = require('../services/auditLogger');
 
 /**
  * Middleware to authenticate requests using Supabase Auth
@@ -38,7 +40,8 @@ const authenticateSupabaseUser = async (req, res, next) => {
     const { user, error: authError } = await verifySupabaseToken(token);
 
     if (authError || !user) {
-      console.error('Token verification failed:', authError?.message);
+      logger.error('Token verification failed:', authError?.message);
+      logAudit(null, 'auth.failure', 'auth', { details: { reason: authError?.message }, ipAddress: getClientIp(req) });
       return res.status(401).json({
         error: 'Invalid token',
         message: 'The provided token is invalid or expired'
@@ -59,11 +62,11 @@ const authenticateSupabaseUser = async (req, res, next) => {
     req.supabase = createUserClient(token);
 
     // Log successful authentication (for debugging)
-    console.log(`✅ Authenticated user: ${user.email} (${user.id})`);
+    logger.log(`✅ Authenticated user: ${user.email} (${user.id})`);
 
     next();
   } catch (error) {
-    console.error('Authentication error:', error);
+    logger.error('Authentication error:', error);
     return res.status(500).json({
       error: 'Authentication failed',
       message: 'An error occurred while verifying your token'
@@ -119,7 +122,7 @@ const optionalSupabaseAuth = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Optional auth error:', error);
+    logger.error('Optional auth error:', error);
     // Don't fail the request, just continue without user context
     req.user = null;
     req.supabase = null;
@@ -148,7 +151,7 @@ const requireOnboarding = async (req, res, next) => {
       .single();
 
     if (userError) {
-      console.error('Error checking onboarding status:', userError);
+      logger.error('Error checking onboarding status:', userError);
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to check onboarding status'
@@ -173,7 +176,7 @@ const requireOnboarding = async (req, res, next) => {
 
     if (subError && subError.code !== 'PGRST116') {
       // PGRST116 is "not found" - other errors are real problems
-      console.error('Error checking subscription:', subError);
+      logger.error('Error checking subscription:', subError);
       return res.status(500).json({
         error: 'Database error',
         message: 'Failed to check subscription status'
@@ -182,7 +185,7 @@ const requireOnboarding = async (req, res, next) => {
 
     // Check if subscription exists and is active
     if (!subscription) {
-      console.warn(`⚠️  User ${req.user.id} has no subscription`);
+      logger.warn(`⚠️  User ${req.user.id} has no subscription`);
       return res.status(403).json({
         error: 'No active subscription',
         message: 'Please complete your subscription to access the app',
@@ -193,7 +196,7 @@ const requireOnboarding = async (req, res, next) => {
     // Check subscription status
     const validStatuses = ['active', 'trialing'];
     if (!validStatuses.includes(subscription.status)) {
-      console.warn(`⚠️  User ${req.user.id} has invalid subscription status: ${subscription.status}`);
+      logger.warn(`⚠️  User ${req.user.id} has invalid subscription status: ${subscription.status}`);
       return res.status(403).json({
         error: 'Subscription not active',
         message: 'Your subscription is not active. Please renew your subscription.',
@@ -205,7 +208,7 @@ const requireOnboarding = async (req, res, next) => {
     if (subscription.status === 'trialing' && subscription.trial_ends_at) {
       const trialEndDate = new Date(subscription.trial_ends_at);
       if (trialEndDate < new Date()) {
-        console.warn(`⚠️  User ${req.user.id} trial has expired`);
+        logger.warn(`⚠️  User ${req.user.id} trial has expired`);
         return res.status(403).json({
           error: 'Trial expired',
           message: 'Your trial has expired. Please upgrade to continue.',
@@ -216,7 +219,7 @@ const requireOnboarding = async (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Onboarding check error:', error);
+    logger.error('Onboarding check error:', error);
     return res.status(500).json({
       error: 'Server error',
       message: 'Failed to verify onboarding status'
@@ -257,7 +260,7 @@ const extractUserId = (req, res, next) => {
 
     next();
   } catch (error) {
-    console.error('Token extraction error:', error);
+    logger.error('Token extraction error:', error);
     return res.status(401).json({ 
       error: 'Invalid token',
       message: 'Failed to extract user information from token'
