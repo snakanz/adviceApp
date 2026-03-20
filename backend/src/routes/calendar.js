@@ -1009,7 +1009,7 @@ router.post('/generate-summary-stream', authenticateSupabaseUser, async (req, re
     // Stream AI-generated content via Gemini
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     const streamGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const streamModel = streamGenAI.getGenerativeModel({ model: 'gemini-2.0-flash', generationConfig: { maxOutputTokens: 3000 } });
+    const streamModel = streamGenAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite', generationConfig: { maxOutputTokens: 3000 } });
 
     const promptText = messages.map(m => m.role === 'system' ? `Instructions: ${m.content}` : m.content).join('\n\n');
     const streamResult = await streamModel.generateContentStream(promptText);
@@ -1161,7 +1161,7 @@ router.post('/meetings/:id/auto-generate-summaries', authenticateSupabaseUser, a
 
           const { GoogleGenerativeAI } = require('@google/generative-ai');
           const emailGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-          const emailModel = emailGenAI.getGenerativeModel({ model: 'gemini-2.0-flash', generationConfig: { maxOutputTokens: 3000 } });
+          const emailModel = emailGenAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite', generationConfig: { maxOutputTokens: 3000 } });
 
           const emailPrompt = prepared.messages.map(m => m.role === 'system' ? `Instructions: ${m.content}` : m.content).join('\n\n');
           const emailResult = await emailModel.generateContent(emailPrompt);
@@ -1651,7 +1651,7 @@ router.post('/meetings/:meetingId/transcript', authenticateSupabaseUser, async (
               const emailPromptEngine = require('../services/emailPromptEngine');
               const { GoogleGenerativeAI } = require('@google/generative-ai');
               const bgGenAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-              const bgEmailModel = bgGenAI.getGenerativeModel({ model: 'gemini-2.0-flash', generationConfig: { maxOutputTokens: 3000 } });
+              const bgEmailModel = bgGenAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite', generationConfig: { maxOutputTokens: 3000 } });
 
               const prepared = await emailPromptEngine.prepareEmailGeneration({
                 supabase: req.supabase,
