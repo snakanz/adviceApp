@@ -280,7 +280,7 @@ async function updateClientSummary(supabase, userId, clientId) {
     }
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite', generationConfig: { maxOutputTokens: 200 } });
+    const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { maxOutputTokens: 200 } });
 
     // Get client info
     const { data: client, error: clientError } = await supabase
@@ -459,7 +459,7 @@ async function updatePipelineNextSteps(supabase, userId, clientId) {
 
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite', generationConfig: { maxOutputTokens: 150 } });
+    const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash', generationConfig: { maxOutputTokens: 150 } });
 
     // Get client info
     const { data: client, error: clientError } = await supabase
