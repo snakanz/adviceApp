@@ -274,12 +274,13 @@ async function updateClientSummary(supabase, userId, clientId) {
   console.log(`Client ID: ${clientId}, User ID: ${userId}`);
 
   try {
-    if (!process.env.OPENAI_API_KEY) {
-      console.error('❌ OPENAI_API_KEY not set');
+    if (!process.env.GEMINI_API_KEY) {
+      console.error('❌ GEMINI_API_KEY not set');
       return null;
     }
-    const OpenAI = require('openai');
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash', generationConfig: { maxOutputTokens: 200 } });
 
     // Get client info
     const { data: client, error: clientError } = await supabase
@@ -390,25 +391,11 @@ ${pendingActions.length > 0 ? 'IMPORTANT: Mention the most critical pending acti
 
 Keep it professional, factual, and under 100 words. This should represent the OVERALL client relationship, not just the latest meeting.`;
 
-    console.log(`🤖 Calling OpenAI API...`);
+    console.log(`🤖 Calling Gemini API...`);
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a professional financial advisor assistant. Generate concise, factual client summaries that aggregate information across all meetings.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.5,
-      max_tokens: 200
-    });
-
-    const summary = completion.choices[0].message.content.trim();
+    const fullPrompt = `You are a professional financial advisor assistant. Generate concise, factual client summaries that aggregate information across all meetings.\n\n${prompt}`;
+    const result = await geminiModel.generateContent(fullPrompt);
+    const summary = result.response.text().trim();
     console.log(`✅ Generated summary: ${summary.substring(0, 80)}...`);
 
     // Store updated summary
@@ -465,13 +452,14 @@ async function updatePipelineNextSteps(supabase, userId, clientId) {
 
     console.log(`✅ Found ${businessTypes.length} business types`);
 
-    if (!process.env.OPENAI_API_KEY) {
-      console.error('❌ OPENAI_API_KEY not set');
-      return { success: false, error: 'OpenAI API key not configured' };
+    if (!process.env.GEMINI_API_KEY) {
+      console.error('❌ GEMINI_API_KEY not set');
+      return { success: false, error: 'Gemini API key not configured' };
     }
 
-    const OpenAI = require('openai');
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const { GoogleGenerativeAI } = require('@google/generative-ai');
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const geminiModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash', generationConfig: { maxOutputTokens: 150 } });
 
     // Get client info
     const { data: client, error: clientError } = await supabase
@@ -548,25 +536,11 @@ Generate a concise, actionable summary that explains:
 
 Be specific and actionable. Focus on what needs to happen NOW to move this forward. Maximum 3 sentences.`;
 
-    console.log(`🤖 Calling OpenAI API...`);
+    console.log(`🤖 Calling Gemini API...`);
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a professional financial advisor assistant. Generate concise, actionable next steps for closing business deals, incorporating context from all client meetings.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      temperature: 0.5,
-      max_tokens: 150
-    });
-
-    const summary = completion.choices[0].message.content.trim();
+    const fullPrompt = `You are a professional financial advisor assistant. Generate concise, actionable next steps for closing business deals, incorporating context from all client meetings.\n\n${prompt}`;
+    const result = await geminiModel.generateContent(fullPrompt);
+    const summary = result.response.text().trim();
     console.log(`✅ Generated summary: ${summary.substring(0, 80)}...`);
 
     // Store updated pipeline summary (include user_id for RLS)
