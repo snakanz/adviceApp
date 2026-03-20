@@ -197,8 +197,8 @@ export default function Layout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 ml-0 sm:ml-64 bg-gray-50 min-h-screen pt-18">
-        <div className="p-4 sm:p-6">
+      <main className="flex-1 ml-0 sm:ml-64 bg-gray-50 min-h-screen pt-[72px]">
+        <div className="p-4 sm:p-6 bg-gray-50 min-h-[calc(100vh-72px)]">
           <Outlet />
         </div>
       </main>

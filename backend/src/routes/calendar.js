@@ -233,7 +233,7 @@ router.post('/meetings/:eventId/notes', authenticateToken, async (req, res) => {
         const { notes } = req.body;
         const userId = req.user.id;
 
-        // Update meeting with manual notes
+        // Update meeting with manual notes (no AI regeneration — use generate-summary endpoint to refresh)
         const meeting = await prisma.meeting.update({
             where: {
                 googleEventId: eventId,
@@ -241,8 +241,6 @@ router.post('/meetings/:eventId/notes', authenticateToken, async (req, res) => {
             },
             data: {
                 notes,
-                // Generate summary if notes are provided
-                summary: notes ? await openai.generateMeetingSummary(notes, 'standard') : undefined
             }
         });
 
@@ -301,40 +299,14 @@ router.post('/meetings/:id/generate-summary', authenticateToken, async (req, res
   }
 });
 
-// Improved AI summary email route for Advicly
-const OpenAI = require('openai');
+// Follow-up email generation route for Advicly
 router.post('/generate-summary', async (req, res) => {
   const { transcript } = req.body;
   if (!transcript) return res.status(400).json({ error: 'Transcript is required' });
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-  const prompt = `You are an assistant to a financial advisor.
-
-Based strictly on the following client meeting transcript, generate a professional follow-up email. Do **not** make up any facts. Only include points that were clearly stated by either the advisor or the client during the meeting.
-
-Instructions:
-- Begin with a polite greeting (e.g., "Hi [Client], it was great speaking with you today.")
-- Recap the **exact** points discussed in the meeting (e.g., pension value, contribution levels, mortgage, expenses)
-- Clearly outline the agreed next steps (e.g., sending a Letter of Authority, requesting pension statements)
-- Maintain a confident and helpful tone suitable for a financial advisor
-- End with a friendly and professional sign-off
-
-⚠️ If a topic (e.g., expenses, ISA, debt) is not mentioned in the transcript, do **not** include it in the email. Do not guess or assume anything that wasn't said.
-
-Transcript:
-${transcript}
-
-Respond with the **email body only** — no headers or subject lines.`;
-
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo-16k',
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: 800,
-      temperature: 0.7,
-    });
-    return res.json({ summary: completion.choices[0].message.content });
+    const summary = await openai.generateFollowUpEmail(transcript);
+    return res.json({ summary });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'Failed to generate summary' });
