@@ -1,30 +1,73 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
+
+import remarkGfm from 'remark-gfm';
+import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui/button';
 import { Card, CardContent } from '../components/ui/card';
-import { Avatar, AvatarFallback } from '../components/ui/avatar';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuTrigger 
-} from '../components/ui/dropdown-menu';
+
 import { cn } from '../lib/utils';
-import { 
-  Calendar, 
-  MoreVertical, 
-  Copy, 
-  Share, 
+import {
+  Calendar,
   Clock,
-  Users,
-  FileText
+  FileText,
+  MessageSquare,
+  Upload,
+  Check,
+  Mail,
+  Edit,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  CheckCircle2,
+  X,
+  Edit2,
+  Plus,
+  Save,
+  Sparkles,
+  Video,
+  ExternalLink,
+  Bot,
+  AlertCircle,
+  Copy,
+  Send,
+  MapPin,
+  CheckSquare,
+  Loader2,
+  Shield,
+  ClipboardCheck,
+  RefreshCw
 } from 'lucide-react';
 import AIAdjustmentDialog from '../components/AIAdjustmentDialog';
 import { adjustMeetingSummary } from '../services/api';
+import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import GoogleIcon from '../components/GoogleIcon';
 import OutlookIcon from '../components/OutlookIcon';
+import CalendlyIcon from '../components/CalendlyIcon';
+import DocumentsTab from '../components/DocumentsTab';
+import { getRecallBotStatus, getStatusColor, getStatusIcon, getMeetingUrl, hasValidMeetingUrl, getMeetingPlatform, getPlatformDisplayName, VIDEO_PLATFORM_LOGOS } from '../utils/recallBotStatus';
+import EditMeetingDialog from '../components/EditMeetingDialog';
+import LinkClientDialog from '../components/LinkClientDialog';
 
-const API_URL = process.env.REACT_APP_API_URL;
+import DataImport from '../components/DataImport';
+import InlineChatWidget from '../components/InlineChatWidget';
+import { Avatar, AvatarFallback } from '../components/ui/avatar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
+import { Switch } from '../components/ui/switch';
+import ActionItemCard from '../components/ActionItemCard';
+import logger from '../utils/logger';
+
+const API_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
+
+// Priority options for dropdown
+const priorityOptions = [
+  { value: 1, label: 'Urgent', icon: '🔴' },
+  { value: 2, label: 'High', icon: '🟠' },
+  { value: 3, label: 'Medium', icon: '🟡' },
+  { value: 4, label: 'Low', icon: '🟢' }
+];
 
 const formatDate = (dateTimeStr) => {
   const date = new Date(dateTimeStr);
@@ -36,50 +79,240 @@ const formatDate = (dateTimeStr) => {
   });
 };
 
-const groupMeetingsByDate = (meetings) => {
-  const grouped = {};
-  meetings.forEach(meeting => {
-    const dateKey = formatDate(meeting.start?.dateTime);
-    if (!grouped[dateKey]) {
-      grouped[dateKey] = [];
-    }
-    grouped[dateKey].push(meeting);
-  });
-  return grouped;
-};
-
 function getMeetingSource(meeting) {
-  if (meeting.hangoutLink || meeting.conferenceData) return 'google';
-  if (meeting.outlookEventId) return 'outlook';
-  return 'default';
+  // Check the source field directly (simplified)
+  if (meeting.source) {
+    switch (meeting.source.toLowerCase()) {
+      case 'google':
+        return 'Google Calendar';
+      case 'calendly':
+        return 'Calendly';
+      case 'outlook':
+        return 'Outlook';
+      case 'manual':
+        return 'Manual Upload';
+      default:
+        return meeting.source;
+    }
+  }
+
+  // For now, default to Calendly since we're focusing on that
+  return 'Calendly';
 }
 
 function formatMeetingTime(meeting) {
-  if (!meeting?.start?.dateTime || !meeting?.end?.dateTime) return '';
-  const start = new Date(meeting.start.dateTime);
-  const end = new Date(meeting.end.dateTime);
-  return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} to ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  const start = new Date(meeting.start?.dateTime || meeting.startTime || meeting.starttime);
+  return start.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 }
 
-function renderParticipants(meeting) {
-  if (!meeting?.attendees || !Array.isArray(meeting.attendees)) return null;
-  return meeting.attendees.slice(0, 3).map((att, idx) => (
-    <div key={att.email || idx} className="relative" title={att.displayName || att.email}>
-      <Avatar className={cn(
-        "w-8 h-8 text-sm font-medium bg-gray-100 text-gray-700 border-2 border-white",
-        idx > 0 && "-ml-1"
-      )}>
-        <AvatarFallback className="bg-gray-100 text-gray-700 text-sm font-medium">
-          {att.displayName ? att.displayName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2) : (att.email ? att.email[0].toUpperCase() : '?')}
-        </AvatarFallback>
-      </Avatar>
-    </div>
-  ));
+// Extract attendee information from meeting data
+function extractAttendees(meeting, currentUserEmail) {
+  try {
+    let attendees = meeting.attendees;
+    if (typeof attendees === 'string') {
+      attendees = JSON.parse(attendees);
+    }
+
+    if (!Array.isArray(attendees)) {
+      return [];
+    }
+
+    // Filter out the current user and return attendee info
+    return attendees
+      .filter(attendee => attendee.email && attendee.email !== currentUserEmail)
+      .map(attendee => ({
+        email: attendee.email,
+        name: attendee.displayName || attendee.name || attendee.email,
+        initials: getInitials(attendee.displayName || attendee.name || attendee.email)
+      }));
+  } catch (e) {
+    logger.log('Could not parse attendees for meeting:', meeting.id);
+    return [];
+  }
+}
+
+// Get initials from a name or email
+function getInitials(nameOrEmail) {
+  if (!nameOrEmail) return '?';
+
+  // If it's an email, extract the part before @
+  if (nameOrEmail.includes('@')) {
+    nameOrEmail = nameOrEmail.split('@')[0];
+  }
+
+  // Split by spaces and take first letter of each word
+  const words = nameOrEmail.split(/[\s._-]+/).filter(word => word.length > 0);
+  if (words.length === 0) return '?';
+
+  if (words.length === 1) {
+    return words[0].charAt(0).toUpperCase();
+  }
+
+  return (words[0].charAt(0) + words[words.length - 1].charAt(0)).toUpperCase();
+}
+
+// Helper function to get meeting card glow style - NO GLOW anymore
+function getMeetingCardGlowStyle(meeting) {
+  // Removed all glow effects per user request
+  return '';
+}
+
+// Helper function to get bot status badge for past meetings
+// Returns: { label, color, bgColor, icon } or null for future meetings
+function getBotStatusBadge(meeting, calendarConnection) {
+  const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
+  const calendarEndTimePassed = endTime && endTime < new Date();
+
+  // For Recall meetings, check if the call has actually completed
+  // (has recall_bot_id AND either status is 'completed' or has transcript)
+  const hasRecallCompleted = meeting?.recall_bot_id &&
+    (meeting?.recall_status === 'completed' || !!meeting?.transcript);
+
+  // Meeting is "past" if calendar end time passed OR Recall has completed
+  const isMeetingPast = calendarEndTimePassed || hasRecallCompleted;
+
+  // Only show badges for past/completed meetings
+  if (!isMeetingPast) {
+    return null;
+  }
+
+  // Check for manual transcript upload (has transcript but no recall_bot_id OR transcript_source is 'manual')
+  if (meeting?.transcript && (!meeting?.recall_bot_id || meeting?.transcript_source === 'manual')) {
+    return {
+      label: 'Manual Upload',
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-50 dark:bg-blue-950/30',
+      status: 'manual'
+    };
+  }
+
+  // Check if transcription was enabled for this calendar connection
+  const transcriptionEnabled = calendarConnection?.transcription_enabled !== false;
+
+  // If bot wasn't connected/enabled for this meeting
+  if (!meeting?.recall_bot_id && !transcriptionEnabled) {
+    return {
+      label: 'Bot Not Connected',
+      color: 'text-gray-500',
+      bgColor: 'bg-gray-100 dark:bg-gray-800/30',
+      status: 'not_connected'
+    };
+  }
+
+  // If meeting has no recall_bot_id but transcription is enabled, bot wasn't scheduled
+  if (!meeting?.recall_bot_id) {
+    return {
+      label: 'Bot Not Connected',
+      color: 'text-gray-500',
+      bgColor: 'bg-gray-100 dark:bg-gray-800/30',
+      status: 'not_connected'
+    };
+  }
+
+  // Bot was scheduled - check recall_status and recall_error for outcome
+  const recallStatus = meeting?.recall_status?.toLowerCase() || '';
+  const recallError = meeting?.recall_error?.toLowerCase() || '';
+
+  // Check for waiting room timeout or no participants first (before checking transcript)
+  // This catches cases where bot was stuck in waiting room and never admitted
+  const isWaitingRoomTimeout = recallError.includes('waiting_room') || recallStatus === 'waiting_room_timeout';
+  const isNoParticipants = recallStatus.includes('no_participant') || recallStatus === 'empty_call' || recallError.includes('no_participant');
+
+  if (isWaitingRoomTimeout || isNoParticipants) {
+    return {
+      label: 'No Participants',
+      color: 'text-yellow-600',
+      bgColor: 'bg-yellow-50 dark:bg-yellow-950/30',
+      status: 'no_participants'
+    };
+  }
+
+  // Successful completion with transcript
+  if (meeting?.transcript && (recallStatus === 'completed' || recallStatus === 'done')) {
+    return {
+      label: 'Complete',
+      color: 'text-green-600',
+      bgColor: 'bg-green-50 dark:bg-green-950/30',
+      status: 'complete'
+    };
+  }
+
+  // No recording captured
+  if (recallStatus.includes('no_recording') || recallStatus === 'recording_failed' || recallStatus === 'no_audio') {
+    return {
+      label: 'No Recording',
+      color: 'text-red-600',
+      bgColor: 'bg-red-50 dark:bg-red-950/30',
+      status: 'no_recording'
+    };
+  }
+
+  // Bot was scheduled but failed (has recall_bot_id but no transcript and not successful status)
+  if (!meeting?.transcript) {
+    // Check for specific failure statuses
+    if (recallStatus === 'failed' || recallStatus === 'error' || recallStatus === 'timeout') {
+      return {
+        label: 'Bot Failed',
+        color: 'text-red-600',
+        bgColor: 'bg-red-50 dark:bg-red-950/30',
+        status: 'failed'
+      };
+    }
+    // Generic no transcript case
+    return {
+      label: 'No Transcript',
+      color: 'text-gray-500',
+      bgColor: 'bg-gray-100 dark:bg-gray-800/30',
+      status: 'no_transcript'
+    };
+  }
+
+  // Fallback - has transcript from Recall
+  return {
+    label: 'Complete',
+    color: 'text-green-600',
+    bgColor: 'bg-green-50 dark:bg-green-950/30',
+    status: 'complete'
+  };
+}
+
+// Helper function to determine if bot toggle should be shown
+// Hide toggle if meeting is completed with transcript, or if meeting is in the past
+function shouldShowBotToggle(meeting) {
+  const endTime = meeting?.endtime ? new Date(meeting.endtime) : null;
+  const isFutureMeeting = endTime && endTime > new Date();
+
+  // Only show toggle for future meetings
+  if (!isFutureMeeting) {
+    return false;
+  }
+
+  // Don't show toggle if meeting already has a transcript (completed with Recall)
+  if (meeting?.transcript) {
+    return false;
+  }
+
+  // Must have a valid meeting URL
+  return hasValidMeetingUrl(meeting);
 }
 
 
 
-
+// Fallback templates (only used if API fails - backend handles prompt construction)
+const fallbackTemplates = [
+  {
+    id: 'auto-template',
+    title: 'Advicly Summary',
+    type: 'auto-summary',
+    description: 'Concise follow-up email focusing on key discussion points and actions'
+  },
+  {
+    id: 'review-template',
+    title: 'Annual Review',
+    type: 'review-summary',
+    description: 'Comprehensive review email with structured sections for annual reviews'
+  }
+];
 
 export default function Meetings() {
   const [meetings, setMeetings] = useState({ future: [], past: [] });
@@ -91,14 +324,90 @@ export default function Meetings() {
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
   const [summaryContent, setSummaryContent] = useState(null);
   const [activeTab, setActiveTab] = useState('summary');
-  const { isAuthenticated } = useAuth();
-  const [meetingView, setMeetingView] = useState('future');
-  
+  const { isAuthenticated, user } = useAuth();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const [calendarConnection, setCalendarConnection] = useState(null);
+  const [botStatus, setBotStatus] = useState(null);
+  const [togglingBot, setTogglingBot] = useState(false);
+  const [editingMeeting, setEditingMeeting] = useState(null);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+    // Start from the beginning of the current week (Sunday)
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - dayOfWeek);
+    weekStart.setHours(0, 0, 0, 0);
+    return weekStart;
+  });
+
   const selectedMeetingIdRef = useRef(null);
   selectedMeetingIdRef.current = selectedMeetingId;
-  
-  console.log('Meetings component render:', { activeTab, selectedMeetingId });
-  
+
+  const [transcriptUpload, setTranscriptUpload] = useState('');
+  const [uploadingTranscript, setUploadingTranscript] = useState(false);
+  const [showTranscriptUpload, setShowTranscriptUpload] = useState(false);
+  const [deletingTranscript, setDeletingTranscript] = useState(false);
+  const [generatingSummary, setGeneratingSummary] = useState(false);
+  const [generatingAISummaries, setGeneratingAISummaries] = useState(false);
+  const [syncingMeetings, setSyncingMeetings] = useState(false);
+
+  // Add template selection state
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  // eslint-disable-next-line no-unused-vars
+  const [currentSummaryTemplate, setCurrentSummaryTemplate] = useState(null);
+
+  // Add new state for auto-generated summaries
+  const [quickSummary, setQuickSummary] = useState('');
+  // eslint-disable-next-line no-unused-vars
+  const [emailSummary, setEmailSummary] = useState('');
+  const [autoGenerating, setAutoGenerating] = useState(false);
+
+  // Track which template was used to generate the current email (for state-aware button)
+  const [lastGeneratedTemplateId, setLastGeneratedTemplateId] = useState(null);
+
+  // Streaming text state for typewriter effect
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingContent, setStreamingContent] = useState('');
+  const [streamingComplete, setStreamingComplete] = useState(false); // Track when streaming just finished
+  const [copiedEmail, setCopiedEmail] = useState(false); // For copy feedback
+
+  // Add import dialog state
+  const [showImportDialog, setShowImportDialog] = useState(false);
+
+  // Approved action items state
+  const [actionItems, setActionItems] = useState([]);
+  const [loadingActionItems, setLoadingActionItems] = useState(false);
+  const [showMeetingActionItems, setShowMeetingActionItems] = useState(true);
+  const [addingMeetingActionItem, setAddingMeetingActionItem] = useState(false);
+  const [newMeetingActionItemText, setNewMeetingActionItemText] = useState('');
+  const [savingMeetingActionItem, setSavingMeetingActionItem] = useState(false);
+
+  // Add pending action items state (for approval workflow)
+  const [pendingActionItems, setPendingActionItems] = useState([]);
+  const [loadingPendingItems, setLoadingPendingItems] = useState(false);
+  const [selectedPendingItems, setSelectedPendingItems] = useState([]);
+  const [pendingItemPriorities, setPendingItemPriorities] = useState({}); // { itemId: priority }
+
+  // Pending item editing state
+  const [editingPendingItemId, setEditingPendingItemId] = useState(null);
+  const [editingPendingText, setEditingPendingText] = useState('');
+  const [savingPendingEdit, setSavingPendingEdit] = useState(false);
+
+  // Adding new pending item state
+  const [addingPendingItem, setAddingPendingItem] = useState(false);
+  const [newPendingItemText, setNewPendingItemText] = useState('');
+  const [newPendingItemPriority, setNewPendingItemPriority] = useState(3);
+  const [savingNewPendingItem, setSavingNewPendingItem] = useState(false);
+
+  // Link client dialog state
+  const [showLinkClientDialog, setShowLinkClientDialog] = useState(false);
+  const [linkClientMeeting, setLinkClientMeeting] = useState(null);
+
+  logger.log('Meetings component render:', { activeTab, selectedMeetingId });
+
   const selectedMeeting = React.useMemo(() => {
     return (
       meetings.past.find(m => m.id === selectedMeetingId) ||
@@ -107,56 +416,244 @@ export default function Meetings() {
     );
   }, [meetings, selectedMeetingId]);
 
+  // Calendar view helper functions
+  const getWeekDays = () => {
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(currentWeekStart);
+      day.setDate(currentWeekStart.getDate() + i);
+      days.push(day);
+    }
+    return days;
+  };
+
+  const goToPreviousWeek = () => {
+    const newWeekStart = new Date(currentWeekStart);
+    newWeekStart.setDate(currentWeekStart.getDate() - 7);
+    setCurrentWeekStart(newWeekStart);
+  };
+
+  const goToNextWeek = () => {
+    const newWeekStart = new Date(currentWeekStart);
+    newWeekStart.setDate(currentWeekStart.getDate() + 7);
+    setCurrentWeekStart(newWeekStart);
+  };
+
+  const goToToday = () => {
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - dayOfWeek);
+    weekStart.setHours(0, 0, 0, 0);
+    setCurrentWeekStart(weekStart);
+  };
+
+  const getMeetingsForDay = (day) => {
+    const dayStart = new Date(day);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(day);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const allMeetings = [...meetings.past, ...meetings.future];
+    const meetingsOnDay = [];
+
+    allMeetings.forEach(meeting => {
+      const startTime = meeting.start?.dateTime || meeting.startTime || meeting.starttime;
+      if (!startTime) return;
+
+      const meetingDate = new Date(startTime);
+      if (meetingDate >= dayStart && meetingDate <= dayEnd) {
+        meetingsOnDay.push(meeting);
+      }
+    });
+
+    // Sort by time
+    return meetingsOnDay.sort((a, b) => {
+      const aTime = new Date(a.start?.dateTime || a.startTime || a.starttime);
+      const bTime = new Date(b.start?.dateTime || b.startTime || b.starttime);
+      return aTime - bTime;
+    });
+  };
+
+  const isToday = (date) => {
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+           date.getMonth() === today.getMonth() &&
+           date.getFullYear() === today.getFullYear();
+  };
+
+  // Load templates on component mount - fetch from API
+  useEffect(() => {
+    const fetchTemplates = async () => {
+      try {
+        const fetchedTemplates = await api.get('/templates');
+        if (fetchedTemplates && fetchedTemplates.length > 0) {
+          setTemplates(fetchedTemplates);
+          // Default to Advicly Summary template (auto-template)
+          const adviclyTemplate = fetchedTemplates.find(t => t.id === 'auto-template' || t.title === 'Advicly Summary') || fetchedTemplates[0];
+          setSelectedTemplate(adviclyTemplate);
+        } else {
+          // Use fallback templates if API returns empty
+          setTemplates(fallbackTemplates);
+          setSelectedTemplate(fallbackTemplates[0]);
+        }
+      } catch (error) {
+        logger.error('Error fetching templates:', error);
+        // Use fallback templates on error
+        setTemplates(fallbackTemplates);
+        setSelectedTemplate(fallbackTemplates[0]);
+      }
+    };
+    fetchTemplates();
+  }, []);
+
+  // Reset streaming state when switching meetings
+  // This ensures generated email from one meeting doesn't persist when viewing another meeting
+  useEffect(() => {
+    setStreamingComplete(false);
+    setStreamingContent('');
+    setIsStreaming(false);
+  }, [selectedMeetingId]);
+
   const fetchMeetings = useCallback(async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('jwt');
-      let url;
-      if (window.location.hostname === 'localhost') {
-        url = `${API_URL}/api/dev/meetings`;
-      } else {
-        url = `${API_URL}/calendar/meetings/all`;
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      logger.log('🔑 Using access token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+
+      if (!token) {
+        logger.error('❌ No access token found in session');
+        setShowSnackbar(true);
+        setSnackbarMessage('Authentication required. Please log in again.');
+        setSnackbarSeverity('error');
+        return;
       }
+
+      const url = `${API_URL}/api/calendar/meetings`;
+      logger.log('🌐 Fetching from URL:', url);
+
       const res = await fetch(url, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
+
       if (!res.ok) {
+        logger.error('❌ API Error:', res.status, res.statusText);
+        const errorText = await res.text();
+        logger.error('❌ Error details:', errorText);
+
         if (res.status === 401) {
-          const errorData = await res.json();
-          if (errorData.error && errorData.error.includes('Google Calendar')) {
-            setShowSnackbar(true);
-            setSnackbarMessage('Google Calendar connection issue. Please reconnect your Google account.');
-            setSnackbarSeverity('warning');
+          setShowSnackbar(true);
+          setSnackbarMessage('Authentication expired. Please log in again.');
+          setSnackbarSeverity('error');
+          // Clear invalid token
+          localStorage.removeItem('jwt');
+          return;
+        }
+
+        setShowSnackbar(true);
+        setSnackbarMessage(`Failed to load meetings: ${res.status} ${res.statusText}`);
+        setSnackbarSeverity('error');
+        return;
+      }
+
+      const data = await res.json();
+      logger.log('✅ Raw meetings data from API:', data);
+      logger.log(`📊 API returned ${data.length} meetings`);
+
+      if (!Array.isArray(data)) {
+        logger.error('❌ API returned non-array data:', data);
+        setShowSnackbar(true);
+        setSnackbarMessage('Invalid data format received from server');
+        setSnackbarSeverity('error');
+        return;
+      }
+
+      // 🔥 SIMPLIFIED: Handle Calendly meetings with database ID
+      const now = new Date();
+      const meetingsData = { past: [], future: [] };
+
+      // Debug: Check September 2025 meetings in API response
+      const sept2025InAPI = data.filter(m => {
+        const startTime = m.starttime || m.startTime;
+        if (!startTime) return false;
+        const date = new Date(startTime);
+        return date.getFullYear() === 2025 && date.getMonth() === 8;
+      });
+      logger.log(`🎯 September 2025 meetings in API response: ${sept2025InAPI.length}`);
+
+      data.forEach(m => {
+        // Handle simplified Calendly data structure
+        const startTime = m.starttime || m.startTime;
+        const meetingId = m.id; // Use the database ID directly
+
+        if (startTime && meetingId) {
+          const start = new Date(startTime);
+          const meetingData = {
+            ...m,
+            // Normalise joined client relation so UI can always use .client
+            client: m.client || m.clients || null,
+            id: meetingId, // Use database ID
+            startTime: startTime, // Ensure consistent naming
+          };
+
+          if (start < now) {
+            meetingsData.past.push(meetingData);
+          } else {
+            meetingsData.future.push(meetingData);
           }
         }
-        throw new Error('Failed to fetch meetings');
-      }
-      const data = await res.json();
-      let meetingsData = data;
-      if (window.location.hostname === 'localhost') {
-        const now = new Date();
-        meetingsData = { past: [], future: [] };
-        data.forEach(m => {
-          const start = new Date(m.startTime);
-          if (start < now) meetingsData.past.push({ ...m, id: m.googleEventId });
-          else meetingsData.future.push({ ...m, id: m.googleEventId });
-        });
-      }
+      });
+
+      // Debug: Check September 2025 meetings in processed data
+      const sept2025InPast = meetingsData.past.filter(m => {
+        const date = new Date(m.startTime);
+        return date.getFullYear() === 2025 && date.getMonth() === 8;
+      });
+      const sept2025InFuture = meetingsData.future.filter(m => {
+        const date = new Date(m.startTime);
+        return date.getFullYear() === 2025 && date.getMonth() === 8;
+      });
+      logger.log(`🎯 September 2025 meetings in past array: ${sept2025InPast.length}`);
+      logger.log(`🎯 September 2025 meetings in future array: ${sept2025InFuture.length}`);
+
+      // Sort meetings properly:
+      // - Future meetings: soonest first (ascending order)
+      // - Past meetings: most recent first (descending order)
+      meetingsData.future.sort((a, b) => {
+        const dateA = new Date(a.starttime || a.startTime);
+        const dateB = new Date(b.starttime || b.startTime);
+        return dateA - dateB; // Ascending: soonest first
+      });
+
+      meetingsData.past.sort((a, b) => {
+        const dateA = new Date(a.starttime || a.startTime);
+        const dateB = new Date(b.starttime || b.startTime);
+        return dateB - dateA; // Descending: most recent first
+      });
+
       setMeetings(meetingsData);
-      if (selectedMeetingIdRef.current === null) {
-        if (meetingsData.past.length > 0) {
-          setSelectedMeetingId(meetingsData.past[0].id);
-          setSummaryContent(meetingsData.past[0].meetingSummary);
-        } else if (meetingsData.future.length > 0) {
-          setSelectedMeetingId(meetingsData.future[0].id);
-          setSummaryContent(meetingsData.future[0].meetingSummary);
-        }
-      }
+      // Don't auto-select first meeting - let users see the default state
+      // if (selectedMeetingIdRef.current === null) {
+      //   if (meetingsData.past.length > 0) {
+      //     setSelectedMeetingId(meetingsData.past[0].id);
+      //     setSummaryContent(meetingsData.past[0].meetingSummary);
+      //   } else if (meetingsData.future.length > 0) {
+      //     setSelectedMeetingId(meetingsData.future[0].id);
+      //     setSummaryContent(meetingsData.future[0].meetingSummary);
+      //   }
+      // }
     } catch (error) {
-      console.error('Error fetching meetings:', error);
+      logger.error('❌ Error fetching meetings:', error);
       setShowSnackbar(true);
-      setSnackbarMessage('Failed to load meetings');
+      setSnackbarMessage(`Failed to load meetings: ${error.message}`);
       setSnackbarSeverity('error');
+
+      // Set empty meetings data to prevent undefined errors
+      setMeetings({ past: [], future: [] });
     } finally {
       setLoading(false);
     }
@@ -168,15 +665,408 @@ export default function Meetings() {
     }
   }, [isAuthenticated, fetchMeetings]);
 
-  const handleMeetingSelect = (meeting) => {
+  // Manual sync for Calendly meetings that may have been missed
+  const handleSyncMeetings = async () => {
+    setSyncingMeetings(true);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const res = await fetch(`${API_URL}/api/calendly/sync`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const errMsg = errorData?.action === 'reconnect'
+          ? (errorData.message || 'Please reconnect your Calendly account in Settings.')
+          : (errorData?.message || 'Failed to sync. Check your calendar connection in Settings.');
+        setShowSnackbar(true);
+        setSnackbarMessage(errMsg);
+        setSnackbarSeverity('error');
+        return;
+      }
+      const data = await res.json();
+      const added = data.improvement?.meetings_added || 0;
+      await fetchMeetings();
+      setShowSnackbar(true);
+      setSnackbarMessage(added > 0 ? `Synced ${added} new meeting${added !== 1 ? 's' : ''}!` : 'All meetings up to date');
+      setSnackbarSeverity('success');
+    } catch (error) {
+      clearTimeout(timeoutId);
+      logger.error('Sync error:', error);
+      setShowSnackbar(true);
+      if (error.name === 'AbortError') {
+        setSnackbarMessage('Sync timed out. Please try again.');
+      } else {
+        setSnackbarMessage('Failed to sync. Check your calendar connection in Settings.');
+      }
+      setSnackbarSeverity('error');
+    } finally {
+      setSyncingMeetings(false);
+    }
+  };
+
+  // Update local state when selectedMeeting changes (e.g., after data refresh)
+  useEffect(() => {
+    if (selectedMeeting) {
+      setQuickSummary(selectedMeeting.quick_summary || '');
+      setEmailSummary(selectedMeeting.email_summary_draft || '');
+      setSummaryContent(selectedMeeting.email_summary_draft || selectedMeeting.meetingSummary || '');
+    }
+  }, [selectedMeeting]);
+
+  // Refresh when page becomes visible (user switches back to tab)
+  // Only refreshes if the page was hidden for more than 60 seconds
+  const lastVisibleRef = useRef(Date.now());
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        lastVisibleRef.current = Date.now();
+      } else {
+        // Only refresh if hidden for more than 60 seconds
+        const hiddenDuration = Date.now() - lastVisibleRef.current;
+        if (hiddenDuration > 60000) {
+          logger.log(`📱 Page visible after ${Math.round(hiddenDuration / 1000)}s - refreshing meetings...`);
+          fetchMeetings();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isAuthenticated, fetchMeetings]);
+
+  // Auto-refresh when selected meeting is awaiting summary generation
+  // Only triggers a single refresh after 5 seconds, not continuous polling
+  const lastRefreshRef = useRef(null);
+  useEffect(() => {
+    if (!isAuthenticated || !selectedMeeting) return;
+
+    // Only refresh if selected meeting has transcript but no summary
+    // AND recall_status is 'completed' (meaning bot just finished)
+    const needsSummary = selectedMeeting.transcript &&
+      selectedMeeting.transcript.trim() &&
+      selectedMeeting.recall_status === 'completed' &&
+      (!selectedMeeting.quick_summary || !selectedMeeting.quick_summary.trim());
+
+    if (!needsSummary) return;
+
+    // Prevent duplicate refreshes for the same meeting
+    if (lastRefreshRef.current === selectedMeeting.id) return;
+
+    logger.log(`🔄 Meeting ${selectedMeeting.id} has transcript but no summary - will refresh once in 5s`);
+    lastRefreshRef.current = selectedMeeting.id;
+
+    const timeoutId = setTimeout(() => {
+      logger.log('🔄 Refreshing to check for generated summary...');
+      fetchMeetings();
+      // Reset after refresh so it can trigger again if still missing
+      setTimeout(() => {
+        lastRefreshRef.current = null;
+      }, 10000); // Wait 10s before allowing another refresh for same meeting
+    }, 5000);
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated, selectedMeeting?.id, selectedMeeting?.quick_summary, selectedMeeting?.recall_status, fetchMeetings]);
+
+  // Handle URL parameter to auto-select a meeting
+  useEffect(() => {
+    const selectedParam = searchParams.get('selected');
+    if (selectedParam && (meetings.past.length > 0 || meetings.future.length > 0)) {
+      // Try to find the meeting by ID (database ID)
+      let meeting = meetings.past.find(m => m.id === parseInt(selectedParam));
+
+      // If not found by ID, try by googleeventid
+      if (!meeting) {
+        meeting = meetings.past.find(m => m.googleeventid === selectedParam);
+      }
+
+      // If not found in past, check future meetings
+      if (!meeting && meetings.future.length > 0) {
+        meeting = meetings.future.find(m => m.id === parseInt(selectedParam));
+        if (!meeting) {
+          meeting = meetings.future.find(m => m.googleeventid === selectedParam);
+        }
+      }
+
+      if (meeting) {
+        // Just set the selected meeting ID - the handleMeetingSelect will be called when user interaction happens
+        setSelectedMeetingId(meeting.id);
+        setActiveTab('summary');
+
+        // Set existing summaries if available
+        setQuickSummary(meeting.quick_summary || '');
+        setEmailSummary(meeting.email_summary_draft || '');
+        setSummaryContent(meeting.email_summary_draft || meeting.meetingSummary || '');
+
+        // Clear the URL parameter after selecting
+        const newSearchParams = new URLSearchParams(searchParams);
+        newSearchParams.delete('selected');
+        navigate({ search: newSearchParams.toString() }, { replace: true });
+      }
+    }
+  }, [meetings, searchParams, navigate, setSelectedMeetingId, setActiveTab, setQuickSummary, setEmailSummary, setSummaryContent]);
+
+  // Fetch calendar connection for bot status with real-time updates
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const fetchCalendarConnection = async () => {
+      try {
+        const { data } = await supabase
+          .from('calendar_connections')
+          .select('id, provider, provider_account_email, transcription_enabled, is_active')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .single();
+
+        if (data) {
+          setCalendarConnection(data);
+        }
+      } catch (err) {
+        logger.error('Error fetching calendar connection:', err);
+      }
+    };
+
+    // Initial fetch
+    fetchCalendarConnection();
+
+    // Subscribe to real-time updates on calendar_connections table
+    const subscription = supabase
+      .channel(`calendar_connections:user_id=eq.${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'calendar_connections',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          // Update on ANY change to the connection (transcription_enabled, is_active, etc.)
+          if (payload.new) {
+            setCalendarConnection(payload.new);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user?.id]);
+
+  // Subscribe to real-time updates on meetings table for bot status changes
+  // Only updates the specific meeting in state - no full page refresh
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const meetingsSubscription = supabase
+      .channel(`meetings:user_id=eq.${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'meetings',
+          filter: `user_id=eq.${user.id}`
+        },
+        (payload) => {
+          if (payload.new) {
+            // Update only the specific meeting in state (no full refetch)
+            // Preserve existing client relation data since real-time payloads don't include joins
+            const updatedFields = payload.new;
+            setMeetings(prev => ({
+              past: prev.past.map(m => m.id === updatedFields.id
+                ? { ...m, ...updatedFields, client: m.client, clients: m.clients }
+                : m),
+              future: prev.future.map(m => m.id === updatedFields.id
+                ? { ...m, ...updatedFields, client: m.client, clients: m.clients }
+                : m)
+            }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      meetingsSubscription.unsubscribe();
+    };
+  }, [user?.id]);
+
+  // Update bot status when meeting is selected
+  useEffect(() => {
+    if (selectedMeetingId && calendarConnection) {
+      const selectedMeeting = [...meetings.past, ...meetings.future].find(m => m.id === selectedMeetingId);
+      if (selectedMeeting) {
+        const status = getRecallBotStatus(selectedMeeting, calendarConnection);
+        setBotStatus(status);
+      }
+    }
+  }, [selectedMeetingId, calendarConnection, meetings]);
+
+  const handleMeetingSelect = async (meeting) => {
+    logger.log('Meeting selected:', meeting); // Debug log
     setSelectedMeetingId(meeting.id);
-    setSummaryContent(meeting.meetingSummary || meeting.transcript || '');
     setActiveTab('summary');
+
+    // Reset streaming state when selecting a new meeting
+    setStreamingComplete(false);
+    setStreamingContent('');
+    setIsStreaming(false);
+
+    // Set existing summaries if available (using current database schema)
+    setQuickSummary(meeting.quick_summary || '');
+    setEmailSummary(meeting.email_summary_draft || '');
+    setSummaryContent(meeting.email_summary_draft || meeting.meetingSummary || '');
+
+    // Set template info - always show Advicly Summary as default
+    if (meeting.templateId) {
+      const template = templates.find(t => t.id === meeting.templateId);
+      setCurrentSummaryTemplate(template);
+      setSelectedTemplate(template);
+    } else {
+      // Default to Advicly Summary template when no template is set
+      const adviclyTemplate = templates.find(t => t.type === 'auto-summary' || t.id === 'auto-template') || templates[0];
+      setCurrentSummaryTemplate(adviclyTemplate);
+      setSelectedTemplate(adviclyTemplate);
+    }
+
+    // Auto-generate if transcript exists but quick summary is missing
+    // Quick summary is the primary independent output - always runs
+    const hasQuickSummary = (meeting.quick_summary || meeting.quickSummary || '').trim();
+
+    if (meeting.transcript && !hasQuickSummary) {
+      logger.log('Auto-generating summaries (no quick summary found)...');
+      // Pass external_id or DB id - backend handles both
+      await autoGenerateSummaries(meeting.external_id || meeting.id);
+    }
+  };
+
+  const handleEditMeeting = (meeting, event) => {
+    event.stopPropagation(); // Prevent meeting selection
+    setEditingMeeting(meeting);
+    setShowEditDialog(true);
+  };
+
+  const handleMeetingUpdated = (updatedMeeting) => {
+    // Refresh meetings list
+    fetchMeetings();
+
+    // Update selected meeting if it's the one being edited
+    if (selectedMeetingId === updatedMeeting.id) {
+      setSelectedMeetingId(updatedMeeting.id);
+    }
+
+    setShowSnackbar(true);
+    setSnackbarMessage('Meeting updated successfully');
+    setSnackbarSeverity('success');
+    setTimeout(() => setShowSnackbar(false), 3000);
+  };
+
+  const autoGenerateSummaries = async (meetingId, forceRegenerate = false) => {
+    setAutoGenerating(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const response = await fetch(`${API_URL}/api/calendar/meetings/${meetingId}/auto-generate-summaries`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ forceRegenerate })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to auto-generate summaries');
+      }
+
+      const data = await response.json();
+      logger.log('📥 Auto-generate response:', JSON.stringify(data, null, 2));
+
+      // Update state with generated summaries (handle null values)
+      if (data.quickSummary) {
+        setQuickSummary(data.quickSummary);
+      }
+      if (data.emailSummary) {
+        setEmailSummary(data.emailSummary);
+        setSummaryContent(data.emailSummary);
+      }
+
+      // Update the meetings state to reflect the new data
+      if (data.quickSummary || data.emailSummary || data.actionPoints) {
+        setMeetings(prevMeetings => {
+          const updateMeeting = (meeting) => {
+            // Match by id OR external_id since meetingId could be either
+            if (meeting.id === meetingId || meeting.external_id === meetingId) {
+              return {
+                ...meeting,
+                ...(data.quickSummary && { quick_summary: data.quickSummary }),
+                ...(data.emailSummary && { email_summary_draft: data.emailSummary }),
+                ...(data.actionPoints && { action_points: data.actionPoints }),
+                last_summarized_at: data.lastSummarizedAt
+              };
+            }
+            return meeting;
+          };
+
+          return {
+            past: prevMeetings.past.map(updateMeeting),
+            future: prevMeetings.future.map(updateMeeting)
+          };
+        });
+      }
+
+      // Update template info - match by type since DB templates have UUID ids
+      const template = templates.find(t => t.id === data.templateId || t.type === 'auto-summary') || templates[0];
+      setCurrentSummaryTemplate(template);
+      setSelectedTemplate(template);
+
+      // Refresh action items to show newly generated action points
+      if (selectedMeetingId) {
+        await fetchPendingActionItems(selectedMeetingId);
+        await fetchActionItems(selectedMeetingId);
+      }
+
+      if (data.generated && data.quickSummary) {
+        setShowSnackbar(true);
+        setSnackbarMessage('Summaries generated successfully');
+        setSnackbarSeverity('success');
+      } else if (data.generationErrors) {
+        logger.error('Generation errors:', data.generationErrors);
+        setShowSnackbar(true);
+        setSnackbarMessage('Summary generation had errors - check console');
+        setSnackbarSeverity('warning');
+      } else if (data.alreadyGenerated) {
+        // Silently use cached data
+      }
+    } catch (error) {
+      logger.error('Error auto-generating summaries:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage(error.message || 'Failed to generate summaries');
+      setSnackbarSeverity('error');
+    } finally {
+      setAutoGenerating(false);
+    }
   };
 
   const handleAIAdjustment = async (adjustmentPrompt) => {
     if (!selectedMeeting) return;
-    
+
     try {
       const result = await adjustMeetingSummary(selectedMeeting.id, adjustmentPrompt);
       setSummaryContent(result.summary);
@@ -184,259 +1074,2537 @@ export default function Meetings() {
       setSnackbarMessage('Summary adjusted successfully');
       setSnackbarSeverity('success');
     } catch (error) {
-      console.error('Error adjusting summary:', error);
+      logger.error('Error adjusting summary:', error);
       setShowSnackbar(true);
       setSnackbarMessage('Failed to adjust summary');
       setSnackbarSeverity('error');
     }
   };
 
-  const handleCopyToClipboard = async () => {
-    if (!summaryContent) return;
-    
+  const handleTranscriptUpload = async () => {
+    if (!transcriptUpload?.trim() || !selectedMeeting) return;
+
+    setUploadingTranscript(true);
+    setGeneratingAISummaries(false);
+
     try {
-      await navigator.clipboard.writeText(summaryContent);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      // Show generating summaries state after a brief delay
+      setTimeout(() => {
+        if (uploadingTranscript) {
+          setGeneratingAISummaries(true);
+        }
+      }, 1000);
+
+      // Use numeric meeting ID for the API call
+      const meetingIdentifier = selectedMeeting.id;
+      logger.log('📤 Uploading transcript for meeting:', meetingIdentifier);
+
+      const res = await fetch(`${API_URL}/api/calendar/meetings/${meetingIdentifier}/transcript`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ transcript: transcriptUpload.trim() })
+      });
+
+      if (!res.ok) throw new Error('Failed to upload transcript');
+
+      const responseData = await res.json();
+      logger.log('📥 Transcript upload response:', responseData);
+
+      // Update local state with transcript and any auto-generated summaries
+      const meetingUpdate = {
+        transcript: transcriptUpload.trim()
+      };
+
+      // If summaries were auto-generated, include them
+      if (responseData.summaries) {
+        meetingUpdate.quick_summary = responseData.summaries.quickSummary;
+        meetingUpdate.detailed_summary = responseData.summaries.detailedSummary;
+        meetingUpdate.email_summary_draft = responseData.summaries.emailSummary;
+
+        // Include action points if they were generated
+        if (responseData.summaries.actionPoints) {
+          meetingUpdate.action_points = responseData.summaries.actionPoints;
+          logger.log('✅ Action points extracted:', responseData.summaries.actionPoints);
+        }
+
+        // Also update the local state variables immediately
+        setQuickSummary(responseData.summaries.detailedSummary || responseData.summaries.quickSummary || '');
+        setEmailSummary(responseData.summaries.emailSummary || '');
+        setSummaryContent(responseData.summaries.emailSummary || '');
+      }
+
+      const updatedMeetings = {
+        ...meetings,
+        past: meetings.past.map(m =>
+          m.id === selectedMeeting.id
+            ? { ...m, ...meetingUpdate }
+            : m
+        ),
+        future: meetings.future.map(m =>
+          m.id === selectedMeeting.id
+            ? { ...m, ...meetingUpdate }
+            : m
+        )
+      };
+      setMeetings(updatedMeetings);
+
+      // The selectedMeeting will be automatically updated via useMemo when meetings state changes
+
+      setTranscriptUpload('');
+      setShowTranscriptUpload(false);
+
+      // Force a refresh from the database to ensure transcript is persisted
+      // This prevents the transcript from disappearing on auto-refresh
+      await fetchMeetings();
+
+      // After fetchMeetings, re-apply response data to ensure summaries aren't lost
+      // (guards against race condition where DB save hasn't committed before re-fetch)
+      if (responseData.summaries) {
+        setMeetings(prev => ({
+          past: prev.past.map(m =>
+            m.id === selectedMeeting.id
+              ? {
+                  ...m,
+                  quick_summary: m.quick_summary || responseData.summaries.quickSummary,
+                  detailed_summary: m.detailed_summary || responseData.summaries.detailedSummary,
+                  action_points: m.action_points || responseData.summaries.actionPoints
+                }
+              : m
+          ),
+          future: prev.future.map(m =>
+            m.id === selectedMeeting.id
+              ? {
+                  ...m,
+                  quick_summary: m.quick_summary || responseData.summaries.quickSummary,
+                  detailed_summary: m.detailed_summary || responseData.summaries.detailedSummary,
+                  action_points: m.action_points || responseData.summaries.actionPoints
+                }
+              : m
+          )
+        }));
+      }
+
+      // Refresh action items to show newly generated action points
+      if (selectedMeetingId) {
+        await fetchPendingActionItems(selectedMeetingId);
+        await fetchActionItems(selectedMeetingId);
+      }
+
+      // Email draft is generated async on the backend after the response.
+      // Re-fetch after a delay to pick up the email once it's ready.
+      if (responseData.autoGenerated && !responseData.summaries?.emailSummary) {
+        setTimeout(async () => {
+          logger.log('🔄 Delayed re-fetch to pick up async email draft...');
+          await fetchMeetings();
+        }, 10000);
+      }
+
       setShowSnackbar(true);
-      setSnackbarMessage('Summary copied to clipboard');
+
+      // Show different message based on whether summaries were generated
+      if (responseData.autoGenerated && responseData.summaries?.quickSummary) {
+        // Check if detailed summary was also generated
+        if (responseData.generationErrors?.length > 0) {
+          logger.warn('Some generation steps had errors:', responseData.generationErrors);
+          setSnackbarMessage('Transcript uploaded. Quick summary generated but detailed breakdown may still be processing.');
+          setSnackbarSeverity('warning');
+        } else {
+          setSnackbarMessage('Transcript uploaded and AI summaries generated successfully!');
+          setSnackbarSeverity('success');
+        }
+      } else if (responseData.generationError) {
+        logger.error('Generation error from backend:', responseData.generationError);
+        setSnackbarMessage(`Transcript saved but generation failed: ${responseData.generationError}`);
+        setSnackbarSeverity('warning');
+      } else if (responseData.generationErrors) {
+        logger.error('Generation errors from backend:', responseData.generationErrors);
+        setSnackbarMessage('Transcript saved but some generation steps failed');
+        setSnackbarSeverity('warning');
+      } else {
+        setSnackbarMessage('Transcript uploaded successfully');
+        setSnackbarSeverity('success');
+      }
+    } catch (error) {
+      logger.error('Error uploading transcript:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to upload transcript');
+      setSnackbarSeverity('error');
+    } finally {
+      setUploadingTranscript(false);
+      setGeneratingAISummaries(false);
+    }
+  };
+
+
+
+  const handleDeleteTranscript = async () => {
+    if (!selectedMeeting) return;
+
+    setDeletingTranscript(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const res = await fetch(`${API_URL}/api/calendar/meetings/${selectedMeeting.id}/transcript`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!res.ok) throw new Error('Failed to delete transcript');
+
+      // Update local state - clear transcript and all related summaries
+      const updatedMeetings = {
+        ...meetings,
+        past: meetings.past.map(m =>
+          m.id === selectedMeeting.id
+            ? {
+                ...m,
+                transcript: null,
+                quick_summary: null,
+                email_summary_draft: null
+              }
+            : m
+        ),
+        future: meetings.future.map(m =>
+          m.id === selectedMeeting.id
+            ? {
+                ...m,
+                transcript: null,
+                quick_summary: null,
+                email_summary_draft: null
+              }
+            : m
+        )
+      };
+      setMeetings(updatedMeetings);
+
+      // Clear local summary state as well
+      setQuickSummary('');
+      setEmailSummary('');
+      setSummaryContent('');
+
+      setShowSnackbar(true);
+      setSnackbarMessage('Transcript and summaries deleted successfully');
       setSnackbarSeverity('success');
     } catch (error) {
-      console.error('Failed to copy to clipboard:', error);
+      logger.error('Error deleting transcript:', error);
       setShowSnackbar(true);
-      setSnackbarMessage('Failed to copy to clipboard');
+      setSnackbarMessage('Failed to delete transcript');
+      setSnackbarSeverity('error');
+    } finally {
+      setDeletingTranscript(false);
+    }
+  };
+
+  const handleGenerateAISummary = async () => {
+    if (!selectedMeeting?.transcript) return;
+
+    setGeneratingSummary(true);
+    setIsStreaming(true);
+    setStreamingContent('');
+    setStreamingComplete(false); // Reset completion state for new generation
+    setSummaryContent(''); // Clear existing content to show streaming
+
+    try {
+      // Determine which template type to use (backend handles prompt construction)
+      let templateToUse;
+
+      if (selectedTemplate) {
+        templateToUse = selectedTemplate;
+      } else {
+        templateToUse = templates.find(t => t.id === 'auto-template') || templates[0];
+      }
+
+      setCurrentSummaryTemplate(templateToUse);
+
+      // Use streaming endpoint - backend constructs the prompt from structured data
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const response = await fetch(`${API_URL}/api/calendar/generate-summary-stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          transcript: selectedMeeting.transcript,
+          meetingId: selectedMeeting.id,
+          templateType: templateToUse?.type || 'auto-summary'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate AI summary');
+      }
+
+      // Read the stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let fullContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.content) {
+                fullContent += data.content;
+                setStreamingContent(fullContent);
+                setSummaryContent(fullContent);
+              }
+              if (data.done) {
+                setIsStreaming(false);
+              }
+              if (data.error) {
+                throw new Error(data.error);
+              }
+            } catch (e) {
+              // Ignore JSON parse errors for incomplete chunks
+            }
+          }
+        }
+      }
+
+      setEmailSummary(fullContent);
+      setIsStreaming(false);
+      setStreamingComplete(true); // Mark streaming as just completed to prevent flash
+
+      // Save the generated summary to database
+      try {
+        const templateId = templateToUse?.id || 'auto-template';
+        await fetch(`${API_URL}/api/calendar/meetings/${selectedMeeting.id}/update-summary`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            emailSummary: fullContent,
+            templateId: templateId
+          })
+        });
+
+        // Update the meetings state to persist the email summary
+        setMeetings(prevMeetings => ({
+          ...prevMeetings,
+          past: prevMeetings.past.map(meeting =>
+            meeting.id === selectedMeeting.id
+              ? {
+                  ...meeting,
+                  email_summary_draft: fullContent,
+                  templateId: templateId
+                }
+              : meeting
+          ),
+          future: prevMeetings.future.map(meeting =>
+            meeting.id === selectedMeeting.id
+              ? {
+                  ...meeting,
+                  email_summary_draft: fullContent,
+                  templateId: templateId
+                }
+              : meeting
+          )
+        }));
+
+      } catch (saveError) {
+        logger.error('Error saving template summary:', saveError);
+        setShowSnackbar(true);
+        setSnackbarMessage(`Email generated but failed to auto-save. Please try again.`);
+        setSnackbarSeverity('warning');
+        return;
+      }
+
+      // Track which template was used for state-aware button styling
+      setLastGeneratedTemplateId(templateToUse?.id || 'auto-template');
+
+      setShowSnackbar(true);
+      setSnackbarMessage(`✓ Email generated and auto-saved using ${templateToUse?.title || 'Advicly Summary'}`);
+      setSnackbarSeverity('success');
+    } catch (error) {
+      logger.error('Error generating AI summary:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage(error.message || 'Failed to generate AI summary');
+      setSnackbarSeverity('error');
+      setIsStreaming(false);
+    } finally {
+      setGeneratingSummary(false);
+    }
+  };
+
+  // NOTE: Calendar sync is now handled automatically via webhooks
+  // Manual sync buttons have been removed from the UI
+
+
+
+  // Fetch approved action items for a meeting
+  const fetchActionItems = async (meetingId) => {
+    if (!meetingId) return;
+
+    setLoadingActionItems(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const response = await fetch(`${API_URL}/api/transcript-action-items/meetings/${meetingId}/action-items`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch action items');
+      }
+
+      const data = await response.json();
+      setActionItems(data.actionItems || []);
+    } catch (error) {
+      logger.error('Error fetching action items:', error);
+      setActionItems([]);
+    } finally {
+      setLoadingActionItems(false);
+    }
+  };
+
+  // Fetch pending action items for a meeting (awaiting approval)
+  const fetchPendingActionItems = async (meetingId) => {
+    if (!meetingId) return;
+
+    setLoadingPendingItems(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const response = await fetch(`${API_URL}/api/transcript-action-items/meetings/${meetingId}/pending`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch pending action items');
+      }
+
+      const data = await response.json();
+      setPendingActionItems(data.pendingItems || []);
+      // Select all by default and initialize priorities
+      const items = data.pendingItems || [];
+      setSelectedPendingItems(items.map(item => item.id));
+      const priorities = {};
+      items.forEach(item => {
+        priorities[item.id] = item.priority || 3; // Default to Medium if not set
+      });
+      setPendingItemPriorities(priorities);
+    } catch (error) {
+      logger.error('Error fetching pending action items:', error);
+      setPendingActionItems([]);
+      setSelectedPendingItems([]);
+    } finally {
+      setLoadingPendingItems(false);
+    }
+  };
+
+  // Update priority of a pending action item
+  const updatePendingItemPriority = async (itemId, priority) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const response = await fetch(`${API_URL}/api/transcript-action-items/pending/${itemId}/priority`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ priority })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update priority');
+      }
+
+      // Update local state
+      setPendingItemPriorities(prev => ({
+        ...prev,
+        [itemId]: priority
+      }));
+    } catch (error) {
+      logger.error('Error updating pending item priority:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to update priority');
       setSnackbarSeverity('error');
     }
   };
 
-  const renderGroupedMeetings = (meetings, title, isPast = false) => {
-    if (!meetings || meetings.length === 0) return null;
-    
-    const grouped = groupMeetingsByDate(meetings);
-    
-    return (
-      <div className="space-y-6">
-        <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
-        {Object.entries(grouped).map(([date, dayMeetings]) => (
-          <div key={date} className="space-y-3">
-            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
-              {date}
-            </h3>
-            <div className="space-y-2">
-              {dayMeetings.map((meeting) => (
-                <Card
-                  key={meeting.id}
-                  className={cn(
-                    "cursor-pointer transition-all duration-200 hover:shadow-md",
-                    selectedMeetingId === meeting.id && "ring-2 ring-blue-500 bg-blue-50"
-                  )}
-                  onClick={() => handleMeetingSelect(meeting)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Calendar className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm text-gray-500">
-                            {formatMeetingTime(meeting)}
-                          </span>
-                        </div>
-                        <h4 className="font-semibold text-gray-900 mb-1 truncate">
-                          {meeting.summary || meeting.title || 'Untitled Meeting'}
-                        </h4>
-                        <div className="flex items-center gap-4 text-sm text-gray-500">
-                          {meeting.attendees && meeting.attendees.length > 0 && (
-                            <div className="flex items-center gap-1">
-                              <Users className="w-4 h-4" />
-                              <span>{meeting.attendees.length} attendees</span>
-                            </div>
-                          )}
-                          {getMeetingSource(meeting) === 'google' && (
-                            <GoogleIcon size={16} />
-                          )}
-                          {getMeetingSource(meeting) === 'outlook' && (
-                            <OutlookIcon size={16} />
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {renderParticipants(meeting)}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreVertical className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={handleCopyToClipboard}>
-                              <Copy className="w-4 h-4 mr-2" />
-                              Copy Summary
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <Share className="w-4 h-4 mr-2" />
-                              Share
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
+  // Edit pending item text
+  const startEditingPendingItem = (item) => {
+    setEditingPendingItemId(item.id);
+    setEditingPendingText(item.action_text);
   };
+
+  const cancelEditingPendingItem = () => {
+    setEditingPendingItemId(null);
+    setEditingPendingText('');
+  };
+
+  const savePendingItemEdit = async (itemId) => {
+    if (!editingPendingText.trim()) {
+      setShowSnackbar(true);
+      setSnackbarMessage('Action text cannot be empty');
+      setSnackbarSeverity('error');
+      return;
+    }
+
+    try {
+      setSavingPendingEdit(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const response = await fetch(`${API_URL}/api/transcript-action-items/pending/${itemId}/text`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ actionText: editingPendingText.trim() })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update pending item');
+      }
+
+      setShowSnackbar(true);
+      setSnackbarMessage('Action item updated successfully!');
+      setSnackbarSeverity('success');
+
+      // Refresh pending items
+      if (selectedMeetingId) {
+        await fetchPendingActionItems(selectedMeetingId);
+      }
+      setEditingPendingItemId(null);
+      setEditingPendingText('');
+    } catch (error) {
+      logger.error('Error updating pending item:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to update action item');
+      setSnackbarSeverity('error');
+    } finally {
+      setSavingPendingEdit(false);
+    }
+  };
+
+  // Add new pending item
+  const startAddingPendingItem = () => {
+    setAddingPendingItem(true);
+    setNewPendingItemText('');
+    setNewPendingItemPriority(3);
+  };
+
+  const cancelAddingPendingItem = () => {
+    setAddingPendingItem(false);
+    setNewPendingItemText('');
+    setNewPendingItemPriority(3);
+  };
+
+  // Toggle Recall bot for this specific meeting
+  const handleToggleBotForMeeting = async () => {
+    if (!selectedMeetingId || !selectedMeeting) return;
+
+    try {
+      setTogglingBot(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const newSkipValue = !selectedMeeting.skip_transcription_for_meeting;
+
+      const response = await fetch(`${API_URL}/api/calendar/meetings/${selectedMeetingId}/toggle-bot`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ skip_transcription_for_meeting: newSkipValue })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle bot');
+      }
+
+      // Update local state
+      const updatedMeeting = { ...selectedMeeting, skip_transcription_for_meeting: newSkipValue };
+      setMeetings(prev => ({
+        ...prev,
+        past: prev.past.map(m => m.id === selectedMeetingId ? updatedMeeting : m),
+        future: prev.future.map(m => m.id === selectedMeetingId ? updatedMeeting : m)
+      }));
+
+      // Update bot status
+      const newStatus = getRecallBotStatus(updatedMeeting, calendarConnection);
+      setBotStatus(newStatus);
+
+      setShowSnackbar(true);
+      setSnackbarMessage(newSkipValue ? 'Advicly Assistant disabled for this meeting' : 'Advicly Assistant enabled for this meeting');
+      setSnackbarSeverity('success');
+    } catch (error) {
+      logger.error('Error toggling bot:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to toggle Advicly Assistant');
+      setSnackbarSeverity('error');
+    } finally {
+      setTogglingBot(false);
+    }
+  };
+
+  // Toggle bot for any meeting (used in meeting cards)
+  const handleToggleBotForAnyMeeting = async (meeting, e) => {
+    if (e) {
+      e.stopPropagation(); // Prevent card click
+    }
+    if (!meeting?.id) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const newSkipValue = !meeting.skip_transcription_for_meeting;
+
+      const response = await fetch(`${API_URL}/api/calendar/meetings/${meeting.id}/toggle-bot`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ skip_transcription_for_meeting: newSkipValue })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle bot');
+      }
+
+      // Update local state
+      const updatedMeeting = { ...meeting, skip_transcription_for_meeting: newSkipValue };
+      setMeetings(prev => ({
+        ...prev,
+        past: prev.past.map(m => m.id === meeting.id ? updatedMeeting : m),
+        future: prev.future.map(m => m.id === meeting.id ? updatedMeeting : m)
+      }));
+
+      // Update bot status if this is the selected meeting
+      if (selectedMeetingId === meeting.id) {
+        const newStatus = getRecallBotStatus(updatedMeeting, calendarConnection);
+        setBotStatus(newStatus);
+      }
+
+      setShowSnackbar(true);
+      setSnackbarMessage(newSkipValue ? 'Advicly Assistant disabled for this meeting' : 'Advicly Assistant enabled for this meeting');
+      setSnackbarSeverity('success');
+    } catch (error) {
+      logger.error('Error toggling bot:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to toggle Advicly Assistant');
+      setSnackbarSeverity('error');
+    }
+  };
+
+  const saveNewPendingItem = async () => {
+    if (!newPendingItemText.trim()) {
+      setShowSnackbar(true);
+      setSnackbarMessage('Action text cannot be empty');
+      setSnackbarSeverity('error');
+      return;
+    }
+
+    if (!selectedMeetingId || !selectedMeeting) {
+      setShowSnackbar(true);
+      setSnackbarMessage('No meeting selected');
+      setSnackbarSeverity('error');
+      return;
+    }
+
+    try {
+      setSavingNewPendingItem(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const response = await fetch(`${API_URL}/api/transcript-action-items/pending`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          meetingId: selectedMeetingId,
+          clientId: selectedMeeting.client_id,
+          actionText: newPendingItemText.trim(),
+          priority: newPendingItemPriority
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create pending item');
+      }
+
+      setShowSnackbar(true);
+      setSnackbarMessage('Action item added successfully!');
+      setSnackbarSeverity('success');
+
+      // Refresh pending items
+      await fetchPendingActionItems(selectedMeetingId);
+      setAddingPendingItem(false);
+      setNewPendingItemText('');
+      setNewPendingItemPriority(3);
+    } catch (error) {
+      logger.error('Error creating pending item:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to add action item');
+      setSnackbarSeverity('error');
+    } finally {
+      setSavingNewPendingItem(false);
+    }
+  };
+
+  // Approve selected pending action items
+  const approvePendingActionItems = async () => {
+    if (selectedPendingItems.length === 0) {
+      setShowSnackbar(true);
+      setSnackbarMessage('Please select at least one action item to approve');
+      setSnackbarSeverity('warning');
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error('No authentication token available');
+      }
+
+      const response = await fetch(`${API_URL}/api/transcript-action-items/approve`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ pendingItemIds: selectedPendingItems })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to approve action items');
+      }
+
+      const data = await response.json();
+
+      setShowSnackbar(true);
+      setSnackbarMessage(`Successfully approved ${data.approvedCount} action item${data.approvedCount > 1 ? 's' : ''}`);
+      setSnackbarSeverity('success');
+
+      // Refresh both pending and approved action items
+      if (selectedMeetingId) {
+        await fetchPendingActionItems(selectedMeetingId);
+        await fetchActionItems(selectedMeetingId);
+      }
+    } catch (error) {
+      logger.error('Error approving action items:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to approve action items');
+      setSnackbarSeverity('error');
+    }
+  };
+
+  // Reject/delete pending action items
+  const rejectPendingActionItems = async () => {
+    if (selectedPendingItems.length === 0) {
+      setShowSnackbar(true);
+      setSnackbarMessage('Please select at least one action item to reject');
+      setSnackbarSeverity('warning');
+      return;
+    }
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      if (!token) {
+        throw new Error('No authentication token available');
+      }
+
+      const response = await fetch(`${API_URL}/api/transcript-action-items/pending`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ pendingItemIds: selectedPendingItems })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reject action items');
+      }
+
+      const data = await response.json();
+
+      setShowSnackbar(true);
+      setSnackbarMessage(`Rejected ${data.rejectedCount} action item${data.rejectedCount > 1 ? 's' : ''}`);
+      setSnackbarSeverity('success');
+
+      // Refresh pending action items
+      if (selectedMeetingId) {
+        await fetchPendingActionItems(selectedMeetingId);
+      }
+    } catch (error) {
+      logger.error('Error rejecting action items:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to reject action items');
+      setSnackbarSeverity('error');
+    }
+  };
+
+  // Toggle completion status of an approved action item
+  const toggleActionItemCompletion = async (actionItemId) => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const response = await fetch(`${API_URL}/api/transcript-action-items/action-items/${actionItemId}/toggle`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to toggle action item');
+      }
+
+      const data = await response.json();
+
+      // Update local state
+      setActionItems(prevItems =>
+        prevItems.map(item =>
+          item.id === actionItemId ? data.actionItem : item
+        )
+      );
+
+      setShowSnackbar(true);
+      setSnackbarMessage(data.actionItem.completed ? 'Action item completed' : 'Action item reopened');
+      setSnackbarSeverity('success');
+    } catch (error) {
+      logger.error('Error toggling action item:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to update action item');
+      setSnackbarSeverity('error');
+    }
+  };
+
+  // Add a new action item to the current meeting
+  const handleAddMeetingActionItem = async () => {
+    if (!newMeetingActionItemText.trim() || !selectedMeeting) return;
+
+    try {
+      setSavingMeetingActionItem(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      // Create as a pending action item first (goes through approval workflow)
+      const response = await fetch(`${API_URL}/api/transcript-action-items/pending`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          meetingId: selectedMeeting.id,
+          clientId: selectedMeeting.client_id,
+          actionText: newMeetingActionItemText.trim(),
+          priority: 3
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add action item');
+      }
+
+      // Refresh both pending and approved items
+      await fetchPendingActionItems(selectedMeeting.id);
+      await fetchActionItems(selectedMeeting.id);
+
+      setNewMeetingActionItemText('');
+      setAddingMeetingActionItem(false);
+
+      setShowSnackbar(true);
+      setSnackbarMessage('Action item added! It will appear in Pending Approval.');
+      setSnackbarSeverity('success');
+    } catch (error) {
+      logger.error('Error adding action item:', error);
+      setShowSnackbar(true);
+      setSnackbarMessage('Failed to add action item');
+      setSnackbarSeverity('error');
+    } finally {
+      setSavingMeetingActionItem(false);
+    }
+  };
+
+  // Toggle selection of a pending action item
+  const togglePendingItemSelection = (itemId) => {
+    setSelectedPendingItems(prev => {
+      if (prev.includes(itemId)) {
+        return prev.filter(id => id !== itemId);
+      } else {
+        return [...prev, itemId];
+      }
+    });
+  };
+
+  // Select/deselect all pending items
+  const toggleSelectAllPending = () => {
+    if (selectedPendingItems.length === pendingActionItems.length) {
+      setSelectedPendingItems([]);
+    } else {
+      setSelectedPendingItems(pendingActionItems.map(item => item.id));
+    }
+  };
+
+  // Fetch action items and pending items when selected meeting changes
+  useEffect(() => {
+    if (selectedMeetingId) {
+      fetchActionItems(selectedMeetingId);
+      fetchPendingActionItems(selectedMeetingId);
+    } else {
+      setActionItems([]);
+      setPendingActionItems([]);
+      setSelectedPendingItems([]);
+    }
+  }, [selectedMeetingId]);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="flex items-center gap-3">
+          <div className="animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent"></div>
+          <span className="text-muted-foreground">Loading meetings...</span>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex">
-      {/* Left Panel - Meeting List */}
-      <div className="w-1/3 border-r border-gray-200 overflow-y-auto">
-        <div className="p-6">
-          {/* View Toggle */}
-          <div className="flex gap-2 mb-6">
+    <div className="h-full w-full bg-background relative">
+      {/* Main Content - Meetings List */}
+      <div className="h-full flex flex-col bg-background overflow-hidden">
+        {/* Header */}
+        <div className="border-b border-border/50 p-4 sm:p-6 bg-card/50 flex-shrink-0">
+          <div className="flex items-center justify-between mb-4 gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Meetings</h1>
             <Button
-              variant={meetingView === 'future' ? 'default' : 'outline'}
+              variant="outline"
               size="sm"
-              onClick={() => setMeetingView('future')}
+              onClick={handleSyncMeetings}
+              disabled={syncingMeetings}
+              className="h-8 px-3 text-xs"
             >
-              Upcoming
-            </Button>
-            <Button
-              variant={meetingView === 'past' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setMeetingView('past')}
-            >
-              Past
+              <RefreshCw className={cn("w-3.5 h-3.5 mr-1.5", syncingMeetings && "animate-spin")} />
+              {syncingMeetings ? 'Syncing...' : 'Sync'}
             </Button>
           </div>
-
-          {/* Meeting List */}
-          {meetingView === 'future' 
-            ? renderGroupedMeetings(meetings.future, 'Upcoming Meetings')
-            : renderGroupedMeetings(meetings.past, 'Past Meetings', true)
-          }
         </div>
-      </div>
 
-      {/* Right Panel - Meeting Details */}
-      <div className="flex-1 flex flex-col">
-        {selectedMeeting ? (
-          <>
-            {/* Meeting Header */}
-            <div className="border-b border-gray-200 p-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-2">
-                    {selectedMeeting.summary || selectedMeeting.title || 'Untitled Meeting'}
-                  </h1>
-                  <div className="flex items-center gap-4 text-sm text-gray-500">
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      <span>{formatMeetingTime(selectedMeeting)}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="w-4 h-4" />
-                      <span>{formatDate(selectedMeeting.start?.dateTime)}</span>
-                    </div>
-                  </div>
+        {/* Calendar View */}
+        <div className="flex-1 overflow-y-auto">
+            <div className="p-4 sm:p-6">
+              {/* Calendar Header */}
+              <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 sm:gap-4">
+                  <h2 className="text-lg sm:text-xl font-bold text-foreground">
+                    {currentWeekStart.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </h2>
+                  <Button onClick={goToToday} variant="outline" size="sm">
+                    Today
+                  </Button>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={handleCopyToClipboard}>
-                    <Copy className="w-4 h-4 mr-2" />
-                    Copy
+                  <Button onClick={goToPreviousWeek} variant="outline" size="sm">
+                    <ChevronLeft className="w-4 h-4" />
                   </Button>
-                  <Button variant="outline" size="sm">
-                    <Share className="w-4 h-4 mr-2" />
-                    Share
+                  <Button onClick={goToNextWeek} variant="outline" size="sm">
+                    <ChevronRight className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
-            </div>
 
-            {/* Meeting Content */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="p-6">
-                {/* Tabs */}
-                <div className="flex gap-4 mb-6 border-b border-gray-200">
-                  <button
-                    className={cn(
-                      "pb-2 px-1 border-b-2 font-medium text-sm transition-colors",
-                      activeTab === 'summary'
-                        ? "border-blue-500 text-blue-600"
-                        : "border-transparent text-gray-500 hover:text-gray-700"
-                    )}
-                    onClick={() => setActiveTab('summary')}
-                  >
-                    Summary
-                  </button>
-                  <button
-                    className={cn(
-                      "pb-2 px-1 border-b-2 font-medium text-sm transition-colors",
-                      activeTab === 'transcript'
-                        ? "border-blue-500 text-blue-600"
-                        : "border-transparent text-gray-500 hover:text-gray-700"
-                    )}
-                    onClick={() => setActiveTab('transcript')}
-                  >
-                    Transcript
-                  </button>
-                </div>
+              {/* Calendar Grid - Scrollable on mobile */}
+              <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+                <div className="grid grid-cols-7 gap-2 sm:gap-4 min-w-[700px] sm:min-w-0">
+                {getWeekDays().map((day, index) => {
+                  const meetingsOnDay = getMeetingsForDay(day);
+                  const dayIsToday = isToday(day);
 
-                {/* Content */}
-                <div className="space-y-4">
-                  {activeTab === 'summary' && (
-                    <div className="prose max-w-none">
-                      <div className="bg-white border border-gray-200 rounded-lg p-4">
-                        {summaryContent ? (
-                          <div className="whitespace-pre-wrap text-gray-700">
-                            {summaryContent}
-                          </div>
+                  return (
+                    <div key={index} className="flex flex-col">
+                      {/* Day Header */}
+                      <div className={cn(
+                        "text-center p-3 border-b-2 mb-3",
+                        dayIsToday ? "border-primary bg-primary/5" : "border-border"
+                      )}>
+                        <div className="text-xs font-medium text-muted-foreground uppercase">
+                          {day.toLocaleDateString('en-US', { weekday: 'short' })}
+                        </div>
+                        <div className={cn(
+                          "text-2xl font-bold mt-1",
+                          dayIsToday ? "text-primary" : "text-foreground"
+                        )}>
+                          {day.getDate()}
+                        </div>
+                      </div>
+
+                      {/* Meetings for this day */}
+                      <div className="space-y-2 min-h-[200px]">
+                        {meetingsOnDay.length > 0 ? (
+                          meetingsOnDay.map((meeting) => {
+                            const attendees = extractAttendees(meeting, user?.email);
+                            const clientName = attendees.length > 0 ? attendees[0].name : null;
+
+                            return (
+                              <Card
+                                key={meeting.id}
+                                className={cn(
+                                  "border-border/50 hover:border-primary/50 cursor-pointer transition-all hover:shadow-md",
+                                  // Prominent selection indicator
+                                  selectedMeetingId === meeting.id && "ring-2 ring-primary border-primary shadow-lg shadow-primary/20 bg-primary/5",
+                                  getMeetingCardGlowStyle(meeting)
+                                )}
+                                onClick={() => handleMeetingSelect(meeting)}
+                              >
+                                <CardContent className="p-3 space-y-2">
+                                  {/* Time */}
+                                  <div className="flex items-center gap-2">
+                                    <Clock className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+                                    <div className="text-xs text-muted-foreground font-medium">
+                                      {formatMeetingTime(meeting)}
+                                    </div>
+                                  </div>
+
+                                  {/* Title */}
+                                  <div className="font-semibold text-sm text-foreground line-clamp-2">
+                                    {meeting.title || 'Untitled Meeting'}
+                                  </div>
+
+                                  {/* Client Name with Avatar */}
+                                  {clientName && (
+                                    <div className="flex items-center gap-2">
+                                      <Avatar className="w-5 h-5 flex-shrink-0">
+                                        <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                                          {getInitials(clientName)}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <div className="text-xs text-muted-foreground truncate">
+                                        {clientName}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Bot Toggle - Only show for future meetings without transcript */}
+                                  {shouldShowBotToggle(meeting) && (() => {
+                                    const isBotEnabled = !meeting.skip_transcription_for_meeting;
+                                    const platform = getMeetingPlatform(meeting);
+                                    const platformLogo = platform ? VIDEO_PLATFORM_LOGOS[platform] : null;
+                                    return (
+                                      <div
+                                        className="flex items-center justify-between py-1.5 px-2 -mx-2 rounded-lg bg-muted/30 border border-border/30"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          {platformLogo && (
+                                            <img src={platformLogo} alt={getPlatformDisplayName(platform)} className="w-5 h-5 object-contain" />
+                                          )}
+                                        </div>
+                                        <Switch
+                                          checked={isBotEnabled}
+                                          onCheckedChange={() => handleToggleBotForAnyMeeting(meeting)}
+                                          className="data-[state=checked]:bg-green-600 data-[state=unchecked]:bg-gray-400 h-5 w-9"
+                                        />
+                                      </div>
+                                    );
+                                  })()}
+
+                                  {/* Smart Bot Status Badge for Past Meetings */}
+                                  {(() => {
+                                    const badge = getBotStatusBadge(meeting, calendarConnection);
+                                    if (!badge) return null;
+                                    return (
+                                      <div className={cn(
+                                        "flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium",
+                                        badge.color,
+                                        badge.bgColor
+                                      )}>
+                                        {badge.status === 'complete' && <CheckCircle2 className="w-3 h-3" />}
+                                        {badge.status === 'manual' && <FileText className="w-3 h-3" />}
+                                        {badge.status === 'no_participants' && <AlertCircle className="w-3 h-3" />}
+                                        {badge.status === 'no_recording' && <AlertCircle className="w-3 h-3" />}
+                                        {badge.status === 'failed' && <AlertCircle className="w-3 h-3" />}
+                                        {badge.status === 'no_transcript' && <FileText className="w-3 h-3" />}
+                                        {badge.status === 'not_connected' && <Bot className="w-3 h-3" />}
+                                        <span>{badge.label}</span>
+                                      </div>
+                                    );
+                                  })()}
+                                </CardContent>
+                              </Card>
+                            );
+                          })
                         ) : (
-                          <div className="text-gray-500 italic">
-                            No summary available for this meeting.
+                          <div className="text-center py-8 text-muted-foreground text-sm">
+                            No meetings
                           </div>
                         )}
                       </div>
                     </div>
-                  )}
-
-                  {activeTab === 'transcript' && (
-                    <div className="bg-white border border-gray-200 rounded-lg p-4">
-                      <div className="text-gray-500 italic">
-                        Transcript view coming soon...
-                      </div>
-                    </div>
-                  )}
+                  );
+                })}
                 </div>
               </div>
             </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No meeting selected</h3>
-              <p className="text-gray-500">Select a meeting from the list to view its details.</p>
+        </div>
+      </div>
+
+      {/* Meeting Detail Panel - Full Screen Overlay */}
+      {selectedMeeting && (
+        <>
+          {/* Mobile Overlay */}
+          <div
+            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+            onClick={() => setSelectedMeetingId(null)}
+          />
+
+          {/* Detail Panel - Expanded Width */}
+          <div className="fixed right-0 top-0 h-full w-full lg:w-[45%] xl:w-[40%] bg-card border-l border-border shadow-xl z-50 overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="sticky top-0 bg-background border-b border-border/50 p-4 sm:p-6 flex-shrink-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  {getMeetingSource(selectedMeeting) === 'Google Calendar' ?
+                    <GoogleIcon size={18} className="flex-shrink-0" /> :
+                    getMeetingSource(selectedMeeting) === 'Calendly' ?
+                    <CalendlyIcon size={18} className="flex-shrink-0" /> :
+                    <OutlookIcon size={18} className="flex-shrink-0" />
+                  }
+                  <h1 className="text-base lg:text-lg font-bold text-foreground line-clamp-2 break-words">
+                    {selectedMeeting.summary || selectedMeeting.title || 'Untitled Meeting'}
+                  </h1>
+                </div>
+
+                {/* Client info display - Enhanced to show linked client or attendee with navigation */}
+                {(() => {
+                  // First, check if there's a linked client from the database
+                  if (selectedMeeting.client) {
+                    return (
+                      <div
+                        className="flex items-center mb-2 text-sm cursor-pointer hover:bg-primary/5 -mx-2 px-2 py-1 rounded transition-colors group"
+                        onClick={() => {
+                          // Navigate to Clients page with client parameter (using React Router for SPA navigation)
+                          navigate(`/clients?client=${encodeURIComponent(selectedMeeting.client.email)}`);
+                        }}
+                        title="Click to view client profile"
+                      >
+                        <Mail className="h-4 w-4 mr-2 text-primary/60 group-hover:text-primary" />
+                        <span className="font-medium text-primary group-hover:underline">{selectedMeeting.client.name || selectedMeeting.client.email.split('@')[0]}</span>
+                        <span className="mx-2 text-muted-foreground">•</span>
+                        <span className="text-foreground/70">{selectedMeeting.client.email}</span>
+                      </div>
+                    );
+                  }
+
+                  // Fallback to attendees if no linked client - make clickable to navigate/create client
+                  if (selectedMeeting.attendees) {
+                    try {
+                      const attendees = JSON.parse(selectedMeeting.attendees);
+                      const clientAttendee = attendees.find(a => a.email && a.email !== user?.email);
+                      if (clientAttendee) {
+                        const attendeeName = clientAttendee.displayName || clientAttendee.name || clientAttendee.email.split('@')[0];
+                        return (
+                          <div
+                            className="flex items-center mb-2 text-sm cursor-pointer hover:bg-primary/5 -mx-2 px-2 py-1 rounded transition-colors group"
+                            onClick={() => {
+                              // Navigate to Clients page with email to find or create this client (using React Router for SPA navigation)
+                              navigate(`/clients?client=${encodeURIComponent(clientAttendee.email)}`);
+                            }}
+                            title="Click to view or create client profile"
+                          >
+                            <Mail className="h-4 w-4 mr-2 text-muted-foreground/60 group-hover:text-primary" />
+                            <span className="font-medium text-muted-foreground group-hover:text-primary group-hover:underline">{attendeeName}</span>
+                            <span className="mx-2 text-muted-foreground/60">•</span>
+                            <span className="text-muted-foreground/80">{clientAttendee.email}</span>
+                          </div>
+                        );
+                      }
+                    } catch (e) {
+                      return null;
+                    }
+                  }
+
+                  // Show "No client linked" with inline button if neither exists
+                  return (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground/60">
+                      <Mail className="h-4 w-4 flex-shrink-0" />
+                      <span className="italic">No client linked</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setLinkClientMeeting(selectedMeeting);
+                          setShowLinkClientDialog(true);
+                        }}
+                        className="h-5 px-2 text-xs text-muted-foreground/70 hover:text-muted-foreground hover:bg-muted/50"
+                      >
+                        Link
+                      </Button>
+                    </div>
+                  );
+                })()}
+
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Calendar className="w-3 h-3" />
+                  <span>{formatDate(selectedMeeting.start?.dateTime || selectedMeeting.startTime || selectedMeeting.starttime)}</span>
+                  <span>•</span>
+                  <Clock className="w-3 h-3" />
+                  <span>
+                    {formatMeetingTime(selectedMeeting)}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 ml-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => handleEditMeeting(selectedMeeting, e)}
+                  className="h-8 w-8 p-0"
+                  title="Edit meeting"
+                >
+                  <Edit className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedMeetingId(null)}
+                  className="h-8 w-8 p-0"
+                  title="Close"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
             </div>
           </div>
-        )}
-      </div>
+
+          {/* Meeting Content - Scrollable */}
+          <div className="flex-1 overflow-y-auto">
+            <div className="p-6 space-y-6">
+              {/* Recall Bot Status Indicator - Only show for FUTURE meetings
+                  Past meeting status is already shown in the card badge */}
+              {botStatus && !botStatus.isMeetingPast && (
+                <div className={`p-4 rounded-lg border-2 ${getStatusColor(botStatus.status)}`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-lg">{getStatusIcon(botStatus.willJoin)}</span>
+                        <h3 className="font-semibold text-sm">
+                          {botStatus.linkToSettings ? (
+                            <Link
+                              to="/settings?section=meetings"
+                              className="underline hover:text-primary transition-colors"
+                            >
+                              {botStatus.reason}
+                            </Link>
+                          ) : (
+                            botStatus.reason
+                          )}
+                        </h3>
+                      </div>
+                      {!botStatus.willJoin && botStatus.status === 'error' && !botStatus.linkToSettings && (
+                        <p className="text-xs opacity-90">
+                          💡 Hint: {botStatus.reason}
+                        </p>
+                      )}
+                    </div>
+                    {botStatus.showToggleButton && (
+                      <div className="flex-shrink-0">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleToggleBotForMeeting}
+                          disabled={togglingBot}
+                          className="text-xs h-8"
+                        >
+                          {togglingBot ? 'Updating...' : selectedMeeting?.skip_transcription_for_meeting ? 'Enable bot' : 'Disable bot'}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Join Meeting Button - Show for future meetings with valid URL */}
+              {selectedMeeting && hasValidMeetingUrl(selectedMeeting) && (() => {
+                const platform = getMeetingPlatform(selectedMeeting);
+                const platformLogo = platform ? VIDEO_PLATFORM_LOGOS[platform] : null;
+                const platformName = platform ? getPlatformDisplayName(platform) : 'Video Meeting';
+
+                return (
+                  <div className="flex items-center gap-3 p-4 rounded-lg border border-border/50 bg-card">
+                    <div className="flex items-center gap-2 flex-1">
+                      {platformLogo ? (
+                        <img src={platformLogo} alt={platformName} className="w-6 h-6 object-contain" />
+                      ) : (
+                        <Video className="w-5 h-5 text-primary" />
+                      )}
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{platformName}</p>
+                        <p className="text-xs text-muted-foreground truncate max-w-[200px] lg:max-w-[300px]">
+                          {getMeetingUrl(selectedMeeting)}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        const url = getMeetingUrl(selectedMeeting);
+                        if (url) window.open(url, '_blank', 'noopener,noreferrer');
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Join Meeting
+                    </Button>
+                  </div>
+                );
+              })()}
+
+              {/* Tabs - New Order: Ask Advicly, Summary, Generate Email, Transcript, Documents */}
+              <div className="flex border-b border-border/50 mb-4 overflow-x-auto">
+                {/* Ask Advicly Tab */}
+                <button
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                    activeTab === 'ask'
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => setActiveTab('ask')}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Ask Advicly
+                </button>
+
+                {/* Summary Tab */}
+                <button
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                    activeTab === 'summary'
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => setActiveTab('summary')}
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  Summary
+                  {selectedMeeting?.quick_summary && (
+                    <div className="w-2 h-2 bg-green-500 rounded-full ml-1"></div>
+                  )}
+                </button>
+
+                {/* Generate Email Tab */}
+                <button
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                    activeTab === 'email'
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => setActiveTab('email')}
+                >
+                  <Mail className="w-4 h-4" />
+                  Generate Email
+                  {selectedMeeting?.email_summary_draft && (
+                    <div className="w-2 h-2 bg-purple-500 rounded-full ml-1"></div>
+                  )}
+                </button>
+
+                {/* Transcript Tab */}
+                <button
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                    activeTab === 'transcript'
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => setActiveTab('transcript')}
+                >
+                  <FileText className="w-4 h-4" />
+                  Transcript
+                  {selectedMeeting?.transcript && (
+                    <div className="w-2 h-2 bg-blue-500 rounded-full ml-1"></div>
+                  )}
+                </button>
+
+                {/* Documents Tab */}
+                <button
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                    activeTab === 'documents'
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                  onClick={() => setActiveTab('documents')}
+                >
+                  <Upload className="w-4 h-4" />
+                  Documents
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="space-y-4">
+                {/* Ask Advicly Tab Content - Inline Chat */}
+                {activeTab === 'ask' && (
+                  <div className="h-[calc(100vh-380px)] min-h-[400px]">
+                    <InlineChatWidget
+                      contextType="meeting"
+                      contextData={{
+                        meetingId: selectedMeeting?.id,
+                        meetingTitle: selectedMeeting?.summary || selectedMeeting?.title || 'Meeting',
+                        meetingDate: selectedMeeting?.startTime || selectedMeeting?.start || selectedMeeting?.date,
+                        clientName: (() => {
+                          if (selectedMeeting?.attendees) {
+                            try {
+                              const attendees = typeof selectedMeeting.attendees === 'string'
+                                ? JSON.parse(selectedMeeting.attendees)
+                                : selectedMeeting.attendees;
+                              const currentUserEmail = user?.email || '';
+                              const clientAttendee = attendees.find(a => a.email !== currentUserEmail);
+                              return clientAttendee?.name || clientAttendee?.email || null;
+                            } catch (e) { return null; }
+                          }
+                          return null;
+                        })(),
+                        hasTranscript: !!selectedMeeting?.transcript,
+                        hasSummary: !!selectedMeeting?.quick_summary
+                      }}
+                      meetingId={selectedMeeting?.id}
+                      meetingTitle={selectedMeeting?.summary || selectedMeeting?.title}
+                      clientName={(() => {
+                        if (selectedMeeting?.attendees) {
+                          try {
+                            const attendees = typeof selectedMeeting.attendees === 'string'
+                              ? JSON.parse(selectedMeeting.attendees)
+                              : selectedMeeting.attendees;
+                            const currentUserEmail = user?.email || '';
+                            const clientAttendee = attendees.find(a => a.email !== currentUserEmail);
+                            return clientAttendee?.name || clientAttendee?.email || null;
+                          } catch (e) { return null; }
+                        }
+                        return null;
+                      })()}
+                      className="rounded-lg border border-border/50"
+                    />
+                  </div>
+                )}
+
+                {/* Generate Email Tab Content */}
+                {activeTab === 'email' && (
+                  <div className="space-y-4">
+                    {/* Show streaming content with typewriter effect */}
+                    {isStreaming && (
+                      <Card className="border-primary/30 bg-gradient-to-br from-primary/5 to-primary/10">
+                        <CardContent className="p-6">
+                          <div className="flex items-center gap-2 mb-4">
+                            <Sparkles className="w-5 h-5 text-primary animate-pulse" />
+                            <span className="text-sm font-medium text-primary">Generating email...</span>
+                            {currentSummaryTemplate && (
+                              <span className="text-xs text-muted-foreground ml-auto">
+                                Template: {currentSummaryTemplate.title || 'Advicly Summary'}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-sm text-foreground whitespace-pre-line leading-relaxed font-mono bg-background/50 p-4 rounded-lg border border-border/30">
+                            {streamingContent}
+                            <span className="inline-block w-2 h-4 bg-primary ml-0.5 animate-pulse" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Email Draft Section - Premium Inline Layout */}
+                    {/* Hide during streaming - the streaming card above shows progress */}
+                    {!isStreaming && selectedMeeting?.transcript ? (
+                      <Card className="border-border/50">
+                        <CardContent className="p-0">
+                          {/* Header */}
+                          <div className="p-4 border-b border-border/30">
+                            <h3 className="text-sm font-semibold text-foreground">Email Draft</h3>
+                          </div>
+
+                          {/* Template Selector & Generate Button */}
+                          <div className="p-4 space-y-3 border-b border-border/30 bg-muted/20">
+                            {/* Template Dropdown */}
+                            <div className="space-y-1.5">
+                              <label className="text-xs font-medium text-muted-foreground">Template</label>
+                              <Select
+                                value={selectedTemplate?.id || ''}
+                                onValueChange={(value) => {
+                                  const template = templates.find(t => t.id === value);
+                                  setSelectedTemplate(template);
+                                }}
+                              >
+                                <SelectTrigger className="w-full h-10 bg-card border-border/50 hover:border-border focus:ring-1 focus:ring-primary/30 transition-colors">
+                                  <SelectValue placeholder="Select template" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {templates.map(template => (
+                                    <SelectItem key={template.id} value={template.id}>
+                                      {template.title}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Generate Button - State Aware */}
+                            <Button
+                              className={cn(
+                                "w-full h-10 font-medium transition-all duration-200",
+                                // Blue active state when: no email yet, or different template selected
+                                (!lastGeneratedTemplateId || selectedTemplate?.id !== lastGeneratedTemplateId)
+                                  ? "bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                                  : "bg-muted hover:bg-muted/80 text-muted-foreground border border-border/50"
+                              )}
+                              disabled={generatingSummary || isStreaming || !selectedTemplate}
+                              onClick={handleGenerateAISummary}
+                            >
+                              {generatingSummary || isStreaming ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Generating...
+                                </>
+                              ) : (
+                                <>
+                                  <Mail className="w-4 h-4 mr-2" />
+                                  Generate Email
+                                </>
+                              )}
+                            </Button>
+                          </div>
+
+                          {/* Email Preview Section */}
+                          {!isStreaming && (streamingComplete || selectedMeeting?.email_summary_draft) && (
+                            <>
+                              {/* Action Bar */}
+                              <div className="flex items-center gap-2 px-4 py-2 border-b border-border/30 bg-muted/10">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const content = streamingComplete ? streamingContent : selectedMeeting?.email_summary_draft;
+                                    if (content) {
+                                      navigator.clipboard.writeText(content);
+                                      setCopiedEmail(true);
+                                      setTimeout(() => setCopiedEmail(false), 2000);
+                                      setShowSnackbar(true);
+                                      setSnackbarMessage('Email copied to clipboard');
+                                      setSnackbarSeverity('success');
+                                    }
+                                  }}
+                                  className="h-8 px-3 text-xs font-medium"
+                                >
+                                  {copiedEmail ? (
+                                    <>
+                                      <Check className="w-3.5 h-3.5 mr-1.5 text-green-500" />
+                                      Copied
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-3.5 h-3.5 mr-1.5" />
+                                      Copy
+                                    </>
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const content = streamingComplete ? streamingContent : selectedMeeting?.email_summary_draft;
+                                    const clientEmail = selectedMeeting?.client?.email || '';
+                                    const meetingTitle = selectedMeeting?.title || 'Meeting Follow-up';
+                                    const subject = encodeURIComponent(`Follow-up: ${meetingTitle}`);
+                                    const body = encodeURIComponent(content || '');
+                                    window.location.href = `mailto:${clientEmail}?subject=${subject}&body=${body}`;
+                                  }}
+                                  className="h-8 px-3 text-xs font-medium"
+                                >
+                                  <Send className="w-3.5 h-3.5 mr-1.5" />
+                                  Send
+                                </Button>
+                              </div>
+
+                              {/* Email Preview Content */}
+                              <div className="p-5">
+                                {/* Email header */}
+                                <div className="border-b border-border/30 pb-3 mb-4">
+                                  <div className="space-y-1.5">
+                                    <div className="text-sm">
+                                      <span className="text-muted-foreground">To:</span>
+                                      <span className="ml-2 text-foreground">
+                                        {selectedMeeting?.client?.name || selectedMeeting?.clients?.name || 'Client'}
+                                      </span>
+                                    </div>
+                                    <div className="text-sm">
+                                      <span className="text-muted-foreground">Subject:</span>
+                                      <span className="ml-2 text-foreground font-medium">
+                                        Follow-up: {selectedMeeting?.title || 'Meeting'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                {/* Email body */}
+                                <div className="text-sm text-foreground leading-relaxed whitespace-pre-line">
+                                  {streamingComplete ? streamingContent : selectedMeeting?.email_summary_draft}
+                                </div>
+                              </div>
+                            </>
+                          )}
+
+                          {/* Empty state when no email generated yet */}
+                          {!isStreaming && !streamingComplete && !selectedMeeting?.email_summary_draft && (
+                            <div className="p-8 text-center">
+                              <Mail className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
+                              <p className="text-sm text-muted-foreground">
+                                Select a template and click Generate to create your email
+                              </p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      /* No transcript message */
+                      <Card className="border-border/50">
+                        <CardContent className="p-6 text-center text-muted-foreground">
+                          <Mail className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                          <p>No transcript available. Email generation requires a meeting transcript.</p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'summary' && (
+                  <div className="space-y-4">
+                    {selectedMeeting?.transcript ? (
+                      <div className="space-y-4">
+                        {/* Quick Summary Section */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-sm font-semibold text-foreground">Quick Summary</h3>
+                          </div>
+                          {(quickSummary || selectedMeeting?.quick_summary) ? (
+                            <Card className="border-border/50">
+                              <CardContent className="p-3">
+                                <div className="text-sm text-foreground whitespace-pre-line">
+                                  {quickSummary || selectedMeeting?.quick_summary}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ) : autoGenerating ? (
+                            <Card className="border-border/50">
+                              <CardContent className="p-3 text-center">
+                                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
+                                  Generating quick summary...
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ) : null}
+                        </div>
+
+                        {/* Pending Action Items - now merged into Action Items section below */}
+                        {false && pendingActionItems.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <h3 className="text-sm font-semibold text-foreground">
+                                Pending Action Items
+                                <span className="ml-2 text-xs font-normal text-orange-600">
+                                  ({pendingActionItems.length} awaiting approval)
+                                </span>
+                              </h3>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={toggleSelectAllPending}
+                                  className="h-7 text-xs"
+                                >
+                                  {selectedPendingItems.length === pendingActionItems.length ? 'Deselect All' : 'Select All'}
+                                </Button>
+                              </div>
+                            </div>
+
+                            {loadingPendingItems ? (
+                              <Card className="border-border/50 bg-card/60 backdrop-blur-sm">
+                                <CardContent className="p-3">
+                                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-primary border-t-transparent"></div>
+                                    Loading pending items...
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            ) : (
+                              <>
+                                <div className="space-y-2">
+                                  {pendingActionItems.map((item) => (
+                                    <Card key={item.id} className="border-border/50 bg-card/60 backdrop-blur-sm hover:bg-card/80 transition-all">
+                                      <CardContent className="p-3">
+                                        <div className="flex items-start gap-3">
+                                          <input
+                                            type="checkbox"
+                                            checked={selectedPendingItems.includes(item.id)}
+                                            onChange={() => togglePendingItemSelection(item.id)}
+                                            className="mt-1 w-4 h-4 text-primary border-border rounded focus:ring-primary cursor-pointer"
+                                          />
+                                          <div className="flex-1 space-y-2">
+                                            {editingPendingItemId === item.id ? (
+                                              // Edit mode
+                                              <div className="space-y-2">
+                                                <textarea
+                                                  value={editingPendingText}
+                                                  onChange={(e) => setEditingPendingText(e.target.value)}
+                                                  className="w-full text-sm bg-background border border-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
+                                                  rows={2}
+                                                  autoFocus
+                                                  onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' && e.ctrlKey) {
+                                                      savePendingItemEdit(item.id);
+                                                    } else if (e.key === 'Escape') {
+                                                      cancelEditingPendingItem();
+                                                    }
+                                                  }}
+                                                />
+                                                <div className="flex items-center gap-2">
+                                                  <Button
+                                                    size="sm"
+                                                    onClick={() => savePendingItemEdit(item.id)}
+                                                    disabled={savingPendingEdit}
+                                                    className="h-7 text-xs bg-orange-600 hover:bg-orange-700"
+                                                  >
+                                                    {savingPendingEdit ? (
+                                                      <>
+                                                        <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent mr-1"></div>
+                                                        Saving...
+                                                      </>
+                                                    ) : (
+                                                      <>
+                                                        <Save className="w-3 h-3 mr-1" />
+                                                        Save
+                                                      </>
+                                                    )}
+                                                  </Button>
+                                                  <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={cancelEditingPendingItem}
+                                                    disabled={savingPendingEdit}
+                                                    className="h-7 text-xs"
+                                                  >
+                                                    <X className="w-3 h-3 mr-1" />
+                                                    Cancel
+                                                  </Button>
+                                                  <span className="text-xs text-muted-foreground ml-2">
+                                                    Ctrl+Enter to save, Esc to cancel
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            ) : (
+                                              // View mode
+                                              <>
+                                                <div className="flex items-start justify-between group">
+                                                  <p className="text-sm text-foreground flex-1">
+                                                    {item.action_text}
+                                                  </p>
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => startEditingPendingItem(item)}
+                                                    className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                                  >
+                                                    <Edit2 className="w-3 h-3 text-muted-foreground" />
+                                                  </Button>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                  <span className="text-xs text-muted-foreground">Priority:</span>
+                                                  <Select
+                                                    value={String(pendingItemPriorities[item.id] || 3)}
+                                                    onValueChange={(value) => updatePendingItemPriority(item.id, parseInt(value))}
+                                                  >
+                                                    <SelectTrigger className="w-32 h-7 text-xs">
+                                                      <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                      {priorityOptions.map(option => (
+                                                        <SelectItem key={option.value} value={String(option.value)}>
+                                                          <span className="flex items-center gap-1">
+                                                            <span>{option.icon}</span>
+                                                            <span>{option.label}</span>
+                                                          </span>
+                                                        </SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                  </Select>
+                                                </div>
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </CardContent>
+                                    </Card>
+                                  ))}
+
+                                  {/* Add New Action Item */}
+                                  {addingPendingItem ? (
+                                    <Card className="border-2 border-orange-400 bg-orange-100 shadow-md">
+                                      <CardContent className="p-4">
+                                        <div className="space-y-3">
+                                          <textarea
+                                            value={newPendingItemText}
+                                            onChange={(e) => setNewPendingItemText(e.target.value)}
+                                            placeholder="Enter action item text..."
+                                            className="w-full text-sm border-2 border-orange-400 rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                            rows={3}
+                                            autoFocus
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter' && e.ctrlKey) {
+                                                saveNewPendingItem();
+                                              } else if (e.key === 'Escape') {
+                                                cancelAddingPendingItem();
+                                              }
+                                            }}
+                                          />
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs font-medium text-orange-900">Priority:</span>
+                                            <Select
+                                              value={String(newPendingItemPriority)}
+                                              onValueChange={(value) => setNewPendingItemPriority(parseInt(value))}
+                                            >
+                                              <SelectTrigger className="w-32 h-8 text-xs border-orange-400">
+                                                <SelectValue />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                {priorityOptions.map(option => (
+                                                  <SelectItem key={option.value} value={String(option.value)}>
+                                                    <span className="flex items-center gap-1">
+                                                      <span>{option.icon}</span>
+                                                      <span>{option.label}</span>
+                                                    </span>
+                                                  </SelectItem>
+                                                ))}
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <Button
+                                              size="sm"
+                                              onClick={saveNewPendingItem}
+                                              disabled={savingNewPendingItem}
+                                              className="h-8 text-xs bg-orange-600 hover:bg-orange-700 font-medium"
+                                            >
+                                              {savingNewPendingItem ? (
+                                                <>
+                                                  <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent mr-1"></div>
+                                                  Adding...
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Plus className="w-3 h-3 mr-1" />
+                                                  Add
+                                                </>
+                                              )}
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={cancelAddingPendingItem}
+                                              disabled={savingNewPendingItem}
+                                              className="h-8 text-xs border-orange-400"
+                                            >
+                                              <X className="w-3 h-3 mr-1" />
+                                              Cancel
+                                            </Button>
+                                            <span className="text-xs text-orange-800 ml-2 font-medium">
+                                              Ctrl+Enter to add, Esc to cancel
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </CardContent>
+                                    </Card>
+                                  ) : (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={startAddingPendingItem}
+                                      className="w-full h-9 text-sm border-2 border-orange-400 text-orange-700 hover:bg-orange-100 hover:border-orange-500 font-medium shadow-sm"
+                                    >
+                                      <Plus className="w-4 h-4 mr-2" />
+                                      Add Action Item
+                                    </Button>
+                                  )}
+                                </div>
+
+                                <div className="flex items-center gap-2 pt-2">
+                                  <Button
+                                    onClick={approvePendingActionItems}
+                                    disabled={selectedPendingItems.length === 0}
+                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                                    size="sm"
+                                  >
+                                    <Check className="w-4 h-4 mr-2" />
+                                    Approve Selected ({selectedPendingItems.length})
+                                  </Button>
+                                  <Button
+                                    onClick={rejectPendingActionItems}
+                                    disabled={selectedPendingItems.length === 0}
+                                    variant="outline"
+                                    className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
+                                    size="sm"
+                                  >
+                                    <X className="w-4 h-4 mr-2" />
+                                    Reject Selected ({selectedPendingItems.length})
+                                  </Button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Action Items - Unified Dark Theme (includes pending + approved) */}
+                        <div className="bg-[#1A1C23] border border-[#2D313E] rounded-lg">
+                          <button
+                            onClick={() => setShowMeetingActionItems(!showMeetingActionItems)}
+                            className="w-full p-4 flex items-center justify-between hover:bg-[#252830] transition-colors rounded-t-lg"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-600/20 flex items-center justify-center">
+                                <CheckSquare className="w-4 h-4 text-indigo-400" />
+                              </div>
+                              <div className="text-left">
+                                <h4 className="text-sm font-semibold text-white">Action Items</h4>
+                                <p className="text-xs text-[#94A3B8]">
+                                  {actionItems.filter(item => !item.completed).length} pending, {actionItems.filter(item => item.completed).length} complete
+                                  {pendingActionItems.length > 0 && (
+                                    <span className="ml-2 text-orange-400">
+                                      · {pendingActionItems.length} awaiting approval
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                            <ChevronDown className={cn(
+                              "w-5 h-5 text-[#94A3B8] transition-transform",
+                              showMeetingActionItems && "transform rotate-180"
+                            )} />
+                          </button>
+
+                          {showMeetingActionItems && (
+                            <div className="p-4 pt-0 space-y-2">
+                              {/* Pending Action Items - awaiting approval */}
+                              {!loadingPendingItems && pendingActionItems.length > 0 && (
+                                <>
+                                  <div className="flex items-center justify-between pt-1 pb-1">
+                                    <span className="text-xs font-medium text-orange-400">
+                                      Awaiting Approval ({pendingActionItems.length})
+                                    </span>
+                                    <button
+                                      onClick={toggleSelectAllPending}
+                                      className="text-xs text-[#94A3B8] hover:text-white transition-colors"
+                                    >
+                                      {selectedPendingItems.length === pendingActionItems.length ? 'Deselect All' : 'Select All'}
+                                    </button>
+                                  </div>
+
+                                  {pendingActionItems.map((item) => (
+                                    <div key={item.id} className="flex items-start gap-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedPendingItems.includes(item.id)}
+                                        onChange={() => togglePendingItemSelection(item.id)}
+                                        className="mt-3.5 w-4 h-4 rounded border-[#4D515E] bg-[#252830] accent-orange-500 cursor-pointer flex-shrink-0"
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        {editingPendingItemId === item.id ? (
+                                          <div className="bg-[#1A1C23] border border-[#2D313E] rounded-lg p-3 space-y-2">
+                                            <textarea
+                                              value={editingPendingText}
+                                              onChange={(e) => setEditingPendingText(e.target.value)}
+                                              className="w-full text-sm bg-[#252830] border border-[#3D414E] rounded px-2 py-1 text-white focus:outline-none focus:border-indigo-500"
+                                              rows={2}
+                                              autoFocus
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter' && e.ctrlKey) savePendingItemEdit(item.id);
+                                                else if (e.key === 'Escape') cancelEditingPendingItem();
+                                              }}
+                                            />
+                                            <div className="flex items-center gap-2">
+                                              <Button size="sm" onClick={() => savePendingItemEdit(item.id)} disabled={savingPendingEdit} className="h-7 text-xs bg-orange-600 hover:bg-orange-700">
+                                                {savingPendingEdit ? 'Saving...' : 'Save'}
+                                              </Button>
+                                              <Button size="sm" variant="ghost" onClick={cancelEditingPendingItem} disabled={savingPendingEdit} className="h-7 text-xs text-[#94A3B8]">Cancel</Button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="bg-[#1A1C23] border border-orange-500/30 rounded-lg p-3 transition-all hover:border-[#3D414E] group">
+                                            <div className="flex items-start gap-3">
+                                              <div className="flex-1 min-w-0">
+                                                <p className="text-sm text-white">{item.action_text}</p>
+                                                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                                  <span className="text-xs text-[#94A3B8]">Priority:</span>
+                                                  <Select
+                                                    value={String(pendingItemPriorities[item.id] || 3)}
+                                                    onValueChange={(value) => updatePendingItemPriority(item.id, parseInt(value))}
+                                                  >
+                                                    <SelectTrigger className="w-28 h-6 text-xs bg-[#252830] border-[#3D414E] text-white">
+                                                      <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                      {priorityOptions.map(option => (
+                                                        <SelectItem key={option.value} value={String(option.value)}>
+                                                          <span className="flex items-center gap-1">
+                                                            <span>{option.icon}</span>
+                                                            <span>{option.label}</span>
+                                                          </span>
+                                                        </SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                  </Select>
+                                                </div>
+                                              </div>
+                                              <button
+                                                onClick={() => startEditingPendingItem(item)}
+                                                className="flex-shrink-0 p-1 hover:bg-[#2D313E] rounded transition-colors opacity-0 group-hover:opacity-100"
+                                              >
+                                                <Edit2 className="w-4 h-4 text-[#94A3B8]" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+
+                                  {/* Add new pending action item */}
+                                  {addingPendingItem ? (
+                                    <div className="bg-[#252830] rounded-lg p-3 space-y-2">
+                                      <textarea
+                                        value={newPendingItemText}
+                                        onChange={(e) => setNewPendingItemText(e.target.value)}
+                                        placeholder="Enter action item..."
+                                        className="w-full text-sm bg-[#1A1C23] border border-[#3D414E] rounded px-3 py-2 text-white placeholder:text-[#6B7280] focus:outline-none focus:border-orange-500"
+                                        rows={2}
+                                        autoFocus
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' && e.ctrlKey) saveNewPendingItem();
+                                          else if (e.key === 'Escape') cancelAddingPendingItem();
+                                        }}
+                                      />
+                                      <div className="flex items-center gap-2">
+                                        <Button size="sm" onClick={saveNewPendingItem} disabled={savingNewPendingItem} className="h-7 text-xs bg-orange-600 hover:bg-orange-700">
+                                          {savingNewPendingItem ? 'Adding...' : 'Add'}
+                                        </Button>
+                                        <Button size="sm" variant="ghost" onClick={cancelAddingPendingItem} disabled={savingNewPendingItem} className="h-7 text-xs text-[#94A3B8]">Cancel</Button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={startAddingPendingItem}
+                                      className="w-full py-2 text-xs text-orange-400 hover:text-orange-300 hover:bg-[#252830] rounded transition-colors flex items-center justify-center gap-1"
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                      Add Action Item
+                                    </button>
+                                  )}
+
+                                  {/* Approve / Reject buttons */}
+                                  <div className="flex items-center gap-2 pt-1">
+                                    <Button
+                                      onClick={approvePendingActionItems}
+                                      disabled={selectedPendingItems.length === 0}
+                                      className="flex-1 h-8 text-xs bg-green-600 hover:bg-green-700 text-white"
+                                      size="sm"
+                                    >
+                                      <Check className="w-3.5 h-3.5 mr-1.5" />
+                                      Approve Selected ({selectedPendingItems.length})
+                                    </Button>
+                                    <Button
+                                      onClick={rejectPendingActionItems}
+                                      disabled={selectedPendingItems.length === 0}
+                                      variant="outline"
+                                      className="flex-1 h-8 text-xs border-red-500/30 text-red-400 hover:bg-red-500/10"
+                                      size="sm"
+                                    >
+                                      <X className="w-3.5 h-3.5 mr-1.5" />
+                                      Reject Selected ({selectedPendingItems.length})
+                                    </Button>
+                                  </div>
+
+                                  {/* Divider between pending and approved */}
+                                  {actionItems.length > 0 && (
+                                    <div className="border-t border-[#2D313E] my-2" />
+                                  )}
+                                </>
+                              )}
+
+                              {loadingActionItems ? (
+                                <div className="space-y-2">
+                                  <div className="h-16 bg-[#252830] rounded-lg animate-pulse" />
+                                  <div className="h-16 bg-[#252830] rounded-lg animate-pulse" />
+                                </div>
+                              ) : actionItems.length === 0 && pendingActionItems.length === 0 ? (
+                                <p className="text-sm text-[#94A3B8] italic text-center py-4">
+                                  No action items for this meeting yet.
+                                </p>
+                              ) : actionItems.length > 0 ? (
+                                <>
+                                  {/* Uncompleted items first */}
+                                  {actionItems.filter(item => !item.completed).map((item) => (
+                                    <ActionItemCard
+                                      key={item.id}
+                                      id={item.id}
+                                      text={item.action_text}
+                                      completed={false}
+                                      priority={item.priority || 3}
+                                      meetingTitle={selectedMeeting?.title}
+                                      onToggle={() => toggleActionItemCompletion(item.id)}
+                                    />
+                                  ))}
+                                  {/* Completed items */}
+                                  {actionItems.filter(item => item.completed).map((item) => (
+                                    <ActionItemCard
+                                      key={item.id}
+                                      id={item.id}
+                                      text={item.action_text}
+                                      completed={true}
+                                      priority={item.priority || 3}
+                                      meetingTitle={selectedMeeting?.title}
+                                      onToggle={() => toggleActionItemCompletion(item.id)}
+                                    />
+                                  ))}
+                                </>
+                              ) : null}
+
+                              {/* Add Action Item */}
+                              {addingMeetingActionItem ? (
+                                <div className="bg-[#252830] rounded-lg p-3 space-y-2">
+                                  <input
+                                    type="text"
+                                    value={newMeetingActionItemText}
+                                    onChange={(e) => setNewMeetingActionItemText(e.target.value)}
+                                    placeholder="Enter action item..."
+                                    className="w-full bg-[#1A1C23] border border-[#3D414E] rounded px-3 py-2 text-sm text-white placeholder:text-[#6B7280] focus:outline-none focus:border-indigo-500"
+                                    autoFocus
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter' && newMeetingActionItemText.trim()) {
+                                        handleAddMeetingActionItem();
+                                      } else if (e.key === 'Escape') {
+                                        setAddingMeetingActionItem(false);
+                                        setNewMeetingActionItemText('');
+                                      }
+                                    }}
+                                  />
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={handleAddMeetingActionItem}
+                                      disabled={!newMeetingActionItemText.trim() || savingMeetingActionItem}
+                                      className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700"
+                                    >
+                                      {savingMeetingActionItem ? (
+                                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                      ) : (
+                                        <>
+                                          <Plus className="w-3 h-3 mr-1" />
+                                          Add
+                                        </>
+                                      )}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        setAddingMeetingActionItem(false);
+                                        setNewMeetingActionItemText('');
+                                      }}
+                                      className="h-7 text-xs text-[#94A3B8] hover:text-white"
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => setAddingMeetingActionItem(true)}
+                                  className="w-full py-2 text-xs text-[#94A3B8] hover:text-indigo-400 hover:bg-[#252830] rounded transition-colors flex items-center justify-center gap-1"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  Add Action Item
+                                </button>
+                              )}
+
+                              {/* Link to full action items page */}
+                              <button
+                                onClick={() => navigate('/action-items')}
+                                className="w-full mt-2 text-xs text-indigo-400 hover:text-indigo-300 font-medium text-center py-2 hover:bg-[#252830] rounded transition-colors"
+                              >
+                                View All Action Items →
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Detailed Meeting Summary - Master Record Source of Truth */}
+                        {selectedMeeting?.detailed_summary && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <h3 className="text-sm font-semibold text-foreground">Detailed Meeting Breakdown</h3>
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                  <Shield className="w-3 h-3" />
+                                  Source of Truth
+                                </span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(selectedMeeting.detailed_summary);
+                                  // Show a brief toast/feedback
+                                  const btn = document.getElementById('copy-summary-btn');
+                                  if (btn) {
+                                    btn.innerHTML = '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>Copied!';
+                                    setTimeout(() => {
+                                      btn.innerHTML = '<svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>Copy';
+                                    }, 2000);
+                                  }
+                                }}
+                                id="copy-summary-btn"
+                              >
+                                <ClipboardCheck className="w-3 h-3 mr-1" />
+                                Copy
+                              </Button>
+                            </div>
+                            <Card className="border-border/50 bg-card/80">
+                              <CardContent className="p-5 sm:p-6">
+                                <div className="max-w-none text-sm text-muted-foreground leading-relaxed
+                                  [&_h1]:text-base [&_h1]:font-bold [&_h1]:text-foreground [&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:pb-2 [&_h1]:border-b [&_h1]:border-border/40 [&_h1]:uppercase [&_h1]:tracking-wide first:[&_h1]:mt-0
+                                  [&_h2]:text-sm [&_h2]:font-semibold [&_h2]:text-foreground [&_h2]:mt-5 [&_h2]:mb-2
+                                  [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:text-blue-400 [&_h3]:mt-4 [&_h3]:mb-2
+                                  [&_p]:my-2 [&_p]:leading-relaxed
+                                  [&_ul]:my-2 [&_ul]:pl-5 [&_ul]:list-disc [&_li]:my-1
+                                  [&_ol]:my-2 [&_ol]:pl-5 [&_ol]:list-decimal [&_li]:my-1
+                                  [&_strong]:text-foreground [&_strong]:font-semibold
+                                  [&_table]:w-full [&_table]:my-4 [&_table]:border-collapse [&_table]:text-xs [&_table]:rounded-lg [&_table]:overflow-hidden
+                                  [&_thead]:bg-muted/60
+                                  [&_th]:px-3 [&_th]:py-2.5 [&_th]:text-left [&_th]:font-semibold [&_th]:text-foreground [&_th]:text-xs [&_th]:uppercase [&_th]:tracking-wider [&_th]:border-b [&_th]:border-border/50
+                                  [&_td]:px-3 [&_td]:py-2.5 [&_td]:text-muted-foreground [&_td]:border-b [&_td]:border-border/20
+                                  [&_tr:hover_td]:bg-muted/20
+                                  [&_hr]:my-5 [&_hr]:border-border/30
+                                  [&_blockquote]:border-l-2 [&_blockquote]:border-blue-500/50 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:text-muted-foreground/80 [&_blockquote]:my-3">
+                                  <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    disallowedElements={['script', 'iframe', 'embed', 'object', 'form']}
+                                    unwrapDisallowed
+                                  >
+                                    {selectedMeeting.detailed_summary}
+                                  </ReactMarkdown>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </div>
+                        )}
+
+                        {/* Location Section - only show physical location, not meeting URLs */}
+                        {(() => {
+                          const rawLoc = selectedMeeting?.location;
+                          // Only show if it's a real location (not a URL like Zoom/Teams links)
+                          const displayLoc = rawLoc && !/^https?:\/\//i.test(rawLoc) ? rawLoc : null;
+                          return displayLoc ? (
+                            <div className="space-y-2">
+                              <h3 className="text-sm font-semibold text-foreground">Location</h3>
+                              <Card className="border-border/50">
+                                <CardContent className="p-3">
+                                  <div className="flex items-center gap-2 text-sm text-foreground">
+                                    <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                                    <span>{displayLoc}</span>
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
+                    ) : (
+                      <Card className="border-border/50">
+                        <CardContent className="p-6 text-center">
+                          <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="text-lg font-medium text-foreground mb-2">Upload transcript to generate summaries</h3>
+                          <p className="text-muted-foreground mb-4">
+                            Upload a transcript to automatically generate both quick and email summaries.
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === 'documents' && (
+                  <DocumentsTab
+                    meetingId={selectedMeeting?.id}
+                    selectedMeeting={selectedMeeting}
+                  />
+                )}
+
+                {activeTab === 'transcript' && (
+                  <div className="space-y-4">
+                    {/* Transcript Header */}
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-lg font-semibold text-foreground">Transcript</h2>
+                      {selectedMeeting?.transcript && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleDeleteTranscript}
+                          disabled={deletingTranscript}
+                          className="text-destructive hover:text-destructive h-7 px-2 text-xs"
+                        >
+                          {deletingTranscript ? 'Deleting...' : 'Delete'}
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Transcript Upload Interface */}
+                    {!selectedMeeting?.transcript && !showTranscriptUpload && (
+                      <Card className="border-border/50">
+                        <CardContent className="p-6 text-center">
+                          <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                          <h3 className="text-lg font-medium text-foreground mb-2">Add Meeting Transcript</h3>
+                          <p className="text-muted-foreground mb-4">
+                            Upload a transcript to automatically generate AI-powered summaries and insights.
+                          </p>
+                          <Button
+                            onClick={() => setShowTranscriptUpload(true)}
+                            className="mb-2"
+                          >
+                            <Upload className="w-4 h-4 mr-2" />
+                            Add Transcript
+                          </Button>
+                          <p className="text-xs text-muted-foreground">
+                            Paste text or upload a file • AI summaries generated automatically
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Transcript Upload Form */}
+                    {showTranscriptUpload && !selectedMeeting?.transcript && (
+                      <Card className="border-border/50">
+                        <CardContent className="p-6">
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h3 className="text-sm font-medium text-foreground">Upload Transcript</h3>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setShowTranscriptUpload(false);
+                                  setTranscriptUpload('');
+                                }}
+                                className="h-6 w-6 p-0"
+                              >
+                                ×
+                              </Button>
+                            </div>
+
+                            {/* Upload Progress States */}
+                            {uploadingTranscript && (
+                              <div className="space-y-3">
+                                <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-blue-600 border-t-transparent"></div>
+                                  <div className="flex-1">
+                                    <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                                      {generatingAISummaries ? 'Generating AI summaries...' : 'Processing transcript...'}
+                                    </p>
+                                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                                      {generatingAISummaries ? 'Creating quick summary and email draft' : 'Uploading and analyzing content'}
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Transcript Input */}
+                            {!uploadingTranscript && (
+                              <div className="space-y-3">
+                                <textarea
+                                  value={transcriptUpload}
+                                  onChange={(e) => setTranscriptUpload(e.target.value)}
+                                  placeholder="Paste your meeting transcript here...
+
+Example:
+- Discussion about client's investment goals
+- Review of current portfolio performance
+- Next steps and action items"
+                                  className="w-full h-32 p-3 text-sm border border-border/50 rounded-lg bg-background text-foreground placeholder-muted-foreground resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/30"
+                                />
+                                <div className="flex items-center justify-between">
+                                  <p className="text-xs text-muted-foreground">
+                                    {transcriptUpload.length} characters • AI summaries will be generated automatically
+                                  </p>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        setShowTranscriptUpload(false);
+                                        setTranscriptUpload('');
+                                      }}
+                                      className="h-8 px-3 text-xs"
+                                    >
+                                      Cancel
+                                    </Button>
+                                    <Button
+                                      onClick={handleTranscriptUpload}
+                                      disabled={!transcriptUpload.trim()}
+                                      size="sm"
+                                      className="h-8 px-3 text-xs"
+                                    >
+                                      <Upload className="w-3 h-3 mr-1" />
+                                      Upload & Generate Summaries
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Transcript Content */}
+                    {selectedMeeting?.transcript && (
+                      <Card className="border-border/50">
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <h3 className="text-sm font-medium text-foreground">Meeting Transcript</h3>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>{selectedMeeting.transcript.length} characters</span>
+                              {selectedMeeting.quick_summary && (
+                                <span className="flex items-center gap-1 text-green-600">
+                                  <div className="w-1 h-1 bg-green-500 rounded-full"></div>
+                                  AI summaries generated
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="prose prose-sm max-w-none text-foreground">
+                            <div className="whitespace-pre-line text-sm leading-relaxed">
+                              {/* Format transcript with proper spacing between speakers */}
+                              {selectedMeeting.transcript
+                                // Add blank line before speaker labels if not already there
+                                .replace(/([^\n])\n([A-Za-z][A-Za-z\s]*\s*\[?\d)/g, '$1\n\n$2')
+                                // Ensure double newlines between speaker blocks
+                                .replace(/(\]:\s*[^\n]+)\n([A-Za-z])/g, '$1\n\n$2')
+                              }
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+        </>
+      )}
 
       {/* AI Adjustment Dialog */}
       <AIAdjustmentDialog
-        open={showAIDialog}
+        isOpen={showAIDialog}
         onClose={() => setShowAIDialog(false)}
         onAdjust={handleAIAdjustment}
+        currentSummary={summaryContent}
       />
+
+      {/* Template Selection Modal - Removed: Now using inline dropdown in sidebar */}
+
+
+      {/* Import Dialog */}
+      {showImportDialog && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-background rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6 border-b border-border/50">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-foreground">Import Meetings</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowImportDialog(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  ✕
+                </Button>
+              </div>
+            </div>
+            <div className="p-6">
+              <DataImport
+                onImportComplete={() => {
+                  fetchMeetings();
+                  setShowImportDialog(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Meeting Dialog */}
+      <EditMeetingDialog
+        meeting={editingMeeting}
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        onMeetingUpdated={handleMeetingUpdated}
+      />
+
+      {/* Link Client Dialog */}
+      {linkClientMeeting && (
+        <LinkClientDialog
+          meeting={linkClientMeeting}
+          open={showLinkClientDialog}
+          onOpenChange={setShowLinkClientDialog}
+          onClientLinked={() => {
+            // Refresh meetings to show updated client link
+            fetchMeetings();
+          }}
+        />
+      )}
 
       {/* Snackbar */}
       {showSnackbar && (
@@ -453,4 +3621,4 @@ export default function Meetings() {
       )}
     </div>
   );
-} 
+}

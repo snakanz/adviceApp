@@ -1,0 +1,371 @@
+const express = require('express');
+const { isSupabaseAvailable, getSupabase } = require('../lib/supabase');
+const { authenticateSupabaseUser } = require('../middleware/supabaseAuth');
+const clientDocumentsService = require('../services/clientDocuments');
+
+const router = express.Router();
+
+/**
+ * POST /api/client-documents/upload
+ * Upload documents (with optional client assignment)
+ */
+router.post('/upload', authenticateSupabaseUser, clientDocumentsService.upload.array('files', 10), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { clientId, meetingId } = req.body; // Optional client ID and meeting ID
+    const files = req.files;
+
+    console.log('📤 Client document upload request:', {
+      userId,
+      clientId,
+      meetingId,
+      fileCount: files?.length || 0,
+      files: files?.map(f => ({ name: f.originalname, size: f.size, type: f.mimetype }))
+    });
+
+    if (!files || files.length === 0) {
+      console.error('❌ No files in upload request');
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+
+    if (!isSupabaseAvailable()) {
+      console.error('❌ Supabase not available');
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    // If clientId provided, verify it belongs to the current user
+    if (clientId) {
+      console.log('🔍 Verifying client access:', { clientId, userId });
+      const { data: client, error: clientError } = await req.supabase
+        .from('clients')
+        .select('id, name')
+        .eq('id', clientId)
+        .eq('user_id', userId)
+        .single();
+
+      if (clientError || !client) {
+        console.error('❌ Client not found or access denied:', clientError);
+        return res.status(404).json({ error: 'Client not found' });
+      }
+      console.log('✅ Client verified:', client.name);
+    }
+
+    // If meetingId provided, verify it belongs to the current user
+    if (meetingId) {
+      console.log('🔍 Verifying meeting access:', { meetingId, userId });
+      const { data: meeting, error: meetingError } = await req.supabase
+        .from('meetings')
+        .select('id, title')
+        .eq('id', meetingId)
+        .eq('user_id', userId)
+        .single();
+
+      if (meetingError || !meeting) {
+        console.error('❌ Meeting not found or access denied:', meetingError);
+        return res.status(404).json({ error: 'Meeting not found' });
+      }
+      console.log('✅ Meeting verified:', meeting.title);
+    }
+
+    const uploadedFiles = [];
+    const errors = [];
+
+    // Process each file
+    for (const file of files) {
+      try {
+        console.log(`📄 Processing file: ${file.originalname}`);
+
+        // Generate unique filename
+        const fileName = clientDocumentsService.generateFileName(file.originalname, clientId);
+        console.log(`  Generated filename: ${fileName}`);
+
+        // Upload to storage
+        console.log(`  Uploading to storage...`);
+        const storageResult = await clientDocumentsService.uploadToStorage(file, fileName, userId);
+        console.log(`  ✅ Storage upload successful:`, storageResult.storagePath);
+
+        // Save metadata to database
+        const fileData = {
+          user_id: userId,
+          client_id: clientId || null,
+          meeting_id: meetingId || null,
+          file_name: fileName,
+          original_name: file.originalname,
+          file_type: file.mimetype,
+          file_category: clientDocumentsService.getFileCategory(file.mimetype),
+          file_size: file.size,
+          file_url: storageResult.storagePath,
+          uploaded_by: userId,
+          upload_source: 'clients_page', // Track source for AI context
+          is_deleted: false,
+          uploaded_at: new Date().toISOString()
+        };
+
+        console.log(`  Saving metadata to database...`);
+        const savedFile = await clientDocumentsService.saveFileMetadata(fileData);
+        console.log(`  ✅ Metadata saved, ID: ${savedFile.id}`);
+
+        // AI document analysis queue is currently disabled; skipping queueDocumentForAnalysis
+
+        // Add download URL
+        savedFile.download_url = await clientDocumentsService.getFileDownloadUrl(storageResult.storagePath);
+
+        uploadedFiles.push(savedFile);
+        console.log(`  ✅ File processed successfully: ${file.originalname}`);
+      } catch (fileError) {
+        console.error(`❌ Error uploading file ${file.originalname}:`, fileError);
+        console.error(`   Error details:`, {
+          message: fileError.message,
+          stack: fileError.stack
+        });
+        errors.push({
+          filename: file.originalname,
+          error: fileError.message
+        });
+      }
+    }
+
+    console.log(`✅ Upload complete: ${uploadedFiles.length} successful, ${errors.length} failed`);
+
+    res.json({
+      message: `Successfully uploaded ${uploadedFiles.length} file(s)`,
+      files: uploadedFiles,
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+  } catch (error) {
+    console.error('❌ Error in file upload:', error);
+    console.error('   Error details:', {
+      message: error.message,
+      stack: error.stack
+    });
+    res.status(500).json({ error: 'Failed to upload files' });
+  }
+});
+
+/**
+ * GET /api/client-documents/unassigned/list
+ * Get all unassigned documents (for auto-detection review)
+ */
+router.get('/unassigned/list', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    const documents = await clientDocumentsService.getUnassignedDocuments(userId);
+
+    res.json({
+      count: documents.length,
+      documents
+    });
+
+  } catch (error) {
+    console.error('Error fetching unassigned documents:', error);
+    res.status(500).json({ error: 'Failed to fetch unassigned documents' });
+  }
+});
+
+/**
+ * PATCH /api/client-documents/:documentId/assign
+ * Manually assign a document to a client
+ */
+router.patch('/:documentId/assign', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { documentId } = req.params;
+    const { clientId } = req.body;
+
+    if (!clientId) {
+      return res.status(400).json({ error: 'Client ID is required' });
+    }
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    const updatedDocument = await clientDocumentsService.assignDocumentToClient(
+      documentId,
+      clientId,
+      userId
+    );
+
+    res.json({
+      message: 'Document assigned successfully',
+      document: updatedDocument
+    });
+
+  } catch (error) {
+    console.error('Error assigning document:', error);
+    res.status(500).json({ error: error.message || 'Failed to assign document' });
+  }
+});
+
+/**
+ * DELETE /api/client-documents/:documentId
+ * Delete a document
+ */
+router.delete('/:documentId', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const advisorId = req.user.id;
+    const { documentId } = req.params;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    await clientDocumentsService.deleteFile(documentId, advisorId);
+
+    res.json({
+      message: 'Document deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Error deleting document:', error);
+    res.status(500).json({ error: error.message || 'Failed to delete document' });
+  }
+});
+
+/**
+ * GET /api/client-documents/:documentId/download
+ * Get download URL for a document
+ */
+router.get('/:documentId/download', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { documentId } = req.params;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    // Get document info
+    const { data: document, error } = await req.supabase
+      .from('client_documents')
+      .select('*')
+      .eq('id', documentId)
+      .eq('user_id', userId)
+      .eq('is_deleted', false)
+      .single();
+
+    if (error || !document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const downloadUrl = await clientDocumentsService.getFileDownloadUrl(document.file_url);
+
+    res.json({
+      documentId,
+      fileName: document.original_name,
+      downloadUrl
+    });
+
+  } catch (error) {
+    console.error('Error generating download URL:', error);
+    res.status(500).json({ error: 'Failed to generate download URL' });
+  }
+});
+
+/**
+ * POST /api/client-documents/:documentId/analyze
+ * Trigger AI analysis for a specific document
+ */
+router.post('/:documentId/analyze', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { documentId } = req.params;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    // AI document analysis queue is currently disabled; respond with a friendly message
+    res.json({
+      message: 'Document analysis queue is currently disabled. The document is uploaded and available for use in Ask Advicly context.'
+    });
+
+  } catch (error) {
+    console.error('Error queuing document for analysis:', error);
+    res.status(500).json({ error: 'Failed to queue document for analysis' });
+  }
+});
+
+/**
+ * GET /api/client-documents/meeting/:meetingId
+ * Get all documents for a specific meeting
+ */
+router.get('/meeting/:meetingId', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const advisorId = req.user.id;
+    const { meetingId } = req.params;
+
+    console.log('📄 Fetching meeting documents:', { meetingId, advisorId });
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    const documents = await clientDocumentsService.getMeetingDocuments(meetingId, advisorId);
+
+    console.log(`✅ Found ${documents.length} documents for meeting ${meetingId}`);
+
+    res.json({
+      meetingId,
+      count: documents.length,
+      documents
+    });
+
+  } catch (error) {
+    console.error('Error fetching meeting documents:', error);
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+/**
+ * GET /api/client-documents/client/:clientId
+ * Get all documents for a specific client
+ * NOTE: This route must come LAST to avoid conflicts with specific routes above
+ */
+router.get('/client/:clientId', authenticateSupabaseUser, async (req, res) => {
+  try {
+    const advisorId = req.user.id;
+    const { clientId } = req.params;
+
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please contact support.'
+      });
+    }
+
+    const documents = await clientDocumentsService.getClientDocuments(clientId, advisorId);
+
+    res.json({
+      clientId,
+      count: documents.length,
+      documents
+    });
+
+  } catch (error) {
+    console.error('Error fetching client documents:', error);
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+module.exports = router;
+

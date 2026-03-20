@@ -1,32 +1,33 @@
 // Meeting type configuration for consistent styling across the app
+// Updated for Deep Dark Mode with translucent backgrounds
 export const MEETING_TYPES = {
   'Intro Meeting': {
     color: '#FFB74D', // Orange
-    backgroundColor: '#FFF3E0',
+    backgroundColor: 'rgba(255, 183, 77, 0.15)', // Translucent orange
   },
   'Cashflow Meeting': {
-    color: '#4CAF50', // Green
-    backgroundColor: '#E8F5E9',
+    color: '#00C49F', // Modern Emerald (accent)
+    backgroundColor: 'rgba(0, 196, 159, 0.15)', // Translucent emerald
   },
   'Performance Meeting': {
-    color: '#2196F3', // Blue
-    backgroundColor: '#E3F2FD',
+    color: '#337AFF', // Vibrant Blue (primary)
+    backgroundColor: 'rgba(51, 122, 255, 0.15)', // Translucent blue
   },
   'Signup Meeting': {
     color: '#9C27B0', // Purple
-    backgroundColor: '#F3E5F5',
+    backgroundColor: 'rgba(156, 39, 176, 0.15)', // Translucent purple
   },
   'Review Meeting': {
     color: '#F44336', // Red
-    backgroundColor: '#FFEBEE',
+    backgroundColor: 'rgba(244, 67, 54, 0.15)', // Translucent red
   },
 };
 
 // Helper function to get meeting type styles
 export const getMeetingTypeStyles = (type) => {
   return MEETING_TYPES[type] || {
-    color: '#757575',
-    backgroundColor: '#EEEEEE',
+    color: '#8F90A6', // Muted gray
+    backgroundColor: 'rgba(143, 144, 166, 0.15)', // Translucent muted
   };
 };
 

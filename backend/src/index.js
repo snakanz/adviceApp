@@ -1,148 +1,220 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const { google } = require('googleapis');
-const clientsRouter = require('./routes/clients');
-const routes = require('./routes');
-// const { Configuration, OpenAIApi } = require('openai');
-// const openai = new OpenAIApi(new Configuration({ apiKey: process.env.OPENAI_API_KEY }));
+const { supabase, isSupabaseAvailable, getSupabase, verifySupabaseToken } = require('./lib/supabase');
+const CalendlyService = require('./services/calendlyService');
+const logger = require('./utils/logger');
 
+// Load route modules with error handling to identify problematic routes
+let clientsRouter, pipelineRouter, actionItemsRouter;
+
+try {
+  logger.log('Loading clients router...');
+  clientsRouter = require('./routes/clients');
+  logger.log('✅ Clients router loaded');
+} catch (error) {
+  logger.error('❌ Error loading clients router:', error.message);
+  throw error;
+}
+
+try {
+  logger.log('Loading pipeline router...');
+  pipelineRouter = require('./routes/pipeline');
+  logger.log('✅ Pipeline router loaded');
+} catch (error) {
+  logger.error('❌ Error loading pipeline router:', error.message);
+  throw error;
+}
+
+try {
+  logger.log('Loading actionItems router...');
+  actionItemsRouter = require('./routes/actionItems');
+  logger.log('✅ ActionItems router loaded');
+} catch (error) {
+  logger.error('❌ Error loading actionItems router:', error.message);
+  throw error;
+}
+
+// DISABLED: Not using routes/index.js anymore - routes are mounted directly
+// const routes = require('./routes/index');
+
+logger.log('Creating Express app...');
 const app = express();
-app.use(cors({
-  origin: ['http://localhost:3000', 'https://adviceapp.pages.dev'],
-  credentials: true
+logger.log('✅ Express app created');
+
+// CORS configuration - explicit allowed origins only
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://app.advicly.co.uk',
+  'https://advicly.co.uk',
+  'https://adviceapp.pages.dev',
+  'http://localhost:3000',
+  'http://localhost:3001'
+].filter(Boolean);
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (health checks, server-to-server, mobile apps)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Type', 'Authorization'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
+
+// Trust first proxy (Render load balancer) so req.ip returns real client IP
+app.set('trust proxy', 1);
+
+logger.log('Setting up CORS...');
+app.use(cors(corsOptions));
+
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false,  // CSP handled by frontend/CDN
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
-app.use(express.json());
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
+// Rate limiting
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' }
 });
+const strictLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' }
+});
+app.use('/api/', generalLimiter);
+app.use('/api/auth/', strictLimiter);
 
+// CRITICAL: Mount webhook routes BEFORE express.json() middleware
+// This ensures the raw body is available for signature verification
+try {
+  logger.log('Mounting Recall V2 webhook routes (BEFORE JSON middleware)...');
+  const recallWebhooksRouter = require('./routes/recall-webhooks');
+  app.use('/api/webhooks', recallWebhooksRouter);
+  logger.log('✅ Recall V2 webhook routes mounted successfully');
+} catch (error) {
+  logger.warn('Failed to mount Recall V2 webhook routes:', error.message);
+}
+
+// Mount Stripe webhook route BEFORE express.json() middleware
+// Stripe webhooks need raw body for signature verification
+try {
+  logger.log('Mounting Stripe webhook route (BEFORE JSON middleware)...');
+  const stripeWebhookRouter = require('./routes/stripe-webhook');
+  app.use('/api/billing/webhook', stripeWebhookRouter);
+  logger.log('✅ Stripe webhook route mounted successfully');
+} catch (error) {
+  logger.warn('Failed to mount Stripe webhook route:', error.message);
+}
+
+// ✅ FIX #2: Mount Calendly webhook route BEFORE express.json() middleware
+// Calendly webhooks need raw body for HMAC signature verification
+try {
+  logger.log('Mounting Calendly webhook route (BEFORE JSON middleware)...');
+  const calendlyWebhookRouter = require('./routes/calendly-webhook');
+  app.use('/api/calendly/webhook', calendlyWebhookRouter);
+  logger.log('✅ Calendly webhook route mounted successfully');
+} catch (error) {
+  logger.warn('Failed to mount Calendly webhook route:', error.message);
+}
+
+app.use(express.json({ limit: '10mb' }));
+logger.log('✅ CORS and middleware configured (body limit: 10mb)');
+
+// Request logging removed for security (was exposing origins/headers)
+
+// Test routes removed - using proper Calendly integration below
+
+logger.log('Setting up Google OAuth2...');
 // Google OAuth2 setup
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
   process.env.GOOGLE_REDIRECT_URI
 );
+logger.log('✅ Google OAuth2 configured');
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
-
-// Google OAuth URL
-app.get('/api/auth/google', (req, res) => {
-  const scopes = [
-    'https://www.googleapis.com/auth/userinfo.profile',
-    'https://www.googleapis.com/auth/userinfo.email',
-    'https://www.googleapis.com/auth/calendar',
-    'https://www.googleapis.com/auth/calendar.events'
-  ];
-  const url = oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    scope: scopes,
-    prompt: 'consent'
-  });
-  res.json({ url });
-});
-
-// Google OAuth callback
-app.get('/api/auth/google/callback', async (req, res) => {
+logger.log('Defining inline routes...');
+// Health check with database connectivity
+app.get('/api/health', async (req, res) => {
   try {
-    const { code } = req.query;
-    const { tokens } = await oauth2Client.getToken(code);
-    oauth2Client.setCredentials(tokens);
-    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
-    const userInfo = await oauth2.userinfo.get();
-    console.log('Google user info:', userInfo.data);
-    
-    // Upsert user in Postgres
-    const { email, name, id: googleId } = userInfo.data;
-    let user;
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    if (result.rows.length > 0) {
-      user = result.rows[0];
-      // Update user info
-      await pool.query(
-        'UPDATE users SET name = $1, providerid = $2 WHERE email = $3',
-        [name, googleId, email]
-      );
+    let dbStatus = false;
+    let dbError = null;
+
+    if (isSupabaseAvailable()) {
+      try {
+        // Test Supabase connection with a simple query
+        const { data, error } = await supabase
+          .from('users')
+          .select('count')
+          .limit(1);
+
+        dbStatus = !error;
+        if (error) {
+          dbError = error.message;
+        }
+      } catch (error) {
+        dbStatus = false;
+        dbError = error.message;
+      }
     } else {
-      const insert = await pool.query(
-        'INSERT INTO users (id, email, name, provider, providerid) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-        [googleId, email, name, 'google', googleId]
-      );
-      user = insert.rows[0];
+      dbError = 'Supabase not configured';
     }
-    
-    // Store/update calendar tokens
-    let expiresAt;
-    if (tokens.expiry_date) {
-      expiresAt = new Date(tokens.expiry_date);
-    } else if (tokens.expires_in) {
-      expiresAt = new Date(Date.now() + (tokens.expires_in * 1000));
-    } else {
-      // Fallback: set to 1 hour from now
-      expiresAt = new Date(Date.now() + 3600 * 1000);
+
+    const response = {
+      status: 'ok',
+      db: dbStatus ? 'connected' : 'disconnected',
+      version: process.env.npm_package_version || '1.0.0',
+      commit: process.env.RENDER_GIT_COMMIT?.substring(0, 7) || 'local',
+      features: ['admin-consent-v1'],
+      timestamp: new Date().toISOString()
+    };
+
+    if (dbError) {
+      response.dbError = dbError;
     }
-    await pool.query(
-      `INSERT INTO calendartoken (id, userid, accesstoken, refreshtoken, expiresat, provider, updatedat)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (userid) DO UPDATE
-       SET accesstoken = $3, refreshtoken = $4, expiresat = $5, updatedat = $7`,
-      [
-        `token_${user.id}`,
-        user.id,
-        tokens.access_token,
-        tokens.refresh_token || null,
-        expiresAt,
-        'google',
-        new Date()
-      ]
-    );
-    
-    // Issue JWT
-    const token = jwt.sign({ id: user.id, email: user.email, name: user.name }, process.env.JWT_SECRET, { expiresIn: '24h' });
-    console.log('Issued JWT:', token);
-    // Redirect to frontend with token
-    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}`);
-  } catch (err) {
-    console.error('Google OAuth error:', err);
-    if (err.response) {
-      console.error('Google OAuth error response data:', err.response.data);
-    }
-    res.status(500).json({ error: 'OAuth failed', details: err.response ? err.response.data : err.message });
+
+    res.json(response);
+  } catch (error) {
+    logger.error('Health check failed:', error);
+    res.status(500).json({
+      status: 'error',
+      db: 'disconnected',
+      version: process.env.npm_package_version || '1.0.0',
+      error: error.message,
+      timestamp: new Date().toISOString()
+    });
   }
 });
 
-// JWT-protected route example
-app.get('/api/protected', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-  try {
-    const token = auth.split(' ')[1];
-    console.log('Verifying JWT with secret:', process.env.JWT_SECRET);
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    res.json({ message: 'Protected data', user: decoded });
-  } catch (e) {
-    res.status(401).json({ error: 'Invalid token' });
-  }
-});
+// Calendly integration moved to routes.js for better reliability
 
-app.get('/api/auth/verify', (req, res) => {
-  const auth = req.headers.authorization;
-  if (!auth) return res.status(401).json({ error: 'No token' });
-  try {
-    const token = auth.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    res.json(decoded);
-  } catch (e) {
-    res.status(401).json({ error: 'Invalid token' });
-  }
-});
+// Google OAuth routes moved to /routes/auth.js
+
+// Google OAuth callback moved to /routes/auth.js
+
+// Auth verify endpoint moved to /routes/auth.js
 
 // Reconnect Google endpoint - forces re-authentication
 app.get('/api/auth/reconnect-google', (req, res) => {
@@ -168,194 +240,401 @@ app.get('/api/calendar/meetings/all', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
 
-    // Get user's Google tokens from database
-    const tokenResult = await pool.query(
-      'SELECT accesstoken, refreshtoken, expiresat FROM calendartoken WHERE userid = $1',
-      [userId]
-    );
-    
-    if (!tokenResult.rows[0]?.accesstoken) {
-      return res.status(401).json({ error: 'User not connected to Google Calendar. Please reconnect your Google account.' });
-    }
-    
-    // Check if token is expired and refresh if needed
-    let accessToken = tokenResult.rows[0].accesstoken;
-    const refreshToken = tokenResult.rows[0].refreshtoken;
-    const expiresAt = new Date(tokenResult.rows[0].expiresat);
-    
-    if (expiresAt < new Date()) {
-      // Token is expired, refresh it
-      try {
-        const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: new URLSearchParams({
-            client_id: process.env.GOOGLE_CLIENT_ID,
-            client_secret: process.env.GOOGLE_CLIENT_SECRET,
-            refresh_token: refreshToken,
-            grant_type: 'refresh_token'
-          })
-        });
-        
-        if (refreshResponse.ok) {
-          const newTokens = await refreshResponse.json();
-          accessToken = newTokens.access_token;
-          
-          // Update the token in database
-          const newExpiresAt = new Date(Date.now() + (newTokens.expires_in * 1000));
-          await pool.query(
-            'UPDATE calendartoken SET accesstoken = $1, expiresat = $2, updatedat = $3 WHERE userid = $4',
-            [accessToken, newExpiresAt, new Date(), userId]
-          );
-        } else {
-          return res.status(401).json({ error: 'Failed to refresh Google token. Please reconnect your Google account.' });
-        }
-      } catch (error) {
-        console.error('Token refresh error:', error);
-        return res.status(401).json({ error: 'Failed to refresh Google token. Please reconnect your Google account.' });
-      }
+    // Check if Supabase is available
+    if (!isSupabaseAvailable()) {
+      return res.status(503).json({
+        error: 'Database service unavailable. Please configure Supabase environment variables.'
+      });
     }
 
-    // Create per-user OAuth2 client
-    const userOAuth2Client = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    );
-
-    // Set user's credentials
-    userOAuth2Client.setCredentials({
-      access_token: accessToken,
-      refresh_token: refreshToken
-    });
-
-    const calendar = google.calendar({ version: 'v3', auth: userOAuth2Client });
+    // Get meetings from DATABASE (includes Google Calendar, Calendly, and manual meetings)
+    // This ensures we respect deletion detection and other database state
     const now = new Date();
-    const timeMin = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days ago
-    const timeMax = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days ahead
+    // Get all meetings without time filter to show historical Calendly meetings
+    // Frontend will handle grouping/pagination as needed
 
-    const response = await calendar.events.list({
-      calendarId: 'primary',
-      timeMin,
-      timeMax,
-      singleEvents: true,
-      orderBy: 'startTime',
-      maxResults: 2500
-    });
-    const events = response.data.items || [];
+    const { data: meetings, error } = await getSupabase()
+      .from('meetings')
+      .select('*')
+      .eq('user_id', userId)
+      .or('is_deleted.is.null,is_deleted.eq.false') // Show meetings where is_deleted is NULL or false
+      .order('starttime', { ascending: true });
 
-    // Upsert each meeting into the database
-    for (const event of events) {
-      if (!event.start || !event.start.dateTime) continue; // skip all-day events
-      await pool.query(
-        `INSERT INTO meetings (googleeventid, userid, title, starttime, endtime, summary, updatedat, attendees)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-         ON CONFLICT (googleeventid, userid) DO UPDATE
-         SET title = $3, starttime = $4, endtime = $5, summary = $6, updatedat = $7, attendees = $8`,
-        [
-          event.id,
-          userId,
-          event.summary || 'Untitled Meeting',
-          event.start.dateTime,
-          event.end && event.end.dateTime ? event.end.dateTime : null,
-          event.description || '',
-          new Date(),
-          JSON.stringify(event.attendees || [])
-        ]
-      );
+    if (error) {
+      logger.error('Error fetching meetings from database:', error);
+      return res.status(500).json({ error: 'Failed to fetch meetings from database' });
     }
 
     // Group into past and future
     const past = [];
     const future = [];
-    for (const event of events) {
-      if (!event.start || !event.start.dateTime) continue;
-      // Fetch transcript from DB
-      const transcriptResult = await pool.query(
-        'SELECT transcript FROM meetings WHERE googleeventid = $1 AND userid = $2',
-        [event.id, userId]
-      );
-      const transcript = transcriptResult.rows[0]?.transcript || null;
-      const eventStart = new Date(event.start.dateTime);
+
+    for (const meeting of meetings || []) {
+      if (!meeting.starttime) continue;
+
+      const eventStart = new Date(meeting.starttime);
+      const eventEnd = meeting.endtime ? new Date(meeting.endtime) : null;
+
       const processedEvent = {
-        id: event.id,
-        summary: event.summary || 'Untitled Meeting',
-        start: { dateTime: event.start.dateTime },
-        end: event.end ? { dateTime: event.end.dateTime } : null,
-        description: event.description,
-        location: event.location,
-        attendees: event.attendees || [],
-        transcript // <-- add transcript to response
+        // Use database id for all meetings, keep googleeventid for backwards compatibility
+        id: meeting.id,
+        googleEventId: meeting.googleeventid,
+        externalId: meeting.external_id,
+        meetingSource: meeting.meeting_source || 'google',
+        summary: meeting.title || 'Untitled Meeting',
+        start: { dateTime: meeting.starttime },
+        end: meeting.endtime ? { dateTime: meeting.endtime } : null,
+        startTime: meeting.starttime, // Also include as startTime for Calendly compatibility
+        description: meeting.summary || '',
+        location: meeting.location || '',
+        attendees: meeting.attendees ? JSON.parse(meeting.attendees) : [],
+        transcript: meeting.transcript,
+        quickSummary: meeting.quick_summary,
+        emailSummary: meeting.email_summary_draft,
+        templateId: meeting.email_template_id,
+        lastSummarizedAt: meeting.last_summarized_at,
+        meetingSummary: meeting.quick_summary, // For compatibility with frontend
+        client_id: meeting.client_id
       };
-      if (eventStart > now) {
-        future.push(processedEvent);
-      } else {
+
+      if (eventEnd && eventEnd < now) {
         past.push(processedEvent);
+      } else {
+        future.push(processedEvent);
       }
     }
+
     res.json({ past, future });
   } catch (error) {
-    console.error('Error fetching or saving meetings:', error);
+    logger.error('Error fetching or saving meetings:', error);
     res.status(500).json({ error: 'Failed to fetch or save meetings' });
   }
 });
 
-// Transcript upload endpoint
-app.post('/api/calendar/meetings/:id/transcript', async (req, res) => {
+// New deletion-aware calendar sync endpoint
+app.post('/api/calendar/sync-with-deletions', async (req, res) => {
+  logger.log('🔄 Sync-with-deletions endpoint called');
+  logger.log('📋 Request headers:', {
+    authorization: req.headers.authorization ? 'Bearer [REDACTED]' : 'MISSING',
+    contentType: req.headers['content-type'],
+    userAgent: req.headers['user-agent']
+  });
+
+  const auth = req.headers.authorization;
+  if (!auth) {
+    logger.error('❌ No authorization header provided');
+    return res.status(401).json({ error: 'No authorization token provided' });
+  }
+
+  try {
+    const token = auth.split(' ')[1];
+    if (!token) {
+      logger.error('❌ Malformed authorization header');
+      return res.status(401).json({ error: 'Malformed authorization header' });
+    }
+
+    logger.log('🔐 Verifying JWT token...');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const userId = decoded.id || decoded.userId; // Handle both formats
+
+    if (!userId) {
+      logger.error('❌ No user ID found in JWT token:', decoded);
+      return res.status(401).json({ error: 'Invalid token: no user ID' });
+    }
+
+    logger.log(`✅ JWT verified successfully for user ${userId}`);
+    logger.log(`🔄 Starting calendar sync for user ${userId}...`);
+
+    try {
+      const calendarSync = require('./services/calendarSync');
+      const results = await calendarSync.syncUserCalendar(userId, {
+        timeRange: 'extended' // 6 months for comprehensive sync
+      });
+
+      logger.log(`✅ Calendar sync completed successfully:`, {
+        userId,
+        added: results.added || 0,
+        updated: results.updated || 0,
+        deleted: results.deleted || 0
+      });
+
+      res.json({
+        message: 'Calendar synced with deletion detection',
+        results,
+        userId // Include for debugging
+      });
+    } catch (syncError) {
+      logger.error('❌ Calendar sync service error:', {
+        userId,
+        error: syncError.message,
+        stack: syncError.stack
+      });
+
+      // Return specific error messages based on the error type
+      if (syncError.message.includes('No calendar token found')) {
+        return res.status(401).json({
+          error: 'Google Calendar not connected',
+          details: 'Please reconnect your Google Calendar account',
+          action: 'reconnect_calendar'
+        });
+      } else if (syncError.message.includes('token expired')) {
+        return res.status(401).json({
+          error: 'Google Calendar token expired',
+          details: 'Please reconnect your Google Calendar account',
+          action: 'reconnect_calendar'
+        });
+      } else {
+        return res.status(503).json({
+          error: 'Calendar sync service temporarily unavailable',
+          details: syncError.message
+        });
+      }
+    }
+  } catch (jwtError) {
+    logger.error('❌ JWT verification failed:', {
+      error: jwtError.message,
+      name: jwtError.name
+    });
+
+    if (jwtError.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        error: 'Token expired',
+        details: 'Please log in again'
+      });
+    } else if (jwtError.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        error: 'Invalid token',
+        details: 'Please log in again'
+      });
+    } else {
+      return res.status(500).json({
+        error: 'Authentication error',
+        details: jwtError.message
+      });
+    }
+  }
+});
+
+// Comprehensive calendar sync endpoint
+app.post('/api/calendar/sync-comprehensive', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
+
   try {
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
-    const meetingId = req.params.id;
-    const { transcript } = req.body;
 
-    // Ensure transcript column exists in meetings table
-    // Update the transcript for the meeting
-    await pool.query(
-      'UPDATE meetings SET transcript = $1, updatedat = NOW() WHERE googleeventid = $2 AND userid = $3',
-      [transcript, meetingId, userId]
-    );
+    logger.log(`🔄 Starting comprehensive calendar sync for user ${userId}`);
 
-    res.json({ success: true, transcript });
+    const comprehensiveSync = require('./services/comprehensiveCalendarSync');
+    const dryRun = req.body.dryRun || false;
+
+    const results = await comprehensiveSync.reconcileCalendarData(userId, dryRun);
+
+    logger.log(`✅ Comprehensive sync completed:`, results);
+    res.json({
+      success: true,
+      message: `Comprehensive calendar sync ${dryRun ? '(dry run) ' : ''}completed`,
+      results,
+      dryRun
+    });
   } catch (error) {
-    console.error('Transcript upload error:', error);
-    res.status(500).json({ error: 'Failed to upload transcript' });
+    logger.error('Comprehensive calendar sync error:', error);
+    res.status(500).json({ error: 'Failed to perform comprehensive calendar sync' });
   }
 });
 
-// DELETE transcript endpoint
-app.delete('/api/calendar/meetings/:id/transcript', async (req, res) => {
+// Calendar sync status endpoint
+app.get('/api/calendar/sync-status', async (req, res) => {
   const auth = req.headers.authorization;
   if (!auth) return res.status(401).json({ error: 'No token' });
+
   try {
     const token = auth.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const userId = decoded.id;
-    const meetingId = req.params.id;
 
-    await pool.query(
-      'UPDATE meetings SET transcript = NULL, updatedat = NOW() WHERE googleeventid = $1 AND userid = $2',
-      [meetingId, userId]
-    );
+    const comprehensiveSync = require('./services/comprehensiveCalendarSync');
+    const status = await comprehensiveSync.getSyncStatus(userId);
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+      status
+    });
   } catch (error) {
-    console.error('Transcript delete error:', error);
-    res.status(500).json({ error: 'Failed to delete transcript' });
+    logger.error('Sync status error:', error);
+    res.status(500).json({ error: 'Failed to get sync status' });
   }
 });
 
-// POST /api/meetings/:meetingId/summary - generate/update AI summary for a meeting
-app.post('/api/meetings/:meetingId/summary', async (req, res) => {
-  return res.status(200).json({ success: false, message: 'AI summary generation is currently disabled.' });
+// Debug/dev endpoints removed for security
+
+// Clients endpoint is now handled by the clients router (routes/clients.js)
+
+// DEPRECATED: Transcript upload endpoint moved to backend/src/routes/calendar.js
+// The new endpoint uses proper Supabase Auth verification and correct schema
+// Old endpoint removed - see git history for reference
+
+// Legacy endpoint removed - email generation now handled by:
+// - POST /api/calendar/meetings/:id/auto-generate-summaries (auto-generate with emailPromptEngine)
+// - POST /api/calendar/generate-summary-stream (manual streaming generation)
+
+
+// Mount Ask Advicly routes FIRST (before general /api routes)
+try {
+  logger.log('Mounting Ask Advicly routes...');
+  const askAdviclyRouter = require('./routes/ask-advicly');
+  app.use('/api/ask-advicly', askAdviclyRouter);  // Fixed path to match frontend
+  logger.log('Ask Advicly routes mounted successfully');
+} catch (error) {
+  logger.warn('Failed to mount Ask Advicly routes:', error.message);
+}
+
+// Mount Recall V2 calendar routes (webhooks already mounted before JSON middleware)
+try {
+  logger.log('Mounting Recall V2 calendar routes...');
+  const recallCalendarRouter = require('./routes/recall-calendar');
+  app.use('/api/recall', recallCalendarRouter);
+  logger.log('Recall V2 calendar routes mounted successfully');
+} catch (error) {
+  logger.warn('Failed to mount Recall V2 calendar routes:', error.message);
+}
+
+// Mount Data Import routes
+try {
+  logger.log('Mounting Data Import routes...');
+  const dataImportRouter = require('./routes/dataImport');
+  app.use('/api/data-import', dataImportRouter);
+  logger.log('Data Import routes mounted successfully');
+} catch (error) {
+  logger.warn('Failed to mount Data Import routes:', error.message);
+}
+
+// Duplicate Calendly routes removed - using proper integration above
+
+// Mount auth routes
+logger.log('🔄 Mounting auth routes...');
+app.use('/api/auth', require('./routes/auth'));
+logger.log('✅ Auth routes mounted');
+
+// User profile endpoint (for onboarding check)
+app.get('/api/users/profile', async (req, res) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
+
+        // Check if Supabase is available
+        if (!isSupabaseAvailable()) {
+            return res.status(503).json({
+                error: 'Database service unavailable. Please contact support.'
+            });
+        }
+
+        logger.log('🔑 Verifying Supabase token for /api/users/profile...');
+
+        // Use the new verification function
+        const { user: supabaseUser, error: authError } = await verifySupabaseToken(token);
+
+        if (authError || !supabaseUser) {
+            logger.error('❌ Token verification failed:', authError?.message);
+            return res.status(401).json({ error: 'Invalid or expired token' });
+        }
+
+        logger.log(`✅ Token verified for Supabase user: ${supabaseUser.email}`);
+
+        // Use UserService to get or create user
+        const UserService = require('./services/userService');
+        const user = await UserService.getOrCreateUser(supabaseUser);
+
+        res.json({
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            profilepicture: user.profilepicture,
+            onboarding_completed: user.onboarding_completed || false
+        });
+    } catch (error) {
+        logger.error('Error in /api/users/profile:', error);
+        res.status(500).json({ error: error.message || 'Failed to get user profile' });
+    }
 });
 
+logger.log('🔄 Mounting clients routes...');
 app.use('/api/clients', clientsRouter);
-app.use('/api', routes);
+logger.log('✅ Clients routes mounted');
+
+logger.log('🔄 Mounting pipeline routes...');
+app.use('/api/pipeline', pipelineRouter);
+logger.log('✅ Pipeline routes mounted');
+
+logger.log('🔄 Mounting action-items routes...');
+app.use('/api/action-items', actionItemsRouter);
+logger.log('✅ Action-items routes mounted');
+
+logger.log('🔄 Mounting transcript-action-items routes...');
+app.use('/api/transcript-action-items', require('./routes/transcriptActionItems'));
+logger.log('✅ Transcript-action-items routes mounted');
+
+logger.log('🔄 Mounting calendar routes...');
+app.use('/api/calendar', require('./routes/calendar'));
+logger.log('✅ Calendar routes mounted');
+
+logger.log('🔄 Mounting notifications routes...');
+app.use('/api/notifications', require('./routes/notifications'));
+logger.log('✅ Notifications routes mounted');
+
+logger.log('🔄 Mounting client-documents routes...');
+app.use('/api/client-documents', require('./routes/clientDocuments'));
+logger.log('✅ Client-documents routes mounted');
+
+logger.log('🔄 Mounting Calendly routes...');
+app.use('/api/calendly', require('./routes/calendly'));
+logger.log('✅ Calendly routes mounted (includes sync, status, and webhook endpoints)');
+
+logger.log('🔄 Mounting calendar-settings routes...');
+app.use('/api/calendar-connections', require('./routes/calendar-settings'));
+logger.log('✅ Calendar-settings routes mounted');
+
+logger.log('🔄 Mounting billing routes...');
+app.use('/api/billing', require('./routes/billing'));
+logger.log('✅ Billing routes mounted');
+
+logger.log('🔄 Mounting admin routes...');
+app.use('/api/admin', require('./routes/admin'));
+logger.log('✅ Admin routes mounted');
+
+logger.log('🔄 Mounting admin-tools routes...');
+app.use('/api/admin-tools', require('./routes/admin-tools'));
+logger.log('✅ Admin-tools routes mounted');
+
+logger.log('🔄 Mounting templates routes...');
+app.use('/api/templates', require('./routes/templates'));
+logger.log('✅ Templates routes mounted');
+
+logger.log('✅ All API routes mounted');
+
+// DISABLED: Routes are already mounted directly above
+// This was causing duplicate route mounting and potential conflicts
+// logger.log('🔄 Mounting main routes at /api...');
+// app.use('/api', routes);
+// logger.log('✅ Main routes mounted at /api');
+
+// ✅ ENABLED: Automatic webhook renewal scheduler
+// This handles automatic renewal of Google/Microsoft webhooks before they expire
+// Note: Polling is still disabled - this only runs webhook renewal cron jobs
+logger.log('✅ Automatic webhook renewal scheduler ENABLED');
+const syncScheduler = require('./services/syncScheduler');
+setTimeout(() => {
+  syncScheduler.start();
+  logger.log('✅ Automatic sync scheduler initialized (webhook renewal only)');
+}, 5000);
 
 const port = process.env.PORT || 8787;
 app.listen(port, () => {
-  console.log(`Backend running on port ${port}`);
-}); 
+  logger.log(`Backend running on port ${port}`);
+  logger.log('📅 Calendly automatic sync: Every 15 minutes');
+});

@@ -1,0 +1,333 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { Button } from '../../components/ui/button';
+import { LogOut } from 'lucide-react';
+import axios from 'axios';
+import BusinessProfile from './Step2_BusinessProfile';
+import CalendarSetup from './Step3_CalendarSetup';
+import SubscriptionPlan from './Step6_SubscriptionPlan';
+import Complete from './Step8_Complete';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
+
+const OnboardingFlow = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
+    const [searchParams] = useSearchParams();
+    const { user, getAccessToken, isAuthenticated, signOut } = useAuth();
+    const [currentStep, setCurrentStep] = useState(1);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Get selected plan from URL or session storage
+    // Priority: URL param > session storage > default 'free'
+    const urlPlan = searchParams.get('plan');
+    const sessionPlan = sessionStorage.getItem('selectedPlan');
+    const [selectedPlan, setSelectedPlan] = useState(urlPlan || sessionPlan || 'free');
+
+    // Update session storage when plan changes
+    useEffect(() => {
+        if (urlPlan) {
+            sessionStorage.setItem('selectedPlan', urlPlan);
+            setSelectedPlan(urlPlan);
+        }
+    }, [urlPlan]);
+
+    const [onboardingData, setOnboardingData] = useState({
+        business_name: '',
+        business_type: '',
+        team_size: null,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        calendar_provider: null,
+        tenant_id: null,
+        selected_plan: selectedPlan
+    });
+
+    // Load onboarding status on mount
+    useEffect(() => {
+        if (!isAuthenticated) {
+            navigate('/login');
+            return;
+        }
+
+        loadOnboardingStatus();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated, navigate]);
+
+    const loadOnboardingStatus = async () => {
+        try {
+            // Check if returning from Stripe checkout
+            const stepParam = searchParams.get('step');
+            if (stepParam === 'complete') {
+                // User completed payment, go to final step
+                setCurrentStep(selectedPlan === 'free' ? 4 : 5);
+                setIsLoading(false);
+                return;
+            }
+
+            // **FIX**: Check if returning from OAuth calendar connection
+            const oauthReturn = sessionStorage.getItem('oauth_return');
+            if (oauthReturn) {
+                try {
+                    const oauthData = JSON.parse(oauthReturn);
+                    console.log('🔄 Detected OAuth return:', oauthData);
+
+                    if (oauthData.success) {
+                        console.log('✅ Calendar connected successfully via OAuth, advancing to next step');
+                        // Clear the oauth_return flag
+                        sessionStorage.removeItem('oauth_return');
+
+                        // Also check for restored state from navigation
+                        const restoredData = location.state?.restoredData;
+                        if (restoredData) {
+                            console.log('✅ Restoring onboarding data from navigation state:', restoredData);
+                            setOnboardingData(prev => ({
+                                ...prev,
+                                ...restoredData
+                            }));
+                        }
+
+                        // Move to next step after calendar connection (Step 4 for free, Step 5 for paid)
+                        // Calendar is Step 3 for free plan, Step 4 for paid plan
+                        const nextStep = selectedPlan === 'free' ? 4 : 5;
+                        setCurrentStep(nextStep);
+                        setIsLoading(false);
+
+                        // Save the step to the database
+                        try {
+                            const token = await getAccessToken();
+                            await axios.put(
+                                `${API_BASE_URL}/api/auth/onboarding/step`,
+                                { step: nextStep },
+                                { headers: { Authorization: `Bearer ${token}` } }
+                            );
+                            console.log('✅ Saved onboarding step:', nextStep);
+                        } catch (saveError) {
+                            console.warn('⚠️ Could not save onboarding step:', saveError);
+                        }
+
+                        return;
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Could not parse oauth_return:', e);
+                }
+                // Clear invalid oauth_return
+                sessionStorage.removeItem('oauth_return');
+            }
+
+            const token = await getAccessToken();
+            const response = await axios.get(`${API_BASE_URL}/api/auth/onboarding/status`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            const { onboarding_completed, onboarding_step, business_name, tenant_id } = response.data;
+
+            // If onboarding is already complete, redirect to main app
+            if (onboarding_completed) {
+                console.log('✅ Onboarding already completed, redirecting to app...');
+                navigate('/meetings');
+                return;
+            }
+
+            // Resume from saved step (or start at step 2 if step is 0 or 1)
+            const resumeStep = onboarding_step > 1 ? onboarding_step : 2;
+            setCurrentStep(resumeStep);
+
+            // Load any saved data
+            setOnboardingData(prev => ({
+                ...prev,
+                business_name: business_name || '',
+                tenant_id: tenant_id || null
+            }));
+
+            setIsLoading(false);
+        } catch (error) {
+            console.error('Error loading onboarding status:', error);
+            setIsLoading(false);
+            // Start from step 2 if there's an error
+            setCurrentStep(2);
+        }
+    };
+
+    const updateOnboardingStep = async (step) => {
+        try {
+            const token = await getAccessToken();
+            await axios.put(
+                `${API_BASE_URL}/api/auth/onboarding/step`,
+                { step },
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+        } catch (error) {
+            console.error('Error updating onboarding step:', error);
+        }
+    };
+
+    const handleNext = async (stepData = {}) => {
+        // Update onboarding data with step-specific data
+        setOnboardingData(prev => ({ ...prev, ...stepData }));
+
+        // Update selected plan if it's in the step data
+        if (stepData.selected_plan) {
+            setSelectedPlan(stepData.selected_plan);
+            sessionStorage.setItem('selectedPlan', stepData.selected_plan);
+        }
+
+        // Move to next step
+        const nextStep = currentStep + 1;
+        setCurrentStep(nextStep);
+
+        // Save progress to database
+        await updateOnboardingStep(nextStep);
+    };
+
+    const handleBack = () => {
+        if (currentStep > 2) {
+            const prevStep = currentStep - 1;
+            setCurrentStep(prevStep);
+            updateOnboardingStep(prevStep);
+        }
+    };
+
+    // Removed handleSkipCalendar - no longer needed since calendar is auto-connected
+
+    const handleComplete = async () => {
+        try {
+            const token = await getAccessToken();
+            await axios.post(
+                `${API_BASE_URL}/api/auth/onboarding/complete`,
+                {},
+                { headers: { Authorization: `Bearer ${token}` } }
+            );
+
+            console.log('✅ Onboarding completed!');
+            navigate('/meetings');
+        } catch (error) {
+            console.error('Error completing onboarding:', error);
+        }
+    };
+
+    const handleSignOut = async () => {
+        const confirmed = window.confirm(
+            'Are you sure you want to sign out? Your onboarding progress will be saved.'
+        );
+
+        if (confirmed) {
+            await signOut();
+            navigate('/login');
+        }
+    };
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center">
+                <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                    <p className="text-muted-foreground">Loading...</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-background">
+            {/* Progress Bar */}
+            <div className="bg-card border-b border-border">
+                <div className="max-w-4xl mx-auto px-6 py-4">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                            <img
+                                src="https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Advicly%20(400%20x%20100%20px).svg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvQWR2aWNseSAoNDAwIHggMTAwIHB4KS5zdmciLCJpYXQiOjE3NjUyODM0NTcsImV4cCI6MTgyODM1NTQ1N30.yJa3VGx3OEyV3yrCDZ20KS2FMKr6fNiNp7McqkQ17jo"
+                                alt="Advicly"
+                                className="h-8 w-auto"
+                            />
+                            <span className="text-sm font-medium text-muted-foreground">
+                                Setup
+                            </span>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                            <span className="text-sm text-muted-foreground">
+                                Step {currentStep - 1} of {selectedPlan === 'free' ? '3' : '4'}
+                            </span>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleSignOut}
+                                className="text-muted-foreground hover:text-foreground"
+                            >
+                                <LogOut className="w-4 h-4 mr-2" />
+                                Sign out
+                            </Button>
+                        </div>
+                    </div>
+                    <div className="w-full bg-muted rounded-full h-2">
+                        <div
+                            className="bg-primary h-2 rounded-full transition-all duration-300"
+                            style={{
+                                width: `${((currentStep - 1) / (selectedPlan === 'free' ? 3 : 4)) * 100}%`
+                            }}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* Step Content */}
+            <div className="max-w-4xl mx-auto px-6 py-12">
+                {/* Step 2: Business Profile + Plan Selection */}
+                {currentStep === 2 && (
+                    <BusinessProfile
+                        data={onboardingData}
+                        onNext={handleNext}
+                        user={user}
+                    />
+                )}
+
+                {/* Step 3: Payment (ONLY for paid plans) OR Calendar Setup (for free) */}
+                {currentStep === 3 && selectedPlan !== 'free' && (
+                    <SubscriptionPlan
+                        data={onboardingData}
+                        selectedPlan={selectedPlan}
+                        onNext={handleNext}
+                        onBack={handleBack}
+                    />
+                )}
+
+                {currentStep === 3 && selectedPlan === 'free' && (
+                    <CalendarSetup
+                        data={onboardingData}
+                        onNext={handleNext}
+                        onBack={handleBack}
+                    />
+                )}
+
+                {/* Step 4: Calendar Setup (for paid) OR Complete (for free) */}
+                {currentStep === 4 && selectedPlan !== 'free' && (
+                    <CalendarSetup
+                        data={onboardingData}
+                        onNext={handleNext}
+                        onBack={handleBack}
+                    />
+                )}
+
+                {currentStep === 4 && selectedPlan === 'free' && (
+                    <Complete
+                        data={onboardingData}
+                        selectedPlan={selectedPlan}
+                        onComplete={handleComplete}
+                    />
+                )}
+
+                {/* Step 5: Complete (for paid plans) */}
+                {currentStep === 5 && selectedPlan !== 'free' && (
+                    <Complete
+                        data={onboardingData}
+                        selectedPlan={selectedPlan}
+                        onComplete={handleComplete}
+                    />
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default OnboardingFlow;
+

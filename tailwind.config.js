@@ -1,79 +1,73 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  darkMode: ["class"],
   content: ["./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
-    container: {
-      center: true,
-      padding: "2rem",
-      screens: {
-        "2xl": "1400px",
-      },
-    },
     extend: {
+      fontFamily: {
+        sans: ["Inter", "sans-serif"]
+      },
       colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
+        // Deep Dark Mode Palette
+        background: "#0A0B10",        // Deep Obsidian
+        card: "#181923",              // Frosted Black
+        border: "#292A34",            // Dark border
+        muted: "#181923",
+        'muted-foreground': "#8F90A6", // Muted Gray
+
         primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
+          DEFAULT: "#337AFF",         // Vibrant Blue
+          dark: "#1e40af",
+          foreground: "#E0E0E0",      // Soft White
         },
         secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
-        },
-        destructive: {
-          DEFAULT: "hsl(var(--destructive))",
-          foreground: "hsl(var(--destructive-foreground))",
-        },
-        muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
+          DEFAULT: "#181923",
+          foreground: "#E0E0E0",
         },
         accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
-        },
-        popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
-        },
-        card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
+          DEFAULT: "#00C49F",         // Modern Emerald
+          foreground: "#E0E0E0",
         },
         brand: {
-          DEFAULT: "#4ADE80", // Green accent
-          dark: "#1F2937",     // Dark UI background
+          emerald: "#00C49F",
+          blue: "#337AFF",
+          green: "#00C49F",           // Keep for compatibility
+          navy: "#0A0B10",
         },
+        foreground: "#E0E0E0",        // Soft White
+        'card-foreground': "#E0E0E0",
+        ring: "#337AFF",              // Vibrant Blue
       },
       borderRadius: {
-        lg: "var(--radius)",
-        md: "calc(var(--radius) - 2px)",
-        sm: "calc(var(--radius) - 4px)",
+        xl: "20px"
       },
-      fontFamily: {
-        sans: ["Inter", "sans-serif"],
+      boxShadow: {
+        'card': '0 4px 24px rgba(0, 0, 0, 0.3)',
+        'soft': '0 2px 8px rgba(0, 0, 0, 0.2)',
+        'medium': '0 4px 12px rgba(0, 0, 0, 0.25)',
+        'large': '0 8px 32px rgba(0, 0, 0, 0.35)',
+        'glow-emerald': '0 0 20px rgba(0, 196, 159, 0.25)',
+        'glow-blue': '0 0 20px rgba(51, 122, 255, 0.25)',
       },
-      keyframes: {
-        "accordion-down": {
-          from: { height: "0" },
-          to: { height: "var(--radix-accordion-content-height)" },
-        },
-        "accordion-up": {
-          from: { height: "var(--radix-accordion-content-height)" },
-          to: { height: "0" },
-        },
-      },
-      animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
-      },
-    },
+      backdropBlur: {
+        'glass': '10px',
+      }
+    }
   },
-  plugins: [require("tailwindcss-animate")],
-};
+  plugins: [
+    function ({ addUtilities }) {
+      addUtilities({
+        '.glass': {
+          'backdrop-filter': 'blur(10px)',
+          '-webkit-backdrop-filter': 'blur(10px)',
+        },
+        '.glass-card': {
+          'background': 'rgba(24, 25, 35, 0.75)',
+          'backdrop-filter': 'blur(10px)',
+          '-webkit-backdrop-filter': 'blur(10px)',
+          'border': '1px solid rgba(41, 42, 52, 0.5)',
+        },
+      });
+    },
+  ]
+}
 

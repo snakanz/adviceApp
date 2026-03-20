@@ -1,29 +1,36 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL;
+import { supabase } from '../lib/supabase';
+import logger from '../utils/logger';
+
+const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://adviceapp-9rgw.onrender.com';
 
 class ApiService {
     constructor() {
         this.baseUrl = API_BASE_URL;
-        this.token = localStorage.getItem('jwt');
     }
 
+    async getToken() {
+        // Get token from Supabase session
+        const { data: { session } } = await supabase.auth.getSession();
+        return session?.access_token || null;
+    }
+
+    // Legacy method for backward compatibility
     setToken(token) {
-        this.token = token;
-        if (token) {
-            localStorage.setItem('jwt', token);
-        } else {
-            localStorage.removeItem('jwt');
-        }
+        logger.warn('setToken() is deprecated. Tokens are now managed by Supabase Auth.');
+        // No-op - tokens are managed by Supabase
     }
 
     async request(endpoint, options = {}) {
-        const url = `${this.baseUrl}${endpoint}`;
+        const url = `${this.baseUrl}/api${endpoint}`;
         const headers = {
-    'Content-Type': 'application/json',
+            'Content-Type': 'application/json',
             ...options.headers
         };
 
-        if (this.token) {
-            headers.Authorization = `Bearer ${this.token}`;
+        // Get token from Supabase session
+        const token = await this.getToken();
+        if (token) {
+            headers.Authorization = `Bearer ${token}`;
         }
 
         try {
@@ -35,28 +42,50 @@ class ApiService {
 
             if (!response.ok) {
                 if (response.status === 401) {
-                    this.setToken(null);
-                    window.location.href = '/login';
+                    logger.warn('⚠️ 401 Unauthorized response from:', endpoint);
+
+                    // Check if we have a valid session before signing out
+                    const { data: { session } } = await supabase.auth.getSession();
+
+                    if (!session) {
+                        // No session - redirect to login
+                        logger.log('❌ No session found, redirecting to login');
+                        window.location.href = '/login';
+                    } else {
+                        // We have a session but got 401 - this might be a backend issue
+                        // Don't sign out automatically, just log the error
+                        logger.error('❌ 401 error despite having valid session. Backend may not recognize token yet.');
+                    }
+
                     throw new Error('Unauthorized');
                 }
-                throw new Error(`HTTP error! status: ${response.status}`);
+                // Try to get error details from response body
+                let errorDetails = '';
+                try {
+                    const errorBody = await response.json();
+                    logger.error('API error response:', errorBody);
+                    errorDetails = errorBody.details || errorBody.error || '';
+                } catch (e) {
+                    // Couldn't parse error body
+                }
+                throw new Error(errorDetails || `HTTP error! status: ${response.status}`);
             }
 
             const data = await response.json();
             return data;
         } catch (error) {
-            console.error('API request failed:', error);
+            logger.error('API request failed:', error);
             throw error;
         }
     }
 
     // Auth endpoints
     async getGoogleAuthUrl() {
-        return this.request('/api/calendar/auth/google');
+        return this.request('/calendar/auth/google');
     }
 
     async verifyToken() {
-        return this.request('/api/auth/verify');
+        return this.request('/auth/verify');
     }
 
     // Meetings endpoints
@@ -107,9 +136,116 @@ class ApiService {
     async getMeetingTranscript(eventId) {
         return this.request(`/calendar/meetings/${eventId}/transcript`);
     }
+
+    async autoGenerateSummaries(eventId, forceRegenerate = false) {
+        return this.request(`/calendar/meetings/${eventId}/auto-generate-summaries`, {
+            method: 'POST',
+            body: JSON.stringify({ forceRegenerate })
+        });
+    }
+
+    // Ask Advicly endpoints
+    async getThreads() {
+        return this.request('/ask-advicly/threads');
+    }
+
+    async getThreadMessages(threadId) {
+        return this.request(`/ask-advicly/threads/${threadId}/messages`);
+    }
+
+    async createThread(clientId = null, title = 'New Conversation') {
+        return this.request('/ask-advicly/threads', {
+            method: 'POST',
+            body: JSON.stringify({ clientId, title })
+        });
+    }
+
+    async sendMessage(threadId, content) {
+        return this.request(`/ask-advicly/threads/${threadId}/messages`, {
+            method: 'POST',
+            body: JSON.stringify({ content })
+        });
+    }
+
+    async updateThreadTitle(threadId, title) {
+        return this.request(`/ask-advicly/threads/${threadId}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ title })
+        });
+    }
+
+    async getClientsForMentions() {
+        return this.request('/ask-advicly/clients');
+    }
+
+    // Client avatar upload
+    async uploadClientAvatar(clientId, file) {
+        const formData = new FormData();
+        formData.append('avatar', file);
+
+        return this.request(`/clients/${clientId}/avatar`, {
+            method: 'POST',
+            body: formData,
+            headers: {} // Remove Content-Type to let browser set it for FormData
+        });
+    }
+
+    // Extract clients from meeting attendees
+    async extractClientsFromMeetings() {
+        return this.request('/clients/extract-clients', {
+            method: 'POST'
+        });
+    }
+
+    // Calendly endpoints
+    async getCalendlyStatus() {
+        return this.request('/calendly/status');
+    }
+
+    async syncCalendlyMeetings() {
+        return this.request('/calendly/sync', {
+            method: 'POST'
+        });
+    }
+
+    async testCalendlyConnection() {
+        return this.request('/calendly/test-connection');
+    }
+
+    async getCalendlyMeetings() {
+        return this.request('/calendly/meetings');
+    }
+
+    async getIntegrationStats() {
+        return this.request('/calendly/stats');
+    }
+
+    // Convenience methods for REST operations
+    async get(endpoint) {
+        return this.request(endpoint, { method: 'GET' });
+    }
+
+    async post(endpoint, body) {
+        return this.request(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(body)
+        });
+    }
+
+    async put(endpoint, body) {
+        return this.request(endpoint, {
+            method: 'PUT',
+            body: JSON.stringify(body)
+        });
+    }
+
+    async delete(endpoint) {
+        return this.request(endpoint, { method: 'DELETE' });
+    }
 }
 
 export const api = new ApiService();
+export default api; // Default export for backward compatibility
 
 export const adjustMeetingSummary = async (originalSummary, adjustmentPrompt) => {
   try {
@@ -132,33 +268,7 @@ export const adjustMeetingSummary = async (originalSummary, adjustmentPrompt) =>
     const data = await response.json();
     return data.adjustedSummary;
   } catch (error) {
-    console.error('Error adjusting summary:', error);
-    throw error;
-  }
-};
-
-export const improveTemplate = async (template, improvement) => {
-  try {
-    const response = await fetch(`${API_BASE_URL}/ai/improve-template`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': api.token ? `Bearer ${api.token}` : '',
-      },
-      body: JSON.stringify({
-        template,
-        improvement,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to improve template');
-    }
-
-    const data = await response.json();
-    return data.improvedTemplate;
-  } catch (error) {
-    console.error('Error improving template:', error);
+    logger.error('Error adjusting summary:', error);
     throw error;
   }
 }; 

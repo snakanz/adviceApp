@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stripe Setup Debugger</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 6px;
+            border-left: 4px solid #635bff;
+        }
+        .section h2 {
+            margin-top: 0;
+            color: #635bff;
+        }
+        .check-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            margin: 8px 0;
+            background: white;
+            border-radius: 4px;
+        }
+        .status {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            margin-right: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            color: white;
+        }
+        .status.success {
+            background: #00d924;
+        }
+        .status.error {
+            background: #df1b41;
+        }
+        .status.warning {
+            background: #ff8f0e;
+        }
+        .label {
+            flex: 1;
+            font-weight: 500;
+        }
+        .value {
+            font-family: 'Courier New', monospace;
+            color: #666;
+            font-size: 14px;
+        }
+        button {
+            background: #635bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #5145e5;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .log-output {
+            background: #1a1b25;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .instructions {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .instructions h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+        .instructions ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .instructions li {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Stripe Setup Debugger</h1>
+        <p class="subtitle">This tool helps diagnose Stripe payment integration issues</p>
+
+        <div class="instructions">
+            <h3>📋 How to Use This Tool:</h3>
+            <ol>
+                <li>Open your browser's Developer Console (F12 or Cmd+Option+I)</li>
+                <li>Click "Check Frontend Setup" to verify environment variables</li>
+                <li>Click "Test Backend API" to verify backend connectivity</li>
+                <li>Review the console logs for detailed debugging information</li>
+                <li>All checks should show green ✓ for the system to work</li>
+            </ol>
+        </div>
+
+        <div class="section">
+            <h2>Frontend Environment Variables</h2>
+            <div id="frontend-checks"></div>
+            <button onclick="checkFrontend()">Check Frontend Setup</button>
+        </div>
+
+        <div class="section">
+            <h2>Backend API Connection</h2>
+            <div id="backend-checks"></div>
+            <button onclick="testBackend()">Test Backend API</button>
+        </div>
+
+        <div class="section">
+            <h2>Console Logs</h2>
+            <div class="log-output" id="console-output">
+Waiting for tests to run...
+            </div>
+            <button onclick="clearLogs()">Clear Logs</button>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://adviceapp-9rgw.onrender.com';
+        let logs = [];
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️';
+            const logMessage = `[${timestamp}] ${prefix} ${message}`;
+            logs.push(logMessage);
+            console.log(logMessage);
+            updateLogDisplay();
+        }
+
+        function updateLogDisplay() {
+            const output = document.getElementById('console-output');
+            output.textContent = logs.join('\n');
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clearLogs() {
+            logs = [];
+            updateLogDisplay();
+        }
+
+        function createCheckItem(label, status, value = '') {
+            const statusClass = status === 'success' ? 'success' : status === 'error' ? 'error' : 'warning';
+            const statusIcon = status === 'success' ? '✓' : status === 'error' ? '✗' : '!';
+            
+            return `
+                <div class="check-item">
+                    <div class="status ${statusClass}">${statusIcon}</div>
+                    <div class="label">${label}</div>
+                    <div class="value">${value}</div>
+                </div>
+            `;
+        }
+
+        function checkFrontend() {
+            log('=== FRONTEND ENVIRONMENT CHECK ===');
+            const checks = document.getElementById('frontend-checks');
+            let html = '';
+
+            // Check for Stripe Public Key
+            const publicKey = 'pk_test_51S0eaJ58eL7gey1hUBDGeDvPuvz5p1UgQzwQvUZ7BnQymBIvjPJ258QRNaHNinHLOm6KRIASV71JteJCKscgPE8x00CUEog4Bq';
+            if (publicKey && publicKey.startsWith('pk_test_')) {
+                html += createCheckItem('Stripe Public Key', 'success', publicKey.substring(0, 20) + '...');
+                log('✅ Stripe Public Key: FOUND (test mode)', 'success');
+            } else {
+                html += createCheckItem('Stripe Public Key', 'error', 'MISSING or INVALID');
+                log('❌ Stripe Public Key: MISSING or INVALID', 'error');
+            }
+
+            // Check for Price IDs (these would normally come from env vars in React)
+            const monthlyPriceId = 'price_1SPnun58eL7gey1h3Grxuo4T';
+            const annualPriceId = 'price_1SQCkS58eL7gey1hMqV8qURW';
+
+            if (monthlyPriceId && monthlyPriceId.startsWith('price_')) {
+                html += createCheckItem('Monthly Price ID', 'success', monthlyPriceId);
+                log('✅ Monthly Price ID: ' + monthlyPriceId, 'success');
+            } else {
+                html += createCheckItem('Monthly Price ID', 'error', 'MISSING');
+                log('❌ Monthly Price ID: MISSING', 'error');
+            }
+
+            if (annualPriceId && annualPriceId.startsWith('price_')) {
+                html += createCheckItem('Annual Price ID', 'success', annualPriceId);
+                log('✅ Annual Price ID: ' + annualPriceId, 'success');
+            } else {
+                html += createCheckItem('Annual Price ID', 'error', 'MISSING');
+                log('❌ Annual Price ID: MISSING', 'error');
+            }
+
+            // Check Stripe.js library
+            if (typeof Stripe !== 'undefined') {
+                html += createCheckItem('Stripe.js Library', 'success', 'Loaded');
+                log('✅ Stripe.js library is loaded', 'success');
+            } else {
+                html += createCheckItem('Stripe.js Library', 'error', 'NOT LOADED');
+                log('❌ Stripe.js library is NOT loaded', 'error');
+            }
+
+            checks.innerHTML = html;
+            log('Frontend check complete\n');
+        }
+
+        async function testBackend() {
+            log('=== BACKEND API TEST ===');
+            const checks = document.getElementById('backend-checks');
+            let html = '';
+
+            // Test backend connectivity
+            try {
+                log('Testing backend connectivity...');
+                const response = await fetch(`${API_BASE_URL}/health`);
+                
+                if (response.ok) {
+                    html += createCheckItem('Backend Server', 'success', 'Online');
+                    log('✅ Backend server is online', 'success');
+                } else {
+                    html += createCheckItem('Backend Server', 'warning', `HTTP ${response.status}`);
+                    log(`⚠️ Backend responded with status ${response.status}`, 'warning');
+                }
+            } catch (error) {
+                html += createCheckItem('Backend Server', 'error', 'Offline or unreachable');
+                log('❌ Backend server error: ' + error.message, 'error');
+            }
+
+            // Note about authentication
+            html += createCheckItem('Checkout Endpoint', 'warning', 'Requires authentication');
+            log('ℹ️ Checkout endpoint requires Supabase authentication', 'info');
+            log('ℹ️ To test checkout, use the actual app with a logged-in user', 'info');
+
+            checks.innerHTML = html;
+            log('Backend test complete\n');
+        }
+
+        // Load Stripe.js
+        const script = document.createElement('script');
+        script.src = 'https://js.stripe.com/v3/';
+        script.onload = () => {
+            log('Stripe.js library loaded successfully', 'success');
+        };
+        script.onerror = () => {
+            log('Failed to load Stripe.js library', 'error');
+        };
+        document.head.appendChild(script);
+
+        log('Debugger ready. Click the buttons above to run checks.');
+    </script>
+</body>
+</html>
+

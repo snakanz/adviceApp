@@ -1,13 +1,22 @@
-import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
 import GoogleIcon from '../components/GoogleIcon';
+import OutlookIcon from '../components/OutlookIcon';
 
 const LoginPage = () => {
     const navigate = useNavigate();
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, signInWithEmail, signInWithOAuth } = useAuth();
+    const [formData, setFormData] = useState({
+        email: '',
+        password: ''
+    });
+    const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
         if (isAuthenticated) {
@@ -15,34 +24,187 @@ const LoginPage = () => {
         }
     }, [isAuthenticated, navigate]);
 
+    const handleChange = (e) => {
+        setFormData({
+            ...formData,
+            [e.target.name]: e.target.value
+        });
+        setError(''); // Clear error when user types
+    };
+
+    const handleEmailLogin = async (e) => {
+        e.preventDefault();
+        setError('');
+
+        if (!formData.email.trim() || !formData.password) {
+            setError('Please enter both email and password');
+            return;
+        }
+
+        setIsLoading(true);
+
+        try {
+            const result = await signInWithEmail(formData.email, formData.password);
+
+            if (!result.success) {
+                setError(result.error || 'Login failed');
+                setIsLoading(false);
+                return;
+            }
+
+            // Success - AuthContext will handle redirect
+            console.log('✅ Login successful');
+        } catch (err) {
+            console.error('Login error:', err);
+            setError('An unexpected error occurred');
+            setIsLoading(false);
+        }
+    };
+
     const handleGoogleLogin = async () => {
-        const response = await fetch(`${process.env.REACT_APP_API_URL}/auth/google`);
-        const data = await response.json();
-        window.location.href = data.url;
+        try {
+            setError('');
+            const result = await signInWithOAuth('google', {
+                redirectTo: `${window.location.origin}/auth/callback`
+            });
+
+            if (!result.success) {
+                console.error('Login error:', result.error);
+                setError(`Login error: ${result.error}`);
+            }
+            // Supabase will redirect to Google OAuth automatically
+        } catch (error) {
+            console.error('Login error:', error);
+            setError(`Login error: ${error.message}`);
+        }
+    };
+
+    const handleMicrosoftLogin = async () => {
+        try {
+            setError('');
+            const result = await signInWithOAuth('azure', {
+                redirectTo: `${window.location.origin}/auth/callback`
+            });
+
+            if (!result.success) {
+                console.error('Microsoft login error:', result.error);
+                setError(`Microsoft login error: ${result.error}`);
+            }
+            // Supabase will redirect to Microsoft OAuth automatically
+        } catch (error) {
+            console.error('Microsoft login error:', error);
+            setError(`Microsoft login error: ${error.message}`);
+        }
     };
 
     return (
         <div className="min-h-screen bg-background flex items-center justify-center p-6">
             <div className="w-full max-w-md">
-                <Card className="shadow-lg border-0">
+                <Card className="shadow-large border-border/50 bg-card/80 backdrop-blur-sm">
                     <CardHeader className="text-center space-y-4">
-                        <CardTitle className="text-3xl font-bold text-foreground">
+                        <div className="flex justify-center mb-4">
+                            <img
+                                src="https://xjqjzievgepqpgtggcjx.supabase.co/storage/v1/object/sign/assets/Advicly%20(400%20x%20100%20px).svg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV81NTIwYjQ4Yi00ZTE5LTQ1ZGQtYTYxNC1kZTk5NzMwZTBiMmQiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJhc3NldHMvQWR2aWNseSAoNDAwIHggMTAwIHB4KS5zdmciLCJpYXQiOjE3NjUyODM0NTcsImV4cCI6MTgyODM1NTQ1N30.yJa3VGx3OEyV3yrCDZ20KS2FMKr6fNiNp7McqkQ17jo"
+                                alt="Advicly Logo"
+                                className="h-12 w-auto"
+                            />
+                        </div>
+                        <CardTitle className="text-2xl font-bold text-foreground">
                             Welcome to Advicly
                         </CardTitle>
                         <CardDescription className="text-base text-muted-foreground max-w-sm mx-auto">
-                            Your AI-powered dashboard for managing meetings, clients, and insights. 
-                            Sign in with your Google account to get started.
+                            Your AI-powered dashboard for managing meetings, clients, and insights.
+                            Sign in with your account to get started.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                        <Button
-                            onClick={handleGoogleLogin}
-                            className="w-full h-12 text-base font-medium bg-blue-600 hover:bg-blue-700 text-white border-0 shadow-md hover:shadow-lg transition-all duration-200"
-                        >
-                            <GoogleIcon size={20} className="mr-2" />
-                            Sign in with Google
-                        </Button>
-                        
+                        {/* OAuth Sign In Buttons */}
+                        <div className="space-y-3">
+                            <Button
+                                onClick={handleGoogleLogin}
+                                className="w-full h-12 text-base font-medium bg-card hover:bg-card/80 text-foreground border border-border/30 shadow-soft hover:shadow-medium transition-all duration-150"
+                                disabled={isLoading}
+                            >
+                                <GoogleIcon size={20} className="mr-3" />
+                                Sign in with Google
+                            </Button>
+
+                            <Button
+                                onClick={handleMicrosoftLogin}
+                                className="w-full h-12 text-base font-medium bg-card hover:bg-card/80 text-foreground border border-border/30 shadow-soft hover:shadow-medium transition-all duration-150"
+                                disabled={isLoading}
+                            >
+                                <OutlookIcon size={20} className="mr-3" />
+                                Sign in with Microsoft
+                            </Button>
+                        </div>
+
+                        <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                                <span className="w-full border-t border-border" />
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-card px-2 text-muted-foreground">
+                                    Or continue with email
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Email Login Form */}
+                        <form onSubmit={handleEmailLogin} className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="email">Email</Label>
+                                <Input
+                                    id="email"
+                                    name="email"
+                                    type="email"
+                                    placeholder="you@example.com"
+                                    value={formData.email}
+                                    onChange={handleChange}
+                                    disabled={isLoading}
+                                    required
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="password">Password</Label>
+                                <Input
+                                    id="password"
+                                    name="password"
+                                    type="password"
+                                    placeholder="••••••••"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    disabled={isLoading}
+                                    required
+                                />
+                            </div>
+
+                            {error && (
+                                <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                                    {error}
+                                </div>
+                            )}
+
+                            <Button
+                                type="submit"
+                                className="w-full h-12 text-base font-medium"
+                                disabled={isLoading}
+                            >
+                                {isLoading ? 'Signing in...' : 'Sign in'}
+                            </Button>
+                        </form>
+
+                        <div className="text-center text-sm text-muted-foreground">
+                            Don't have an account?{' '}
+                            <Link
+                                to="/register"
+                                className="text-primary hover:underline font-medium"
+                            >
+                                Sign up
+                            </Link>
+                        </div>
+
                         <p className="text-xs text-muted-foreground text-center">
                             By signing in, you agree to our Terms of Service and Privacy Policy
                         </p>

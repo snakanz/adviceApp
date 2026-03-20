@@ -1,5 +1,7 @@
 const { google } = require('googleapis');
 const recallService = require('./recall');
+const { getSupabase } = require('../lib/supabase');
+const { encrypt, decrypt } = require('../utils/encryption');
 
 class CalendarService {
   constructor() {
@@ -29,19 +31,19 @@ class CalendarService {
     try {
       const { tokens } = await this.oauth2Client.getToken(code);
       
-      // Store tokens in database
+      // Store tokens in database (encrypted at rest)
       await prisma.calendarToken.upsert({
         where: { userId },
         update: {
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token || undefined,
+          accessToken: encrypt(tokens.access_token),
+          refreshToken: tokens.refresh_token ? encrypt(tokens.refresh_token) : undefined,
           expiresAt: new Date(tokens.expiry_date),
           provider: 'google'
         },
         create: {
           userId,
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
+          accessToken: encrypt(tokens.access_token),
+          refreshToken: encrypt(tokens.refresh_token),
           expiresAt: new Date(tokens.expiry_date),
           provider: 'google'
         }
@@ -65,8 +67,8 @@ class CalendarService {
       }
 
       this.oauth2Client.setCredentials({
-        access_token: userTokens.accessToken,
-        refresh_token: userTokens.refreshToken
+        access_token: decrypt(userTokens.accessToken),
+        refresh_token: decrypt(userTokens.refreshToken)
       });
 
       const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
@@ -139,8 +141,8 @@ class CalendarService {
       }
 
       this.oauth2Client.setCredentials({
-        access_token: userTokens.accessToken,
-        refresh_token: userTokens.refreshToken
+        access_token: decrypt(userTokens.accessToken),
+        refresh_token: decrypt(userTokens.refreshToken)
       });
 
       const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
@@ -171,8 +173,8 @@ class CalendarService {
       }
 
       this.oauth2Client.setCredentials({
-        access_token: userTokens.accessToken,
-        refresh_token: userTokens.refreshToken
+        access_token: decrypt(userTokens.accessToken),
+        refresh_token: decrypt(userTokens.refreshToken)
       });
 
       const calendar = google.calendar({ version: 'v3', auth: this.oauth2Client });
@@ -233,21 +235,27 @@ class CalendarService {
   }
 
   async getAuthClient(userId) {
-    const userTokens = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { 
-        googleAccessToken: true,
-        googleRefreshToken: true
-      }
-    });
+    // Get user's active Google Calendar connection from calendar_connections table
+    const { data: connection, error } = await getSupabase()
+      .from('calendar_connections')
+      .select('access_token, refresh_token, token_expires_at')
+      .eq('user_id', userId)
+      .eq('provider', 'google')
+      .eq('is_active', true)
+      .single();
 
-    if (!userTokens?.googleAccessToken) {
+    if (error || !connection?.access_token) {
+      console.error('Calendar connection query error:', error);
+      console.error('Looking for user ID:', userId);
       throw new Error('User not connected to Google Calendar');
     }
 
+    const expiresAt = connection.token_expires_at ? new Date(connection.token_expires_at).getTime() : null;
+
     this.oauth2Client.setCredentials({
-      access_token: userTokens.googleAccessToken,
-      refresh_token: userTokens.googleRefreshToken
+      access_token: decrypt(connection.access_token),
+      refresh_token: decrypt(connection.refresh_token),
+      expiry_date: expiresAt
     });
 
     return this.oauth2Client;
@@ -255,47 +263,51 @@ class CalendarService {
 
   async listMeetings(userId) {
     try {
-      const auth = await this.getAuthClient(userId);
-      const calendar = google.calendar({ version: 'v3', auth });
-      
-      // Get current date and date 2 weeks ago
       const now = new Date();
       const twoWeeksAgo = new Date();
       twoWeeksAgo.setDate(now.getDate() - 14);
 
-      const response = await calendar.events.list({
-        calendarId: 'primary',
-        timeMin: twoWeeksAgo.toISOString(),
-        maxResults: 100,
-        singleEvents: true,
-        orderBy: 'startTime'
-      });
+      // ✅ FIX: Query database for ALL meetings (Google, Calendly, manual, Outlook)
+      // This is the single source of truth for meetings
+      const { data: meetings, error } = await getSupabase()
+        .from('meetings')
+        .select('*')
+        .eq('user_id', userId)
+        .or('is_deleted.is.null,is_deleted.eq.false')
+        .gte('starttime', twoWeeksAgo.toISOString())
+        .order('starttime', { ascending: true });
 
-      // Get meeting records from our database
-      const meetingRecords = await prisma.meeting.findMany({
-        where: {
-          userId,
-          googleEventId: {
-            in: response.data.items.map(event => event.id)
-          }
-        }
-      });
+      if (error) {
+        console.error('Error fetching meetings from database:', error);
+        throw error;
+      }
 
-      // Map meeting records to their Google Calendar events
-      const meetingRecordsMap = new Map(
-        meetingRecords.map(record => [record.googleEventId, record])
-      );
-
-      // Combine Google Calendar data with our database records
-      return response.data.items.map(event => {
-        const meetingRecord = meetingRecordsMap.get(event.id);
-        const eventEndTime = new Date(event.end.dateTime || event.end.date);
-        
+      // Format meetings for frontend
+      return (meetings || []).map(meeting => {
+        const eventEndTime = new Date(meeting.endtime || meeting.starttime);
         return {
-          ...event,
-          hasRecording: !!meetingRecord?.recallBotId,
-          hasTranscript: !!meetingRecord?.transcript,
-          hasSummary: !!meetingRecord?.summary,
+          id: meeting.external_id || meeting.id,
+          title: meeting.title,
+          summary: meeting.summary,
+          description: meeting.description,
+          start: {
+            dateTime: meeting.starttime
+          },
+          end: {
+            dateTime: meeting.endtime
+          },
+          attendees: meeting.attendees,
+          location: meeting.location,
+          source: meeting.meeting_source,
+          external_id: meeting.external_id,
+          client_id: meeting.client_id,
+          transcript: meeting.transcript,
+          quick_summary: meeting.quick_summary,
+          detailed_summary: meeting.detailed_summary,
+          action_points: meeting.action_points,
+          hasRecording: !!meeting.recallbotid,
+          hasTranscript: !!meeting.transcript,
+          hasSummary: !!meeting.quick_summary || !!meeting.detailed_summary,
           isPast: eventEndTime < now
         };
       });

@@ -1,0 +1,18 @@
+name = "adviceapp"
+compatibility_date = "2024-01-15"
+
+pages_build_output_dir = "build"
+
+[env.production]
+name = "adviceapp"
+
+[env.production.vars]
+REACT_APP_API_BASE_URL = "https://adviceapp-9rgw.onrender.com"
+REACT_APP_SUPABASE_URL = "https://xjqjzievgepqpgtggcjx.supabase.co"
+REACT_APP_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhqcWp6aWV2Z2VwcXBndGdnY2p4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE5ODYyNTksImV4cCI6MjA2NzU2MjI1OX0.dWBeOIQ-Je3FfKtT4npLZgmIkaMUtquXrk64Jeg6yxk"
+REACT_APP_STRIPE_PUBLIC_KEY = "pk_live_51SOea68pX9CD6MrRlePRZ8H1VpKUoaXL5jZegZWqHpLhOgtpLaHUpg0QNLN5jucpIXDFUdza1TDUVKX2d5D2ux5M00hGbCA1mg"
+REACT_APP_STRIPE_PRICE_ID = "price_1ScnIQ8pX9CD6MrRRdqA0Im6"
+REACT_APP_STRIPE_PRICE_ID_ANNUAL = "price_1ScnIw8pX9CD6MrRavfeoYS6"
+
+# Production deployment: adviceapp.pages.dev
+# Custom domain: advicly.app (to be configured)
